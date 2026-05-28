@@ -1,0 +1,46 @@
+{
+  "name": "stemlm-app",
+  "description": "stemLM — a structured STEM learning overlay for AI chatbots (ChatGPT, Claude, Gemini)",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.7",
+    "framer-motion": "^12.23.30",
+    "html2pdf.js": "^0.12.1",
+    "katex": "^0.16.25",
+    "mermaid": "^11.12.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/katex": "^0.16.7",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@wxt-dev/module-react": "^1.1.3",
+    "happy-dom": "^20.0.0",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wxt": "^0.20.26"
+  }
+}

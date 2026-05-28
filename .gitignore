@@ -1,0 +1,9 @@
+node_modules/
+.output/
+.wxt/
+stats.html
+*.log
+.env
+.env.local
+.DS_Store
+dist/

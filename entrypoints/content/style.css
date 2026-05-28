@@ -1,0 +1,11 @@
+@import '../../assets/tailwind.css';
+@import 'katex/dist/katex.min.css';
+
+/* Shadow-root host should not interfere with the page layout. */
+:host {
+  all: initial;
+}
+
+#stemlm-app {
+  font-family: var(--font-sans);
+}

@@ -1,0 +1,46 @@
+@import 'tailwindcss';
+
+/*
+ * stemLM design tokens. Theme is driven by the `data-theme` attribute on the
+ * shadow-root host (set by lib/theme.ts). We expose semantic CSS variables so
+ * components can stay theme-agnostic.
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+  --radius-card: 1rem;
+}
+
+:where([data-stemlm-theme]) {
+  --slm-bg: #ffffff;
+  --slm-bg-subtle: #f6f7f9;
+  --slm-bg-elevated: #ffffff;
+  --slm-border: #e6e8ec;
+  --slm-fg: #14161a;
+  --slm-fg-muted: #5b616e;
+  --slm-fg-subtle: #868d99;
+  --slm-accent: #6d5efc;
+  --slm-accent-fg: #ffffff;
+  --slm-accent-soft: #eeebff;
+  --slm-success: #18a957;
+  --slm-warning: #d98a00;
+  --slm-shadow: 0 1px 2px rgba(16, 18, 24, 0.04), 0 8px 24px rgba(16, 18, 24, 0.06);
+  --slm-ring: rgba(109, 94, 252, 0.35);
+}
+
+[data-stemlm-theme='dark'] {
+  --slm-bg: #0e0f13;
+  --slm-bg-subtle: #16181f;
+  --slm-bg-elevated: #1a1d25;
+  --slm-border: #262a33;
+  --slm-fg: #f2f4f8;
+  --slm-fg-muted: #a6adba;
+  --slm-fg-subtle: #757d8c;
+  --slm-accent: #8c7dff;
+  --slm-accent-fg: #0e0f13;
+  --slm-accent-soft: #211d3a;
+  --slm-success: #34d17e;
+  --slm-warning: #f0a93a;
+  --slm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --slm-ring: rgba(140, 125, 255, 0.45);
+}
