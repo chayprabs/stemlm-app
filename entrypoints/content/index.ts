@@ -10,12 +10,17 @@ import { initController, getController } from '@/src/content/controller';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
 import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
+import {
+  loadMirroredSessions,
+  mirrorActiveSessions,
+  onMirroredSessionsChanged,
+} from '@/src/lib/session-sync';
 
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
  * isolated Shadow DOM (per-tab), detects the platform, and wires the
  * orchestration controller. Theme follows the user's system preference unless
- * overridden in settings.
+ * overridden in settings. Sessions are per-tab unless "Share across tabs" is on.
  */
 export default defineContentScript({
   matches: [
@@ -36,10 +41,13 @@ export default defineContentScript({
 
     initController(adapter);
 
-    // Seed reactive state.
     useStore.getState().setSettings(settings);
-    const initialTheme = resolveTheme(settings.theme);
-    useStore.getState().setTheme(initialTheme);
+    useStore.getState().setTheme(resolveTheme(settings.theme));
+
+    if (settings.shareAcrossTabs) {
+      const shared = await loadMirroredSessions();
+      if (shared.length) useStore.getState().setSessions(shared);
+    }
 
     let host: HTMLElement | null = null;
 
@@ -65,27 +73,44 @@ export default defineContentScript({
 
     ui.mount();
 
-    // Keep the shadow host's theme attribute in sync with the store.
+    let lastSessions = useStore.getState().sessions;
     useStore.subscribe((state) => {
       if (host) applyTheme(host, state.theme);
+      if (state.settings.shareAcrossTabs && state.sessions !== lastSessions) {
+        lastSessions = state.sessions;
+        void mirrorActiveSessions(state.sessions);
+      }
     });
 
-    // Follow system theme changes while in "auto".
+    const stopMirrorWatch = onMirroredSessionsChanged((shared) => {
+      if (useStore.getState().settings.shareAcrossTabs) {
+        const current = useStore.getState();
+        if (JSON.stringify(current.sessions) !== JSON.stringify(shared)) {
+          useStore.setState({
+            sessions: shared,
+            activeSessionId: shared[shared.length - 1]?.id ?? current.activeSessionId,
+          });
+        }
+      }
+    });
+
     const stopSystemWatch = watchSystemTheme((theme) => {
       if (useStore.getState().settings.theme === 'auto') {
         useStore.getState().setTheme(theme);
       }
     });
 
-    // React to settings changes from the options page.
     const stopSettingsWatch = onSettingsChanged((next) => {
       useStore.getState().setSettings(next);
       useStore.getState().setTheme(resolveTheme(next.theme));
     });
 
-    // Toolbar icon → open the panel (load mode handled by the empty state UI).
     const onMessage = (msg: unknown) => {
-      if (typeof msg === 'object' && msg && (msg as { type?: string }).type === 'stemlm:open-panel') {
+      const type = typeof msg === 'object' && msg ? (msg as { type?: string }).type : undefined;
+      if (type === 'stemlm:open-panel') {
+        useStore.getState().openPanel();
+      } else if (type === 'stemlm:load-conversation') {
+        getController()?.loadConversation();
         useStore.getState().openPanel();
       }
     };
@@ -94,6 +119,7 @@ export default defineContentScript({
     ctx.onInvalidated(() => {
       stopSystemWatch();
       stopSettingsWatch();
+      stopMirrorWatch();
       browser.runtime.onMessage.removeListener(onMessage);
       getController()?.stopWatching();
     });

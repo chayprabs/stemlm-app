@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
@@ -7,10 +7,10 @@ import { ProgressRail } from './ProgressRail';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
+import { SelectionPopover } from './SelectionPopover';
 import { IconChevronLeft, IconChevronRight } from './icons';
 import { saveSession, isSessionSaved } from '@/src/lib/saved-sessions';
 import { setSettings } from '@/src/lib/settings';
-import { resolveTheme } from '@/src/lib/theme';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
 
@@ -36,6 +36,7 @@ export function Panel() {
   } = useStore();
   const session = useActiveSession();
   const [saved, setSaved] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (session) isSessionSaved(session.id).then(setSaved);
@@ -69,6 +70,7 @@ export function Panel() {
 
   return (
     <motion.aside
+      ref={panelRef}
       className="slm-panel"
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
@@ -167,6 +169,14 @@ export function Panel() {
 
         {session && view === 'solution' && <SolutionView session={session} theme={theme} />}
       </div>
+
+      {session && (
+        <SelectionPopover
+          containerRef={panelRef}
+          subject={session.capsule.meta.subject}
+          stepTitle={view === 'steps' ? step?.title : undefined}
+        />
+      )}
     </motion.aside>
   );
 }
