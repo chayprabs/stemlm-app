@@ -1,0 +1,7 @@
+minimumReleaseAge: 0
+verifyDepsBeforeRun: false
+onlyBuiltDependencies:
+  - core-js
+  - esbuild
+  - sharp
+  - spawn-sync
