@@ -13,6 +13,33 @@ const base = (props: SVGProps<SVGSVGElement>) => ({
   ...props,
 });
 
+/**
+ * stemLM logo mark: ascending bars = "structured, step-by-step". Single-colour
+ * (fill=currentColor) so it sits cleanly on the host-adaptive overlay button.
+ */
+export const IconLogo = (p: SVGProps<SVGSVGElement>) => (
+  <svg
+    width={18}
+    height={18}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="none"
+    {...p}
+  >
+    <rect x="3" y="14" width="4.4" height="7" rx="1.3" />
+    <rect x="9.8" y="9" width="4.4" height="12" rx="1.3" />
+    <rect x="16.6" y="4" width="4.4" height="17" rx="1.3" />
+    <circle cx="5.2" cy="9.4" r="2.1" />
+    <path d="M6.7 10.9 L9.6 13.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+export const IconChevronDown = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ width: 12, height: 12, ...p })}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
 export const IconSpark = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />
