@@ -50,6 +50,22 @@ export function Panel() {
     if (panelOpen) panelRef.current?.focus();
   }, [panelOpen]);
 
+  // Make the panel responsive to its own (variable) width: tag it narrow/mid/
+  // wide so CSS can adapt layout density independent of the viewport.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const apply = (w: number) => {
+      el.dataset.width = w < 430 ? 'narrow' : w < 640 ? 'mid' : 'wide';
+    };
+    apply(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) apply(e.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [panelOpen]);
+
   if (!panelOpen) return null;
 
   const total = session?.capsule.steps.length ?? 0;

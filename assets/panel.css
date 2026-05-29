@@ -805,6 +805,69 @@
   background: transparent;
 }
 
+/* ---------- responsiveness (adapts to the panel's own width) ---------- */
+/* Overflow safety at every width: nothing should cause horizontal scroll. */
+.slm-card,
+.slm-steps-main,
+.slm-solution {
+  min-width: 0;
+}
+.slm-prose {
+  overflow-wrap: break-word;
+}
+.slm-prose .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+.slm-formula .katex-display {
+  margin: 0;
+}
+
+/* Narrow panel: tighten paddings, collapse the rail to dots, let nav wrap. */
+.slm-panel[data-width='narrow'] .slm-body {
+  padding: 0.7rem;
+}
+.slm-panel[data-width='narrow'] .slm-header {
+  padding: 0.7rem 0.8rem 0.5rem;
+}
+.slm-panel[data-width='narrow'] .slm-topic {
+  font-size: 0.95rem;
+}
+.slm-panel[data-width='narrow'] .slm-steps-layout {
+  gap: 0.55rem;
+}
+.slm-panel[data-width='narrow'] .slm-card {
+  padding: 0.8rem;
+}
+.slm-panel[data-width='narrow'] .slm-rail-dot {
+  max-width: 1.6rem;
+}
+.slm-panel[data-width='narrow'] .slm-rail-dot-label {
+  display: none;
+}
+.slm-panel[data-width='narrow'] .slm-stepnav {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+.slm-panel[data-width='narrow'] .slm-card-head {
+  grid-template-columns: 1fr;
+  grid-template-areas: 'step' 'title' 'review';
+}
+.slm-panel[data-width='narrow'] .slm-review {
+  justify-self: start;
+}
+.slm-panel[data-width='narrow'] .slm-tab {
+  padding: 0.32rem 0.55rem;
+}
+
+/* Wide panel: always show the step labels in the rail. */
+.slm-panel[data-width='wide'] .slm-rail-dot-label {
+  opacity: 1;
+}
+
 /* ---------- selection popover ---------- */
 .slm-selpop {
   position: fixed;
