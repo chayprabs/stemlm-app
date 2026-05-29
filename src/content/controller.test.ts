@@ -104,7 +104,9 @@ describe('StemController capture loop', () => {
     vi.useRealTimers();
   });
 
-  it('waits while the assistant is still streaming', () => {
+  it('captures a complete capsule even if a stop/streaming indicator lingers', () => {
+    // A terminating @end means the answer is finished regardless of whether a
+    // "stop" button is still in the DOM — this is the fix for stuck-loading.
     vi.useFakeTimers();
     const adapter = new MockAdapter();
     adapter.streaming = true;
@@ -113,14 +115,47 @@ describe('StemController capture loop', () => {
 
     c.startWatching();
     vi.advanceTimersByTime(500);
+
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+    vi.useRealTimers();
+  });
+
+  it('does not capture a partial capsule until it has been stable', () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    // Partial capsule: has @meta + a step but no terminating @end.
+    const partial = '@meta\nsubject: Physics\ntopic: Motion\n@endmeta\n@step\ntitle: Setup\n@body\nstart\n@endbody\n@endstep';
+    adapter.streaming = true;
+    adapter.capsules = [partial];
+    const c = new StemController(adapter);
+
+    c.startWatching();
+    // After the debounce but before the stability window: no capture yet.
+    vi.advanceTimersByTime(500);
     expect(useStore.getState().sessions).toHaveLength(0);
 
-    adapter.streaming = false;
-    // a later DOM mutation would re-schedule a check; simulate by re-arming.
+    // Once the text has been completely stable past the stability window it is
+    // captured tolerantly — without ever needing the streaming flag to clear.
+    vi.advanceTimersByTime(1600);
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().sessions[0]!.capsule.meta.subject).toBe('Physics');
     c.stopWatching();
+    vi.useRealTimers();
+  });
+
+  it('fires the answer-started callback when an assistant capsule appears', () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    adapter.capsules = [CAPSULE_BODY];
+    const c = new StemController(adapter);
+    let started = 0;
+    c.setOnAnswerStarted(() => (started += 1));
+
     c.startWatching();
     vi.advanceTimersByTime(500);
-    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(started).toBe(1);
     c.stopWatching();
     vi.useRealTimers();
   });

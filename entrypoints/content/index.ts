@@ -41,7 +41,16 @@ export default defineContentScript({
     const settings = await getSettings();
     if (!settings.enabledPlatforms[adapter.id]) return;
 
-    initController(adapter);
+    const controller = initController(adapter);
+    // Open the study panel only once the assistant actually starts answering
+    // (not the moment we inject), so the panel never appears while the user is
+    // still typing. Honour the user's auto-open preference.
+    controller.setOnAnswerStarted(() => {
+      if (useStore.getState().settings.autoOpenOnInject) {
+        useStore.getState().openPanel();
+        void trackEvent('panel_opened', { platform: adapter.id, source: 'answer' });
+      }
+    });
 
     useStore.getState().setSettings(settings);
     useStore.getState().setTheme(resolveTheme(settings.theme));
