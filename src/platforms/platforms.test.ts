@@ -3,6 +3,9 @@ import { detectAdapter, adapterById } from './detect';
 import { chatgptAdapter } from './chatgpt';
 import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
+import { perplexityAdapter } from './perplexity';
+import { grokAdapter } from './grok';
+import { deepseekAdapter } from './deepseek';
 import { setEditorText, getEditorTextOf } from './factory';
 
 const CAPSULE_BODY = [
@@ -28,15 +31,31 @@ describe('detectAdapter', () => {
     expect(detectAdapter('chat.openai.com')?.id).toBe('chatgpt');
     expect(detectAdapter('claude.ai')?.id).toBe('claude');
     expect(detectAdapter('gemini.google.com')?.id).toBe('gemini');
+    expect(detectAdapter('www.perplexity.ai')?.id).toBe('perplexity');
+    expect(detectAdapter('perplexity.ai')?.id).toBe('perplexity');
+    expect(detectAdapter('grok.com')?.id).toBe('grok');
+    expect(detectAdapter('chat.deepseek.com')?.id).toBe('deepseek');
   });
 
   it('returns null for unsupported hosts', () => {
     expect(detectAdapter('example.com')).toBeNull();
     expect(detectAdapter('notchatgpt.com.evil.com')).toBeNull();
+    expect(detectAdapter('perplexity.ai.evil.com')).toBeNull();
   });
 
   it('looks up by id', () => {
     expect(adapterById('gemini')?.label).toBe('Gemini');
+    expect(adapterById('perplexity')?.label).toBe('Perplexity');
+    expect(adapterById('grok')?.label).toBe('Grok');
+    expect(adapterById('deepseek')?.label).toBe('DeepSeek');
+  });
+
+  it('every adapter exposes a brand palette and layout roots', () => {
+    for (const id of ['chatgpt', 'claude', 'gemini', 'perplexity', 'grok', 'deepseek'] as const) {
+      const a = adapterById(id)!;
+      expect(a.brand.accent).toMatch(/^#[0-9a-f]{3,8}$/i);
+      expect(a.layoutRoots.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -117,6 +136,83 @@ describe('Gemini adapter', () => {
 
   it('extracts the capsule from code-block', () => {
     const caps = geminiAdapter.extractCapsules();
+    expect(caps.length).toBeGreaterThanOrEqual(1);
+    expect(caps[0]).toContain('@meta');
+  });
+});
+
+describe('Perplexity adapter', () => {
+  beforeEach(() => {
+    setBody(`
+      <main>
+        <textarea placeholder="Ask anything"></textarea>
+        <button aria-label="Submit">Go</button>
+      </main>
+      <div id="markdown-content-0" class="prose">
+        <pre><code>${CAPSULE_BODY}</code></pre>
+      </div>
+    `);
+  });
+
+  it('finds the editor (textarea) and inserts a prompt', () => {
+    expect(perplexityAdapter.findEditor()).not.toBeNull();
+    expect(perplexityAdapter.insertPrompt('hi there')).toBe(true);
+    expect(perplexityAdapter.getEditorText()).toContain('hi there');
+  });
+
+  it('extracts the capsule', () => {
+    const caps = perplexityAdapter.extractCapsules();
+    expect(caps.length).toBeGreaterThanOrEqual(1);
+    expect(caps[0]).toContain('@meta');
+  });
+});
+
+describe('Grok adapter', () => {
+  beforeEach(() => {
+    setBody(`
+      <main>
+        <textarea aria-label="Ask Grok anything"></textarea>
+        <button type="submit">Send</button>
+      </main>
+      <div class="message-bubble">
+        <pre><code>${CAPSULE_BODY}</code></pre>
+      </div>
+    `);
+  });
+
+  it('finds the editor and composer anchor', () => {
+    expect(grokAdapter.findEditor()).not.toBeNull();
+    expect(grokAdapter.getComposerAnchor()).not.toBeNull();
+  });
+
+  it('extracts the capsule', () => {
+    const caps = grokAdapter.extractCapsules();
+    expect(caps.length).toBeGreaterThanOrEqual(1);
+    expect(caps[0]).toContain('@meta');
+  });
+});
+
+describe('DeepSeek adapter', () => {
+  beforeEach(() => {
+    setBody(`
+      <main>
+        <textarea id="chat-input"></textarea>
+        <div role="button" aria-disabled="false">Send</div>
+      </main>
+      <div class="ds-markdown">
+        <pre><code>${CAPSULE_BODY}</code></pre>
+      </div>
+    `);
+  });
+
+  it('finds the editor (textarea#chat-input) and inserts a prompt', () => {
+    expect(deepseekAdapter.findEditor()).not.toBeNull();
+    expect(deepseekAdapter.insertPrompt('solve x')).toBe(true);
+    expect(deepseekAdapter.getEditorText()).toContain('solve x');
+  });
+
+  it('extracts the capsule', () => {
+    const caps = deepseekAdapter.extractCapsules();
     expect(caps.length).toBeGreaterThanOrEqual(1);
     expect(caps[0]).toContain('@meta');
   });

@@ -6,7 +6,8 @@ import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import type { Session } from '@/src/protocol/types';
 import { IconSpark, IconLayers, IconBook } from '@/src/components/icons';
 
-const SUPPORTED = /chatgpt\.com|chat\.openai\.com|claude\.ai|gemini\.google\.com/;
+const SUPPORTED =
+  /chatgpt\.com|chat\.openai\.com|claude\.ai|gemini\.google\.com|perplexity\.ai|grok\.com|chat\.deepseek\.com/;
 
 async function activeTab() {
   try {
@@ -58,7 +59,9 @@ export default function App() {
         <span className="slm-brand-dot" />
         <h1>stemLM</h1>
       </div>
-      <p className="slm-popup-sub">Structured STEM study overlay for ChatGPT, Claude &amp; Gemini.</p>
+      <p className="slm-popup-sub">
+        Structured STEM study overlay for ChatGPT, Claude, Gemini, Perplexity, Grok &amp; DeepSeek.
+      </p>
 
       <div className="slm-popup-actions">
         <button
@@ -66,7 +69,7 @@ export default function App() {
           className="slm-popup-btn primary"
           onClick={() => send('stemlm:open-panel')}
           disabled={!onSupported}
-          title={onSupported ? '' : 'Open ChatGPT, Claude, or Gemini first'}
+          title={onSupported ? '' : 'Open a supported AI chat (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) first'}
         >
           <IconSpark /> Open study panel
         </button>
@@ -82,7 +85,8 @@ export default function App() {
 
       {!onSupported && (
         <p className="slm-popup-empty">
-          Open ChatGPT, Claude, or Gemini, then click the stemLM button next to the chat box.
+          Open ChatGPT, Claude, Gemini, Perplexity, Grok, or DeepSeek, then click the stemLM button
+          next to the chat box.
         </p>
       )}
 

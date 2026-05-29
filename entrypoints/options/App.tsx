@@ -8,6 +8,9 @@ const PLATFORM_LABELS: Record<PlatformId, string> = {
   chatgpt: 'ChatGPT',
   claude: 'Claude',
   gemini: 'Gemini',
+  perplexity: 'Perplexity',
+  grok: 'Grok',
+  deepseek: 'DeepSeek',
 };
 
 function Toggle({

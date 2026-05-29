@@ -26,7 +26,14 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnInject: true,
-  enabledPlatforms: { chatgpt: true, claude: true, gemini: true },
+  enabledPlatforms: {
+    chatgpt: true,
+    claude: true,
+    gemini: true,
+    perplexity: true,
+    grok: true,
+    deepseek: true,
+  },
   defaultSubject: 'Auto',
   analyticsOptOut: false,
 };

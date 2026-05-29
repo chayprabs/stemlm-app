@@ -9,6 +9,8 @@ const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```
 class MockAdapter implements PlatformAdapter {
   id = 'chatgpt' as const;
   label = 'ChatGPT';
+  brand = { accent: '#10a37f', neutral: true };
+  layoutRoots = ['main'];
   editorText = '';
   inserted = '';
   capsules: string[] = [];

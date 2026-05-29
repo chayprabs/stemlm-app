@@ -94,10 +94,15 @@ export function getEditorTextOf(el: HTMLElement | null): string {
   return el.innerText ?? el.textContent ?? '';
 }
 
+/** Generic layout-root fallbacks appended to every adapter's own selectors. */
+const GENERIC_LAYOUT_ROOTS = ['#__next', '#root', '#app', 'main', '[role="main"]'];
+
 export function createAdapter(config: AdapterConfig): PlatformAdapter {
   return {
     id: config.id,
     label: config.label,
+    brand: config.brand,
+    layoutRoots: [...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS],
 
     matches(host = location.hostname) {
       return config.hosts.test(host);

@@ -14,15 +14,18 @@ const config: AdapterConfig = {
     'div.ProseMirror[contenteditable="true"]',
     'div[contenteditable="true"][role="textbox"]',
     'fieldset div[contenteditable="true"]',
+    'div[contenteditable="true"]',
   ],
   composerAnchor: [
     'button[aria-label*="Send" i]',
+    'button[data-testid="send-button"]',
+    'fieldset button[type="submit"]',
     'fieldset div[contenteditable="true"]',
-    'div.flex.items-center > button[aria-label]',
   ],
   assistant: [
     '[data-testid="assistant-message"]',
     'div.font-claude-message',
+    'div.font-claude-response',
     'div[data-is-streaming]',
   ],
   codeBlock: ['pre code', 'pre'],
@@ -30,6 +33,9 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     'div[data-is-streaming="true"]',
   ],
+  // Claude's signature warm coral on cream.
+  brand: { accent: '#d97757', accentFg: '#ffffff' },
+  layoutRoots: ['div.flex.min-h-screen', 'main', '#__next'],
 };
 
 export const claudeAdapter = createAdapter(config);

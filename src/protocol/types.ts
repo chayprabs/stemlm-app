@@ -90,7 +90,7 @@ export interface Session {
   id: string;
   createdAt: number;
   updatedAt: number;
-  platform: 'chatgpt' | 'claude' | 'gemini';
+  platform: 'chatgpt' | 'claude' | 'gemini' | 'perplexity' | 'grok' | 'deepseek';
   question: string;
   capsule: Capsule;
   /** Step ids the student has marked reviewed. */

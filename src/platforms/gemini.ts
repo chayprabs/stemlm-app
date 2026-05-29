@@ -31,6 +31,9 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     '.stop-icon',
   ],
+  // Google / Gemini blue→violet.
+  brand: { accent: '#4285f4', accentFg: '#ffffff' },
+  layoutRoots: ['main', 'chat-window', '#app-root'],
 };
 
 export const geminiAdapter = createAdapter(config);
