@@ -28,11 +28,11 @@ export default defineConfig({
       '*://gemini.google.com/*',
     ],
     action: {
-      default_title: 'stemLM — open study panel',
+      default_title: 'stemLM — study overlay',
     },
     web_accessible_resources: [
       {
-        resources: ['icon/*.png', 'fonts/*'],
+        resources: ['icon/*.png'],
         matches: [
           '*://chatgpt.com/*',
           '*://chat.openai.com/*',

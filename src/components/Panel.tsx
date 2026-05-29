@@ -43,6 +43,11 @@ export function Panel() {
     else setSaved(false);
   }, [session?.id]);
 
+  // Focus the panel when it opens so keyboard nav works immediately.
+  useEffect(() => {
+    if (panelOpen) panelRef.current?.focus();
+  }, [panelOpen]);
+
   if (!panelOpen) return null;
 
   const total = session?.capsule.steps.length ?? 0;
@@ -68,10 +73,31 @@ export function Panel() {
     await exportSessionPdf(session);
   }
 
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') {
+      closePanel();
+      return;
+    }
+    // Don't hijack arrows while the user is selecting/in a control.
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (session && view === 'steps') {
+      if (e.key === 'ArrowRight') {
+        nextStep();
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') {
+        prevStep();
+        e.preventDefault();
+      }
+    }
+  }
+
   return (
     <motion.aside
       ref={panelRef}
       className="slm-panel"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
@@ -109,7 +135,9 @@ export function Panel() {
       )}
 
       {errorMessage && status === 'error' && (
-        <div className="slm-banner slm-banner-error">{errorMessage}</div>
+        <div className="slm-banner slm-banner-error" role="alert">
+          {errorMessage}
+        </div>
       )}
 
       <div className="slm-body">
@@ -148,6 +176,7 @@ export function Panel() {
                   className="slm-btn slm-btn-ghost"
                   onClick={prevStep}
                   disabled={activeStepIndex === 0}
+                  aria-label="Previous step"
                 >
                   <IconChevronLeft /> Prev
                 </button>
@@ -159,6 +188,7 @@ export function Panel() {
                   className="slm-btn slm-btn-soft"
                   onClick={nextStep}
                   disabled={activeStepIndex >= total - 1}
+                  aria-label="Next step"
                 >
                   Next <IconChevronRight />
                 </button>
