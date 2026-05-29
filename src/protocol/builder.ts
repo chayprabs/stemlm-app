@@ -12,7 +12,7 @@ import { CORE_PROTOCOL } from './protocol';
 import { getPlaybook } from './playbooks';
 import { classifySubject } from './classifier';
 
-const SEP = '\n\n----- stemLM structured-answer instructions (do not remove) -----\n';
+const SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 
 export interface BuildOptions {
   /** 'Auto' => classify from the question; otherwise force this subject. */

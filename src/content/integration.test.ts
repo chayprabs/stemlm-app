@@ -51,8 +51,8 @@ describe('integration: ChatGPT adapter + controller capture', () => {
     // The injected prompt keeps the question and adds the protocol + playbook.
     const injected = chatgptAdapter.getEditorText();
     expect(injected).toContain('12V series resistor');
-    expect(injected).toContain('OUTPUT CONTRACT');
-    expect(injected).toContain('ELECTRICAL / CIRCUITS PLAYBOOK');
+    expect(injected).toContain('OUTPUT:');
+    expect(injected).toContain('ELECTRICAL/CIRCUITS:');
     expect(useStore.getState().status).toBe('loading');
 
     // Assistant streams in its answer as a code block.

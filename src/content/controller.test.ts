@@ -69,8 +69,8 @@ describe('StemController.inject', () => {
     const ok = c.inject('Auto');
     expect(ok).toBe(true);
     expect(adapter.inserted).toContain('Solve this circuit');
-    expect(adapter.inserted).toContain('OUTPUT CONTRACT');
-    expect(adapter.inserted).toContain('ELECTRICAL / CIRCUITS PLAYBOOK');
+    expect(adapter.inserted).toContain('OUTPUT:');
+    expect(adapter.inserted).toContain('ELECTRICAL/CIRCUITS:');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();
