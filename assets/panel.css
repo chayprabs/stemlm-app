@@ -203,13 +203,42 @@
   right: 0;
   z-index: 2147483630;
   height: 100vh;
-  width: min(480px, 46vw);
+  /* width is set inline from the persisted split ratio (default 50vw) */
+  width: 50vw;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   background: var(--slm-bg);
   border-left: 1px solid var(--slm-border);
   box-shadow: var(--slm-shadow);
   overflow: hidden;
+}
+
+/* ---------- resize handle (split divider) ---------- */
+.slm-resize-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.slm-resize-grip {
+  width: 3px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--slm-border);
+  transition: background 0.15s, height 0.15s;
+}
+.slm-resize-handle:hover .slm-resize-grip,
+.slm-resize-handle:active .slm-resize-grip {
+  background: var(--slm-accent);
+  height: 72px;
 }
 
 /* ---------- header ---------- */

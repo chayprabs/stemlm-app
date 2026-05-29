@@ -8,6 +8,7 @@ import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
 import { SelectionPopover } from './SelectionPopover';
+import { ResizeHandle } from './ResizeHandle';
 import { IconChevronLeft, IconChevronRight } from './icons';
 import { saveSession, isSessionSaved } from '@/src/lib/saved-sessions';
 import { setSettings } from '@/src/lib/settings';
@@ -33,6 +34,7 @@ export function Panel() {
     setActiveSession,
     setSettings: setStoreSettings,
     setTheme,
+    splitRatio,
   } = useStore();
   const session = useActiveSession();
   const [saved, setSaved] = useState(false);
@@ -96,6 +98,7 @@ export function Panel() {
     <motion.aside
       ref={panelRef}
       className="slm-panel"
+      style={{ width: `${(splitRatio * 100).toFixed(3)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       initial={{ x: '100%' }}
@@ -105,6 +108,7 @@ export function Panel() {
       role="complementary"
       aria-label="stemLM study panel"
     >
+      <ResizeHandle />
       <PanelHeader
         session={session}
         view={view}

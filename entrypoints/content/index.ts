@@ -58,6 +58,7 @@ export default defineContentScript({
 
     useStore.getState().setSettings(settings);
     useStore.getState().setTheme(resolveTheme(settings.theme));
+    useStore.getState().setSplitRatio(settings.splitRatio);
 
     if (settings.shareAcrossTabs) {
       const shared = await loadMirroredSessions();
@@ -69,7 +70,10 @@ export default defineContentScript({
     const ui = await createShadowRootUi(ctx, {
       name: 'stemlm-root',
       position: 'inline',
-      anchor: 'body',
+      // Anchor to <html> (not <body>) so the panel is a sibling of <body>.
+      // The split-screen shift transforms/shrinks <body>; keeping the panel
+      // outside it lets the panel stay fixed to the viewport on the right.
+      anchor: 'html',
       append: 'last',
       onMount(container) {
         host = container;
@@ -119,6 +123,11 @@ export default defineContentScript({
     const stopSettingsWatch = onSettingsChanged((next) => {
       useStore.getState().setSettings(next);
       useStore.getState().setTheme(resolveTheme(next.theme));
+      // Keep the split ratio in sync across tabs/sites (but don't fight an
+      // in-progress drag — only adopt the stored value when it differs).
+      if (Math.abs(useStore.getState().splitRatio - next.splitRatio) > 0.001) {
+        useStore.getState().setSplitRatio(next.splitRatio);
+      }
     });
 
     const onMessage = (msg: unknown) => {

@@ -24,6 +24,9 @@ export interface StoreState {
   // Settings (mirrored from storage for reactive UI)
   settings: Settings;
 
+  /** Split-screen width of the panel as a fraction of the viewport [0.25, 0.75]. */
+  splitRatio: number;
+
   // Data
   sessions: Session[];
   activeSessionId?: string;
@@ -38,6 +41,7 @@ export interface StoreState {
   setTheme: (theme: ResolvedTheme) => void;
   setSettings: (settings: Settings) => void;
   setButtonInjected: (v: boolean) => void;
+  setSplitRatio: (ratio: number) => void;
 
   addSession: (session: Session) => void;
   /** Replace all sessions (used by "Load conversation"). */
@@ -57,6 +61,7 @@ export const useStore = create<StoreState>((set, get) => ({
   theme: 'light',
   buttonInjected: false,
   settings: DEFAULT_SETTINGS,
+  splitRatio: DEFAULT_SETTINGS.splitRatio,
   sessions: [],
   activeStepIndex: 0,
 
@@ -68,6 +73,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setTheme: (theme) => set({ theme }),
   setSettings: (settings) => set({ settings }),
   setButtonInjected: (buttonInjected) => set({ buttonInjected }),
+  setSplitRatio: (ratio) =>
+    set({ splitRatio: Math.min(0.75, Math.max(0.25, ratio)) }),
 
   addSession: (session) =>
     set((s) => ({

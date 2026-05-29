@@ -20,6 +20,18 @@ export interface Settings {
   defaultSubject: Subject | 'Auto';
   /** Opt out of anonymous usage analytics. */
   analyticsOptOut: boolean;
+  /**
+   * Split-screen width of the study panel as a fraction of the viewport
+   * (0 = none, 1 = full). Shared across all chatbot sites via extension storage
+   * (page localStorage would be per-origin). Clamped to [0.25, 0.75].
+   */
+  splitRatio: number;
+}
+
+/** Clamp a split ratio to the usable range. */
+export function clampSplitRatio(r: number): number {
+  if (!Number.isFinite(r)) return 0.5;
+  return Math.min(0.75, Math.max(0.25, r));
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   defaultSubject: 'Auto',
   analyticsOptOut: false,
+  splitRatio: 0.5,
 };
 
 const KEY = 'stemlm_settings';
@@ -49,6 +62,7 @@ function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}
     ...DEFAULT_SETTINGS,
     ...stored,
     autoOpenOnAnswer,
+    splitRatio: clampSplitRatio(stored.splitRatio ?? DEFAULT_SETTINGS.splitRatio),
     enabledPlatforms: { ...DEFAULT_SETTINGS.enabledPlatforms, ...stored.enabledPlatforms },
   };
 }
