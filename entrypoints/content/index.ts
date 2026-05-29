@@ -7,9 +7,11 @@ import App from './App';
 import './style.css';
 import { detectAdapter } from '@/src/platforms/detect';
 import { initController, getController } from '@/src/content/controller';
+import { setReportMount } from '@/src/content/mount';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
 import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
+import { trackEvent } from '@/src/lib/analytics';
 import {
   loadMirroredSessions,
   mirrorActiveSessions,
@@ -58,6 +60,7 @@ export default defineContentScript({
       append: 'last',
       onMount(container) {
         host = container;
+        setReportMount(container);
         applyTheme(container, useStore.getState().theme);
         const wrapper = document.createElement('div');
         wrapper.id = 'stemlm-app';
@@ -109,6 +112,7 @@ export default defineContentScript({
       const type = typeof msg === 'object' && msg ? (msg as { type?: string }).type : undefined;
       if (type === 'stemlm:open-panel') {
         useStore.getState().openPanel();
+        void trackEvent('panel_opened', { platform: adapter.id, source: 'toolbar' });
       } else if (type === 'stemlm:load-conversation') {
         getController()?.loadConversation();
         useStore.getState().openPanel();

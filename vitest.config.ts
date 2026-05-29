@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       '@': resolve(__dirname, '.'),
@@ -14,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts'],
     globals: true,
   },
 });

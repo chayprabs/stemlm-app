@@ -1,24 +1,28 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
+import { trackEvent } from '@/src/lib/analytics';
 
 /**
  * stemLM background service worker.
  *
- * Responsibilities:
- *  - Fire the `extension_installed` analytics event on first install.
+ *  - Fire `extension_installed` on first install.
+ *  - Log uncaught service-worker errors as `extension_error` (helps debugging
+ *    once analytics credentials are configured).
  *  - When the toolbar icon is clicked, tell the active tab's content script to
- *    open the study panel (in "load conversation" mode if there is no active
- *    session yet).
- *
- * Real logic is wired in later milestones; this scaffolds the message surface.
+ *    open the study panel.
  */
 export default defineBackground(() => {
-  browser.runtime.onInstalled.addListener(async (details) => {
+  browser.runtime.onInstalled.addListener((details) => {
     if (details.reason === 'install') {
-      // Analytics wiring (M6): track installs.
-      const { trackEvent } = await import('@/src/lib/analytics');
       void trackEvent('extension_installed', {});
     }
+  });
+
+  self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    void trackEvent('extension_error', {
+      where: 'background',
+      reason: String(event.reason).slice(0, 120),
+    });
   });
 
   browser.action.onClicked.addListener(async (tab) => {
