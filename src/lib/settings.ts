@@ -12,8 +12,8 @@ export interface Settings {
   theme: ThemePref;
   /** Share active (unsaved) sessions across tabs. Default off = each tab fresh. */
   shareAcrossTabs: boolean;
-  /** Auto-open the panel when a prompt is injected. */
-  autoOpenOnInject: boolean;
+  /** Auto-open the study panel when the assistant starts answering. */
+  autoOpenOnAnswer: boolean;
   /** Per-platform enable toggles for the overlay button. */
   enabledPlatforms: Record<PlatformId, boolean>;
   /** Default subject routing for injection. */
@@ -25,7 +25,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
-  autoOpenOnInject: true,
+  autoOpenOnAnswer: true,
   enabledPlatforms: {
     chatgpt: true,
     claude: true,
@@ -40,14 +40,23 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = 'stemlm_settings';
 
+/** Merge stored settings over defaults, migrating any legacy keys. */
+function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}): Settings {
+  // Legacy: `autoOpenOnInject` was renamed to `autoOpenOnAnswer`.
+  const autoOpenOnAnswer =
+    stored.autoOpenOnAnswer ?? stored.autoOpenOnInject ?? DEFAULT_SETTINGS.autoOpenOnAnswer;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+    autoOpenOnAnswer,
+    enabledPlatforms: { ...DEFAULT_SETTINGS.enabledPlatforms, ...stored.enabledPlatforms },
+  };
+}
+
 export async function getSettings(): Promise<Settings> {
   try {
     const stored = (await browser.storage.local.get(KEY))[KEY] as Partial<Settings> | undefined;
-    return {
-      ...DEFAULT_SETTINGS,
-      ...stored,
-      enabledPlatforms: { ...DEFAULT_SETTINGS.enabledPlatforms, ...stored?.enabledPlatforms },
-    };
+    return hydrate(stored);
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -67,10 +76,7 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
 export function onSettingsChanged(cb: (settings: Settings) => void): () => void {
   const handler = (changes: Record<string, { newValue?: unknown }>, area: string) => {
     if (area === 'local' && changes[KEY]?.newValue) {
-      cb({
-        ...DEFAULT_SETTINGS,
-        ...(changes[KEY].newValue as Partial<Settings>),
-      });
+      cb(hydrate(changes[KEY].newValue as Partial<Settings>));
     }
   };
   browser.storage.onChanged.addListener(handler);

@@ -105,9 +105,9 @@ export default function App() {
         />
         <Toggle
           label="Open the panel automatically"
-          hint="Open the study panel as soon as you add the stemLM prompt."
-          checked={settings.autoOpenOnInject}
-          onChange={(v) => update({ autoOpenOnInject: v })}
+          hint="Open the study panel when the answer starts — not while you're still typing."
+          checked={settings.autoOpenOnAnswer}
+          onChange={(v) => update({ autoOpenOnAnswer: v })}
         />
         <div className="slm-opt-row">
           <span className="slm-opt-text">

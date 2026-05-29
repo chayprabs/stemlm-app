@@ -50,7 +50,7 @@ export default defineContentScript({
     // (not the moment we inject), so the panel never appears while the user is
     // still typing. Honour the user's auto-open preference.
     controller.setOnAnswerStarted(() => {
-      if (useStore.getState().settings.autoOpenOnInject) {
+      if (useStore.getState().settings.autoOpenOnAnswer) {
         useStore.getState().openPanel();
         void trackEvent('panel_opened', { platform: adapter.id, source: 'answer' });
       }
