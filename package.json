@@ -18,7 +18,6 @@
   "dependencies": {
     "dompurify": "^3.2.7",
     "framer-motion": "^12.23.30",
-    "html2pdf.js": "^0.12.1",
     "katex": "^0.16.25",
     "mermaid": "^11.12.1",
     "react": "^19.2.0",

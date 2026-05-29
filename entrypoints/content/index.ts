@@ -7,7 +7,6 @@ import App from './App';
 import './style.css';
 import { detectAdapter } from '@/src/platforms/detect';
 import { initController, getController } from '@/src/content/controller';
-import { setReportMount } from '@/src/content/mount';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
 import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
@@ -77,7 +76,6 @@ export default defineContentScript({
       append: 'last',
       onMount(container) {
         host = container;
-        setReportMount(container);
         applyTheme(container, useStore.getState().theme);
         const wrapper = document.createElement('div');
         wrapper.id = 'stemlm-app';
