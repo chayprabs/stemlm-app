@@ -134,8 +134,10 @@
 }
 
 .slm-fab-wrap--inset .slm-fab {
-  width: var(--slm-fab-size, 32px);
-  height: var(--slm-fab-size, 32px);
+  width: var(--slm-fab-size, 36px);
+  height: var(--slm-fab-size, 36px);
+  min-width: 44px;
+  min-height: 44px;
   flex-shrink: 0;
 }
 
@@ -183,18 +185,20 @@
 
 .slm-fab-wrap--inset .slm-fab-subject {
   max-width: 4.75rem;
-  height: 26px;
-  padding: 0 0.45rem 0 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  height: auto;
+  padding: 0.35rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: #52525b;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--slm-bg-elevated) 88%, transparent);
+  border: 1px solid var(--slm-border);
+  color: var(--slm-fg-muted);
+  box-shadow: var(--slm-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .slm-fab-wrap--inset .slm-fab-subject:hover {
@@ -384,10 +388,14 @@
 
 .slm-brand-dot {
   flex-shrink: 0;
-  width: 0.5625rem;
-  height: 0.5625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
   border-radius: 50%;
   background: var(--slm-gradient);
+  color: #fff;
   box-shadow:
     0 0 0 3px var(--slm-accent-soft),
     0 0 14px var(--slm-accent-glow);
@@ -716,21 +724,41 @@
   margin-bottom: 0.85rem;
 }
 
+.slm-card-step-row {
+  grid-area: step;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .slm-card-step,
 .slm-step-meta {
-  grid-area: step;
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   width: fit-content;
   padding: 0.18rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   border-radius: var(--radius-pill);
+}
+
+.slm-card-step {
   color: var(--slm-accent);
   background: var(--slm-accent-soft);
   border: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.slm-step-meta {
+  color: var(--slm-success);
+  background: var(--slm-success-soft);
+  border: 1px solid rgba(22, 163, 74, 0.22);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-weight: 600;
 }
 
 .slm-card-title {
@@ -1428,6 +1456,48 @@
 
 .slm-selpop-btn:active {
   transform: scale(0.97);
+}
+
+/* ── accessibility ────────────────────────────────────────────── */
+
+#stemlm-app :is(
+  .slm-fab,
+  .slm-fab-subject,
+  .slm-fab-menu-item,
+  .slm-btn,
+  .slm-icon-btn,
+  .slm-tab,
+  .slm-review,
+  .slm-rail-dot,
+  .slm-session-pill,
+  .slm-selpop-btn
+):focus-visible {
+  outline: 2px solid var(--slm-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--slm-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #stemlm-app *,
+  #stemlm-app *::before,
+  #stemlm-app *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  #stemlm-app .slm-fab,
+  #stemlm-app .slm-btn-soft,
+  #stemlm-app .slm-selpop-btn {
+    border: 2px solid ButtonText;
+  }
+  #stemlm-app .slm-card,
+  #stemlm-app .slm-panel {
+    border-color: CanvasText;
+  }
 }
 
 /* The PDF report is rendered in a self-contained print iframe (see lib/pdf.ts

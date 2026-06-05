@@ -16,21 +16,21 @@ export function EmptyState() {
   }
 
   return (
-    <div className="slm-empty">
-      <div className="slm-empty-mark">
+    <div className="slm-empty" role="region" aria-label="Study workspace">
+      <div className="slm-empty-mark" aria-hidden="true">
         <IconSpark width={26} height={26} />
       </div>
-      <h2 className="slm-empty-title">Your study workspace</h2>
+      <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">
-        Type a question in the chat, then tap the <strong>stemLM</strong> button next to the input.
-        We’ll turn the answer into clear, step-by-step cards with diagrams here.
+        Ask a question in chat, then select the <strong>stemLM</strong> button beside the input.
+        Answers appear here as structured, step-by-step cards.
       </p>
       <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
-        <IconLayers /> Load conversation
+        <IconLayers /> Load from chat
       </button>
       {status === 'none' && (
-        <p className="slm-empty-hint">
-          No stemLM answers found in this chat yet. Ask one using the button to get started.
+        <p className="slm-empty-hint" role="status">
+          No stemLM responses in this chat yet. Ask a question to get started.
         </p>
       )}
     </div>

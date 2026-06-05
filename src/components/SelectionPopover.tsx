@@ -76,8 +76,13 @@ export function SelectionPopover({
           transition={{ duration: 0.14 }}
           onMouseDown={(e) => e.preventDefault() /* keep the text selection */}
         >
-          <button type="button" className="slm-selpop-btn" onClick={ask}>
-            <IconReply /> Ask follow-up
+          <button
+            type="button"
+            className="slm-btn slm-btn-soft slm-selpop-btn"
+            onClick={ask}
+            aria-label="Ask about selected text in chat"
+          >
+            <IconReply /> Ask in chat
           </button>
         </motion.div>
       )}

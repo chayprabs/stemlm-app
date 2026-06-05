@@ -5,7 +5,13 @@ import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
-import { IconCheck } from './icons';
+import { IconCheck, IconSpark } from './icons';
+
+/** Rough read-time estimate from body length. */
+function readMinutes(body: string): number {
+  const words = body.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.min(8, Math.ceil(words / 180)));
+}
 
 /**
  * A single study step: title, key formula, explanation, the step-synced
@@ -38,7 +44,12 @@ export function StepCard({
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
     >
       <header className="slm-card-head">
-        <div className="slm-card-step">Step {step.index}</div>
+        <div className="slm-card-step-row">
+          <span className="slm-card-step">Step {step.index}</span>
+          <span className="slm-step-meta">
+            <IconSpark width={11} height={11} /> Quick read · {readMinutes(step.body)} min
+          </span>
+        </div>
         <h2 className="slm-card-title">{step.title}</h2>
         <button
           type="button"
@@ -52,7 +63,7 @@ export function StepCard({
       </header>
 
       {step.formula && (
-        <div className="slm-formula">
+        <div className="slm-formula slm-formula-key">
           <MathMarkdown content={step.formula} />
         </div>
       )}

@@ -145,6 +145,14 @@ export function OverlayButton() {
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const palette = useMemo(() => {
     const brand = detectAdapter()?.brand ?? { accent: '#6366f1' };
     return fabPalette(brand, scheme);

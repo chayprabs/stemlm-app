@@ -1,7 +1,7 @@
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
-import { IconBook, IconClose, IconLayers, IconMoon, IconPdf, IconSave, IconSun } from './icons';
+import { IconBook, IconClose, IconLayers, IconLogo, IconMoon, IconPdf, IconSave, IconSun } from './icons';
 
 export function PanelHeader({
   session,
@@ -32,7 +32,9 @@ export function PanelHeader({
     <header className="slm-header">
       <div className="slm-header-top">
         <div className="slm-brand">
-          <span className="slm-brand-dot" />
+          <span className="slm-brand-dot" aria-hidden="true">
+            <IconLogo width={14} height={14} />
+          </span>
           <span className="slm-brand-name">stemLM</span>
           {session && <span className="slm-subject-chip">{session.capsule.meta.subject}</span>}
         </div>
