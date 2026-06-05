@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
-import type { PlatformBrand } from '@/src/platforms/types';
-import { detectHostScheme, type ResolvedTheme } from '@/src/lib/theme';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
-import { IconLogo, IconCheck, IconChevronDown } from './icons';
+import { IconCheck, IconChevronDown } from './icons';
 
-const FAB_SIZE = 34;
+const BTN_HEIGHT = 32;
+const BTN_GAP = 6;
 
 interface Pos {
   top: number;
@@ -17,19 +16,23 @@ interface Pos {
 }
 
 /**
- * Track the composer anchor (the send button) so the small circular stemLM
- * button sits just to its left, vertically centred — i.e. it "belongs" in the
- * composer's action row instead of floating detached above it.
+ * Track the composer send-button anchor so the ✦ stemLM pill sits just inside
+ * the composer box, immediately to the left of the send button — matching
+ * stemlm.app's injection placement across all supported AI platforms.
  */
 function useComposerPosition(): Pos {
   const [pos, setPos] = useState<Pos>({ top: 0, left: 0, visible: false });
 
   useEffect(() => {
     const adapter = detectAdapter();
+    if (!adapter) return;
+
     let raf = 0;
+    let observer: ResizeObserver | null = null;
+    let anchor: HTMLElement | null = null;
 
     const update = () => {
-      const anchor = adapter?.getComposerAnchor();
+      anchor = adapter.getComposerAnchor();
       if (!anchor) {
         setPos((p) => (p.visible ? { ...p, visible: false } : p));
         return;
@@ -39,66 +42,60 @@ function useComposerPosition(): Pos {
         setPos((p) => (p.visible ? { ...p, visible: false } : p));
         return;
       }
-      // Vertically centre on the anchor; dock just to its left.
+
+      const btnH = BTN_HEIGHT;
       const centerY = r.top + r.height / 2;
       const top = Math.min(
-        window.innerHeight - FAB_SIZE - 8,
-        Math.max(8, centerY - FAB_SIZE / 2),
+        window.innerHeight - btnH - 8,
+        Math.max(8, centerY - btnH / 2),
       );
+      // Right-align with the send button: position so button's right edge is BTN_GAP left of anchor.
+      const estimatedWidth = 72;
       const left = Math.min(
-        window.innerWidth - FAB_SIZE - 8,
-        Math.max(8, r.left - FAB_SIZE - 10),
+        window.innerWidth - estimatedWidth - 8,
+        Math.max(8, r.left - estimatedWidth - BTN_GAP),
       );
       setPos({ top, left, visible: true });
     };
 
-    const loop = () => {
-      update();
-      raf = window.requestAnimationFrame(() => {
-        setTimeout(loop, 320);
-      });
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
     };
-    loop();
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
+
+    const attachObserver = () => {
+      const el = adapter.getComposerAnchor();
+      if (el && el !== anchor) {
+        observer?.disconnect();
+        anchor = el;
+        observer = new ResizeObserver(schedule);
+        observer.observe(el);
+        const parent = el.parentElement;
+        if (parent) observer.observe(parent);
+      }
+    };
+
+    schedule();
+    attachObserver();
+
+    const poll = window.setInterval(() => {
+      attachObserver();
+      schedule();
+    }, 500);
+
+    window.addEventListener('scroll', schedule, true);
+    window.addEventListener('resize', schedule);
+
     return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
+      cancelAnimationFrame(raf);
+      window.clearInterval(poll);
+      observer?.disconnect();
+      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', schedule);
     };
   }, []);
 
   return pos;
-}
-
-function hexToRgba(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  const v =
-    h.length === 3
-      ? h.split('').map((c) => c + c).join('')
-      : h.padEnd(6, '0').slice(0, 6);
-  const r = parseInt(v.slice(0, 2), 16);
-  const g = parseInt(v.slice(2, 4), 16);
-  const b = parseInt(v.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-/** Build the CSS custom-property palette for the button from brand × host scheme. */
-function fabPalette(brand: PlatformBrand, scheme: ResolvedTheme): React.CSSProperties {
-  if (brand.neutral) {
-    const dark = scheme === 'dark';
-    return {
-      // Monochrome, matching the host's own send button (e.g. ChatGPT / Grok).
-      ['--slm-fab-surface' as string]: dark ? '#ffffff' : '#0d0d0d',
-      ['--slm-fab-fg' as string]: dark ? '#0d0d0d' : '#ffffff',
-      ['--slm-fab-ring' as string]: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)',
-    } as React.CSSProperties;
-  }
-  return {
-    ['--slm-fab-surface' as string]: brand.accent,
-    ['--slm-fab-fg' as string]: brand.accentFg ?? '#ffffff',
-    ['--slm-fab-ring' as string]: hexToRgba(brand.accent, 0.45),
-  } as React.CSSProperties;
 }
 
 export function OverlayButton() {
@@ -108,30 +105,11 @@ export function OverlayButton() {
   const defaultSubject = useStore((s) => s.settings.defaultSubject);
   const [override, setOverride] = useState<Subject | 'Auto'>('Auto');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [scheme, setScheme] = useState<ResolvedTheme>('light');
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOverride(defaultSubject);
   }, [defaultSubject]);
-
-  // Detect (and keep in sync with) the host site's light/dark scheme.
-  useEffect(() => {
-    const sync = () => setScheme(detectHostScheme());
-    sync();
-    const id = window.setInterval(sync, 2000);
-    let mql: MediaQueryList | null = null;
-    try {
-      mql = window.matchMedia('(prefers-color-scheme: dark)');
-      mql.addEventListener('change', sync);
-    } catch {
-      /* ignore */
-    }
-    return () => {
-      window.clearInterval(id);
-      mql?.removeEventListener('change', sync);
-    };
-  }, []);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -140,11 +118,6 @@ export function OverlayButton() {
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
   }, []);
-
-  const palette = useMemo(() => {
-    const brand = detectAdapter()?.brand ?? { accent: '#5b46e0' };
-    return fabPalette(brand, scheme);
-  }, [scheme]);
 
   if (!pos.visible) return null;
 
@@ -157,14 +130,17 @@ export function OverlayButton() {
   }
 
   function chooseSubject(s: Subject | 'Auto') {
-    // Selecting a subject both sets it and fires the request in one action.
     setOverride(s);
     setMenuOpen(false);
     getController()?.inject(s);
   }
 
   return (
-    <div ref={ref} className="slm-fab-wrap" style={{ top: pos.top, left: pos.left, ...palette }}>
+    <div
+      ref={ref}
+      className="slm-fab-wrap"
+      style={{ top: pos.top, left: pos.left }}
+    >
       <AnimatePresence>
         {menuOpen && !injected && (
           <motion.ul
@@ -200,7 +176,7 @@ export function OverlayButton() {
         type="button"
         className={`slm-fab ${injected ? 'is-done' : ''}`}
         onClick={onMain}
-        whileTap={{ scale: 0.92 }}
+        whileTap={{ scale: 0.96 }}
         title={
           injected
             ? 'Open stemLM panel'
@@ -208,7 +184,18 @@ export function OverlayButton() {
         }
         aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
       >
-        {injected ? <IconCheck width={18} height={18} /> : <IconLogo />}
+        {injected ? (
+          <IconCheck width={16} height={16} />
+        ) : (
+          <>
+            <span className="slm-fab-spark" aria-hidden="true">
+              ✦
+            </span>
+            <span className="slm-fab-label">
+              stem<span style={{ color: 'inherit' }}>LM</span>
+            </span>
+          </>
+        )}
       </motion.button>
 
       {!injected && (
