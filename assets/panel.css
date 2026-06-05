@@ -30,6 +30,16 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.slm-btn:focus-visible,
+.slm-icon-btn:focus-visible,
+.slm-tab:focus-visible,
+.slm-fab:focus-visible,
+.slm-rail-dot:focus-visible,
+.slm-review:focus-visible,
+.slm-session-pill:focus-visible {
+  outline: 2px solid var(--slm-accent);
+  outline-offset: 2px;
+}
 .slm-btn-soft {
   background: var(--slm-accent);
   color: var(--slm-accent-fg);
@@ -448,7 +458,8 @@
   transition: opacity 0.15s;
 }
 .slm-rail:hover .slm-rail-dot-label,
-.slm-rail-dot.is-active .slm-rail-dot-label {
+.slm-rail-dot.is-active .slm-rail-dot-label,
+.slm-rail-dot:focus-visible .slm-rail-dot-label {
   opacity: 1;
 }
 .slm-rail-dot.is-active .slm-rail-dot-mark {

@@ -49,7 +49,7 @@ export function Report({
       </section>
 
       <section className="slm-report-a">
-        <span className="slm-report-label">Ans</span>
+        <span className="slm-report-label">Answer</span>
         <div className="slm-report-a-body">
           {steps.map((step) => (
             <div key={step.id} className="slm-report-step">

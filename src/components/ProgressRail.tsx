@@ -28,6 +28,7 @@ export function ProgressRail({
             className={`slm-rail-dot ${active ? 'is-active' : ''} ${reviewed ? 'is-reviewed' : ''}`}
             onClick={() => onJump(i)}
             title={step.title}
+            aria-label={`Step ${i + 1}: ${step.title}`}
             aria-current={active ? 'step' : undefined}
           >
             <span className="slm-rail-dot-mark">{reviewed ? <IconCheck /> : i + 1}</span>

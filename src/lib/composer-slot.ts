@@ -19,10 +19,14 @@ const SLOT_CSS = `
   margin-right: 6px;
   margin-bottom: 2px;
   position: relative;
-  z-index: 2;
+  z-index: 50;
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 [data-stemlm-composer-slot] .slm-fab-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   position: relative;
   top: auto;
   left: auto;
@@ -54,16 +58,21 @@ const SLOT_CSS = `
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  max-width: 4.5rem;
+  max-width: 5.5rem;
   padding: 1px 6px;
-  border: 1px solid rgba(128,128,128,0.25);
+  border: 1px solid var(--slm-slot-border, rgba(128,128,128,0.25));
   border-radius: 999px;
-  background: rgba(255,255,255,0.92);
-  color: #5c6370;
+  background: var(--slm-slot-bg, rgba(255,255,255,0.94));
+  color: var(--slm-slot-fg, #5c6370);
   font-size: 9px;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+[data-stemlm-composer-slot] .slm-fab-subject-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 [data-stemlm-composer-slot] .slm-fab-menu {
   position: absolute;
@@ -76,11 +85,11 @@ const SLOT_CSS = `
   width: 10.5rem;
   max-height: 14rem;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #e2e4ea;
+  background: var(--slm-slot-bg, #fff);
+  border: 1px solid var(--slm-slot-border, #e2e4ea);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  z-index: 100;
 }
 [data-stemlm-composer-slot] .slm-fab-menu-item {
   display: flex;
@@ -92,15 +101,23 @@ const SLOT_CSS = `
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #0f1117;
+  color: var(--slm-slot-fg-strong, #0f1117);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 [data-stemlm-composer-slot] .slm-fab-menu-item:hover,
 [data-stemlm-composer-slot] .slm-fab-menu-item.is-active {
-  background: #eeebff;
-  color: #5b46e0;
+  background: var(--slm-slot-active, #eeebff);
+  color: var(--slm-slot-accent, #5b46e0);
+}
+[data-stemlm-composer-slot][data-scheme="dark"] {
+  --slm-slot-bg: #1a1d25;
+  --slm-slot-border: #262a35;
+  --slm-slot-fg: #9aa1ae;
+  --slm-slot-fg-strong: #f0f2f7;
+  --slm-slot-active: rgba(124,107,255,0.15);
+  --slm-slot-accent: #8c7dff;
 }
 `;
 
@@ -113,7 +130,10 @@ function ensureStyles() {
 }
 
 /** Insert or return the light-DOM slot inside the composer action row. */
-export function ensureComposerSlot(adapter: PlatformAdapter): HTMLElement | null {
+export function ensureComposerSlot(
+  adapter: PlatformAdapter,
+  scheme: 'light' | 'dark' = 'light',
+): HTMLElement | null {
   const layout = adapter.getComposerLayout?.();
   if (!layout) return null;
 
@@ -125,6 +145,7 @@ export function ensureComposerSlot(adapter: PlatformAdapter): HTMLElement | null
     ensureStyles();
     slot = document.createElement('div');
     slot.setAttribute(SLOT_ATTR, '');
+    slot.dataset.scheme = scheme;
     if (send && send.parentElement === actionRow) {
       actionRow.insertBefore(slot, send);
     } else if (send?.parentElement?.contains(actionRow)) {
@@ -134,6 +155,7 @@ export function ensureComposerSlot(adapter: PlatformAdapter): HTMLElement | null
     }
   }
 
+  slot.dataset.scheme = scheme;
   return slot;
 }
 

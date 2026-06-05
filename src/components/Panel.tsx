@@ -88,7 +88,10 @@ export function Panel() {
 
   async function onExportPdf() {
     if (!session) return;
-    await exportSessionPdf(session);
+    const result = await exportSessionPdf(session);
+    if (!result.ok) {
+      useStore.getState().setStatus('error', 'PDF export failed. Try again or use Print from the dialog.');
+    }
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -166,7 +169,7 @@ export function Panel() {
         {!session && status !== 'loading' && <EmptyState />}
 
         {session && view === 'steps' && (
-          <div className="slm-steps-layout">
+          <div className="slm-steps-layout" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
             <ProgressRail
               steps={session.capsule.steps}
               activeIndex={activeStepIndex}
@@ -217,7 +220,11 @@ export function Panel() {
           </div>
         )}
 
-        {session && view === 'solution' && <SolutionView session={session} theme={theme} />}
+        {session && view === 'solution' && (
+          <div role="tabpanel" id="slm-panel-solution" aria-labelledby="slm-tab-solution">
+            <SolutionView session={session} theme={theme} />
+          </div>
+        )}
       </div>
 
       {session && (

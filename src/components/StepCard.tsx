@@ -40,7 +40,6 @@ export function StepCard({
       <header className="slm-card-head">
         <div className="slm-card-meta">
           <span className="slm-card-step">Step {step.index}</span>
-          <span className="slm-card-read">Quick read · ~2 min</span>
         </div>
         <h2 className="slm-card-title">{step.title}</h2>
         <button

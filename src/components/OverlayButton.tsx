@@ -30,7 +30,7 @@ function useComposerPosition(): PosMode {
     let raf = 0;
 
     const update = () => {
-      const slot = ensureComposerSlot(adapter);
+      const slot = ensureComposerSlot(adapter, detectHostScheme());
       if (slot) {
         setPos((p) =>
           p.mode === 'docked' && p.slot === slot ? p : { mode: 'docked', slot },

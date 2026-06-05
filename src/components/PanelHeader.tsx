@@ -37,13 +37,18 @@ export function PanelHeader({
           {session && <span className="slm-subject-chip">{session.capsule.meta.subject}</span>}
         </div>
         <div className="slm-header-actions">
-          <button type="button" className="slm-icon-btn" title="Toggle theme" onClick={onToggleTheme}>
+          <button
+            type="button"
+            className="slm-icon-btn"
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            onClick={onToggleTheme}
+          >
             {theme === 'dark' ? <IconSun /> : <IconMoon />}
           </button>
           <button
             type="button"
             className="slm-icon-btn"
-            title={saved ? 'Saved' : 'Save session'}
+            aria-label={saved ? 'Session saved' : 'Save session'}
             onClick={onSave}
             disabled={!session}
             data-active={saved ? 'true' : undefined}
@@ -53,13 +58,13 @@ export function PanelHeader({
           <button
             type="button"
             className="slm-icon-btn"
-            title="Export PDF"
+            aria-label="Export PDF"
             onClick={onExportPdf}
             disabled={!session}
           >
             <IconPdf />
           </button>
-          <button type="button" className="slm-icon-btn" title="Close" onClick={onClose}>
+          <button type="button" className="slm-icon-btn" aria-label="Close panel" onClick={onClose}>
             <IconClose />
           </button>
         </div>
@@ -69,10 +74,12 @@ export function PanelHeader({
         <>
           <h1 className="slm-topic">{session.capsule.meta.topic}</h1>
           <div className="slm-header-bottom">
-            <div className="slm-tabs" role="tablist">
+            <div className="slm-tabs" role="tablist" aria-label="Study view">
               <button
                 type="button"
                 role="tab"
+                id="slm-tab-steps"
+                aria-controls="slm-panel-steps"
                 aria-selected={view === 'steps'}
                 className={`slm-tab ${view === 'steps' ? 'is-active' : ''}`}
                 onClick={() => onSetView('steps')}
@@ -82,6 +89,8 @@ export function PanelHeader({
               <button
                 type="button"
                 role="tab"
+                id="slm-tab-solution"
+                aria-controls="slm-panel-solution"
                 aria-selected={view === 'solution'}
                 className={`slm-tab ${view === 'solution' ? 'is-active' : ''}`}
                 onClick={() => onSetView('solution')}

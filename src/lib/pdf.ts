@@ -68,7 +68,11 @@ body{font:11.5pt/1.55 'Inter',ui-sans-serif,system-ui,sans-serif;-webkit-print-c
 .slm-report-formula{margin:6px 0 10px;padding:10px 12px;background:linear-gradient(135deg,rgba(22,163,74,.06),rgba(109,94,252,.04));border:1px solid rgba(22,163,74,.2);border-radius:6px;overflow-x:auto;}
 .slm-report-formula-label{display:block;font-size:7.5pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#15803d;margin-bottom:4px;}
 .slm-report-body{margin:0 0 6px;font-size:10.5pt;line-height:1.5;}
-.slm-report-body p{margin:0 0 6px;}
+.slm-report-body p{margin:0 0 6px;orphans:3;widows:3;}
+.slm-report-topic,.slm-report-step-title,.slm-report-solution-title{break-after:avoid;page-break-after:avoid;}
+.slm-report-formula,.slm-report-q,.slm-report-takeaway,pre,table{break-inside:avoid;page-break-inside:avoid;}
+thead{display:table-header-group;}
+pre{word-break:break-word;overflow-wrap:anywhere;}
 .slm-report-takeaway{font-size:10pt;color:#3d4150;border-left:3px solid #6d5efc;padding:8px 12px;margin:8px 0 0;background:#f3f1ff;border-radius:0 6px 6px 0;}
 .slm-report-takeaway-label{display:block;font-size:7.5pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5b46e0;margin-bottom:3px;}
 .slm-report-takeaway p{display:inline;margin:0;}
