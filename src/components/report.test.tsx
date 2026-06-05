@@ -24,7 +24,6 @@ describe('collectDiagrams', () => {
   it('keys every step + solution diagram', () => {
     const session = buildSession();
     const diagrams = collectDiagrams(session);
-    // step 1 has an svg; solution has one mermaid
     const keys = diagrams.map((d) => d.key);
     expect(keys).toContain(diagramKey('step', 1));
     expect(keys).toContain(diagramKey('sol', 0));
@@ -40,17 +39,17 @@ describe('Report renderToStaticMarkup', () => {
     };
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
-    expect(html).toContain('stemLM');
-    expect(html).toContain('Q.'); // question label
-    expect(html).toContain('What is the current?'); // the full question
-    expect(html).toContain('Ans.'); // answer label
-    expect(html).toContain('Label the circuit'); // step title
-    expect(html).toContain('Solution'); // full solution subheading
-    expect(html).toContain('s1'); // step diagram injected (vector svg)
-    expect(html).toContain('m1'); // solution diagram injected (vector svg)
-    // KaTeX rendered the formula (with MathML for font-independent printing)
+    expect(html).toContain('stem');
+    expect(html).toContain('LM');
+    expect(html).toContain('What is the current?');
+    expect(html).toContain('Question');
+    expect(html).toContain('Answer');
+    expect(html).toContain('Label the circuit');
+    expect(html).toContain('Solution');
+    expect(html).toContain('s1');
+    expect(html).toContain('m1');
     expect(html).toContain('katex');
-    expect(html).toContain('<math'); // MathML present for vector PDF
+    expect(html).toContain('<math');
   });
 
   it('does not throw without diagrams resolved', () => {
@@ -67,19 +66,19 @@ describe('buildReportDocument (vector print PDF)', () => {
 
     expect(doc.startsWith('<!doctype html>')).toBe(true);
     expect(doc).toContain('<style>');
-    expect(doc).toContain('stemLM');
-    expect(doc).toContain('What is the current?'); // the question
-    expect(doc).toContain('s1'); // vector svg diagram embedded
-    // Math shown via MathML, KaTeX HTML hidden → no webfonts needed.
+    expect(doc).toContain('stem');
+    expect(doc).toContain('What is the current?');
+    expect(doc).toContain('s1');
     expect(doc).toContain('.katex .katex-html{display:none');
     expect(doc).toContain('<math');
-    // No raster/AI image pipeline.
     expect(doc).not.toContain('html2canvas');
+    expect(doc).toContain('#0ea5a0');
   });
 
-  it('print styles target A4 and textbook typography', () => {
+  it('print styles target A4 and branded typography', () => {
     expect(printStyles()).toContain('@page');
     expect(printStyles()).toContain('A4');
+    expect(printStyles()).toContain('Inter');
   });
 
   it('builds a sensible filename', () => {
