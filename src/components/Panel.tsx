@@ -193,7 +193,7 @@ export function Panel() {
                 )}
               </AnimatePresence>
 
-              <footer className="slm-stepnav">
+              <footer className="slm-stepnav slm-stepnav--sticky">
                 <button
                   type="button"
                   className="slm-btn slm-btn-ghost"

@@ -15,17 +15,27 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   // split() with a capturing group interleaves: [text, idx, text, idx, ...]
 
   return (
-    <div className="slm-solution slm-selectable">
-      {parts.map((part, i) => {
-        const isIndex = i % 2 === 1;
-        if (isIndex) {
-          const diagram = solutionDiagrams[Number(part)];
-          return diagram ? (
-            <DiagramRenderer key={`d-${i}`} diagram={diagram} theme={theme} large />
-          ) : null;
-        }
-        return part.trim() ? <MathMarkdown key={`t-${i}`} content={part} /> : <Fragment key={`t-${i}`} />;
-      })}
+    <div className="slm-solution">
+      <article className="slm-card">
+        <div className="slm-card-body slm-selectable">
+          {parts.map((part, i) => {
+            const isIndex = i % 2 === 1;
+            if (isIndex) {
+              const diagram = solutionDiagrams[Number(part)];
+              return diagram ? (
+                <div key={`d-${i}`} className="slm-card-diagram">
+                  <DiagramRenderer diagram={diagram} theme={theme} large />
+                </div>
+              ) : null;
+            }
+            return part.trim() ? (
+              <MathMarkdown key={`t-${i}`} content={part} />
+            ) : (
+              <Fragment key={`t-${i}`} />
+            );
+          })}
+        </div>
+      </article>
     </div>
   );
 }

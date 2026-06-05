@@ -34,6 +34,12 @@ const config: AdapterConfig = {
     'div.send-button-container button',
     'div.send-button-container',
   ],
+  composerShell: [
+    'input-area',
+    'div.input-area',
+    'rich-textarea',
+    'div[class*="input-container"]',
+  ],
   assistant: [
     'model-response',
     'message-content.model-response-text',

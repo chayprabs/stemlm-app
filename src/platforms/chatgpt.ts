@@ -38,6 +38,12 @@ const config: AdapterConfig = {
     'button[aria-label*="Send" i]',
     'button[data-testid="stop-button"]',
   ],
+  composerShell: [
+    'form[data-type="unified-composer"]',
+    'div[class*="composer"]',
+    'form.stretch',
+    'main form',
+  ],
   assistant: [
     '[data-message-author-role="assistant"]',
     'div.agent-turn',

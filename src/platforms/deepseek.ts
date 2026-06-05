@@ -33,6 +33,11 @@ const config: AdapterConfig = {
     'button[type="submit"]',
     'button[aria-label*="Send" i]',
   ],
+  composerShell: [
+    'div[class*="input-box"]',
+    'div[class*="chat-input"]',
+    'form',
+  ],
   assistant: [
     'div.ds-markdown',
     '[class*="ds-markdown"]',

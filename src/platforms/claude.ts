@@ -34,6 +34,11 @@ const config: AdapterConfig = {
     'button[data-testid="send-button"]',
     'fieldset button[type="submit"]',
   ],
+  composerShell: [
+    'fieldset',
+    'form',
+    'div[class*="composer"]',
+  ],
   assistant: [
     '[data-testid="assistant-message"]',
     'div.font-claude-message',
