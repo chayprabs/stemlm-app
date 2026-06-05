@@ -1,46 +1,56 @@
 @import 'tailwindcss';
 
 /*
- * stemLM design tokens. Theme is driven by the `data-theme` attribute on the
- * shadow-root host (set by lib/theme.ts). We expose semantic CSS variables so
- * components can stay theme-agnostic.
+ * stemLM design tokens — aligned with stemlm.app brand.
+ * Theme is driven by `data-stemlm-theme` on the shadow-root host (lib/theme.ts).
  */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
-  --radius-card: 1rem;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius-card: 0.875rem;
+  --radius-button: 0.375rem;
+  --radius-pill: 9999px;
 }
 
 :where([data-stemlm-theme]) {
   --slm-bg: #ffffff;
-  --slm-bg-subtle: #f6f7f9;
+  --slm-bg-subtle: #f8f9fc;
   --slm-bg-elevated: #ffffff;
-  --slm-border: #e6e8ec;
-  --slm-fg: #14161a;
-  --slm-fg-muted: #5b616e;
-  --slm-fg-subtle: #868d99;
-  --slm-accent: #6d5efc;
-  --slm-accent-fg: #ffffff;
-  --slm-accent-soft: #eeebff;
-  --slm-success: #18a957;
-  --slm-warning: #d98a00;
-  --slm-shadow: 0 1px 2px rgba(16, 18, 24, 0.04), 0 8px 24px rgba(16, 18, 24, 0.06);
-  --slm-ring: rgba(109, 94, 252, 0.35);
+  --slm-border: #e2e8f0;
+  --slm-border-soft: #dce5ee;
+  --slm-fg: #0f1117;
+  --slm-fg-muted: #64748b;
+  --slm-fg-subtle: #94a3b8;
+  --slm-accent: #0ea5a0;
+  --slm-accent-hover: #0d9490;
+  --slm-accent-fg: #f0f0f2;
+  --slm-accent-soft: rgba(14, 165, 160, 0.08);
+  --slm-success: #22c55e;
+  --slm-warning: #f59e0b;
+  --slm-error: #ef4444;
+  --slm-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --slm-shadow-accent: 0 4px 14px rgba(14, 165, 160, 0.22);
+  --slm-ring: rgba(14, 165, 160, 0.35);
 }
 
 [data-stemlm-theme='dark'] {
-  --slm-bg: #0e0f13;
-  --slm-bg-subtle: #16181f;
-  --slm-bg-elevated: #1a1d25;
-  --slm-border: #262a33;
-  --slm-fg: #f2f4f8;
-  --slm-fg-muted: #a6adba;
-  --slm-fg-subtle: #757d8c;
-  --slm-accent: #8c7dff;
-  --slm-accent-fg: #0e0f13;
-  --slm-accent-soft: #211d3a;
-  --slm-success: #34d17e;
-  --slm-warning: #f0a93a;
-  --slm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --slm-ring: rgba(140, 125, 255, 0.45);
+  --slm-bg: #0c0c0f;
+  --slm-bg-subtle: #141418;
+  --slm-bg-elevated: #1a1a22;
+  --slm-border: #1e1e24;
+  --slm-border-soft: #2a2a35;
+  --slm-fg: #f0f0f2;
+  --slm-fg-muted: #8a8a9a;
+  --slm-fg-subtle: #4a4a5a;
+  --slm-accent: #0ea5a0;
+  --slm-accent-hover: #12b5af;
+  --slm-accent-fg: #f0f0f2;
+  --slm-accent-soft: rgba(14, 165, 160, 0.12);
+  --slm-success: #22c55e;
+  --slm-warning: #f59e0b;
+  --slm-error: #ef4444;
+  --slm-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --slm-shadow-accent: 0 4px 14px rgba(14, 165, 160, 0.18);
+  --slm-ring: rgba(14, 165, 160, 0.4);
 }
