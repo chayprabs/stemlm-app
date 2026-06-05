@@ -8,7 +8,9 @@ import { detectHostScheme, type ResolvedTheme } from '@/src/lib/theme';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { IconLogo, IconCheck, IconChevronDown } from './icons';
 
-const FAB_SIZE = 34;
+const FAB = 32;
+const ROW_H = 36;
+const PAD = 10;
 
 interface Pos {
   top: number;
@@ -17,9 +19,9 @@ interface Pos {
 }
 
 /**
- * Track the composer anchor (the send button) so the small circular stemLM
- * button sits just to its left, vertically centred — i.e. it "belongs" in the
- * composer's action row instead of floating detached above it.
+ * Track the composer shell and anchor the stemLM control row inside the prompt
+ * box — bottom-right, just left of the host send button, vertically centred
+ * on the action row.
  */
 function useComposerPosition(): Pos {
   const [pos, setPos] = useState<Pos>({ top: 0, left: 0, visible: false });
@@ -29,33 +31,38 @@ function useComposerPosition(): Pos {
     let raf = 0;
 
     const update = () => {
+      const shell = adapter?.getComposerShell();
       const anchor = adapter?.getComposerAnchor();
-      if (!anchor) {
+      if (!shell) {
         setPos((p) => (p.visible ? { ...p, visible: false } : p));
         return;
       }
-      const r = anchor.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) {
+
+      const sr = shell.getBoundingClientRect();
+      if (sr.width < 40 || sr.height < 20) {
         setPos((p) => (p.visible ? { ...p, visible: false } : p));
         return;
       }
-      // Vertically centre on the anchor; dock just to its left.
-      const centerY = r.top + r.height / 2;
+
+      // Default: bottom-right inside the shell, left of the send anchor.
+      const ar = anchor?.getBoundingClientRect();
+      const centerY = ar && ar.height > 0 ? ar.top + ar.height / 2 : sr.bottom - PAD - ROW_H / 2;
+      const rowWidth = FAB + 72; // fab + subject chip approx
+      let left = ar && ar.width > 0 ? ar.left - rowWidth - 6 : sr.right - rowWidth - PAD;
+      left = Math.max(sr.left + PAD, Math.min(left, sr.right - rowWidth - PAD));
+
       const top = Math.min(
-        window.innerHeight - FAB_SIZE - 8,
-        Math.max(8, centerY - FAB_SIZE / 2),
+        window.innerHeight - ROW_H - 6,
+        Math.max(6, centerY - ROW_H / 2),
       );
-      const left = Math.min(
-        window.innerWidth - FAB_SIZE - 8,
-        Math.max(8, r.left - FAB_SIZE - 10),
-      );
+
       setPos({ top, left, visible: true });
     };
 
     const loop = () => {
       update();
       raf = window.requestAnimationFrame(() => {
-        setTimeout(loop, 320);
+        setTimeout(loop, 280);
       });
     };
     loop();
@@ -83,21 +90,19 @@ function hexToRgba(hex: string, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-/** Build the CSS custom-property palette for the button from brand × host scheme. */
 function fabPalette(brand: PlatformBrand, scheme: ResolvedTheme): React.CSSProperties {
   if (brand.neutral) {
     const dark = scheme === 'dark';
     return {
-      // Monochrome, matching the host's own send button (e.g. ChatGPT / Grok).
-      ['--slm-fab-surface' as string]: dark ? '#ffffff' : '#0d0d0d',
-      ['--slm-fab-fg' as string]: dark ? '#0d0d0d' : '#ffffff',
-      ['--slm-fab-ring' as string]: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)',
+      ['--slm-fab-surface' as string]: dark ? '#fafafa' : '#18181b',
+      ['--slm-fab-fg' as string]: dark ? '#18181b' : '#fafafa',
+      ['--slm-fab-ring' as string]: dark ? 'rgba(250,250,250,0.2)' : 'rgba(24,24,27,0.15)',
     } as React.CSSProperties;
   }
   return {
     ['--slm-fab-surface' as string]: brand.accent,
     ['--slm-fab-fg' as string]: brand.accentFg ?? '#ffffff',
-    ['--slm-fab-ring' as string]: hexToRgba(brand.accent, 0.45),
+    ['--slm-fab-ring' as string]: hexToRgba(brand.accent, 0.4),
   } as React.CSSProperties;
 }
 
@@ -115,7 +120,6 @@ export function OverlayButton() {
     setOverride(defaultSubject);
   }, [defaultSubject]);
 
-  // Detect (and keep in sync with) the host site's light/dark scheme.
   useEffect(() => {
     const sync = () => setScheme(detectHostScheme());
     sync();
@@ -142,7 +146,7 @@ export function OverlayButton() {
   }, []);
 
   const palette = useMemo(() => {
-    const brand = detectAdapter()?.brand ?? { accent: '#5b46e0' };
+    const brand = detectAdapter()?.brand ?? { accent: '#6366f1' };
     return fabPalette(brand, scheme);
   }, [scheme]);
 
@@ -157,23 +161,26 @@ export function OverlayButton() {
   }
 
   function chooseSubject(s: Subject | 'Auto') {
-    // Selecting a subject both sets it and fires the request in one action.
     setOverride(s);
     setMenuOpen(false);
     getController()?.inject(s);
   }
 
   return (
-    <div ref={ref} className="slm-fab-wrap" style={{ top: pos.top, left: pos.left, ...palette }}>
+    <div
+      ref={ref}
+      className="slm-fab-wrap slm-fab-wrap--inset"
+      style={{ top: pos.top, left: pos.left, ...palette }}
+    >
       <AnimatePresence>
         {menuOpen && !injected && (
           <motion.ul
             className="slm-fab-menu"
             role="listbox"
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+            initial={{ opacity: 0, y: 4, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.16 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            transition={{ duration: 0.14 }}
           >
             {(['Auto', ...SUBJECTS] as (Subject | 'Auto')[]).map((s) => (
               <li key={s}>
@@ -196,37 +203,39 @@ export function OverlayButton() {
         )}
       </AnimatePresence>
 
-      <motion.button
-        type="button"
-        className={`slm-fab ${injected ? 'is-done' : ''}`}
-        onClick={onMain}
-        whileTap={{ scale: 0.92 }}
-        title={
-          injected
-            ? 'Open stemLM panel'
-            : `Solve with stemLM (${override === 'Auto' ? 'Auto-detect subject' : override})`
-        }
-        aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
-      >
-        {injected ? <IconCheck width={18} height={18} /> : <IconLogo />}
-      </motion.button>
+      <div className="slm-fab-row">
+        {!injected && (
+          <button
+            type="button"
+            className="slm-fab-subject"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={menuOpen}
+            title="Choose subject"
+          >
+            <span className="slm-fab-subject-text">{override === 'Auto' ? 'Auto' : override}</span>
+            <IconChevronDown />
+          </button>
+        )}
 
-      {!injected && (
-        <button
+        <motion.button
           type="button"
-          className="slm-fab-subject"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((v) => !v);
-          }}
-          aria-haspopup="listbox"
-          aria-expanded={menuOpen}
-          title="Choose subject"
+          className={`slm-fab ${injected ? 'is-done' : ''}`}
+          onClick={onMain}
+          whileTap={{ scale: 0.94 }}
+          title={
+            injected
+              ? 'Open stemLM panel'
+              : `Solve with stemLM (${override === 'Auto' ? 'Auto-detect subject' : override})`
+          }
+          aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
         >
-          <span className="slm-fab-subject-text">{override === 'Auto' ? 'Auto' : override}</span>
-          <IconChevronDown />
-        </button>
-      )}
+          {injected ? <IconCheck width={16} height={16} /> : <IconLogo />}
+        </motion.button>
+      </div>
     </div>
   );
 }
