@@ -58,10 +58,10 @@ async function resolveDiagrams(session: Session): Promise<Record<string, string>
 export function printStyles(): string {
   return `
 *,*::before,*::after{box-sizing:border-box;}
-@page{size:A4;margin:18mm 16mm;}
-html,body{margin:0;padding:0;background:#fff;color:#1a1a2e;}
+@page{size:A4;margin:20mm 18mm;}
+html,body{margin:0;padding:0;background:#fff;color:#09090b;}
 body{
-  font:13.5px/1.65 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font:14px/1.6 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   -webkit-print-color-adjust:exact;
   print-color-adjust:exact;
 }
@@ -83,15 +83,15 @@ body{
   width:28px;height:28px;
   border-radius:50%;
   flex-shrink:0;
-  background:linear-gradient(135deg,#7c3aed 0%,#a78bfa 55%,#c4b5fd 100%);
-  box-shadow:0 1px 3px rgba(124,58,237,.25);
+  background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%);
+  box-shadow:0 1px 3px rgba(99,102,241,.25);
 }
 .slm-report-brand{
   font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   font-weight:700;
   font-size:20px;
   letter-spacing:-.03em;
-  color:#1a1a2e;
+  color:#09090b;
 }
 .slm-report-meta{
   display:flex;
@@ -122,12 +122,12 @@ body{
   font-weight:700;
   letter-spacing:.04em;
   text-transform:uppercase;
-  color:#7c3aed;
+  color:#6366f1;
   margin:0;
   padding-top:2px;
 }
 .slm-report-q-text{
-  font-size:15px;
+  font-size:16px;
   font-weight:600;
   line-height:1.5;
   color:#111827;
@@ -153,20 +153,34 @@ body{
   font-size:14px;
   font-weight:700;
   line-height:1.4;
-  color:#1a1a2e;
+  color:#09090b;
   margin:0;
 }
-.slm-report-step-no{color:#7c3aed;font-weight:700;}
+.slm-report-step-no{color:#6366f1;font-weight:700;}
 
 /* ── Formula blocks ── */
 .slm-report-formula{
-  margin:8px 0 10px;
-  padding:10px 14px;
-  background:#f3f4f6;
+  position:relative;
+  margin:10px 0 12px;
+  padding:28px 14px 12px;
+  background:linear-gradient(145deg,#14532d 0%,#166534 40%,#15803d 100%);
   border-radius:8px;
-  border:1px solid #e5e7eb;
+  border:1px solid rgba(255,255,255,.08);
   overflow-x:auto;
+  color:#ecfdf5;
 }
+.slm-report-formula::before{
+  content:'Key formula';
+  position:absolute;
+  top:8px;
+  left:12px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:rgba(236,253,245,.65);
+}
+.slm-report-formula .katex{color:#ecfdf5;}
 
 /* ── Body copy ── */
 .slm-report-body{margin:0 0 8px;color:#374151;}
@@ -177,14 +191,21 @@ body{
 .slm-report-takeaway{
   font-size:12.5px;
   line-height:1.55;
-  color:#4c1d95;
-  background:#f5f3ff;
-  border-left:3px solid #7c3aed;
+  color:#3730a3;
+  background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08));
+  border-left:3px solid #6366f1;
   border-radius:0 8px 8px 0;
   padding:10px 14px;
   margin:10px 0 0;
+  box-shadow:inset 3px 0 0 #6366f1;
 }
-.slm-report-takeaway-label{font-weight:700;color:#5b21b6;}
+.slm-report-takeaway-label{
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:#6366f1;
+}
 .slm-report-takeaway p{display:inline;margin:0;}
 
 /* ── Solution section ── */
@@ -215,16 +236,26 @@ body{
 
 /* ── Footer ── */
 .slm-report-foot{
-  margin-top:28px;
-  padding-top:12px;
-  border-top:1px solid #e4e4ef;
-  text-align:center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  margin-top:32px;
+  padding-top:14px;
+  border-top:1px solid #e4e4e7;
   font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   font-size:10px;
-  font-weight:500;
-  letter-spacing:.06em;
-  text-transform:uppercase;
-  color:#9ca3af;
+  font-weight:600;
+  letter-spacing:.04em;
+  color:#71717a;
+}
+.slm-report-foot::before{
+  content:'';
+  display:inline-block;
+  width:6px;height:6px;
+  border-radius:50%;
+  flex-shrink:0;
+  background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%);
 }
 
 /* ── Markdown extras ── */
