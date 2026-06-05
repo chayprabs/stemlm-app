@@ -1,6 +1,6 @@
 {
   "name": "stemlm-app",
-  "description": "stemLM — a structured STEM learning overlay for AI chatbots (ChatGPT, Claude, Gemini)",
+  "description": "stemLM - a structured STEM learning overlay for AI chatbots (ChatGPT, Claude, Gemini)",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -11,6 +11,7 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "compile": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "wxt prepare"
