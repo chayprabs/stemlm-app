@@ -38,7 +38,10 @@ export function StepCard({
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
     >
       <header className="slm-card-head">
-        <div className="slm-card-step">Step {step.index}</div>
+        <div className="slm-card-meta">
+          <span className="slm-card-step">Step {step.index}</span>
+          <span className="slm-card-read">Quick read · ~2 min</span>
+        </div>
         <h2 className="slm-card-title">{step.title}</h2>
         <button
           type="button"
@@ -53,6 +56,7 @@ export function StepCard({
 
       {step.formula && (
         <div className="slm-formula">
+          <span className="slm-formula-label">Key formula</span>
           <MathMarkdown content={step.formula} />
         </div>
       )}

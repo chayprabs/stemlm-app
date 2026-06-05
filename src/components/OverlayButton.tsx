@@ -1,61 +1,80 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
 import type { PlatformBrand } from '@/src/platforms/types';
 import { detectHostScheme, type ResolvedTheme } from '@/src/lib/theme';
+import { ensureComposerSlot } from '@/src/lib/composer-slot';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { IconLogo, IconCheck, IconChevronDown } from './icons';
 
-const FAB_SIZE = 34;
+const FAB_SIZE = 32;
 
-interface Pos {
-  top: number;
-  left: number;
-  visible: boolean;
+type PosMode =
+  | { mode: 'docked'; slot: HTMLElement }
+  | { mode: 'fixed'; top: number; left: number; visible: boolean };
+
+function clamp(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
 }
 
-/**
- * Track the composer anchor (the send button) so the small circular stemLM
- * button sits just to its left, vertically centred — i.e. it "belongs" in the
- * composer's action row instead of floating detached above it.
- */
-function useComposerPosition(): Pos {
-  const [pos, setPos] = useState<Pos>({ top: 0, left: 0, visible: false });
+function useComposerPosition(): PosMode {
+  const [pos, setPos] = useState<PosMode>({ mode: 'fixed', top: 0, left: 0, visible: false });
 
   useEffect(() => {
     const adapter = detectAdapter();
+    if (!adapter) return;
+
     let raf = 0;
 
     const update = () => {
-      const anchor = adapter?.getComposerAnchor();
-      if (!anchor) {
-        setPos((p) => (p.visible ? { ...p, visible: false } : p));
+      const slot = ensureComposerSlot(adapter);
+      if (slot) {
+        setPos((p) =>
+          p.mode === 'docked' && p.slot === slot ? p : { mode: 'docked', slot },
+        );
         return;
       }
-      const r = anchor.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) {
-        setPos((p) => (p.visible ? { ...p, visible: false } : p));
+
+      const box = adapter.getComposerBox();
+      const row = adapter.getComposerActionRow();
+      const send = adapter.getComposerAnchor();
+
+      if (!box && !send) {
+        setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
         return;
       }
-      // Vertically centre on the anchor; dock just to its left.
-      const centerY = r.top + r.height / 2;
-      const top = Math.min(
-        window.innerHeight - FAB_SIZE - 8,
-        Math.max(8, centerY - FAB_SIZE / 2),
-      );
-      const left = Math.min(
-        window.innerWidth - FAB_SIZE - 8,
-        Math.max(8, r.left - FAB_SIZE - 10),
-      );
-      setPos({ top, left, visible: true });
+
+      const rowR = (row ?? send)?.getBoundingClientRect();
+      const boxR = box?.getBoundingClientRect();
+      const sendR = send?.getBoundingClientRect();
+
+      if (!rowR || rowR.width === 0) {
+        setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
+        return;
+      }
+
+      const PAD = 8;
+      const GAP = 6;
+      const top = rowR.top + (rowR.height - FAB_SIZE) / 2;
+      const left = (sendR?.left ?? rowR.right) - FAB_SIZE - GAP;
+
+      const clampedTop = boxR
+        ? clamp(top, boxR.top + PAD, boxR.bottom - FAB_SIZE - PAD)
+        : clamp(top, PAD, window.innerHeight - FAB_SIZE - PAD);
+      const clampedLeft = boxR
+        ? clamp(left, boxR.left + PAD, boxR.right - FAB_SIZE - PAD)
+        : clamp(left, PAD, window.innerWidth - FAB_SIZE - PAD);
+
+      setPos({ mode: 'fixed', top: clampedTop, left: clampedLeft, visible: true });
     };
 
     const loop = () => {
       update();
       raf = window.requestAnimationFrame(() => {
-        setTimeout(loop, 320);
+        setTimeout(loop, 280);
       });
     };
     loop();
@@ -83,21 +102,19 @@ function hexToRgba(hex: string, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-/** Build the CSS custom-property palette for the button from brand × host scheme. */
 function fabPalette(brand: PlatformBrand, scheme: ResolvedTheme): React.CSSProperties {
   if (brand.neutral) {
     const dark = scheme === 'dark';
     return {
-      // Monochrome, matching the host's own send button (e.g. ChatGPT / Grok).
       ['--slm-fab-surface' as string]: dark ? '#ffffff' : '#0d0d0d',
       ['--slm-fab-fg' as string]: dark ? '#0d0d0d' : '#ffffff',
       ['--slm-fab-ring' as string]: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)',
     } as React.CSSProperties;
   }
   return {
-    ['--slm-fab-surface' as string]: brand.accent,
-    ['--slm-fab-fg' as string]: brand.accentFg ?? '#ffffff',
-    ['--slm-fab-ring' as string]: hexToRgba(brand.accent, 0.45),
+    ['--slm-fab-surface' as string]: 'linear-gradient(135deg, #7c6bff, #5b46e0)',
+    ['--slm-fab-fg' as string]: '#ffffff',
+    ['--slm-fab-ring' as string]: hexToRgba('#7c6bff', 0.4),
   } as React.CSSProperties;
 }
 
@@ -115,7 +132,6 @@ export function OverlayButton() {
     setOverride(defaultSubject);
   }, [defaultSubject]);
 
-  // Detect (and keep in sync with) the host site's light/dark scheme.
   useEffect(() => {
     const sync = () => setScheme(detectHostScheme());
     sync();
@@ -146,7 +162,7 @@ export function OverlayButton() {
     return fabPalette(brand, scheme);
   }, [scheme]);
 
-  if (!pos.visible) return null;
+  if (pos.mode === 'fixed' && !pos.visible) return null;
 
   function onMain() {
     if (injected) {
@@ -157,14 +173,13 @@ export function OverlayButton() {
   }
 
   function chooseSubject(s: Subject | 'Auto') {
-    // Selecting a subject both sets it and fires the request in one action.
     setOverride(s);
     setMenuOpen(false);
     getController()?.inject(s);
   }
 
-  return (
-    <div ref={ref} className="slm-fab-wrap" style={{ top: pos.top, left: pos.left, ...palette }}>
+  const content = (
+    <>
       <AnimatePresence>
         {menuOpen && !injected && (
           <motion.ul
@@ -208,7 +223,7 @@ export function OverlayButton() {
         }
         aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
       >
-        {injected ? <IconCheck width={18} height={18} /> : <IconLogo />}
+        {injected ? <IconCheck width={16} height={16} /> : <IconLogo />}
       </motion.button>
 
       {!injected && (
@@ -227,6 +242,25 @@ export function OverlayButton() {
           <IconChevronDown />
         </button>
       )}
+    </>
+  );
+
+  if (pos.mode === 'docked') {
+    return createPortal(
+      <div ref={ref} className="slm-fab-wrap" style={palette}>
+        {content}
+      </div>,
+      pos.slot,
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="slm-fab-wrap slm-fab-wrap--fixed"
+      style={{ top: pos.top, left: pos.left, ...palette }}
+    >
+      {content}
     </div>
   );
 }

@@ -18,12 +18,25 @@ const config: AdapterConfig = {
     'textarea[data-id]',
     'form textarea',
   ],
+  composerBox: [
+    'form[data-type="unified-composer"]',
+    'form:has(#prompt-textarea)',
+    'form:has([data-testid="send-button"])',
+    'main form:has(div.ProseMirror)',
+    'div[class*="composer"]:has(#prompt-textarea)',
+    'main form',
+  ],
+  composerActionRow: [
+    '[data-testid="composer-trailing-actions"]',
+    'div[data-testid="composer-footer-actions"]',
+    'form [data-testid="composer-trailing-actions"]',
+    'button[data-testid="send-button"]',
+    'form .flex.items-end:has([data-testid="send-button"])',
+  ],
   composerAnchor: [
     'button[data-testid="send-button"]',
     'button[aria-label*="Send" i]',
-    'form [data-testid="composer-trailing-actions"]',
-    'button[data-testid="composer-speech-button"]',
-    'main form',
+    'button[data-testid="stop-button"]',
   ],
   assistant: [
     '[data-message-author-role="assistant"]',

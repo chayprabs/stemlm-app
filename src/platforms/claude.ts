@@ -16,11 +16,23 @@ const config: AdapterConfig = {
     'fieldset div[contenteditable="true"]',
     'div[contenteditable="true"]',
   ],
+  composerBox: [
+    'fieldset:has(div.ProseMirror)',
+    'form fieldset',
+    'div[class*="Composer"]',
+    'div[class*="composer"]:has([contenteditable="true"])',
+    'main form',
+  ],
+  composerActionRow: [
+    'fieldset div.flex:has(button[aria-label*="Send" i])',
+    'fieldset > div:last-child:has(button)',
+    'button[aria-label*="Send" i]',
+    'button[data-testid="send-button"]',
+  ],
   composerAnchor: [
     'button[aria-label*="Send" i]',
     'button[data-testid="send-button"]',
     'fieldset button[type="submit"]',
-    'fieldset div[contenteditable="true"]',
   ],
   assistant: [
     '[data-testid="assistant-message"]',

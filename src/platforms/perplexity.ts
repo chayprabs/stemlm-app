@@ -17,11 +17,25 @@ const config: AdapterConfig = {
     'div[contenteditable="true"][role="textbox"]',
     'div[contenteditable="true"]',
   ],
+  composerBox: [
+    'main form:has(textarea)',
+    'div[class*="SearchBar"]',
+    'div[class*="DesktopSearch"]',
+    'div[class*="QueryBar"]',
+    'main .rounded-2xl:has(textarea)',
+    'main form',
+  ],
+  composerActionRow: [
+    'div[class*="right"]:has(button[aria-label*="Submit" i])',
+    'div.flex:has(button[type="submit"])',
+    'button[aria-label*="Submit" i]',
+    'button[data-testid="submit-button"]',
+  ],
   composerAnchor: [
     'button[aria-label*="Submit" i]',
     'button[aria-label*="Send" i]',
-    'button[type="submit"]',
     'button[data-testid="submit-button"]',
+    'button[type="submit"]',
   ],
   assistant: [
     'div[id^="markdown-content"]',

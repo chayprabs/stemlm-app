@@ -133,6 +133,48 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       return setEditorText(editor, text);
     },
 
+    getComposerBox() {
+      const box = firstMatch(config.composerBox);
+      if (box) return box;
+
+      const editor = firstMatch(config.editor);
+      const row =
+        firstMatch(config.composerActionRow) ?? firstMatch(config.composerAnchor);
+
+      if (editor && row) {
+        let node: HTMLElement | null = editor.parentElement;
+        while (node && node !== document.body) {
+          if (node.contains(row)) return node;
+          node = node.parentElement;
+        }
+      }
+
+      return (
+        editor?.closest('form, fieldset, [role="form"], rich-textarea') ??
+        row?.closest('form, fieldset, [role="form"]') ??
+        null
+      );
+    },
+
+    getComposerActionRow() {
+      const row = firstMatch(config.composerActionRow);
+      if (row) return row;
+      const anchor = firstMatch(config.composerAnchor);
+      return anchor?.parentElement ?? null;
+    },
+
+    getComposerLayout() {
+      const box = this.getComposerBox();
+      const actionRow = this.getComposerActionRow();
+      if (!box || !actionRow) return null;
+      if (!box.contains(actionRow) && actionRow !== box) {
+        // Action row may be a sibling inside a shared parent — still usable.
+        const shared = box.contains(actionRow) ? box : actionRow.closest('form, fieldset');
+        if (!shared) return null;
+      }
+      return { box, actionRow };
+    },
+
     getComposerAnchor() {
       return firstMatch(config.composerAnchor) ?? firstMatch(config.editor)?.parentElement ?? null;
     },

@@ -16,10 +16,23 @@ const config: AdapterConfig = {
     'div.ql-editor[contenteditable="true"]',
     'div[contenteditable="true"][role="textbox"]',
   ],
+  composerBox: [
+    'input-area-v2',
+    '.input-area',
+    'div.input-area-container',
+    'div[class*="input-area"]:has(rich-textarea)',
+    'rich-textarea',
+  ],
+  composerActionRow: [
+    'div.send-button-container',
+    'div[class*="input-buttons"]',
+    'div[class*="trailing-actions"]',
+    'button[aria-label*="Send" i]',
+  ],
   composerAnchor: [
     'button[aria-label*="Send" i]',
+    'div.send-button-container button',
     'div.send-button-container',
-    'rich-textarea',
   ],
   assistant: [
     'model-response',

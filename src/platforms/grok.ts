@@ -16,6 +16,19 @@ const config: AdapterConfig = {
     'div[contenteditable="true"][role="textbox"]',
     'div[contenteditable="true"]',
   ],
+  composerBox: [
+    'form:has(textarea[aria-label*="Ask" i])',
+    'div[class*="composer"]:has(textarea)',
+    'main form',
+    'div[class*="input"]:has(textarea)',
+    'main .border:has(textarea)',
+  ],
+  composerActionRow: [
+    'div.flex:has(button[type="submit"])',
+    'div[class*="actions"]:has(button)',
+    'button[type="submit"]',
+    'button[aria-label*="Send" i]',
+  ],
   composerAnchor: [
     'button[type="submit"]',
     'button[aria-label*="Send" i]',

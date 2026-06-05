@@ -21,6 +21,13 @@ export interface PlatformBrand {
   neutral?: boolean;
 }
 
+export interface ComposerLayout {
+  /** Visual outer shell of the chat input (border, radius). */
+  box: HTMLElement;
+  /** Bottom toolbar row where send + trailing actions live. */
+  actionRow: HTMLElement;
+}
+
 export interface PlatformAdapter {
   readonly id: PlatformId;
   readonly label: string;
@@ -40,6 +47,15 @@ export interface PlatformAdapter {
 
   /** Replace the composer content with `text`. Returns success. */
   insertPrompt(text: string): boolean;
+
+  /** Outer composer container for in-box button positioning. */
+  getComposerBox(): HTMLElement | null;
+
+  /** Action row inside the composer (send button toolbar). */
+  getComposerActionRow(): HTMLElement | null;
+
+  /** Resolved box + action row together. */
+  getComposerLayout(): ComposerLayout | null;
 
   /** A stable element near the composer to dock the stemLM button beside. */
   getComposerAnchor(): HTMLElement | null;
@@ -67,7 +83,11 @@ export interface AdapterConfig {
   hosts: RegExp;
   /** Editor selectors, tried in order. */
   editor: string[];
-  /** Where to anchor the button (tried in order). Falls back to editor parent. */
+  /** Outer composer container — tried in order. */
+  composerBox: string[];
+  /** Action/toolbar row inside the box — tried in order. */
+  composerActionRow: string[];
+  /** Send/submit control — tried in order. */
   composerAnchor: string[];
   /** Assistant message container selectors (tried in order). */
   assistant: string[];

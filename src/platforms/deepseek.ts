@@ -15,11 +15,23 @@ const config: AdapterConfig = {
     'textarea',
     'div[contenteditable="true"]',
   ],
+  composerBox: [
+    'div:has(textarea#chat-input)',
+    'div[class*="chat-input"]',
+    'main form:has(#chat-input)',
+    'div.f6d670cb',
+    'main .border:has(textarea)',
+  ],
+  composerActionRow: [
+    'div:has(div[role="button"][aria-disabled])',
+    'div.flex:has(div[role="button"])',
+    'div[role="button"][aria-disabled]',
+    'button[type="submit"]',
+  ],
   composerAnchor: [
     'div[role="button"][aria-disabled]',
     'button[type="submit"]',
     'button[aria-label*="Send" i]',
-    'div.f6d670cb',
   ],
   assistant: [
     'div.ds-markdown',
