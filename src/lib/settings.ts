@@ -6,6 +6,7 @@
 import { browser } from 'wxt/browser';
 import type { ThemePref } from './theme';
 import type { Subject } from '@/src/protocol/types';
+import type { PromptVariant } from '@/src/protocol/protocol';
 import type { PlatformId } from '@/src/platforms/types';
 
 export interface Settings {
@@ -18,6 +19,8 @@ export interface Settings {
   enabledPlatforms: Record<PlatformId, boolean>;
   /** Default subject routing for injection. */
   defaultSubject: Subject | 'Auto';
+  /** Prompt protocol variant used for injected questions. */
+  promptVariant: PromptVariant;
   /** Opt out of anonymous usage analytics. */
   analyticsOptOut: boolean;
   /**
@@ -47,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
     deepseek: true,
   },
   defaultSubject: 'Auto',
+  promptVariant: 'balanced',
   analyticsOptOut: false,
   splitRatio: 0.5,
 };
@@ -62,6 +66,10 @@ function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}
     ...DEFAULT_SETTINGS,
     ...stored,
     autoOpenOnAnswer,
+    promptVariant:
+      stored.promptVariant === 'ultra' || stored.promptVariant === 'balanced'
+        ? stored.promptVariant
+        : DEFAULT_SETTINGS.promptVariant,
     splitRatio: clampSplitRatio(stored.splitRatio ?? DEFAULT_SETTINGS.splitRatio),
     enabledPlatforms: { ...DEFAULT_SETTINGS.enabledPlatforms, ...stored.enabledPlatforms },
   };

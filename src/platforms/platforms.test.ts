@@ -86,6 +86,33 @@ describe('ChatGPT adapter', () => {
     expect(caps[0]).toContain('@meta');
   });
 
+  it('prefers language-stemlm code blocks', () => {
+    setBody(`
+      <div data-message-author-role="assistant">
+        <pre><code class="language-js">console.log("ignore")</code></pre>
+        <pre><code class="language-stemlm">${CAPSULE_BODY}</code></pre>
+      </div>
+    `);
+    const caps = chatgptAdapter.extractCapsules();
+    expect(caps).toHaveLength(1);
+    expect(caps[0]).toContain('topic: Test');
+  });
+
+  it('prefers complete candidates inside a message', () => {
+    setBody(`
+      <div data-message-author-role="assistant">
+        <pre><code>@meta
+subject: Physics
+topic: Partial</code></pre>
+        <pre><code>${CAPSULE_BODY}</code></pre>
+      </div>
+    `);
+    const caps = chatgptAdapter.extractCapsules();
+    expect(caps).toHaveLength(1);
+    expect(caps[0]).toContain('@end');
+    expect(caps[0]).toContain('topic: Test');
+  });
+
   it('reports streaming when stop button present', () => {
     expect(chatgptAdapter.isStreaming()).toBe(false);
     document.body.insertAdjacentHTML('beforeend', '<button data-testid="stop-button">Stop</button>');

@@ -76,11 +76,36 @@ export interface Capsule {
 
 export type ParseStatus = 'ok' | 'partial' | 'empty';
 
+export type ParseWarningCode =
+  | 'no_capsule'
+  | 'missing_fence'
+  | 'missing_meta'
+  | 'missing_end'
+  | 'inner_triple_backticks'
+  | 'invalid_step_count'
+  | 'invalid_subject'
+  | 'missing_topic'
+  | 'missing_step_title'
+  | 'missing_solution'
+  | 'malformed_diagram';
+
+export type ParseErrorCode =
+  | 'no_capsule'
+  | 'no_usable_content'
+  | 'missing_meta'
+  | 'missing_end'
+  | 'inner_triple_backticks'
+  | 'invalid_step_count';
+
 export interface ParseResult {
   status: ParseStatus;
   capsule?: Capsule;
   /** Warnings collected while parsing (missing blocks, recovered sections...). */
   warnings: string[];
+  /** Stable warning codes for telemetry, scoring, and repair prompts. */
+  warningCodes: ParseWarningCode[];
+  /** Stable primary failure code when status is not usable. */
+  errorCode?: ParseErrorCode;
   /** Original raw text the capsule was parsed from (for fallback display). */
   raw: string;
 }

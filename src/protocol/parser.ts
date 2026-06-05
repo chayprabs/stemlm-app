@@ -12,7 +12,9 @@ import {
   type Capsule,
   type Diagram,
   type DiagramType,
+  type ParseErrorCode,
   type ParseResult,
+  type ParseWarningCode,
   type Step,
   type Subject,
   SUBJECTS,
@@ -40,6 +42,16 @@ const STRUCTURAL_MARKERS = new Set([
   CAPSULE_END_TOKEN,
 ]);
 
+function addWarning(
+  warnings: string[],
+  warningCodes: ParseWarningCode[],
+  code: ParseWarningCode,
+  message: string,
+): void {
+  warnings.push(message);
+  warningCodes.push(code);
+}
+
 function isStructural(line: string): boolean {
   const t = line.trim();
   return STRUCTURAL_MARKERS.has(t) || /^@diagram\b/.test(t);
@@ -63,12 +75,24 @@ export { SOLUTION_DIAGRAM_RE };
 export function findCapsuleRaw(text: string): string | null {
   if (!text) return null;
 
-  // 1) Explicit ```stemlm fence.
-  const tagged = new RegExp(
-    '```+\\s*' + CAPSULE_FENCE_TAG + '\\b[^\\n]*\\n([\\s\\S]*?)\\n?```+',
-    'i',
-  ).exec(text);
-  if (tagged && tagged[1] !== undefined) return tagged[1];
+  // 1) Explicit ```stemlm fence. Prefer the span through a standalone @end so
+  // a stray inner code fence does not truncate the capsule before validation.
+  const taggedOpen = new RegExp('^```+\\s*' + CAPSULE_FENCE_TAG + '\\b[^\\n]*$', 'im').exec(text);
+  if (taggedOpen) {
+    const afterOpen = text.slice(taggedOpen.index + taggedOpen[0].length).replace(/^\r?\n/, '');
+    const lines = afterOpen.split('\n');
+    for (let k = 0; k < lines.length; k++) {
+      if ((lines[k] ?? '').trim() === CAPSULE_END_TOKEN) {
+        return lines.slice(0, k + 1).join('\n');
+      }
+    }
+    const tagged = new RegExp(
+      '```+\\s*' + CAPSULE_FENCE_TAG + '\\b[^\\n]*\\n([\\s\\S]*?)\\n?```+',
+      'i',
+    ).exec(text);
+    if (tagged && tagged[1] !== undefined) return tagged[1];
+    return afterOpen;
+  }
 
   // 2) Any fenced block containing @meta.
   const fenceRe = /```+[^\n]*\n([\s\S]*?)\n?```+/g;
@@ -151,22 +175,22 @@ function readInlineValue(line: string, key: string): string | null {
   return m ? (m[1] ?? '').trim() : null;
 }
 
-function normalizeSubject(value: string | undefined): Subject {
-  if (!value) return 'General';
+function normalizeSubject(value: string | undefined): { subject: Subject; recovered: boolean } {
+  if (!value) return { subject: 'General', recovered: false };
   const found = SUBJECTS.find((s) => s.toLowerCase() === value.trim().toLowerCase());
-  if (found) return found;
+  if (found) return { subject: found, recovered: false };
   // Common aliases.
   const v = value.trim().toLowerCase();
-  if (/comp|cs|algorithm|program|coding/.test(v)) return 'CS';
-  if (/elec|circuit/.test(v)) return 'Electrical';
-  if (/mech(?!.*chem)/.test(v)) return 'Mechanical';
-  if (/civil|structur/.test(v)) return 'Civil';
-  if (/chem.*eng|process eng/.test(v)) return 'Chemical';
-  if (/phys/.test(v)) return 'Physics';
-  if (/chem/.test(v)) return 'Chemistry';
-  if (/bio/.test(v)) return 'Biology';
-  if (/math|calc|algebra/.test(v)) return 'Math';
-  return 'General';
+  if (/comp|cs|algorithm|program|coding/.test(v)) return { subject: 'CS', recovered: false };
+  if (/elec|circuit/.test(v)) return { subject: 'Electrical', recovered: false };
+  if (/mech(?!.*chem)/.test(v)) return { subject: 'Mechanical', recovered: false };
+  if (/civil|structur/.test(v)) return { subject: 'Civil', recovered: false };
+  if (/chem.*eng|process eng/.test(v)) return { subject: 'Chemical', recovered: false };
+  if (/phys/.test(v)) return { subject: 'Physics', recovered: false };
+  if (/chem/.test(v)) return { subject: 'Chemistry', recovered: false };
+  if (/bio/.test(v)) return { subject: 'Biology', recovered: false };
+  if (/math|calc|algebra/.test(v)) return { subject: 'Math', recovered: false };
+  return { subject: 'General', recovered: true };
 }
 
 function parseDiagramOpen(line: string): DiagramType {
@@ -203,7 +227,20 @@ function extractSolutionDiagrams(body: string): { text: string; diagrams: Diagra
   return { text: outLines.join('\n').trim(), diagrams };
 }
 
-function parseStep(c: Cursor, index: number, warnings: string[]): Step {
+function isMalformedDiagram(diagram: Diagram): boolean {
+  if (diagram.type === 'svg') {
+    return !/<svg\b/i.test(diagram.content);
+  }
+  const src = diagram.content.trim();
+  return !/^(graph\s+(TD|LR)\b|sequenceDiagram\b|stateDiagram(?:-v2)?\b)/i.test(src);
+}
+
+function parseStep(
+  c: Cursor,
+  index: number,
+  warnings: string[],
+  warningCodes: ParseWarningCode[],
+): Step {
   const step: Step = { id: `step-${index}`, index, title: '', body: '' };
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
@@ -239,7 +276,17 @@ function parseStep(c: Cursor, index: number, warnings: string[]): Step {
       const type = parseDiagramOpen(t);
       c.i++;
       const content = readBlock(c, '@enddiagram');
-      if (content) step.diagram = { type, content };
+      if (content) {
+        step.diagram = { type, content };
+        if (isMalformedDiagram(step.diagram)) {
+          addWarning(
+            warnings,
+            warningCodes,
+            'malformed_diagram',
+            `Step ${index} had a malformed ${type} diagram.`,
+          );
+        }
+      }
       continue;
     }
     if (t === '@takeaway') {
@@ -285,7 +332,7 @@ function parseStep(c: Cursor, index: number, warnings: string[]): Step {
 
   if (!step.title) {
     step.title = `Step ${index}`;
-    warnings.push(`Step ${index} had no title.`);
+    addWarning(warnings, warningCodes, 'missing_step_title', `Step ${index} had no title.`);
   }
   return step;
 }
@@ -293,6 +340,7 @@ function parseStep(c: Cursor, index: number, warnings: string[]): Step {
 /** Parse the capsule body (already-extracted text) into a Capsule. */
 export function parseCapsule(capsuleText: string): ParseResult {
   const warnings: string[] = [];
+  const warningCodes: ParseWarningCode[] = [];
   const raw = capsuleText;
   const lines = capsuleText.replace(/\r\n/g, '\n').split('\n');
   const c: Cursor = { lines, i: 0 };
@@ -300,19 +348,32 @@ export function parseCapsule(capsuleText: string): ParseResult {
   let subject: Subject = 'General';
   let topic = '';
   let version = PROTOCOL_VERSION;
+  let sawMeta = false;
+  let sawEnd = false;
   const steps: Step[] = [];
   let solution = '';
   let solutionDiagrams: Diagram[] = [];
+
+  if (capsuleText.includes('```')) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'inner_triple_backticks',
+      'Capsule contained triple backticks inside its body.',
+    );
+  }
 
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
 
     if (t === CAPSULE_END_TOKEN) {
+      sawEnd = true;
       c.i++;
       break;
     }
     if (t === '@meta') {
+      sawMeta = true;
       c.i++;
       while (c.i < c.lines.length) {
         const ml = c.lines[c.i] ?? '';
@@ -326,7 +387,18 @@ export function parseCapsule(capsuleText: string): ParseResult {
         const s = readInlineValue(ml, 'subject');
         const tp = readInlineValue(ml, 'topic');
         if (v !== null) version = Number(v) || PROTOCOL_VERSION;
-        else if (s !== null) subject = normalizeSubject(s);
+        else if (s !== null) {
+          const normalized = normalizeSubject(s);
+          subject = normalized.subject;
+          if (normalized.recovered) {
+            addWarning(
+              warnings,
+              warningCodes,
+              'invalid_subject',
+              `Invalid subject "${s}" was normalized to General.`,
+            );
+          }
+        }
         else if (tp !== null) topic = tp;
         c.i++;
       }
@@ -334,7 +406,7 @@ export function parseCapsule(capsuleText: string): ParseResult {
     }
     if (t === '@step') {
       c.i++;
-      steps.push(parseStep(c, steps.length + 1, warnings));
+      steps.push(parseStep(c, steps.length + 1, warnings, warningCodes));
       continue;
     }
     if (t === '@solution') {
@@ -343,6 +415,16 @@ export function parseCapsule(capsuleText: string): ParseResult {
       const extracted = extractSolutionDiagrams(body);
       solution = extracted.text;
       solutionDiagrams = extracted.diagrams;
+      for (const diagram of solutionDiagrams) {
+        if (isMalformedDiagram(diagram)) {
+          addWarning(
+            warnings,
+            warningCodes,
+            'malformed_diagram',
+            `Solution had a malformed ${diagram.type} diagram.`,
+          );
+        }
+      }
       continue;
     }
 
@@ -352,7 +434,30 @@ export function parseCapsule(capsuleText: string): ParseResult {
 
   if (!topic) {
     topic = steps[0]?.title || 'Study capsule';
-    warnings.push('Capsule had no topic; inferred from first step.');
+    addWarning(
+      warnings,
+      warningCodes,
+      'missing_topic',
+      'Capsule had no topic; inferred from first step.',
+    );
+  }
+
+  if (!sawMeta) {
+    addWarning(warnings, warningCodes, 'missing_meta', 'Capsule had no @meta block.');
+  }
+  if (!sawEnd) {
+    addWarning(warnings, warningCodes, 'missing_end', 'Capsule had no final @end token.');
+  }
+  if (steps.length > 0 && (steps.length < 3 || steps.length > 7)) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'invalid_step_count',
+      `Capsule had ${steps.length} step(s); expected 3-7.`,
+    );
+  }
+  if (!solution) {
+    addWarning(warnings, warningCodes, 'missing_solution', 'Capsule had no solution block.');
   }
 
   const capsule: Capsule = {
@@ -363,18 +468,33 @@ export function parseCapsule(capsuleText: string): ParseResult {
   };
 
   if (steps.length === 0 && !solution) {
-    return { status: 'empty', warnings, raw };
+    const errorCode: ParseErrorCode = sawMeta ? 'no_usable_content' : 'missing_meta';
+    return { status: 'empty', warnings, warningCodes, errorCode, raw };
   }
 
   const status = steps.length > 0 ? 'ok' : 'partial';
-  return { status, capsule, warnings, raw };
+  return { status, capsule, warnings, warningCodes, raw };
 }
 
 /** Top-level: find + parse a capsule from arbitrary message text. */
 export function parse(text: string): ParseResult {
   const capsuleText = findCapsuleRaw(text);
   if (capsuleText === null) {
-    return { status: 'empty', warnings: ['No stemLM capsule found in text.'], raw: text };
+    return {
+      status: 'empty',
+      warnings: ['No stemLM capsule found in text.'],
+      warningCodes: ['no_capsule'],
+      errorCode: 'no_capsule',
+      raw: text,
+    };
   }
-  return parseCapsule(capsuleText);
+  const result = parseCapsule(capsuleText);
+  if (!/```+\s*stemlm\b/i.test(text) && text.includes('@meta')) {
+    return {
+      ...result,
+      warnings: ['Capsule was parsed without an explicit stemlm fence.', ...result.warnings],
+      warningCodes: ['missing_fence', ...result.warningCodes],
+    };
+  }
+  return result;
 }

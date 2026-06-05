@@ -7,9 +7,9 @@
  * chatbot's own history) and the quote-reply follow-up flow.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
-import { buildInjectionPrompt, buildFollowupPrompt } from '@/src/protocol/builder';
+import { buildInjectionPrompt, buildFollowupPrompt, buildRepairPrompt } from '@/src/protocol/builder';
 import { parse, looksComplete } from '@/src/protocol/parser';
-import type { Session, Subject } from '@/src/protocol/types';
+import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 
@@ -28,6 +28,10 @@ function makeId(): string {
   return `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function allDiagrams(...groups: Diagram[][]): Diagram[] {
+  return groups.flat();
+}
+
 export class StemController {
   private adapter: PlatformAdapter;
   private observer: MutationObserver | null = null;
@@ -36,6 +40,7 @@ export class StemController {
   private capturedRaw = new Set<string>();
   private lastQuestion = '';
   private watching = false;
+  private repairPromptInserted = false;
 
   // Answer-started detection (used to open the panel only once the assistant
   // actually begins responding, rather than the moment we inject).
@@ -68,7 +73,8 @@ export class StemController {
     const question = this.adapter.getEditorText().trim();
     this.lastQuestion = question;
 
-    const { prompt, subject } = buildInjectionPrompt(question, { subject: subjectOverride });
+    const variant = store.settings.promptVariant;
+    const { prompt, subject } = buildInjectionPrompt(question, { subject: subjectOverride, variant });
     const ok = this.adapter.insertPrompt(prompt);
     if (!ok) {
       store.setStatus('error', 'Could not find the chat input to add the stemLM prompt.');
@@ -79,7 +85,11 @@ export class StemController {
     store.setButtonInjected(true);
     store.setStatus('loading');
     this.armAnswerDetection();
-    void trackEvent('question_asked', { platform: this.adapter.id, subject });
+    void trackEvent('question_asked', {
+      platform: this.adapter.id,
+      subject,
+      prompt_variant: variant,
+    });
 
     this.startWatching();
     return true;
@@ -102,6 +112,7 @@ export class StemController {
     this.answerStarted = false;
     this.stableText = '';
     this.stableSince = 0;
+    this.repairPromptInserted = false;
     try {
       this.baselineBlocks = this.adapter.getAssistantBlocks().length;
     } catch {
@@ -209,15 +220,33 @@ export class StemController {
     if (!usable) {
       if (complete) {
         this.capturedRaw.add(key);
-        useStore
-          .getState()
-          .setStatus('error', "stemLM couldn't read a structured answer from this response.");
+        this.offerRepairPrompt(result);
       }
       return;
     }
 
     this.capturedRaw.add(key);
-    this.captureFromText(candidate, this.lastQuestion);
+    this.captureFromText(candidate, this.lastQuestion, result);
+  }
+
+  private offerRepairPrompt(result: ParseResult): void {
+    const code = result.errorCode ?? result.warningCodes[0] ?? 'no_usable_content';
+    const inserted =
+      !this.repairPromptInserted && this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }));
+    this.repairPromptInserted = inserted || this.repairPromptInserted;
+    const suffix = inserted ? ' A repair prompt has been added to the chatbox; send it to retry.' : '';
+    useStore
+      .getState()
+      .setStatus('error', `stemLM couldn't read a structured answer from this response.${suffix}`);
+    void trackEvent('extension_error', {
+      platform: this.adapter.id,
+      source: 'parse',
+      parse_status: result.status,
+      parse_error_code: code,
+      warnings_count: result.warningCodes.length,
+      repair_used: inserted,
+      prompt_variant: useStore.getState().settings.promptVariant,
+    });
   }
 
   /** Detect (once) that the assistant has started answering, and notify. */
@@ -242,12 +271,13 @@ export class StemController {
     }
   }
 
-  private captureFromText(text: string, question: string): void {
-    const result = parse(text);
+  private captureFromText(text: string, question: string, parsed?: ParseResult): void {
+    const result = parsed ?? parse(text);
     if (result.status === 'empty' || !result.capsule) {
-      useStore.getState().setStatus('error', "stemLM couldn't read a structured answer from this response.");
+      this.offerRepairPrompt(result);
       return;
     }
+    const diagrams = allDiagrams(result.capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])), result.capsule.solutionDiagrams);
     const session: Session = {
       id: makeId(),
       createdAt: Date.now(),
@@ -263,6 +293,11 @@ export class StemController {
       platform: this.adapter.id,
       subject: result.capsule.meta.subject,
       steps: result.capsule.steps.length,
+      prompt_variant: useStore.getState().settings.promptVariant,
+      parse_status: result.status,
+      warnings_count: result.warningCodes.length,
+      had_svg: diagrams.some((d) => d.type === 'svg'),
+      had_mermaid: diagrams.some((d) => d.type === 'mermaid'),
     });
   }
 

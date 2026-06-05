@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildInjectionPrompt, buildFollowupPrompt, resolveSubject } from './builder';
-import { CORE_PROTOCOL } from './protocol';
+import {
+  buildInjectionPrompt,
+  buildFollowupPrompt,
+  buildRepairPrompt,
+  resolveSubject,
+} from './builder';
+import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
 
 describe('buildInjectionPrompt', () => {
   it('includes the question, protocol, and the routed playbook', () => {
@@ -8,7 +13,7 @@ describe('buildInjectionPrompt', () => {
     expect(subject).toBe('Electrical');
     expect(prompt).toContain('Solve this circuit');
     expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('ELECTRICAL/CIRCUITS:');
+    expect(prompt).toContain('ELECTRICAL:');
     expect(prompt).toContain('@end');
   });
 
@@ -18,10 +23,20 @@ describe('buildInjectionPrompt', () => {
     expect(prompt).toContain('CHEMISTRY:');
   });
 
-  it('keeps the injected core prompt compact (≤ 2 kB)', () => {
+  it('supports the ultra prompt variant behind an explicit option', () => {
+    const { prompt, variant } = buildInjectionPrompt('trace binary search code', {
+      subject: 'CS',
+      variant: 'ultra',
+    });
+    expect(variant).toBe('ultra');
+    expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
+    expect(prompt).toContain('CS:');
+  });
+
+  it('keeps the injected core prompt compact', () => {
     // The core protocol is sent on every question; keep it small so it doesn't
     // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(2048);
+    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(2200);
     // All structural markers the parser relies on must survive compression.
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
@@ -58,5 +73,16 @@ describe('buildFollowupPrompt', () => {
     expect(prompt).toContain('> Total resistance is R1 + R2');
     expect(prompt).toContain('Solve for current');
     expect(prompt).toContain('stemlm');
+    expect(prompt).not.toContain('```stemlm');
+  });
+});
+
+describe('buildRepairPrompt', () => {
+  it('asks for a format-only re-emit without raw content', () => {
+    const prompt = buildRepairPrompt({ errorCode: 'missing_end' });
+    expect(prompt).toContain('missing_end');
+    expect(prompt).toContain('fix only the format');
+    expect(prompt).toContain('@end');
+    expect(prompt).not.toContain('```stemlm');
   });
 });

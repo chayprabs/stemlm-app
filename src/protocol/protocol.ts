@@ -15,11 +15,13 @@
  * appended separately by the builder (one playbook at a time) for token economy.
  */
 
-import coreTemplate from './core-protocol.md?raw';
+import coreBalancedTemplate from './core-protocol.md?raw';
+import coreUltraTemplate from './core-protocol.ultra.md?raw';
 
 export const CAPSULE_FENCE_TAG = 'stemlm';
 export const CAPSULE_END_TOKEN = '@end';
 export const PROTOCOL_VERSION = 1;
+export type PromptVariant = 'balanced' | 'ultra';
 
 /**
  * The core protocol text lives in `core-protocol.md` (a compact ~1.7 kB file,
@@ -28,8 +30,19 @@ export const PROTOCOL_VERSION = 1;
  * tokens are injected here from the constants above so the protocol stays the
  * single source of truth for the parser.
  */
-export const CORE_PROTOCOL = coreTemplate
-  .replace(/__FENCE__/g, CAPSULE_FENCE_TAG)
-  .replace(/__END__/g, CAPSULE_END_TOKEN)
-  .replace(/__VER__/g, String(PROTOCOL_VERSION))
-  .trim();
+function renderProtocol(template: string): string {
+  return template
+    .replace(/__FENCE__/g, CAPSULE_FENCE_TAG)
+    .replace(/__END__/g, CAPSULE_END_TOKEN)
+    .replace(/__VER__/g, String(PROTOCOL_VERSION))
+    .trim();
+}
+
+export const CORE_PROTOCOL_BY_VARIANT: Record<PromptVariant, string> = {
+  balanced: renderProtocol(coreBalancedTemplate),
+  ultra: renderProtocol(coreUltraTemplate),
+};
+
+export const DEFAULT_PROMPT_VARIANT: PromptVariant = 'balanced';
+
+export const CORE_PROTOCOL = CORE_PROTOCOL_BY_VARIANT[DEFAULT_PROMPT_VARIANT];

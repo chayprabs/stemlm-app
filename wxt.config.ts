@@ -1,6 +1,14 @@
 import { defineConfig } from 'wxt';
-import type { Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+
+type OutputChunk = { type: 'chunk'; code: string };
+type OutputAsset = { type: 'asset' };
+type OutputBundle = Record<string, OutputChunk | OutputAsset>;
+type BundlePlugin = {
+  name: string;
+  enforce: 'post';
+  generateBundle: (_options: unknown, bundle: OutputBundle) => void;
+};
 
 // Chrome refuses to load extension scripts whose contents fail its strict
 // `IsStringUTF8` check. That check rejects Unicode "non-characters"
@@ -29,7 +37,7 @@ function escapeUnsafeChars(code: string): string {
   });
 }
 
-function asciiSafeOutput(): Plugin {
+function asciiSafeOutput(): BundlePlugin {
   return {
     name: 'stemlm:ascii-safe-output',
     enforce: 'post',

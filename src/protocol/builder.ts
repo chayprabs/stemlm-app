@@ -8,7 +8,11 @@
  *    new answer renders below in the panel.
  */
 import type { Subject } from './types';
-import { CORE_PROTOCOL } from './protocol';
+import {
+  CORE_PROTOCOL_BY_VARIANT,
+  DEFAULT_PROMPT_VARIANT,
+  type PromptVariant,
+} from './protocol';
 import { getPlaybook } from './playbooks';
 import { classifySubject } from './classifier';
 
@@ -17,11 +21,14 @@ const SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 export interface BuildOptions {
   /** 'Auto' => classify from the question; otherwise force this subject. */
   subject?: Subject | 'Auto';
+  /** Balanced is the production default; ultra is for measured experiments. */
+  variant?: PromptVariant;
 }
 
 export interface BuildResult {
   prompt: string;
   subject: Subject;
+  variant: PromptVariant;
 }
 
 export function resolveSubject(question: string, opt?: BuildOptions): Subject {
@@ -31,10 +38,11 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
 
 export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
+  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const q = (question || '').trim();
   const head = q.length > 0 ? q : '(The student has not typed a question yet — ask them to type one.)';
-  const prompt = `${head}${SEP}${CORE_PROTOCOL}\n\n${getPlaybook(subject)}`;
-  return { prompt, subject };
+  const prompt = `${head}${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  return { prompt, subject, variant };
 }
 
 export interface FollowupOptions {
@@ -59,8 +67,22 @@ export function buildFollowupPrompt(opt: FollowupOptions): string {
       .join('\n'),
     '',
     'Explain it more thoroughly — expand the reasoning, add the missing intermediate steps, and clarify anything subtle.',
-    'Answer using the SAME stemLM capsule format as before (one ```stemlm code block, @meta ... @end, with step diagrams).',
+    'Answer using the SAME stemLM capsule format as before (one fenced block, info string stemlm, @meta ... @end, with step diagrams).',
     '',
     getPlaybook(subject),
+  ].join('\n');
+}
+
+export interface RepairPromptOptions {
+  errorCode?: string;
+}
+
+export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
+  const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
+  return [
+    `Your previous answer broke the stemLM capsule format.${reason}`,
+    'Re-emit the same answer as exactly one fenced block with info string stemlm.',
+    'No prose outside the block. Preserve the math, diagrams, and explanation; fix only the format.',
+    'The capsule must include @meta, 3-7 @step blocks, @solution, @endsolution, and final @end.',
   ].join('\n');
 }

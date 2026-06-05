@@ -36,7 +36,11 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
     // mermaid
     renderMermaid(diagram.content, theme)
       .then((out) => {
-        if (mounted.current) setSvg(out);
+        const clean = sanitizeSvg(extractSvg(out));
+        if (mounted.current) {
+          if (clean) setSvg(clean);
+          else setFailed(true);
+        }
       })
       .catch(() => {
         if (mounted.current) setFailed(true);

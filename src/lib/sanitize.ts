@@ -15,6 +15,15 @@ function ensureConfigured() {
   if (configured) return;
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     const el = node as Element;
+    for (const attr of Array.from(el.attributes ?? [])) {
+      if (/^on/i.test(attr.name) || attr.name.toLowerCase() === 'style') {
+        el.removeAttribute(attr.name);
+      }
+    }
+    if (el.tagName.toLowerCase() === 'svg') {
+      el.removeAttribute('width');
+      el.removeAttribute('height');
+    }
     for (const attr of ['href', 'xlink:href']) {
       const val = el.getAttribute?.(attr);
       if (val && !val.startsWith('#')) {
@@ -27,7 +36,12 @@ function ensureConfigured() {
 
 /** Remove any remaining remote href/xlink:href (defense in depth). */
 function stripRemoteRefs(svg: string): string {
-  return svg.replace(/\s(?:xlink:)?href\s*=\s*(["'])(?!#)[^"']*\1/gi, '');
+  return svg
+    .replace(/<\s*(?:foreignObject|image)\b[\s\S]*?<\s*\/\s*(?:foreignObject|image)\s*>/gi, '')
+    .replace(/<\s*(?:foreignObject|image)\b[^>]*\/?>/gi, '')
+    .replace(/\s(?:xlink:)?href\s*=\s*(["'])(?!#)[^"']*\1/gi, '')
+    .replace(/\s(?:style|on[a-z]+)\s*=\s*(["'])[\s\S]*?\1/gi, '')
+    .replace(/\surl\((?!#)[^)]+\)/gi, '');
 }
 
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
@@ -36,7 +50,7 @@ export function sanitizeSvg(svg: string): string {
   ensureConfigured();
   const clean = DOMPurify.sanitize(svg, {
     USE_PROFILES: { svg: true, svgFilters: true },
-    ADD_TAGS: ['marker', 'use'],
+    ADD_TAGS: ['marker'],
     ADD_ATTR: [
       'marker-end',
       'marker-start',
@@ -47,8 +61,8 @@ export function sanitizeSvg(svg: string): string {
       'markerWidth',
       'markerHeight',
     ],
-    FORBID_TAGS: ['script', 'foreignObject', 'image'],
-    FORBID_ATTR: ['onload', 'onclick', 'onmouseover'],
+    FORBID_TAGS: ['script', 'style', 'foreignObject', 'image'],
+    FORBID_ATTR: ['style', 'onload', 'onclick', 'onmouseover'],
   });
   return stripRemoteRefs(clean).trim();
 }

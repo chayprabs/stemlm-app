@@ -41,6 +41,51 @@ describe('looksComplete', () => {
   });
 });
 
+describe('parse warning and error codes', () => {
+  it('flags inner triple backticks instead of silently trusting them', () => {
+    const raw = [
+      '```stemlm',
+      '@meta',
+      'version: 1',
+      'subject: CS',
+      'topic: Code fence',
+      '@endmeta',
+      '@step',
+      'title: Trace code',
+      '@body',
+      'Do not use fences:',
+      '```python',
+      'print(1)',
+      '```',
+      '@endbody',
+      '@solution',
+      'Use inline `print(1)` instead.',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    const result = parse(raw);
+    expect(result.warningCodes).toContain('inner_triple_backticks');
+  });
+
+  it('normalizes invalid subjects and records a code', () => {
+    const result = parseCapsule('@meta\nsubject: Astronomy\ntopic: Stars\n@endmeta\n@step\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end');
+    expect(result.capsule?.meta.subject).toBe('General');
+    expect(result.warningCodes).toContain('invalid_subject');
+  });
+
+  it('reports missing final @end while still recovering usable content', () => {
+    const result = parseCapsule('@meta\nsubject: Physics\ntopic: Missing end\n@endmeta\n@step\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution');
+    expect(result.status).toBe('ok');
+    expect(result.warningCodes).toContain('missing_end');
+  });
+
+  it('keeps topic single-line when the model spills onto the next line', () => {
+    const result = parseCapsule('@meta\nsubject: Math\ntopic: First line\nsecond line\n@endmeta\n@step\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end');
+    expect(result.capsule?.meta.topic).toBe('First line');
+  });
+});
+
 describe('parse (full capsule)', () => {
   const result = parse(FENCED_ELECTRICAL);
 

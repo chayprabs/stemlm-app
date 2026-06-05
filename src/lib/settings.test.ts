@@ -18,4 +18,8 @@ describe('clampSplitRatio', () => {
   it('default split is 50/50', () => {
     expect(DEFAULT_SETTINGS.splitRatio).toBe(0.5);
   });
+
+  it('defaults to the balanced prompt variant', () => {
+    expect(DEFAULT_SETTINGS.promptVariant).toBe('balanced');
+  });
 });

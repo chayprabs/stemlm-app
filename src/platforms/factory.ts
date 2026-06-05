@@ -8,6 +8,17 @@
  */
 import type { AdapterConfig, PlatformAdapter } from './types';
 
+const STEMLM_CODE_SELECTORS = [
+  'pre code.language-stemlm',
+  'pre code[class*="language-stemlm"]',
+  'pre code',
+  'pre',
+];
+
+function hasEndToken(text: string): boolean {
+  return text.split('\n').some((line) => line.trim() === '@end');
+}
+
 function firstMatch(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     try {
@@ -141,15 +152,18 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       for (const block of innermost(allMatches(config.assistant))) {
         // Within a message keep only the innermost code elements so a <pre>
         // wrapping a <code> is not counted twice; dedupe identical text.
-        const codes = innermost(allMatches(config.codeBlock, block));
+        const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], block));
         const seenText = new Set<string>();
+        const blockCapsules: string[] = [];
         for (const code of codes) {
           const text = code.textContent ?? '';
           if (text.includes('@meta') && !seenText.has(text)) {
             seenText.add(text);
-            capsules.push(text);
+            blockCapsules.push(text);
           }
         }
+        const complete = blockCapsules.filter(hasEndToken);
+        capsules.push(...(complete.length ? complete : blockCapsules));
       }
       // If the model dropped the fence, fall back to scanning message text.
       if (capsules.length === 0) {

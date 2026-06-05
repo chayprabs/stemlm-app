@@ -10,28 +10,29 @@ let mermaidPromise: Promise<MermaidApi> | null = null;
 let currentTheme: ResolvedTheme | null = null;
 let counter = 0;
 
+function initializeMermaid(mermaid: MermaidApi, theme: ResolvedTheme): void {
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    htmlLabels: false,
+    flowchart: { htmlLabels: false },
+    theme: theme === 'dark' ? 'dark' : 'default',
+    fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+  });
+}
+
 async function loadMermaid(theme: ResolvedTheme): Promise<MermaidApi> {
   if (!mermaidPromise) {
     mermaidPromise = import('mermaid').then((m) => {
       const mermaid = m.default;
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: theme === 'dark' ? 'dark' : 'default',
-        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-      });
+      initializeMermaid(mermaid, theme);
       currentTheme = theme;
       return mermaid;
     });
   }
   const mermaid = await mermaidPromise;
   if (currentTheme !== theme) {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'strict',
-      theme: theme === 'dark' ? 'dark' : 'default',
-      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-    });
+    initializeMermaid(mermaid, theme);
     currentTheme = theme;
   }
   return mermaid;
