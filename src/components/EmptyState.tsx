@@ -1,12 +1,7 @@
 import { useState } from 'react';
-import { IconLayers, IconSpark } from './icons';
+import { IconLayers } from './icons';
 import { getController } from '@/src/content/controller';
 
-/**
- * Shown when the panel is open but there is no active session — typically after
- * clicking the toolbar icon. Lets the student rebuild the workspace from the
- * chatbot's own history.
- */
 export function EmptyState() {
   const [status, setStatus] = useState<'idle' | 'none'>('idle');
 
@@ -18,14 +13,16 @@ export function EmptyState() {
   return (
     <div className="slm-empty">
       <div className="slm-empty-mark">
-        <IconSpark width={26} height={26} />
+        <span style={{ fontSize: '1.1rem', lineHeight: 1 }} aria-hidden="true">
+          ✦
+        </span>
       </div>
       <h2 className="slm-empty-title">Your study workspace</h2>
       <p className="slm-empty-text">
-        Type a question in the chat, then tap the <strong>stemLM</strong> button next to the input.
-        We’ll turn the answer into clear, step-by-step cards with diagrams here.
+        Type a question in the chat, then click <strong>✦ stemLM</strong> beside the send button.
+        Your answer becomes structured steps with formulas and diagrams here.
       </p>
-      <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
+      <button type="button" className="slm-btn slm-btn-soft" onClick={load}>
         <IconLayers /> Load conversation
       </button>
       {status === 'none' && (

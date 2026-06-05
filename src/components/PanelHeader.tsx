@@ -1,6 +1,7 @@
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
+import { BrandWordmark } from './BrandWordmark';
 import { IconBook, IconClose, IconLayers, IconMoon, IconPdf, IconSave, IconSun } from './icons';
 
 export function PanelHeader({
@@ -33,7 +34,7 @@ export function PanelHeader({
       <div className="slm-header-top">
         <div className="slm-brand">
           <span className="slm-brand-dot" />
-          <span className="slm-brand-name">stemLM</span>
+          <BrandWordmark className="slm-brand-name" />
           {session && <span className="slm-subject-chip">{session.capsule.meta.subject}</span>}
         </div>
         <div className="slm-header-actions">

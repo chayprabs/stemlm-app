@@ -7,11 +7,6 @@ import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
 import { IconCheck } from './icons';
 
-/**
- * A single study step: title, key formula, explanation, the step-synced
- * diagram, the takeaway, a quick-check, and a follow-up prompt. The whole body
- * is selectable so the panel can offer a quote-reply drill-down.
- */
 export function StepCard({
   session,
   index,
@@ -28,17 +23,19 @@ export function StepCard({
   const step = session.capsule.steps[index];
   if (!step) return null;
 
+  const stepNum = String(step.index).padStart(2, '0');
+
   return (
     <motion.article
       key={step.id}
       className="slm-card"
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
     >
       <header className="slm-card-head">
-        <div className="slm-card-step">Step {step.index}</div>
+        <div className="slm-card-step">{stepNum}</div>
         <h2 className="slm-card-title">{step.title}</h2>
         <button
           type="button"
@@ -53,6 +50,7 @@ export function StepCard({
 
       {step.formula && (
         <div className="slm-formula">
+          <span className="slm-formula-label">Key formula</span>
           <MathMarkdown content={step.formula} />
         </div>
       )}
