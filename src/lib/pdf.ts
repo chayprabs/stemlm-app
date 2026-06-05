@@ -52,41 +52,198 @@ async function resolveDiagrams(session: Session): Promise<Record<string, string>
 }
 
 /**
- * Clean, textbook-plain print stylesheet. No KaTeX webfonts required: we show
- * the MathML KaTeX emits and hide the font-dependent HTML rendering.
+ * Premium print stylesheet for stemLM reports. No KaTeX webfonts required: we
+ * show the MathML KaTeX emits and hide the font-dependent HTML rendering.
  */
 export function printStyles(): string {
   return `
-*{box-sizing:border-box;}
-@page{size:A4;margin:16mm 15mm;}
-html,body{margin:0;padding:0;background:#fff;color:#111;}
-body{font:13px/1.55 Georgia,'Times New Roman',serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.slm-report{max-width:720px;margin:0 auto;padding:6px 2px;}
-.slm-report-head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1.5px solid #111;padding-bottom:6px;margin-bottom:14px;}
-.slm-report-brand{font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;}
-.slm-report-meta{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#555;}
-.slm-report-label{font-family:Arial,Helvetica,sans-serif;font-weight:800;font-size:14px;margin-right:6px;}
-.slm-report-q{display:flex;gap:4px;margin-bottom:16px;}
-.slm-report-q-text{font-weight:600;}
-.slm-report-a-body{margin-top:6px;}
-.slm-report-step{margin:0 0 14px;page-break-inside:avoid;break-inside:avoid;}
-.slm-report-step-title{font-family:Arial,Helvetica,sans-serif;font-size:13.5px;font-weight:700;margin:0 0 5px;}
-.slm-report-step-no{color:#000;}
-.slm-report-formula{margin:4px 0 6px;padding:2px 0;overflow-x:auto;}
-.slm-report-body{margin:0 0 6px;}
-.slm-report-body p{margin:0 0 6px;}
-.slm-report-takeaway{font-size:12px;color:#333;border-left:2px solid #999;padding-left:8px;margin:6px 0;}
+*,*::before,*::after{box-sizing:border-box;}
+@page{size:A4;margin:18mm 16mm;}
+html,body{margin:0;padding:0;background:#fff;color:#1a1a2e;}
+body{
+  font:13.5px/1.65 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+.slm-report{max-width:680px;margin:0 auto;padding:0;}
+
+/* ── Brand header ── */
+.slm-report-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding-bottom:14px;
+  margin-bottom:22px;
+  border-bottom:1px solid #e4e4ef;
+}
+.slm-report-brand-lockup{display:flex;align-items:center;gap:10px;}
+.slm-report-logo-mark{
+  display:inline-block;
+  width:28px;height:28px;
+  border-radius:50%;
+  flex-shrink:0;
+  background:linear-gradient(135deg,#7c3aed 0%,#a78bfa 55%,#c4b5fd 100%);
+  box-shadow:0 1px 3px rgba(124,58,237,.25);
+}
+.slm-report-brand{
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-weight:700;
+  font-size:20px;
+  letter-spacing:-.03em;
+  color:#1a1a2e;
+}
+.slm-report-meta{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:11px;
+  font-weight:500;
+  color:#6b7280;
+  text-align:right;
+  line-height:1.4;
+}
+.slm-report-subject{color:#374151;font-weight:600;}
+.slm-report-meta-sep{color:#d1d5db;}
+
+/* ── Q. / Ans. sections ── */
+.slm-report-question,
+.slm-report-answer{
+  display:grid;
+  grid-template-columns:36px 1fr;
+  gap:0 10px;
+  margin-bottom:20px;
+}
+.slm-report-section-label,
+.slm-report-label{
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:#7c3aed;
+  margin:0;
+  padding-top:2px;
+}
+.slm-report-q-text{
+  font-size:15px;
+  font-weight:600;
+  line-height:1.5;
+  color:#111827;
+  padding:10px 14px;
+  background:#f9fafb;
+  border-radius:8px;
+  border:1px solid #eef0f4;
+}
+.slm-report-a-body{min-width:0;}
+
+/* ── Steps ── */
+.slm-report-step{
+  margin:0 0 18px;
+  padding:0 0 16px;
+  border-bottom:1px solid #f0f0f5;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
+.slm-report-step:last-of-type{border-bottom:none;padding-bottom:0;}
+.slm-report-step-head{margin-bottom:6px;}
+.slm-report-step-title{
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:14px;
+  font-weight:700;
+  line-height:1.4;
+  color:#1a1a2e;
+  margin:0;
+}
+.slm-report-step-no{color:#7c3aed;font-weight:700;}
+
+/* ── Formula blocks ── */
+.slm-report-formula{
+  margin:8px 0 10px;
+  padding:10px 14px;
+  background:#f3f4f6;
+  border-radius:8px;
+  border:1px solid #e5e7eb;
+  overflow-x:auto;
+}
+
+/* ── Body copy ── */
+.slm-report-body{margin:0 0 8px;color:#374151;}
+.slm-report-body p{margin:0 0 8px;}
+.slm-report-body p:last-child{margin-bottom:0;}
+
+/* ── Takeaway boxes ── */
+.slm-report-takeaway{
+  font-size:12.5px;
+  line-height:1.55;
+  color:#4c1d95;
+  background:#f5f3ff;
+  border-left:3px solid #7c3aed;
+  border-radius:0 8px 8px 0;
+  padding:10px 14px;
+  margin:10px 0 0;
+}
+.slm-report-takeaway-label{font-weight:700;color:#5b21b6;}
 .slm-report-takeaway p{display:inline;margin:0;}
-.slm-report-solution{margin-top:10px;padding-top:8px;border-top:1px solid #ddd;}
-.slm-report-diagram{display:flex;justify-content:center;margin:8px 0;page-break-inside:avoid;break-inside:avoid;}
+
+/* ── Solution section ── */
+.slm-report-solution{
+  margin-top:22px;
+  padding-top:18px;
+  border-top:2px solid #e4e4ef;
+}
+.slm-report-solution-head{margin-bottom:10px;}
+.slm-report-solution-title{
+  font-size:14px;
+  font-weight:700;
+  color:#1a1a2e;
+  letter-spacing:.01em;
+}
+.slm-report-solution-body{color:#374151;}
+.slm-report-solution-body p{margin:0 0 8px;}
+
+/* ── Diagrams ── */
+.slm-report-diagram{
+  display:flex;
+  justify-content:center;
+  margin:12px 0;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
 .slm-report-diagram svg{max-width:100%;max-height:360px;width:auto;height:auto;}
-.slm-report-foot{margin-top:16px;padding-top:6px;border-top:1px solid #ddd;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#777;}
-ul,ol{margin:0 0 6px;padding-left:20px;}
-li{margin:2px 0;}
-table{border-collapse:collapse;width:100%;margin:0 0 6px;font-size:12px;}
-th,td{border:1px solid #ccc;padding:3px 6px;text-align:left;}
-pre{white-space:pre-wrap;background:#f5f5f5;border:1px solid #e2e2e2;border-radius:4px;padding:6px;font-size:12px;overflow-x:auto;}
-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;}
+
+/* ── Footer ── */
+.slm-report-foot{
+  margin-top:28px;
+  padding-top:12px;
+  border-top:1px solid #e4e4ef;
+  text-align:center;
+  font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#9ca3af;
+}
+
+/* ── Markdown extras ── */
+ul,ol{margin:0 0 8px;padding-left:22px;}
+li{margin:3px 0;}
+table{border-collapse:collapse;width:100%;margin:0 0 8px;font-size:12.5px;}
+th,td{border:1px solid #e5e7eb;padding:5px 8px;text-align:left;}
+th{background:#f9fafb;font-weight:600;}
+pre{
+  white-space:pre-wrap;
+  background:#f3f4f6;
+  border:1px solid #e5e7eb;
+  border-radius:8px;
+  padding:10px 14px;
+  font-size:12px;
+  overflow-x:auto;
+}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;}
+
 /* Use native MathML (vector, font-independent) instead of KaTeX's HTML+webfonts. */
 .katex .katex-html{display:none!important;}
 .katex .katex-mathml{position:static!important;clip:auto!important;height:auto!important;width:auto!important;overflow:visible!important;}
