@@ -22,7 +22,7 @@ export function EmptyState() {
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">
-        Ask a question in chat, then select the <strong>stemLM</strong> button beside the input.
+        Ask a question in chat, then select the <strong>stemLM</strong> button in the prompt box.
         Answers appear here as structured, step-by-step cards.
       </p>
       <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>

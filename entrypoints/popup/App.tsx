@@ -105,7 +105,7 @@ export default function App() {
         {!onSupported && (
           <p className="slm-popup-notice">
             Open ChatGPT, Claude, Gemini, Perplexity, Grok, or DeepSeek, then click the stemLM button
-            next to the chat box.
+            in the prompt box.
           </p>
         )}
       </div>
