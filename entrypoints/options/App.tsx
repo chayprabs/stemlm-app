@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, getSettings, setSettings, type Settings } from '@/src
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import type { PlatformId } from '@/src/platforms/types';
+import { BrandWordmark } from '@/src/components/BrandWordmark';
 
 const PLATFORM_LABELS: Record<PlatformId, string> = {
   chatgpt: 'ChatGPT',
@@ -70,7 +71,9 @@ export default function App() {
     <div className="slm-options">
       <header className="slm-options-head">
         <span className="slm-brand-dot" />
-        <h1>stemLM Settings</h1>
+        <h1>
+          <BrandWordmark /> Settings
+        </h1>
       </header>
 
       <section className="slm-opt-card">
@@ -119,7 +122,7 @@ export default function App() {
             value={settings.defaultSubject}
             onChange={(e) => update({ defaultSubject: e.target.value as Subject | 'Auto' })}
           >
-            <option value="Auto">Auto</option>
+            <option value="Auto">Auto (recommended)</option>
             {SUBJECTS.map((s) => (
               <option key={s} value={s}>
                 {s}

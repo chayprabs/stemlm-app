@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
@@ -6,7 +6,6 @@ import { detectAdapter } from '@/src/platforms/detect';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { IconCheck, IconChevronDown } from './icons';
 
-const BTN_HEIGHT = 32;
 const BTN_GAP = 6;
 
 interface Pos {
@@ -17,11 +16,47 @@ interface Pos {
 
 /**
  * Track the composer send-button anchor so the ✦ stemLM pill sits just inside
- * the composer box, immediately to the left of the send button — matching
- * stemlm.app's injection placement across all supported AI platforms.
+ * the composer box, immediately to the left of the send button.
  */
-function useComposerPosition(): Pos {
+function useComposerPosition(wrapRef: React.RefObject<HTMLDivElement | null>): Pos {
   const [pos, setPos] = useState<Pos>({ top: 0, left: 0, visible: false });
+  const injected = useStore((s) => s.buttonInjected);
+
+  const update = useCallback(() => {
+    const adapter = detectAdapter();
+    const wrap = wrapRef.current;
+    if (!adapter) {
+      setPos((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
+
+    const anchor = adapter.getComposerAnchor();
+    if (!anchor) {
+      setPos((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
+
+    const r = anchor.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) {
+      setPos((p) => (p.visible ? { ...p, visible: false } : p));
+      return;
+    }
+
+    const fabEl = wrap?.querySelector<HTMLElement>('.slm-fab');
+    const btnW = wrap?.offsetWidth ?? 72;
+    const fabH = fabEl?.offsetHeight ?? 32;
+
+    const centerY = r.top + r.height / 2;
+    const top = Math.min(
+      window.innerHeight - fabH - 8,
+      Math.max(8, centerY - fabH / 2),
+    );
+    const left = Math.min(
+      window.innerWidth - btnW - 8,
+      Math.max(8, r.left - btnW - BTN_GAP),
+    );
+    setPos({ top, left, visible: true });
+  }, [wrapRef]);
 
   useEffect(() => {
     const adapter = detectAdapter();
@@ -29,34 +64,7 @@ function useComposerPosition(): Pos {
 
     let raf = 0;
     let observer: ResizeObserver | null = null;
-    let anchor: HTMLElement | null = null;
-
-    const update = () => {
-      anchor = adapter.getComposerAnchor();
-      if (!anchor) {
-        setPos((p) => (p.visible ? { ...p, visible: false } : p));
-        return;
-      }
-      const r = anchor.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) {
-        setPos((p) => (p.visible ? { ...p, visible: false } : p));
-        return;
-      }
-
-      const btnH = BTN_HEIGHT;
-      const centerY = r.top + r.height / 2;
-      const top = Math.min(
-        window.innerHeight - btnH - 8,
-        Math.max(8, centerY - btnH / 2),
-      );
-      // Right-align with the send button: position so button's right edge is BTN_GAP left of anchor.
-      const estimatedWidth = 72;
-      const left = Math.min(
-        window.innerWidth - estimatedWidth - 8,
-        Math.max(8, r.left - estimatedWidth - BTN_GAP),
-      );
-      setPos({ top, left, visible: true });
-    };
+    let observed: HTMLElement | null = null;
 
     const schedule = () => {
       cancelAnimationFrame(raf);
@@ -65,9 +73,9 @@ function useComposerPosition(): Pos {
 
     const attachObserver = () => {
       const el = adapter.getComposerAnchor();
-      if (el && el !== anchor) {
+      if (el && el !== observed) {
         observer?.disconnect();
-        anchor = el;
+        observed = el;
         observer = new ResizeObserver(schedule);
         observer.observe(el);
         const parent = el.parentElement;
@@ -81,7 +89,7 @@ function useComposerPosition(): Pos {
     const poll = window.setInterval(() => {
       attachObserver();
       schedule();
-    }, 500);
+    }, 400);
 
     window.addEventListener('scroll', schedule, true);
     window.addEventListener('resize', schedule);
@@ -93,19 +101,25 @@ function useComposerPosition(): Pos {
       window.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
     };
-  }, []);
+  }, [update]);
+
+  // Re-measure when button content changes (inject state, subject pill).
+  useEffect(() => {
+    const id = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(id);
+  }, [injected, update]);
 
   return pos;
 }
 
 export function OverlayButton() {
-  const pos = useComposerPosition();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const pos = useComposerPosition(wrapRef);
   const injected = useStore((s) => s.buttonInjected);
   const togglePanel = useStore((s) => s.togglePanel);
   const defaultSubject = useStore((s) => s.settings.defaultSubject);
   const [override, setOverride] = useState<Subject | 'Auto'>('Auto');
   const [menuOpen, setMenuOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOverride(defaultSubject);
@@ -113,13 +127,11 @@ export function OverlayButton() {
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
   }, []);
-
-  if (!pos.visible) return null;
 
   function onMain() {
     if (injected) {
@@ -137,9 +149,14 @@ export function OverlayButton() {
 
   return (
     <div
-      ref={ref}
+      ref={wrapRef}
       className="slm-fab-wrap"
-      style={{ top: pos.top, left: pos.left }}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        visibility: pos.visible ? 'visible' : 'hidden',
+        pointerEvents: pos.visible ? 'auto' : 'none',
+      }}
     >
       <AnimatePresence>
         {menuOpen && !injected && (
@@ -191,9 +208,7 @@ export function OverlayButton() {
             <span className="slm-fab-spark" aria-hidden="true">
               ✦
             </span>
-            <span className="slm-fab-label">
-              stem<span style={{ color: 'inherit' }}>LM</span>
-            </span>
+            <span className="slm-fab-label">stemLM</span>
           </>
         )}
       </motion.button>

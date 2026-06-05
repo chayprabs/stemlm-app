@@ -130,8 +130,8 @@ export async function exportSessionPdf(session: Session): Promise<PdfExportResul
         }
         resolve();
       };
-      if (doc.readyState === 'complete') setTimeout(go, 50);
-      else win.addEventListener('load', () => setTimeout(go, 50), { once: true });
+      if (doc.readyState === 'complete') setTimeout(go, 300);
+      else win.addEventListener('load', () => setTimeout(go, 300), { once: true });
     });
 
     win.focus();
