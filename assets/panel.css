@@ -659,7 +659,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 0.9rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--slm-border-subtle);
 }
 .slm-stepnav-count {
   font-size: 0.76rem;
@@ -775,13 +777,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3.4rem;
-  height: 3.4rem;
-  border-radius: 1rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.85rem;
   color: #fff;
-  background: linear-gradient(135deg, #7c6bff, #5b46e0);
-  box-shadow: 0 8px 22px rgba(91, 70, 224, 0.32);
-  margin-bottom: 0.9rem;
+  background: var(--slm-gradient);
+  box-shadow: 0 6px 20px var(--slm-accent-glow);
+  margin-bottom: 1rem;
 }
 .slm-empty-title {
   margin: 0 0 0.4rem;

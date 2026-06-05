@@ -70,9 +70,11 @@ describe('ChatGPT adapter', () => {
     `);
   });
 
-  it('finds the editor and composer anchor', () => {
+  it('finds the editor, composer layout, and anchor', () => {
     expect(chatgptAdapter.findEditor()).not.toBeNull();
     expect(chatgptAdapter.getComposerAnchor()).not.toBeNull();
+    expect(chatgptAdapter.getComposerBox()).not.toBeNull();
+    expect(chatgptAdapter.getComposerLayout()).not.toBeNull();
   });
 
   it('inserts a prompt into the editor', () => {

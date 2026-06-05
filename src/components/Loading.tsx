@@ -1,22 +1,21 @@
 import { motion } from 'framer-motion';
 import { IconSpark } from './icons';
 
-/** Polished skeleton shown while the assistant generates the capsule. */
 export function Loading({ subject }: { subject?: string }) {
   return (
     <div className="slm-loading">
       <div className="slm-loading-head">
         <motion.span
           className="slm-loading-spark"
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 6, ease: 'linear' }}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
         >
           <IconSpark />
         </motion.span>
         <div>
-          <p className="slm-loading-title">Structuring the answer…</p>
+          <p className="slm-loading-title">Structuring your answer</p>
           <p className="slm-loading-sub">
-            stemLM is turning the response into clear steps{subject ? ` · ${subject}` : ''}.
+            Converting the response into step-by-step cards{subject && subject !== 'Auto' ? ` · ${subject}` : ''}
           </p>
         </div>
       </div>

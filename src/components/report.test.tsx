@@ -41,9 +41,9 @@ describe('Report renderToStaticMarkup', () => {
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
     expect(html).toContain('stemLM');
-    expect(html).toContain('Q.'); // question label
+    expect(html).toContain('slm-report-label">Q'); // question label
     expect(html).toContain('What is the current?'); // the full question
-    expect(html).toContain('Ans.'); // answer label
+    expect(html).toContain('slm-report-label">Ans'); // answer label
     expect(html).toContain('Label the circuit'); // step title
     expect(html).toContain('Solution'); // full solution subheading
     expect(html).toContain('s1'); // step diagram injected (vector svg)

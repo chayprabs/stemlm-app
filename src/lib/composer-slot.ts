@@ -36,7 +36,7 @@ const SLOT_CSS = `
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--slm-fab-surface, #5b46e0);
+  background: var(--slm-fab-surface, linear-gradient(135deg, #7c6bff, #5b46e0));
   color: var(--slm-fab-fg, #fff);
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
