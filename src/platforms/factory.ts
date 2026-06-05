@@ -137,6 +137,21 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       return firstMatch(config.composerAnchor) ?? firstMatch(config.editor)?.parentElement ?? null;
     },
 
+    getComposerShell() {
+      const shell = config.composerShell ? firstMatch(config.composerShell) : null;
+      if (shell) return shell;
+      const editor = firstMatch(config.editor);
+      if (!editor) return null;
+      // Walk up to find a reasonable composer container (form, fieldset, or positioned wrapper).
+      let el: HTMLElement | null = editor;
+      for (let i = 0; i < 5 && el; i++) {
+        const tag = el.tagName;
+        if (tag === 'FORM' || tag === 'FIELDSET' || el.getAttribute('role') === 'textbox') return el;
+        el = el.parentElement;
+      }
+      return editor.parentElement ?? editor;
+    },
+
     getAssistantBlocks() {
       return innermost(allMatches(config.assistant));
     },

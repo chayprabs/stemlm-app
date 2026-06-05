@@ -23,6 +23,11 @@ const config: AdapterConfig = {
     'button[type="submit"]',
     'button[data-testid="submit-button"]',
   ],
+  composerShell: [
+    'div[class*="rounded"][class*="border"]',
+    'form',
+    'div[class*="input"]',
+  ],
   assistant: [
     'div[id^="markdown-content"]',
     'div.prose',

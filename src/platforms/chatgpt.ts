@@ -25,6 +25,12 @@ const config: AdapterConfig = {
     'button[data-testid="composer-speech-button"]',
     'main form',
   ],
+  composerShell: [
+    'form[data-type="unified-composer"]',
+    'div[class*="composer"]',
+    'form.stretch',
+    'main form',
+  ],
   assistant: [
     '[data-message-author-role="assistant"]',
     'div.agent-turn',

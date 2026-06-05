@@ -21,6 +21,11 @@ const config: AdapterConfig = {
     'button[aria-label*="Send" i]',
     'button[aria-label*="Submit" i]',
   ],
+  composerShell: [
+    'form',
+    'div[class*="input"]',
+    'div[class*="composer"]',
+  ],
   assistant: [
     'div.message-bubble',
     '[class*="response-content"]',

@@ -1,46 +1,88 @@
 @import 'tailwindcss';
 
 /*
- * stemLM design tokens. Theme is driven by the `data-theme` attribute on the
- * shadow-root host (set by lib/theme.ts). We expose semantic CSS variables so
- * components can stay theme-agnostic.
+ * stemLM design system — production palette aligned with stemlm.app.
+ * Theme via `data-stemlm-theme` on the shadow-root host (lib/theme.ts).
  */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
-  --radius-card: 1rem;
+  --radius-card: 0.875rem;
+  --radius-pill: 999px;
 }
 
 :where([data-stemlm-theme]) {
-  --slm-bg: #ffffff;
-  --slm-bg-subtle: #f6f7f9;
+  /* Surfaces */
+  --slm-bg: #fafafa;
+  --slm-bg-subtle: #f4f4f5;
   --slm-bg-elevated: #ffffff;
-  --slm-border: #e6e8ec;
-  --slm-fg: #14161a;
-  --slm-fg-muted: #5b616e;
-  --slm-fg-subtle: #868d99;
-  --slm-accent: #6d5efc;
+  --slm-bg-inset: #ececef;
+  --slm-border: #e4e4e7;
+  --slm-border-strong: #d4d4d8;
+
+  /* Text */
+  --slm-fg: #09090b;
+  --slm-fg-muted: #52525b;
+  --slm-fg-subtle: #71717a;
+
+  /* Brand — electric violet (stemlm.app signature) */
+  --slm-accent: #6366f1;
+  --slm-accent-hover: #4f46e5;
   --slm-accent-fg: #ffffff;
-  --slm-accent-soft: #eeebff;
-  --slm-success: #18a957;
-  --slm-warning: #d98a00;
-  --slm-shadow: 0 1px 2px rgba(16, 18, 24, 0.04), 0 8px 24px rgba(16, 18, 24, 0.06);
-  --slm-ring: rgba(109, 94, 252, 0.35);
+  --slm-accent-soft: rgba(99, 102, 241, 0.1);
+  --slm-accent-glow: rgba(99, 102, 241, 0.35);
+  --slm-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+  --slm-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+
+  /* Subject / success (chemistry, reviewed, formula) */
+  --slm-success: #16a34a;
+  --slm-success-soft: rgba(22, 163, 74, 0.12);
+  --slm-success-glow: rgba(34, 197, 94, 0.25);
+  --slm-formula-bg: linear-gradient(145deg, #14532d 0%, #166534 40%, #15803d 100%);
+  --slm-formula-fg: #ecfdf5;
+
+  /* Semantic */
+  --slm-warning: #d97706;
+  --slm-danger: #dc2626;
+
+  /* Elevation */
+  --slm-shadow: 0 1px 2px rgba(9, 9, 11, 0.04), 0 4px 16px rgba(9, 9, 11, 0.06);
+  --slm-shadow-lg: 0 4px 6px rgba(9, 9, 11, 0.05), 0 16px 40px rgba(9, 9, 11, 0.1);
+  --slm-ring: rgba(99, 102, 241, 0.4);
+
+  /* Overlay (composer-embedded button) */
+  --slm-fab-size: 32px;
 }
 
 [data-stemlm-theme='dark'] {
-  --slm-bg: #0e0f13;
-  --slm-bg-subtle: #16181f;
-  --slm-bg-elevated: #1a1d25;
-  --slm-border: #262a33;
-  --slm-fg: #f2f4f8;
-  --slm-fg-muted: #a6adba;
-  --slm-fg-subtle: #757d8c;
-  --slm-accent: #8c7dff;
-  --slm-accent-fg: #0e0f13;
-  --slm-accent-soft: #211d3a;
-  --slm-success: #34d17e;
-  --slm-warning: #f0a93a;
-  --slm-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --slm-ring: rgba(140, 125, 255, 0.45);
+  --slm-bg: #09090b;
+  --slm-bg-subtle: #111114;
+  --slm-bg-elevated: #18181b;
+  --slm-bg-inset: #0c0c0e;
+  --slm-border: rgba(255, 255, 255, 0.08);
+  --slm-border-strong: rgba(255, 255, 255, 0.14);
+
+  --slm-fg: #fafafa;
+  --slm-fg-muted: #a1a1aa;
+  --slm-fg-subtle: #71717a;
+
+  --slm-accent: #818cf8;
+  --slm-accent-hover: #6366f1;
+  --slm-accent-fg: #09090b;
+  --slm-accent-soft: rgba(129, 140, 248, 0.14);
+  --slm-accent-glow: rgba(129, 140, 248, 0.4);
+  --slm-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #c084fc 100%);
+  --slm-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(139, 92, 246, 0.1));
+
+  --slm-success: #22c55e;
+  --slm-success-soft: rgba(34, 197, 94, 0.14);
+  --slm-success-glow: rgba(34, 197, 94, 0.3);
+  --slm-formula-bg: linear-gradient(145deg, #052e16 0%, #14532d 45%, #166534 100%);
+  --slm-formula-fg: #d1fae5;
+
+  --slm-warning: #fbbf24;
+
+  --slm-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --slm-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.4), 0 20px 48px rgba(0, 0, 0, 0.55);
+  --slm-ring: rgba(129, 140, 248, 0.45);
 }
