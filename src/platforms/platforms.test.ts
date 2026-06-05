@@ -6,7 +6,7 @@ import { geminiAdapter } from './gemini';
 import { perplexityAdapter } from './perplexity';
 import { grokAdapter } from './grok';
 import { deepseekAdapter } from './deepseek';
-import { setEditorText, getEditorTextOf } from './factory';
+import { createAdapter, setEditorText, getEditorTextOf } from './factory';
 
 const CAPSULE_BODY = [
   '@meta',
@@ -57,6 +57,12 @@ describe('detectAdapter', () => {
       expect(a.layoutRoots.length).toBeGreaterThan(0);
     }
   });
+
+  it('every adapter exposes getComposerShell', () => {
+    for (const id of ['chatgpt', 'claude', 'gemini', 'perplexity', 'grok', 'deepseek'] as const) {
+      expect(typeof adapterById(id)!.getComposerShell).toBe('function');
+    }
+  });
 });
 
 describe('ChatGPT adapter', () => {
@@ -70,8 +76,9 @@ describe('ChatGPT adapter', () => {
     `);
   });
 
-  it('finds the editor and composer anchor', () => {
+  it('finds the editor, composer shell, and composer anchor', () => {
     expect(chatgptAdapter.findEditor()).not.toBeNull();
+    expect(chatgptAdapter.getComposerShell()?.tagName).toBe('FORM');
     expect(chatgptAdapter.getComposerAnchor()).not.toBeNull();
   });
 
@@ -133,8 +140,9 @@ describe('Claude adapter', () => {
     `);
   });
 
-  it('finds the editor', () => {
+  it('finds the editor and composer shell', () => {
     expect(claudeAdapter.findEditor()).not.toBeNull();
+    expect(claudeAdapter.getComposerShell()?.tagName).toBe('FIELDSET');
   });
 
   it('extracts the capsule', () => {
@@ -207,8 +215,9 @@ describe('Grok adapter', () => {
     `);
   });
 
-  it('finds the editor and composer anchor', () => {
+  it('finds the editor, composer shell, and composer anchor', () => {
     expect(grokAdapter.findEditor()).not.toBeNull();
+    expect(grokAdapter.getComposerShell()?.tagName).toBe('MAIN');
     expect(grokAdapter.getComposerAnchor()).not.toBeNull();
   });
 
@@ -242,6 +251,55 @@ describe('DeepSeek adapter', () => {
     const caps = deepseekAdapter.extractCapsules();
     expect(caps.length).toBeGreaterThanOrEqual(1);
     expect(caps[0]).toContain('@meta');
+  });
+});
+
+describe('getComposerShell factory fallback', () => {
+  it('uses composerShell selectors when configured', () => {
+    setBody(`
+      <div class="composer-box">
+        <div id="ed" contenteditable="true"></div>
+      </div>
+    `);
+    const adapter = createAdapter({
+      id: 'chatgpt',
+      label: 'Test',
+      hosts: /test/,
+      editor: ['#ed'],
+      composerAnchor: ['#ed'],
+      composerShell: ['div.composer-box'],
+      assistant: [],
+      codeBlock: ['pre code'],
+      streaming: [],
+      brand: { accent: '#000' },
+    });
+    expect(adapter.getComposerShell()?.className).toBe('composer-box');
+  });
+
+  it('walks up from the editor when composerShell selectors miss', () => {
+    setBody(`
+      <form>
+        <div id="ed" contenteditable="true"></div>
+      </form>
+    `);
+    const adapter = createAdapter({
+      id: 'chatgpt',
+      label: 'Test',
+      hosts: /test/,
+      editor: ['#ed'],
+      composerAnchor: ['#ed'],
+      composerShell: ['div.missing-shell'],
+      assistant: [],
+      codeBlock: ['pre code'],
+      streaming: [],
+      brand: { accent: '#000' },
+    });
+    expect(adapter.getComposerShell()?.tagName).toBe('FORM');
+  });
+
+  it('returns null when no editor is present', () => {
+    setBody('<main></main>');
+    expect(chatgptAdapter.getComposerShell()).toBeNull();
   });
 });
 

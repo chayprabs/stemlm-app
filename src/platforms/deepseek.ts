@@ -21,6 +21,11 @@ const config: AdapterConfig = {
     'button[aria-label*="Send" i]',
     'div.f6d670cb',
   ],
+  composerShell: [
+    'div[class*="input-box"]',
+    'div[class*="chat-input"]',
+    'form',
+  ],
   assistant: [
     'div.ds-markdown',
     '[class*="ds-markdown"]',

@@ -22,6 +22,11 @@ const config: AdapterConfig = {
     'fieldset button[type="submit"]',
     'fieldset div[contenteditable="true"]',
   ],
+  composerShell: [
+    'fieldset',
+    'form',
+    'div[class*="composer"]',
+  ],
   assistant: [
     '[data-testid="assistant-message"]',
     'div.font-claude-message',

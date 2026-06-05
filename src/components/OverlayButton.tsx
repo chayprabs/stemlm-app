@@ -6,6 +6,8 @@ import { detectAdapter } from '@/src/platforms/detect';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { IconCheck, IconChevronDown } from './icons';
 
+const ROW_H = 36;
+const PAD = 10;
 const BTN_GAP = 6;
 
 interface Pos {
@@ -15,8 +17,8 @@ interface Pos {
 }
 
 /**
- * Track the composer send-button anchor so the ✦ stemLM pill sits just inside
- * the composer box, immediately to the left of the send button.
+ * Position the ✦ stemLM pill inside the composer shell — bottom-right, just
+ * left of the host send button, vertically centred on the action row.
  */
 function useComposerPosition(wrapRef: React.RefObject<HTMLDivElement | null>): Pos {
   const [pos, setPos] = useState<Pos>({ top: 0, left: 0, visible: false });
@@ -30,31 +32,36 @@ function useComposerPosition(wrapRef: React.RefObject<HTMLDivElement | null>): P
       return;
     }
 
+    const shell = adapter.getComposerShell();
     const anchor = adapter.getComposerAnchor();
-    if (!anchor) {
+    if (!shell) {
       setPos((p) => (p.visible ? { ...p, visible: false } : p));
       return;
     }
 
-    const r = anchor.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) {
+    const sr = shell.getBoundingClientRect();
+    if (sr.width < 40 || sr.height < 20) {
       setPos((p) => (p.visible ? { ...p, visible: false } : p));
       return;
     }
 
+    const rowW = wrap?.offsetWidth ?? 72;
     const fabEl = wrap?.querySelector<HTMLElement>('.slm-fab');
-    const btnW = wrap?.offsetWidth ?? 72;
     const fabH = fabEl?.offsetHeight ?? 32;
 
-    const centerY = r.top + r.height / 2;
+    const ar = anchor?.getBoundingClientRect();
+    const centerY =
+      ar && ar.height > 0 ? ar.top + ar.height / 2 : sr.bottom - PAD - ROW_H / 2;
+
+    let left =
+      ar && ar.width > 0 ? ar.left - rowW - BTN_GAP : sr.right - rowW - PAD;
+    left = Math.max(sr.left + PAD, Math.min(left, sr.right - rowW - PAD));
+
     const top = Math.min(
-      window.innerHeight - fabH - 8,
-      Math.max(8, centerY - fabH / 2),
+      window.innerHeight - fabH - 6,
+      Math.max(6, centerY - fabH / 2),
     );
-    const left = Math.min(
-      window.innerWidth - btnW - 8,
-      Math.max(8, r.left - btnW - BTN_GAP),
-    );
+
     setPos({ top, left, visible: true });
   }, [wrapRef]);
 
@@ -64,30 +71,33 @@ function useComposerPosition(wrapRef: React.RefObject<HTMLDivElement | null>): P
 
     let raf = 0;
     let observer: ResizeObserver | null = null;
-    let observed: HTMLElement | null = null;
+    const observed = new Set<HTMLElement>();
 
     const schedule = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(update);
     };
 
-    const attachObserver = () => {
-      const el = adapter.getComposerAnchor();
-      if (el && el !== observed) {
-        observer?.disconnect();
-        observed = el;
-        observer = new ResizeObserver(schedule);
-        observer.observe(el);
-        const parent = el.parentElement;
-        if (parent) observer.observe(parent);
+    const attachObservers = () => {
+      const targets = [adapter.getComposerShell(), adapter.getComposerAnchor()].filter(
+        Boolean,
+      ) as HTMLElement[];
+      for (const el of targets) {
+        if (!observed.has(el)) {
+          observed.add(el);
+          if (!observer) observer = new ResizeObserver(schedule);
+          observer.observe(el);
+          const parent = el.parentElement;
+          if (parent) observer.observe(parent);
+        }
       }
     };
 
     schedule();
-    attachObserver();
+    attachObservers();
 
     const poll = window.setInterval(() => {
-      attachObserver();
+      attachObservers();
       schedule();
     }, 400);
 
@@ -103,7 +113,6 @@ function useComposerPosition(wrapRef: React.RefObject<HTMLDivElement | null>): P
     };
   }, [update]);
 
-  // Re-measure when button content changes (inject state, subject pill).
   useEffect(() => {
     const id = requestAnimationFrame(update);
     return () => cancelAnimationFrame(id);

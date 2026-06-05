@@ -44,6 +44,12 @@ export interface PlatformAdapter {
   /** A stable element near the composer to dock the stemLM button beside. */
   getComposerAnchor(): HTMLElement | null;
 
+  /**
+   * The outer composer shell (input box container). The overlay button is
+   * portaled inside this element so it sits within the prompt area.
+   */
+  getComposerShell(): HTMLElement | null;
+
   /** Assistant message containers, oldest first. */
   getAssistantBlocks(): HTMLElement[];
 
@@ -69,6 +75,8 @@ export interface AdapterConfig {
   editor: string[];
   /** Where to anchor the button (tried in order). Falls back to editor parent. */
   composerAnchor: string[];
+  /** Outer composer container for in-box overlay placement (tried in order). */
+  composerShell?: string[];
   /** Assistant message container selectors (tried in order). */
   assistant: string[];
   /** Code-block selectors within an assistant message. */
