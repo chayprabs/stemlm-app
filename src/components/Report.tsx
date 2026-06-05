@@ -2,11 +2,6 @@ import type { Session, Diagram } from '@/src/protocol/types';
 import { MathMarkdown } from './MathMarkdown';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 
-/**
- * Static, print-styled report for PDF export. All diagrams are pre-resolved to
- * SVG strings (passed in `diagramSvg`, keyed by a stable id) so this renders
- * synchronously via renderToStaticMarkup.
- */
 export function diagramKey(scope: string, i: number): string {
   return `${scope}-${i}`;
 }
@@ -23,10 +18,10 @@ export function Report({
   session: Session;
   diagramSvg: Record<string, string>;
 }) {
-  const { meta, steps, solution, solutionDiagrams } = session.capsule;
+  const { meta, steps, solution } = session.capsule;
   const date = new Date().toLocaleDateString(undefined, {
     year: 'numeric',
-    month: 'short',
+    month: 'long',
     day: 'numeric',
   });
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
@@ -34,35 +29,43 @@ export function Report({
 
   return (
     <div className="slm-report">
-      {/* Minimal masthead: just "stemLM" + subject/date. */}
-      <header className="slm-report-head">
-        <span className="slm-report-brand">stemLM</span>
-        <span className="slm-report-meta">
-          {meta.subject} · {date}
-        </span>
+      <header className="slm-report-cover">
+        <div className="slm-report-brand">
+          <span className="slm-report-brand-stem">stem</span>
+          <span className="slm-report-brand-lm">LM</span>
+        </div>
+        {meta.topic && <h1 className="slm-report-topic">{meta.topic}</h1>}
+        <div className="slm-report-meta">
+          <span className="slm-report-chip">{meta.subject}</span>
+          <span className="slm-report-date">{date}</span>
+        </div>
       </header>
 
-      {/* Q. — the full question. */}
-      <section className="slm-report-q">
-        <span className="slm-report-label">Q.</span>
-        <div className="slm-report-q-text">{question}</div>
-      </section>
+      {question && (
+        <section className="slm-report-q">
+          <div className="slm-report-q-label">Question</div>
+          <div className="slm-report-q-text">{question}</div>
+        </section>
+      )}
 
-      {/* Ans. — full step-by-step working with step diagrams (vector SVG). */}
       <section className="slm-report-a">
-        <span className="slm-report-label">Ans.</span>
+        <div className="slm-report-a-label">Answer</div>
         <div className="slm-report-a-body">
           {steps.map((step) => (
             <div key={step.id} className="slm-report-step">
-              <h3 className="slm-report-step-title">
-                <span className="slm-report-step-no">{step.index}.</span> {step.title}
-              </h3>
+              <div className="slm-report-step-head">
+                <span className="slm-report-step-no">
+                  {String(step.index).padStart(2, '0')}
+                </span>
+                <h3 className="slm-report-step-title">{step.title}</h3>
+              </div>
               {step.formula && (
                 <div className="slm-report-formula">
+                  <div className="slm-report-formula-label">Key formula</div>
                   <MathMarkdown content={step.formula} />
                 </div>
               )}
-              <div className="slm-report-body">
+              <div className="slm-report-body slm-prose">
                 <MathMarkdown content={step.body} />
               </div>
               {step.diagram && (
@@ -70,7 +73,8 @@ export function Report({
               )}
               {step.takeaway && (
                 <div className="slm-report-takeaway">
-                  <strong>Takeaway:</strong> <MathMarkdown content={step.takeaway} />
+                  <span className="slm-report-takeaway-label">Takeaway</span>
+                  <MathMarkdown content={step.takeaway} />
                 </div>
               )}
             </div>
@@ -78,27 +82,30 @@ export function Report({
 
           {solution.trim() && (
             <div className="slm-report-solution">
-              <h3 className="slm-report-step-title">Solution</h3>
-              {solutionParts.map((part, i) => {
-                if (i % 2 === 1) {
-                  const idx = Number(part);
-                  return (
-                    <ResolvedDiagram key={`d-${i}`} svg={diagramSvg[diagramKey('sol', idx)]} />
-                  );
-                }
-                return part.trim() ? <MathMarkdown key={`t-${i}`} content={part} /> : null;
-              })}
+              <h3 className="slm-report-solution-title">Solution</h3>
+              <div className="slm-prose">
+                {solutionParts.map((part, i) => {
+                  if (i % 2 === 1) {
+                    const idx = Number(part);
+                    return (
+                      <ResolvedDiagram key={`d-${i}`} svg={diagramSvg[diagramKey('sol', idx)]} />
+                    );
+                  }
+                  return part.trim() ? <MathMarkdown key={`t-${i}`} content={part} /> : null;
+                })}
+              </div>
             </div>
           )}
         </div>
       </section>
 
-      <footer className="slm-report-foot">Generated by stemLM</footer>
+      <footer className="slm-report-foot">
+        Generated by <a href="https://stemlm.app">stemLM</a> · stemlm.app
+      </footer>
     </div>
   );
 }
 
-/** Collect every diagram in a session, keyed for pre-rendering. */
 export function collectDiagrams(session: Session): { key: string; diagram: Diagram }[] {
   const out: { key: string; diagram: Diagram }[] = [];
   for (const step of session.capsule.steps) {
