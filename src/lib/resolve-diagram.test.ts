@@ -38,7 +38,7 @@ describe('resolveDiagramSvg', () => {
       'light',
       'print',
     );
-    expect(svg).toContain('width="280"');
-    expect(svg).toContain('height="140"');
+    expect(svg).toContain('width="200"');
+    expect(svg).toContain('height="100"');
   });
 });

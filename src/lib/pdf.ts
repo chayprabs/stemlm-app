@@ -9,6 +9,7 @@ import { createElement } from 'react';
 import type { Session } from '@/src/protocol/types';
 import { Report, collectDiagrams } from '@/src/components/Report';
 import { resolveDiagramSvg } from './resolve-diagram';
+import { PRINT_DIAGRAM_MM } from './diagram-bounds';
 import { trackEvent } from './analytics';
 
 export interface PdfExportResult {
@@ -94,8 +95,8 @@ pre{word-break:break-word;overflow-wrap:anywhere;}
 .slm-report-takeaway p{display:inline;margin:0;}
 .slm-report-solution{margin-top:14px;padding:14px;border-top:0.5px solid ${T.border};}
 .slm-report-solution-title{font-size:12pt;font-weight:500;margin:0 0 10px;color:${T.accent};}
-.slm-report-diagram{display:flex;justify-content:center;align-items:center;margin:8px 0;padding:6px 0;page-break-inside:avoid;break-inside:avoid;}
-.slm-report-diagram svg{display:block;max-width:100%;height:auto;}
+.slm-report-diagram{display:flex;justify-content:center;align-items:center;width:100%;max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:6px auto;padding:2px 0;page-break-inside:avoid;break-inside:avoid;}
+.slm-report-diagram svg{display:block;width:auto;max-width:100%;height:auto;max-height:${PRINT_DIAGRAM_MM.maxH}mm;}
 .slm-report-foot{margin-top:20px;padding-top:10px;border-top:0.5px solid ${T.border};text-align:center;font-size:8.5pt;color:${T.fgSubtle};}
 ul,ol{margin:0 0 6px;padding-left:20px;}
 li{margin:2px 0;}

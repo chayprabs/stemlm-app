@@ -19,10 +19,10 @@ describe('diagram-bounds', () => {
     expect(size.height).toBe(132);
   });
 
-  it('uses print profile for PDF output', () => {
+  it('uses compact print profile for PDF output', () => {
     const size = computeDisplaySize('0 0 520 260', 'print');
-    expect(size.width).toBe(280);
-    expect(size.height).toBe(140);
+    expect(size.width).toBe(200);
+    expect(size.height).toBe(100);
   });
 
   it('does not upscale small diagrams', () => {

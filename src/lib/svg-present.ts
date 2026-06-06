@@ -155,6 +155,11 @@ export function presentSvg(
   const { width, height } = computeDisplaySize(root.getAttribute('viewBox'), profile);
   root.setAttribute('width', String(width));
   root.setAttribute('height', String(height));
+  // Inline size survives print layout quirks where width/height attrs alone get ignored.
+  root.setAttribute(
+    'style',
+    `display:block;width:${width}px;height:${height}px;max-width:100%;`,
+  );
   root.setAttribute('data-stemlm-theme', theme);
   root.setAttribute('data-stemlm-size', profile);
   if (!root.getAttribute('preserveAspectRatio')) {

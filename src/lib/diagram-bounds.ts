@@ -11,8 +11,12 @@ export type DiagramSizeProfile = 'step' | 'solution' | 'print';
 export const DIAGRAM_BOUNDS: Record<DiagramSizeProfile, { maxW: number; maxH: number }> = {
   step: { maxW: 248, maxH: 132 },
   solution: { maxW: 272, maxH: 148 },
-  print: { maxW: 300, maxH: 140 },
+  /** ~52×27 mm on A4 — inline figures, not full-width illustrations. */
+  print: { maxW: 200, maxH: 105 },
 };
+
+/** Hard print caps (mm) used by PDF CSS as a second line of defense. */
+export const PRINT_DIAGRAM_MM = { maxW: 52, maxH: 28 } as const;
 
 export function parseViewBox(viewBox: string | null | undefined): {
   x: number;

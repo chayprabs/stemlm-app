@@ -40,10 +40,11 @@ describe('presentSvg', () => {
     expect(out).toContain('height="124"');
   });
 
-  it('uses print profile dimensions for PDF output', () => {
+  it('uses print profile dimensions and inline style for PDF output', () => {
     const raw = '<svg viewBox="0 0 520 260"><rect width="10" height="10"/></svg>';
     const out = presentSvg(raw, 'light', 'print');
-    expect(out).toContain('width="280"');
-    expect(out).toContain('height="140"');
+    expect(out).toContain('width="200"');
+    expect(out).toContain('height="100"');
+    expect(out).toContain('style="display:block;width:200px;height:100px;max-width:100%;"');
   });
 });

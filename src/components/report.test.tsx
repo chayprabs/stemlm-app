@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Report, collectDiagrams, diagramKey } from './Report';
 import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
+import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { parse } from '@/src/protocol/parser';
-import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
+import { FENCED_ELECTRICAL, RLC_AC_IMPEDANCE } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
 
 function buildSession(): Session {
@@ -96,6 +97,33 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(printStyles()).toContain('#0ea5a0');
     expect(printStyles()).toContain('Inter');
     expect(printStyles()).toContain('JetBrains Mono');
+    expect(printStyles()).toContain('max-width:52mm');
+    expect(printStyles()).toContain('max-height:28mm');
+  });
+
+  it('embeds proportionally sized diagrams for RLC solution PDF export', async () => {
+    const result = parse(RLC_AC_IMPEDANCE);
+    const session: Session = {
+      id: 'rlc-pdf',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find impedance and current',
+      capsule: result.capsule!,
+      reviewedStepIds: [],
+      raw: '',
+    };
+    const diagramSvg: Record<string, string> = {};
+    for (const { key, diagram } of collectDiagrams(session)) {
+      diagramSvg[key] = await resolveDiagramSvg(diagram, 'light', 'print');
+    }
+    const doc = buildReportDocument(session, diagramSvg);
+
+    expect(doc).toContain('width="200"');
+    expect(doc).not.toContain('width="520"');
+    expect(doc).not.toContain('width="340"');
+    expect(doc).toContain('style="display:block;width:200px;height:100px;max-width:100%;"');
+    expect(doc).toContain('slm-report-solution');
   });
 
   it('builds a sensible filename for save', () => {
