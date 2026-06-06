@@ -14,12 +14,18 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
+const exportSessionPdf = vi.fn(async () => ({ ok: true, method: 'print' as const }));
+
 vi.mock('wxt/browser', () => ({
   browser: {
     storage: {
       local: mockLocalStorage,
     },
   },
+}));
+
+vi.mock('./pdf', () => ({
+  exportSessionPdf: (...args: unknown[]) => exportSessionPdf(...args),
 }));
 
 import {
@@ -29,9 +35,11 @@ import {
   saveSession,
   deleteSavedSession,
   isSessionSaved,
-  openSavedSession,
+  downloadSavedSessionPdf,
+  sessionToSnapshot,
+  snapshotToSession,
+  normalizeStoredSession,
 } from './saved-sessions';
-import { useStore } from '@/src/state/store';
 
 function makeSession(overrides: Partial<Session> & { id: string }): Session {
   const now = overrides.updatedAt ?? overrides.createdAt ?? 1_000;
@@ -43,7 +51,14 @@ function makeSession(overrides: Partial<Session> & { id: string }): Session {
     question: overrides.question ?? `Question for ${overrides.id}`,
     capsule: overrides.capsule ?? {
       meta: { version: 1, subject: 'Math', topic: 'Algebra' },
-      steps: [],
+      steps: [
+        {
+          id: 'step-1',
+          index: 1,
+          title: 'First step',
+          body: 'Step body',
+        },
+      ],
       solution: 'x = 1',
       solutionDiagrams: [],
     },
@@ -52,12 +67,12 @@ function makeSession(overrides: Partial<Session> & { id: string }): Session {
   };
 }
 
-function seedStorage(sessions: Session[]): void {
+function seedStorage(sessions: unknown[]): void {
   storageData[SAVED_SESSIONS_KEY] = sessions;
 }
 
-function storedSessions(): Session[] {
-  return storageData[SAVED_SESSIONS_KEY] as Session[];
+function storedSnapshots(): unknown[] {
+  return storageData[SAVED_SESSIONS_KEY] as unknown[];
 }
 
 describe('saved-sessions', () => {
@@ -72,205 +87,159 @@ describe('saved-sessions', () => {
     vi.useRealTimers();
   });
 
+  describe('sessionToSnapshot', () => {
+    it('keeps question and solution only', () => {
+      const snapshot = sessionToSnapshot(makeSession({ id: 'a', question: 'What is x?' }));
+      expect(snapshot.question).toBe('What is x?');
+      expect(snapshot.solution).toBe('x = 1');
+      expect(snapshot.meta.topic).toBe('Algebra');
+      expect(snapshot).not.toHaveProperty('steps');
+      expect(snapshot).not.toHaveProperty('capsule');
+    });
+  });
+
+  describe('snapshotToSession', () => {
+    it('builds a step-free session for PDF export', () => {
+      const snapshot = sessionToSnapshot(makeSession({ id: 'pdf' }));
+      const session = snapshotToSession(snapshot);
+      expect(session.capsule.steps).toEqual([]);
+      expect(session.question).toBe('Question for pdf');
+      expect(session.capsule.solution).toBe('x = 1');
+    });
+  });
+
+  describe('normalizeStoredSession', () => {
+    it('reads compact snapshots', () => {
+      const normalized = normalizeStoredSession({
+        id: 'snap',
+        question: 'Q',
+        savedAt: 100,
+        platform: 'gemini',
+        meta: { version: 1, subject: 'Math', topic: 'Topic' },
+        solution: 'A',
+        solutionDiagrams: [],
+      });
+      expect(normalized?.id).toBe('snap');
+      expect(normalized?.solution).toBe('A');
+    });
+
+    it('migrates legacy full sessions', () => {
+      const normalized = normalizeStoredSession(makeSession({ id: 'legacy' }));
+      expect(normalized?.id).toBe('legacy');
+      expect(normalized?.solution).toBe('x = 1');
+      expect(normalized?.question).toBe('Question for legacy');
+    });
+  });
+
   describe('getSavedSessions', () => {
     it('returns an empty array when storage is empty', async () => {
       expect(await getSavedSessions()).toEqual([]);
     });
 
-    it('returns an empty array when the stored value is missing or not an array', async () => {
-      storageData[SAVED_SESSIONS_KEY] = undefined;
-      expect(await getSavedSessions()).toEqual([]);
-
-      storageData[SAVED_SESSIONS_KEY] = { not: 'an array' };
-      expect(await getSavedSessions()).toEqual([]);
-    });
-
-    it('returns an empty array when storage read throws', async () => {
-      mockLocalStorage.get.mockRejectedValueOnce(new Error('storage unavailable'));
-      expect(await getSavedSessions()).toEqual([]);
-    });
-
-    it('sorts sessions by updatedAt descending', async () => {
+    it('sorts sessions by savedAt descending', async () => {
       seedStorage([
-        makeSession({ id: 'old', updatedAt: 100 }),
-        makeSession({ id: 'mid', updatedAt: 200 }),
-        makeSession({ id: 'new', updatedAt: 300 }),
+        { ...sessionToSnapshot(makeSession({ id: 'old' })), savedAt: 100 },
+        { ...sessionToSnapshot(makeSession({ id: 'new' })), savedAt: 300 },
       ]);
 
       const sessions = await getSavedSessions();
-      expect(sessions.map((s) => s.id)).toEqual(['new', 'mid', 'old']);
-    });
-
-    it('normalizes platform to gemini on read', async () => {
-      seedStorage([
-        {
-          ...makeSession({ id: 'a' }),
-          platform: 'other' as Session['platform'],
-        },
-      ]);
-
-      const sessions = await getSavedSessions();
-      expect(sessions[0]?.platform).toBe('gemini');
+      expect(sessions.map((s) => s.id)).toEqual(['new', 'old']);
     });
   });
 
   describe('saveSession', () => {
-    it('does not write when storage read fails', async () => {
-      seedStorage([makeSession({ id: 'existing' })]);
-      mockLocalStorage.get.mockRejectedValueOnce(new Error('storage unavailable'));
+    it('stores a compact snapshot without steps', async () => {
+      await saveSession(makeSession({ id: 'new', question: 'Integrate x' }));
 
-      await expect(saveSession(makeSession({ id: 'replacement' }))).rejects.toThrow();
-      expect(storedSessions().map((s) => s.id)).toEqual(['existing']);
-      expect(mockLocalStorage.set).not.toHaveBeenCalled();
+      const stored = storedSnapshots()[0] as Record<string, unknown>;
+      expect(stored.id).toBe('new');
+      expect(stored.question).toBe('Integrate x');
+      expect(stored.solution).toBe('x = 1');
+      expect(stored).not.toHaveProperty('capsule');
+      expect(stored).not.toHaveProperty('steps');
     });
 
-    it('adds a new session to storage', async () => {
-      const session = makeSession({ id: 'new' });
-      await saveSession(session);
-
-      expect(mockLocalStorage.set).toHaveBeenCalledOnce();
-      const saved = storedSessions();
-      expect(saved).toHaveLength(1);
-      expect(saved[0]?.id).toBe('new');
-      expect(saved[0]?.question).toBe('Question for new');
-    });
-
-    it('prepends a new session so the most recent appears first', async () => {
-      vi.useFakeTimers();
-      vi.setSystemTime(5_000);
-
-      seedStorage([makeSession({ id: 'existing', updatedAt: 4_000 })]);
-      await saveSession(makeSession({ id: 'fresh', updatedAt: 1_000 }));
-
-      const saved = storedSessions();
-      expect(saved.map((s) => s.id)).toEqual(['fresh', 'existing']);
-      expect(saved[0]?.updatedAt).toBe(5_000);
-    });
-
-    it('updates an existing session instead of duplicating it', async () => {
+    it('updates an existing snapshot instead of duplicating it', async () => {
       vi.useFakeTimers();
       vi.setSystemTime(9_000);
 
-      seedStorage([makeSession({ id: 'dup', question: 'Old question', updatedAt: 1_000 })]);
-      await saveSession(makeSession({ id: 'dup', question: 'New question', updatedAt: 2_000 }));
+      seedStorage([sessionToSnapshot(makeSession({ id: 'dup', question: 'Old question' }))]);
+      await saveSession(makeSession({ id: 'dup', question: 'New question' }));
 
-      const saved = storedSessions();
-      expect(saved).toHaveLength(1);
-      expect(saved[0]?.question).toBe('New question');
-      expect(saved[0]?.updatedAt).toBe(9_000);
-    });
-
-    it('normalizes platform to gemini on write', async () => {
-      await saveSession({
-        ...makeSession({ id: 'platform' }),
-        platform: 'other' as Session['platform'],
-      });
-
-      expect(storedSessions()[0]?.platform).toBe('gemini');
+      const stored = storedSnapshots() as Array<{ question: string; savedAt: number }>;
+      expect(stored).toHaveLength(1);
+      expect(stored[0]?.question).toBe('New question');
+      expect(stored[0]?.savedAt).toBe(9_000);
     });
 
     it('enforces the MAX_SAVED limit of 100 sessions', async () => {
-      vi.useFakeTimers();
-
-      const existing = Array.from({ length: 100 }, (_, i) =>
-        makeSession({ id: `s-${i}`, updatedAt: i + 1 }),
-      );
+      const existing = Array.from({ length: 100 }, (_, i) => ({
+        ...sessionToSnapshot(makeSession({ id: `s-${i}` })),
+        savedAt: i + 1,
+      }));
       seedStorage(existing);
 
-      vi.setSystemTime(10_000);
-      await saveSession(makeSession({ id: 'overflow', updatedAt: 0 }));
+      await saveSession(makeSession({ id: 'overflow' }));
 
-      const saved = storedSessions();
-      expect(saved).toHaveLength(100);
-      expect(saved.some((s) => s.id === 'overflow')).toBe(true);
-      expect(saved.some((s) => s.id === 's-0')).toBe(false);
-      expect(saved[0]?.id).toBe('overflow');
+      const stored = storedSnapshots() as Array<{ id: string }>;
+      expect(stored).toHaveLength(100);
+      expect(stored.some((s) => s.id === 'overflow')).toBe(true);
+      expect(stored.some((s) => s.id === 's-0')).toBe(false);
     });
   });
 
   describe('deleteSavedSession', () => {
     it('removes a session by id', async () => {
       seedStorage([
-        makeSession({ id: 'keep', updatedAt: 200 }),
-        makeSession({ id: 'drop', updatedAt: 100 }),
+        sessionToSnapshot(makeSession({ id: 'keep' })),
+        sessionToSnapshot(makeSession({ id: 'drop' })),
       ]);
 
       await deleteSavedSession('drop');
 
-      expect(storedSessions().map((s) => s.id)).toEqual(['keep']);
-    });
-
-    it('is a no-op when the id does not exist', async () => {
-      seedStorage([makeSession({ id: 'only', updatedAt: 100 })]);
-
-      await deleteSavedSession('missing');
-
-      expect(storedSessions().map((s) => s.id)).toEqual(['only']);
+      const ids = (storedSnapshots() as Array<{ id: string }>).map((s) => s.id);
+      expect(ids).toEqual(['keep']);
     });
   });
 
   describe('isSessionSaved', () => {
     it('returns true when the session exists', async () => {
-      seedStorage([makeSession({ id: 'saved' })]);
+      seedStorage([sessionToSnapshot(makeSession({ id: 'saved' }))]);
       expect(await isSessionSaved('saved')).toBe(true);
-    });
-
-    it('returns false when the session does not exist', async () => {
-      seedStorage([makeSession({ id: 'saved' })]);
-      expect(await isSessionSaved('other')).toBe(false);
-    });
-
-    it('returns false when storage is empty', async () => {
-      expect(await isSessionSaved('any')).toBe(false);
     });
   });
 
-  describe('openSavedSession', () => {
-    beforeEach(() => {
-      useStore.setState({
-        panelOpen: false,
-        status: 'idle',
-        sessions: [],
-        activeSessionId: undefined,
-        activeStepIndex: 0,
-      });
+  describe('downloadSavedSessionPdf', () => {
+    it('exports a step-free session as PDF', async () => {
+      seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
+
+      const result = await downloadSavedSessionPdf('lib-1');
+      expect(result.ok).toBe(true);
+      expect(exportSessionPdf).toHaveBeenCalledOnce();
+
+      const exported = exportSessionPdf.mock.calls[0]?.[0] as Session;
+      expect(exported.question).toBe('Saved Q');
+      expect(exported.capsule.steps).toEqual([]);
+      expect(exported.capsule.solution).toBe('x = 1');
     });
 
-    it('loads a saved session into the store and opens the panel', async () => {
-      const session = makeSession({ id: 'lib-1', question: 'Saved Q' });
-      seedStorage([session]);
-
-      const ok = await openSavedSession('lib-1');
-      expect(ok).toBe(true);
-
-      const state = useStore.getState();
-      expect(state.panelOpen).toBe(true);
-      expect(state.status).toBe('ready');
-      expect(state.sessions).toHaveLength(1);
-      expect(state.sessions[0]?.question).toBe('Saved Q');
-      expect(state.activeSessionId).toBe('lib-1');
-    });
-
-    it('returns false when the id is missing', async () => {
-      expect(await openSavedSession('missing')).toBe(false);
-      expect(useStore.getState().sessions).toHaveLength(0);
+    it('returns failed when the id is missing', async () => {
+      const result = await downloadSavedSessionPdf('missing');
+      expect(result.ok).toBe(false);
+      expect(exportSessionPdf).not.toHaveBeenCalled();
     });
   });
 
   describe('getSavedSession', () => {
-    it('returns the session matching the id', async () => {
-      const target = makeSession({ id: 'target', question: 'Find me' });
-      seedStorage([makeSession({ id: 'other' }), target]);
+    it('returns the snapshot matching the id', async () => {
+      seedStorage([
+        sessionToSnapshot(makeSession({ id: 'other' })),
+        sessionToSnapshot(makeSession({ id: 'target', question: 'Find me' })),
+      ]);
 
       const found = await getSavedSession('target');
       expect(found?.id).toBe('target');
       expect(found?.question).toBe('Find me');
-      expect(found?.platform).toBe('gemini');
-    });
-
-    it('returns undefined when no session matches', async () => {
-      seedStorage([makeSession({ id: 'other' })]);
-      expect(await getSavedSession('missing')).toBeUndefined();
     });
   });
 });

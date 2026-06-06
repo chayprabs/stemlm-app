@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { getSavedSessions, deleteSavedSession } from '@/src/lib/saved-sessions';
+import {
+  getSavedSessions,
+  deleteSavedSession,
+  downloadSavedSessionPdf,
+  type SavedSessionSnapshot,
+} from '@/src/lib/saved-sessions';
 import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme } from '@/src/lib/theme';
-import type { Session } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { IconClose, IconLayers, IconSave, StemMark } from '@/src/components/icons';
+import { IconClose, IconLayers, IconPdf, StemMark } from '@/src/components/icons';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
@@ -28,8 +32,10 @@ function isGeminiUrl(url: string | undefined): boolean {
 }
 
 export default function App() {
-  const [saved, setSaved] = useState<Session[]>([]);
+  const [saved, setSaved] = useState<SavedSessionSnapshot[]>([]);
   const [onGemini, setOnGemini] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -41,7 +47,7 @@ export default function App() {
     activeTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
 
-  async function sendToTab(payload: { type: string; id?: string }) {
+  async function sendToTab(payload: { type: string }) {
     const tab = await activeTab();
     if (tab?.id != null) {
       try {
@@ -57,8 +63,19 @@ export default function App() {
     void sendToTab({ type });
   }
 
-  function openSaved(id: string) {
-    void sendToTab({ type: 'stemlm:open-saved-session', id });
+  async function downloadSaved(snapshot: SavedSessionSnapshot) {
+    setDownloadError(null);
+    setDownloadingId(snapshot.id);
+    try {
+      const result = await downloadSavedSessionPdf(snapshot.id);
+      if (!result.ok) {
+        setDownloadError('PDF export failed. Try again or use Save as PDF in the print dialog.');
+      }
+    } catch {
+      setDownloadError('Could not export PDF. Try again.');
+    } finally {
+      setDownloadingId(null);
+    }
   }
 
   async function remove(id: string) {
@@ -132,9 +149,13 @@ export default function App() {
 
       <section className="slm-popup-section" aria-label="Saved sessions">
         <h2 className="slm-popup-section-title">Saved sessions</h2>
+        <p className="slm-popup-saved-hint">
+          Question and solution are saved locally. Tap a session to download its PDF.
+        </p>
+        {downloadError && <p className="slm-popup-error">{downloadError}</p>}
         {saved.length === 0 ? (
           <p className="slm-popup-empty">
-            No saved sessions yet. Save one from the panel to revisit it.
+            No saved sessions yet. Save one from the panel to download it here later.
           </p>
         ) : (
           <ul className="slm-saved-list">
@@ -143,17 +164,18 @@ export default function App() {
                 <button
                   type="button"
                   className="slm-saved-open"
-                  onClick={() => openSaved(s.id)}
-                  disabled={!onGemini}
-                  title={onGemini ? 'Open in study panel' : 'Open gemini.google.com first'}
+                  onClick={() => downloadSaved(s)}
+                  disabled={downloadingId === s.id}
+                  title="Download PDF"
+                  aria-label={`Download PDF for ${s.meta.topic}`}
                 >
                   <span className="slm-saved-meta">
                     <span className="slm-saved-topic">
-                      <IconSave width={13} height={13} aria-hidden="true" />
-                      {s.capsule.meta.topic}
+                      <IconPdf width={13} height={13} aria-hidden="true" />
+                      {s.meta.topic}
                     </span>
                     <span className="slm-saved-sub">
-                      {s.capsule.meta.subject} · {s.capsule.steps.length} steps
+                      {downloadingId === s.id ? 'Preparing PDF…' : `${s.meta.subject} · PDF`}
                     </span>
                   </span>
                 </button>
@@ -161,7 +183,7 @@ export default function App() {
                   type="button"
                   className="slm-saved-del"
                   title="Delete saved session"
-                  aria-label={`Delete ${s.capsule.meta.topic}`}
+                  aria-label={`Delete ${s.meta.topic}`}
                   onClick={() => remove(s.id)}
                 >
                   <IconClose width={14} height={14} />

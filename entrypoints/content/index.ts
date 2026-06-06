@@ -16,7 +16,6 @@ import {
   mirrorActiveSessions,
   onMirroredSessionsChanged,
 } from '@/src/lib/session-sync';
-import { openSavedSession } from '@/src/lib/saved-sessions';
 import { removeSplit } from '@/src/lib/split-screen';
 
 /**
@@ -131,9 +130,6 @@ export default defineContentScript({
       } else if (type === 'stemlm:load-conversation') {
         getController()?.loadConversation();
         useStore.getState().openPanel();
-      } else if (type === 'stemlm:open-saved-session') {
-        const id = typeof msg === 'object' && msg ? (msg as { id?: string }).id : undefined;
-        if (id) void openSavedSession(id);
       }
     };
     browser.runtime.onMessage.addListener(onMessage);

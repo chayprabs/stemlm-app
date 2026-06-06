@@ -1,32 +1,118 @@
 /**
- * Persistence for explicitly-saved study sessions (a small library the student
- * can revisit). Stored in storage.local so it survives tab/browser restarts and
- * is reachable from the popup. Active/unsaved sessions live only in the per-tab
- * content-script store.
+ * Persistence for explicitly-saved study sessions. Each save stores only the
+ * question + full solution (matching the PDF export) in storage.local — not
+ * the step cards. Clicking a saved item in the popup downloads/prints the PDF.
  */
 import { browser } from 'wxt/browser';
-import type { Session } from '@/src/protocol/types';
-import { useStore } from '@/src/state/store';
+import type { CapsuleMeta, Diagram, Session } from '@/src/protocol/types';
+import { exportSessionPdf, type PdfExportResult } from './pdf';
 
 export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
 
-function normalizeSession(raw: Session): Session {
-  return { ...raw, platform: 'gemini' };
+/** Compact record kept in browser storage — question + solution only. */
+export interface SavedSessionSnapshot {
+  id: string;
+  question: string;
+  savedAt: number;
+  platform: 'gemini';
+  meta: CapsuleMeta;
+  solution: string;
+  solutionDiagrams: Diagram[];
 }
 
-function sortByRecent(sessions: Session[]): Session[] {
-  return [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+function sortByRecent(sessions: SavedSessionSnapshot[]): SavedSessionSnapshot[] {
+  return [...sessions].sort((a, b) => b.savedAt - a.savedAt);
 }
 
-async function readSavedSessions(): Promise<Session[]> {
+export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
+  const question = (session.question || session.capsule.meta.topic || '').trim();
+  return {
+    id: session.id,
+    question,
+    savedAt: Date.now(),
+    platform: 'gemini',
+    meta: session.capsule.meta,
+    solution: session.capsule.solution,
+    solutionDiagrams: session.capsule.solutionDiagrams,
+  };
+}
+
+/** Rebuild a minimal Session for PDF rendering (no steps). */
+export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
+  return {
+    id: snapshot.id,
+    createdAt: snapshot.savedAt,
+    updatedAt: snapshot.savedAt,
+    platform: snapshot.platform,
+    question: snapshot.question,
+    raw: '',
+    reviewedStepIds: [],
+    capsule: {
+      meta: snapshot.meta,
+      steps: [],
+      solution: snapshot.solution,
+      solutionDiagrams: snapshot.solutionDiagrams,
+    },
+  };
+}
+
+function isCapsuleMeta(value: unknown): value is CapsuleMeta {
+  if (!value || typeof value !== 'object') return false;
+  const m = value as CapsuleMeta;
+  return typeof m.version === 'number' && typeof m.subject === 'string' && typeof m.topic === 'string';
+}
+
+function isDiagram(value: unknown): value is Diagram {
+  if (!value || typeof value !== 'object') return false;
+  const d = value as Diagram;
+  return (d.type === 'svg' || d.type === 'mermaid') && typeof d.content === 'string';
+}
+
+/** Accept new snapshots and legacy full Session objects from older builds. */
+export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+
+  if (
+    typeof o.id === 'string' &&
+    typeof o.question === 'string' &&
+    isCapsuleMeta(o.meta) &&
+    typeof o.solution === 'string'
+  ) {
+    return {
+      id: o.id,
+      question: o.question,
+      savedAt: typeof o.savedAt === 'number' ? o.savedAt : typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
+      platform: 'gemini',
+      meta: o.meta,
+      solution: o.solution,
+      solutionDiagrams: Array.isArray(o.solutionDiagrams)
+        ? o.solutionDiagrams.filter(isDiagram)
+        : [],
+    };
+  }
+
+  if (typeof o.id === 'string' && o.capsule && typeof o.capsule === 'object') {
+    const legacy = raw as Session;
+    if (!legacy.capsule?.meta || typeof legacy.capsule.solution !== 'string') return null;
+    return sessionToSnapshot(legacy);
+  }
+
+  return null;
+}
+
+async function readSavedSessions(): Promise<SavedSessionSnapshot[]> {
   const list = (await browser.storage.local.get(SAVED_SESSIONS_KEY))[SAVED_SESSIONS_KEY] as
-    | Session[]
+    | unknown[]
     | undefined;
-  return Array.isArray(list) ? sortByRecent(list.map(normalizeSession)) : [];
+  if (!Array.isArray(list)) return [];
+  return sortByRecent(
+    list.map(normalizeStoredSession).filter((s): s is SavedSessionSnapshot => s !== null),
+  );
 }
 
-export async function getSavedSessions(): Promise<Session[]> {
+export async function getSavedSessions(): Promise<SavedSessionSnapshot[]> {
   try {
     return await readSavedSessions();
   } catch {
@@ -34,18 +120,20 @@ export async function getSavedSessions(): Promise<Session[]> {
   }
 }
 
-export async function getSavedSession(id: string): Promise<Session | undefined> {
+export async function getSavedSession(id: string): Promise<SavedSessionSnapshot | undefined> {
   return (await getSavedSessions()).find((s) => s.id === id);
 }
 
 export async function saveSession(session: Session): Promise<void> {
   const list = await readSavedSessions();
-  const idx = list.findIndex((s) => s.id === session.id);
-  const updated = normalizeSession({ ...session, updatedAt: Date.now() });
+  const snapshot = sessionToSnapshot(session);
+  const idx = list.findIndex((s) => s.id === snapshot.id);
   const next = [...list];
-  if (idx >= 0) next[idx] = updated;
-  else next.unshift(updated);
-  await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED) });
+  if (idx >= 0) next[idx] = snapshot;
+  else next.unshift(snapshot);
+  await browser.storage.local.set({
+    [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED),
+  });
 }
 
 export async function deleteSavedSession(id: string): Promise<void> {
@@ -53,15 +141,11 @@ export async function deleteSavedSession(id: string): Promise<void> {
   await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: list });
 }
 
-/** Load a saved library session into the active tab store and open the panel. */
-export async function openSavedSession(id: string): Promise<boolean> {
-  const session = await getSavedSession(id);
-  if (!session) return false;
-  const store = useStore.getState();
-  store.setSessions([session]);
-  store.setStatus('ready');
-  store.openPanel();
-  return true;
+/** Open the system print / Save-as-PDF dialog for a saved snapshot. */
+export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
+  const snapshot = await getSavedSession(id);
+  if (!snapshot) return { ok: false, method: 'failed' };
+  return exportSessionPdf(snapshotToSession(snapshot));
 }
 
 export async function isSessionSaved(id: string): Promise<boolean> {

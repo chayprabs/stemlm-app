@@ -59,6 +59,17 @@ describe('Report renderToStaticMarkup', () => {
     const session = buildSession();
     expect(() => renderToStaticMarkup(<Report session={session} diagramSvg={{}} />)).not.toThrow();
   });
+
+  it('renders question and solution without step cards for saved snapshots', () => {
+    const session = buildSession();
+    session.capsule.steps = [];
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+
+    expect(html).toContain('What is the current?');
+    expect(html).toContain('Solution');
+    expect(html).not.toContain('slm-report-step');
+    expect(html).not.toContain('Label the circuit');
+  });
 });
 
 describe('buildReportDocument (vector print PDF)', () => {

@@ -291,12 +291,24 @@ body[data-stemlm-theme] {
   margin-top: 0.85rem;
 }
 .slm-popup-section-title {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.35rem;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--slm-fg-muted);
+}
+.slm-popup-saved-hint {
+  margin: 0 0 0.45rem;
+  font-size: 12px;
+  color: var(--slm-fg-muted);
+  line-height: 1.45;
+}
+.slm-popup-error {
+  margin: 0 0 0.45rem;
+  font-size: 12px;
+  color: var(--slm-error);
+  line-height: 1.45;
 }
 .slm-saved-list {
   list-style: none;
