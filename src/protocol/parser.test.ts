@@ -6,7 +6,9 @@ import {
   NO_CAPSULE,
   NOISY_FENCED,
   OPAMP_NONINVERTING,
+  OPAMP_NONINVERTING_RAILS,
   DIODE_HALFWAVE_RECTIFIER,
+  DIODE_HALFWAVE_RECTIFIER_12V,
 } from './__fixtures__';
 
 describe('findCapsuleRaw', () => {
@@ -209,6 +211,42 @@ describe('parse (op-amp non-inverting capsule)', () => {
   });
 });
 
+describe('parse (op-amp rail-check hard benchmark)', () => {
+  const result = parse(OPAMP_NONINVERTING_RAILS);
+  const capsule = result.capsule!;
+  const allText = [
+    ...capsule.steps.map((s) => s.formula ?? ''),
+    ...capsule.steps.map((s) => s.body),
+    capsule.solution,
+  ].join(' ');
+
+  it('parses the rail-check fixture cleanly', () => {
+    expect(result.status).toBe('ok');
+    expect(capsule.meta.subject).toBe('Electrical');
+    expect(capsule.steps).toHaveLength(5);
+  });
+
+  it('computes gain, output, virtual-short node voltages, and no saturation', () => {
+    expect(allText).toContain('=10');
+    expect(allText).toContain('2.00');
+    expect(allText).toMatch(/0\.20/);
+    expect(allText).toMatch(/does not saturate|does not.*clip/i);
+    expect(allText).toContain('\\pm12');
+  });
+
+  it('draws rails and the complete Rf/Rg feedback topology', () => {
+    const diagram = capsule.steps[0]!.diagram!.content;
+    expect(diagram).toContain('+12V');
+    expect(diagram).toContain('−12V');
+    expect(diagram).toContain('Vin=0.20V');
+    expect(diagram).toContain('Vout=2.00V');
+    expect(diagram).toContain('Rf=9k');
+    expect(diagram).toContain('Rg=1k');
+    expect(diagram).toContain('V−=0.20V');
+    expect(diagram).toContain('V+=0.20V');
+  });
+});
+
 describe('parse (half-wave diode rectifier capsule)', () => {
   const result = parse(DIODE_HALFWAVE_RECTIFIER);
 
@@ -251,6 +289,42 @@ describe('parse (half-wave diode rectifier capsule)', () => {
   it('solution includes average voltage', () => {
     expect(result.capsule!.solution).toContain('V_{\\text{avg}}');
     expect(result.capsule!.solution).toContain('1.59');
+  });
+});
+
+describe('parse (12 V half-wave diode hard benchmark)', () => {
+  const result = parse(DIODE_HALFWAVE_RECTIFIER_12V);
+  const capsule = result.capsule!;
+  const allText = [
+    ...capsule.steps.map((s) => s.formula ?? ''),
+    ...capsule.steps.map((s) => s.body),
+    capsule.solution,
+  ].join(' ');
+
+  it('parses the 12 V rectifier fixture cleanly', () => {
+    expect(result.status).toBe('ok');
+    expect(capsule.meta.subject).toBe('Electrical');
+    expect(capsule.steps).toHaveLength(4);
+  });
+
+  it('states peak voltage, peak current, average output, and conduction interval', () => {
+    expect(allText).toContain('12');
+    expect(allText).toMatch(/12\s*\\,\\text\{mA\}|12\\,\\text\{mA\}|12.*mA/);
+    expect(allText).toContain('12/\\pi');
+    expect(allText).toContain('3.82');
+    expect(allText).toMatch(/2\\pi k<\\omega t<\(2k\+1\)\\pi/);
+    expect(allText).toMatch(/blocking half-cycle|blocks/i);
+  });
+
+  it('draws a diode circuit and waveform with zero negative half-cycle labels', () => {
+    const circuit = capsule.steps[0]!.diagram!.content;
+    const waveform = capsule.steps[2]!.diagram!.content;
+    expect(circuit).toContain('<polygon');
+    expect(circuit).toContain('12Vp');
+    expect(circuit).toContain('vo across load');
+    expect(waveform).toContain('12 V peak');
+    expect(waveform).toContain('Vavg=12/π=3.82V');
+    expect(waveform).toContain('OFF at 0 V');
   });
 });
 

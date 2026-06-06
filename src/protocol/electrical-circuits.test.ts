@@ -744,6 +744,22 @@ describe('Sanitize pipeline: marker edge cases', () => {
     expect(out).toContain('2A');
   });
 
+  it('node-voltage fixture draws the current-source arrow inside the source circle', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('cx="370" cy="108" r="16"');
+    expect(clean).toContain('x1="370" y1="120" x2="370" y2="96"');
+    expect(clean).toContain('marker-end="url(#arr)"');
+  });
+
+  it('solved node-voltage diagram labels all branch currents', () => {
+    const raw = nvSteps[4]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('4/13 A');
+    expect(clean).toContain('30/13 A');
+    expect(clean).toContain('2 A up');
+  });
+
   it('font-weight="bold" survives on text elements', () => {
     const svg = '<svg viewBox="0 0 100 50"><text x="10" y="30" font-weight="bold" font-size="14" fill="blue">N1</text></svg>';
     const out = sanitizeSvg(svg);

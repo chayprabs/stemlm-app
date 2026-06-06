@@ -40,7 +40,7 @@ RULES:
 - One @step = one cognitive move. Never combine setup + solve, or two substitutions, in one step.
 - Forbidden titles: Setup, Solve, Answer, Conclusion, Summary, Final answer, Wrap-up.
 - Prefer more small steps over fewer large ones; split algebra one line per step; show every substitution with units.
-- title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @formula/@diagram optional per step, but diagram often.
+- title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @formula/@diagram optional per step, but diagram often. Use at most one @diagram block per @step; when a circuit plus waveform/phasor/triangle is needed, put each visual in its own step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
 - Each @diagram = that step's evolving state (circuit reduced so far, ray after this surface, structure after this op), not one final picture.
 - svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; arrowheads via <defs><marker>…<polygon/></marker></defs> with marker-end="url(#id)"; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/physical/chem/bio/geometry/EE circuits.
