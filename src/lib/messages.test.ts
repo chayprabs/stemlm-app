@@ -12,6 +12,7 @@ vi.mock('wxt/browser', () => ({
 
 describe('messages', () => {
   it('accepts known message types', () => {
+    expect(isStemLmMessage({ type: 'stemlm:ping' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:open-panel' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:load-conversation' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:evil' })).toBe(false);

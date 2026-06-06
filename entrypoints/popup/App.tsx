@@ -10,26 +10,8 @@ import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
 import { IconClose, IconLayers, IconPdf, StemMark } from '@/src/components/icons';
-
-const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
-
-async function activeTab() {
-  try {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    return tab ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function isGeminiUrl(url: string | undefined): boolean {
-  if (!url) return false;
-  try {
-    return GEMINI_HOST.test(new URL(url).hostname);
-  } catch {
-    return false;
-  }
-}
+import { deliverStemLmMessage, getActiveTab, isGeminiUrl } from '@/src/lib/tab-bridge';
+import type { StemLmMessage } from '@/src/lib/messages';
 
 export default function App() {
   const [saved, setSaved] = useState<SavedSessionSnapshot[]>([]);
@@ -45,26 +27,24 @@ export default function App() {
       applyTheme(document.body, theme);
     });
     getSavedSessions().then(setSaved);
-    activeTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
+    getActiveTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
 
-  async function sendToTab(payload: { type: string }) {
+  async function send(type: StemLmMessage['type']) {
     setSendError(null);
-    const tab = await activeTab();
-    if (tab?.id == null) {
-      setSendError('No active tab found.');
-      return;
-    }
     try {
-      await browser.tabs.sendMessage(tab.id, payload);
+      await deliverStemLmMessage(type);
       window.close();
-    } catch {
-      setSendError('Reload the Gemini tab, then try again.');
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      if (code === 'not-gemini') {
+        setSendError('Open gemini.google.com first.');
+      } else if (code === 'no-active-tab') {
+        setSendError('No active tab found.');
+      } else {
+        setSendError('Could not reopen stemLM on this tab. Try refreshing Gemini.');
+      }
     }
-  }
-
-  function send(type: string) {
-    void sendToTab({ type });
   }
 
   async function downloadSaved(snapshot: SavedSessionSnapshot) {

@@ -5,10 +5,15 @@
 import { browser } from 'wxt/browser';
 
 export type StemLmMessage =
+  | { type: 'stemlm:ping' }
   | { type: 'stemlm:open-panel' }
   | { type: 'stemlm:load-conversation' };
 
-const ALLOWED: StemLmMessage['type'][] = ['stemlm:open-panel', 'stemlm:load-conversation'];
+const ALLOWED: StemLmMessage['type'][] = [
+  'stemlm:ping',
+  'stemlm:open-panel',
+  'stemlm:load-conversation',
+];
 
 export function isStemLmMessage(msg: unknown): msg is StemLmMessage {
   if (!msg || typeof msg !== 'object') return false;

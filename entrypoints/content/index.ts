@@ -19,6 +19,14 @@ import {
 import { removeSplit } from '@/src/lib/split-screen';
 import { removeComposerSlot } from '@/src/lib/composer-slot';
 import { parseStemLmMessage } from '@/src/lib/messages';
+import { handleStemLmPanelMessage } from '@/src/lib/panel-remote';
+import {
+  getContentTabId,
+  loadTabWorkspace,
+  saveTabWorkspace,
+  takePendingPanelAction,
+  workspaceFromStore,
+} from '@/src/lib/tab-workspace';
 
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
@@ -51,9 +59,22 @@ export default defineContentScript({
     useStore.getState().setTheme(resolveTheme(settings.theme));
     useStore.getState().setSplitRatio(settings.splitRatio);
 
+    const tabId = await getContentTabId();
+
     if (settings.shareAcrossTabs) {
       const shared = await loadMirroredSessions();
       if (shared.length) useStore.getState().setSessions(shared);
+    } else if (tabId != null) {
+      const backup = await loadTabWorkspace(tabId);
+      if (backup?.sessions.length && useStore.getState().sessions.length === 0) {
+        useStore.setState({
+          sessions: backup.sessions,
+          activeSessionId:
+            backup.activeSessionId ?? backup.sessions[backup.sessions.length - 1]?.id,
+          activeStepIndex: backup.activeStepIndex,
+          status: 'ready',
+        });
+      }
     }
 
     let host: HTMLElement | null = null;
@@ -84,11 +105,23 @@ export default defineContentScript({
     ui.mount();
 
     let lastSessions = useStore.getState().sessions;
+    let workspaceTimer: ReturnType<typeof setTimeout> | null = null;
+    const persistTabWorkspace = () => {
+      if (tabId == null) return;
+      const state = useStore.getState();
+      if (!state.sessions.length) return;
+      void saveTabWorkspace(workspaceFromStore(tabId, state));
+    };
+
     useStore.subscribe((state) => {
       if (host) applyTheme(host, state.theme);
       if (state.settings.shareAcrossTabs && state.sessions !== lastSessions) {
         lastSessions = state.sessions;
         void mirrorActiveSessions(state.sessions);
+      }
+      if (tabId != null && state.sessions.length) {
+        if (workspaceTimer) clearTimeout(workspaceTimer);
+        workspaceTimer = setTimeout(persistTabWorkspace, 300);
       }
     });
 
@@ -139,21 +172,36 @@ export default defineContentScript({
       }
     });
 
-    const onMessage = (msg: unknown, sender: { id?: string }) => {
+    const onMessage = (
+      msg: unknown,
+      sender: { id?: string },
+      sendResponse: (response?: unknown) => void,
+    ) => {
       const parsed = parseStemLmMessage(msg, sender);
-      if (!parsed) return;
+      if (!parsed) return false;
 
-      if (parsed.type === 'stemlm:open-panel') {
-        useStore.getState().openPanel();
-        void trackEvent('panel_opened', { platform: adapter.id, source: 'toolbar' });
-      } else if (parsed.type === 'stemlm:load-conversation') {
-        getController()?.loadConversation();
-        useStore.getState().openPanel();
+      if (parsed.type === 'stemlm:ping') {
+        sendResponse({
+          ok: true,
+          panelOpen: useStore.getState().panelOpen,
+          sessions: useStore.getState().sessions.length,
+        });
+        return true;
       }
+
+      sendResponse(handleStemLmPanelMessage(parsed.type, adapter.id));
+      return true;
     };
     browser.runtime.onMessage.addListener(onMessage);
 
+    if (tabId != null) {
+      const pending = await takePendingPanelAction(tabId);
+      if (pending) handleStemLmPanelMessage(pending, adapter.id);
+    }
+
     ctx.onInvalidated(() => {
+      persistTabWorkspace();
+      if (workspaceTimer) clearTimeout(workspaceTimer);
       removeSplit();
       removeComposerSlot();
       getController()?.stopWatching();
