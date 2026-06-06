@@ -48,8 +48,20 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-inject-btn:hover {
   background: #0D9490;
 }
-[data-stemlm-composer-slot] .slm-inject-btn.is-done {
+[data-stemlm-composer-slot] .slm-inject-btn.is-attached {
+  background: #0EA5A0;
+}
+[data-stemlm-composer-slot] .slm-inject-btn.is-panel-open {
   background: #22C55E;
+}
+[data-stemlm-composer-slot] .slm-inject-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  color: #0EA5A0;
+  font-size: 10px;
+  font-weight: 500;
 }
 [data-stemlm-composer-slot] .slm-fab-subject {
   display: inline-flex;

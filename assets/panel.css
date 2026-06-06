@@ -132,8 +132,34 @@
 .slm-inject-btn:hover {
   background: var(--slm-accent-hover);
 }
-.slm-inject-btn.is-done {
+.slm-inject-btn.is-attached {
+  background: var(--slm-accent);
+}
+.slm-inject-btn.is-panel-open {
   background: var(--slm-success);
+}
+.slm-inject-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 26px;
+  padding: 0 0.35rem;
+  color: var(--slm-accent);
+  font-size: 10px;
+  font-weight: 500;
+}
+.slm-inject-status svg {
+  animation: slm-spin 0.9s linear infinite;
+}
+@keyframes slm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slm-inject-status svg {
+    animation: none;
+  }
 }
 .slm-inject-btn-mark {
   font-size: 11px;
@@ -265,11 +291,12 @@
 .slm-panel-label {
   font-size: 8px;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #94a3b8;
-  margin-left: auto;
-  margin-right: 0.5rem;
+  flex: 1;
+  text-align: center;
+  margin: 0 0.25rem;
 }
 [data-stemlm-theme='dark'] .slm-panel-label {
   color: var(--slm-fg-subtle);
@@ -295,7 +322,7 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--slm-fg-muted);
 }
 .slm-status-dot {
@@ -325,9 +352,17 @@
   color: var(--slm-accent);
   border: 0.5px solid transparent;
 }
+.slm-topic-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem 0.5rem;
+}
 .slm-topic {
   margin: 0;
-  padding: 0.65rem 1rem 0.5rem;
+  flex: 1;
+  min-width: 0;
   font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.02em;
@@ -416,13 +451,86 @@
 .slm-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0.75rem 1rem 1rem;
+  padding: 0;
   background: var(--slm-bg);
 }
-.slm-steps-layout {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.75rem;
+.slm-steps-hero {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.slm-steps-detail {
+  padding: 0.75rem 1rem 1rem;
+}
+.slm-diagram-well {
+  flex: 0 0 auto;
+  min-height: 110px;
+  padding: 0.5rem 0.75rem;
+  background: #f1f5f5;
+  border-bottom: 0.5px solid var(--slm-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-stemlm-theme='dark'] .slm-diagram-well {
+  background: var(--slm-bg-muted);
+}
+.slm-diagram-well .slm-diagram {
+  width: 100%;
+  background: transparent;
+  padding: 0;
+}
+.slm-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 0.5px solid var(--slm-border);
+}
+.slm-step-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.65rem;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-sm);
+  background: #f8f9fc;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+[data-stemlm-theme='dark'] .slm-step-row {
+  background: var(--slm-bg-subtle);
+}
+.slm-step-row:hover {
+  border-color: var(--slm-accent);
+}
+.slm-step-row.is-active {
+  border-color: var(--slm-accent);
+  background: var(--slm-accent-soft);
+}
+.slm-step-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.slm-step-row-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--slm-fg);
+  line-height: 1.35;
+}
+.slm-step-row-value {
+  padding-left: 1.85rem;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--slm-fg-muted);
+  line-height: 1.45;
+}
+.slm-step-row.is-reviewed .slm-step-badge {
+  background: var(--slm-success-soft);
+  color: var(--slm-success);
 }
 
 /* ---------- progress rail (hero step badges) ---------- */
@@ -489,10 +597,13 @@
 
 /* ---------- step card (hero compact rows) ---------- */
 .slm-card {
-  background: var(--slm-bg-subtle);
-  border: 0.5px solid var(--slm-border);
+  background: #f8f9fc;
+  border: 1px solid var(--slm-border);
   border-radius: var(--radius-sm);
-  padding: 0.75rem 0.85rem;
+  padding: 0.65rem;
+}
+[data-stemlm-theme='dark'] .slm-card {
+  background: var(--slm-bg-subtle);
 }
 .slm-card-head {
   display: grid;
@@ -523,7 +634,7 @@
 .slm-card-title {
   grid-area: title;
   margin: 0;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--slm-fg);
@@ -624,17 +735,23 @@
 /* ---------- quick check ---------- */
 .slm-quickcheck {
   margin-top: 0.65rem;
-  padding: 0.65rem;
-  border: 0.5px solid var(--slm-border);
-  border-radius: var(--radius-sm);
-  background: var(--slm-bg-elevated);
+  padding: 1.25rem;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-lg);
+  background: #f8f9fc;
+}
+[data-stemlm-theme='dark'] .slm-quickcheck {
+  background: var(--slm-bg-subtle);
 }
 .slm-quickcheck-badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--slm-fg-subtle);
+  color: var(--slm-fg-muted);
+}
+.slm-quickcheck-reveal {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.35rem;
 }
 .slm-quickcheck-q {
   margin: 0.25rem 0 0.45rem;
@@ -733,6 +850,9 @@
 }
 
 /* ---------- loading / empty ---------- */
+.slm-loading {
+  padding: 1rem;
+}
 .slm-loading-head {
   display: flex;
   align-items: center;
@@ -780,6 +900,9 @@
   align-items: center;
   text-align: center;
   padding: 2rem 1rem;
+}
+.slm-solution {
+  padding: 0.75rem 1rem 1rem;
 }
 .slm-empty-mark {
   display: inline-flex;

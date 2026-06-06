@@ -1,17 +1,9 @@
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
+import { frameworkKey } from '@/src/lib/framework-key';
 import { BrandWordmark } from './BrandWordmark';
 import { IconBook, IconClose, IconLayers, IconMoon, IconPdf, IconSave, IconSun } from './icons';
-
-function frameworkKey(session: Session): string {
-  const subj = session.capsule.meta.subject.replace(/\s+/g, '').toUpperCase().slice(0, 6);
-  const topic = session.capsule.meta.topic
-    .replace(/[^a-z0-9]/gi, '')
-    .toUpperCase()
-    .slice(0, 8);
-  return `STEM-${subj}-${topic || 'TOPIC'}`;
-}
 
 export function PanelHeader({
   session,
@@ -43,9 +35,8 @@ export function PanelHeader({
       <div className="slm-header-top">
         <div className="slm-brand">
           <BrandWordmark className="slm-brand-name" />
-          {session && <span className="slm-subject-chip">{session.capsule.meta.subject}</span>}
         </div>
-        <span className="slm-panel-label">Side panel</span>
+        <span className="slm-panel-label">SIDE PANEL</span>
         <div className="slm-header-actions">
           <button
             type="button"
@@ -83,7 +74,7 @@ export function PanelHeader({
       {session && (
         <>
           <div className="slm-extraction">
-            <div className="slm-extraction-label">Extraction status</div>
+            <div className="slm-extraction-label">EXTRACTION STATUS</div>
             <div className="slm-extraction-row">
               <span className="slm-status-dot" aria-hidden="true" />
               <span>Framework matched in response.</span>
@@ -91,7 +82,10 @@ export function PanelHeader({
             <span className="slm-framework-key">{frameworkKey(session)}</span>
           </div>
 
-          <h1 className="slm-topic">{session.capsule.meta.topic}</h1>
+          <div className="slm-topic-row">
+            <h1 className="slm-topic">{session.capsule.meta.topic}</h1>
+            <span className="slm-subject-chip">{session.capsule.meta.subject}</span>
+          </div>
 
           <div className="slm-header-bottom">
             <div className="slm-tabs" role="tablist" aria-label="Study view">

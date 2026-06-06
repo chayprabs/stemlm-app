@@ -3,7 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
-import { ProgressRail } from './ProgressRail';
+import { DiagramWell, firstSessionDiagram } from './DiagramWell';
+import { StepList } from './StepList';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
@@ -71,6 +72,9 @@ export function Panel() {
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
   const reviewedCount = session?.reviewedStepIds.length ?? 0;
+  const panelDiagram = session ? firstSessionDiagram(session.capsule.steps) : undefined;
+  const hideStepDiagram =
+    !!step?.diagram && !!panelDiagram && step.diagram === panelDiagram;
 
   async function onSave() {
     if (!session) return;
@@ -169,14 +173,18 @@ export function Panel() {
         {!session && status !== 'loading' && <EmptyState />}
 
         {session && view === 'steps' && (
-          <div className="slm-steps-layout" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
-            <ProgressRail
+          <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
+            <DiagramWell
+              diagram={firstSessionDiagram(session.capsule.steps)}
+              theme={theme}
+            />
+            <StepList
               steps={session.capsule.steps}
               activeIndex={activeStepIndex}
               reviewedIds={session.reviewedStepIds}
-              onJump={setActiveStep}
+              onSelect={setActiveStep}
             />
-            <div className="slm-steps-main">
+            <div className="slm-steps-detail">
               <AnimatePresence mode="wait">
                 {step && (
                   <StepCard
@@ -184,6 +192,7 @@ export function Panel() {
                     session={session}
                     index={activeStepIndex}
                     theme={theme}
+                    hideDiagram={hideStepDiagram}
                     reviewed={session.reviewedStepIds.includes(step.id)}
                     onToggleReviewed={() => {
                       toggleReviewed(step.id);

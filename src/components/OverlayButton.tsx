@@ -90,9 +90,29 @@ function useComposerPosition(): PosMode {
   return pos;
 }
 
+function InjectSpinner() {
+  return (
+    <svg width={12} height={12} viewBox="0 0 24 24" aria-hidden="true">
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeDasharray="28 56"
+      />
+    </svg>
+  );
+}
+
 export function OverlayButton() {
   const pos = useComposerPosition();
   const injected = useStore((s) => s.buttonInjected);
+  const status = useStore((s) => s.status);
+  const panelOpen = useStore((s) => s.panelOpen);
+  const hasSession = useStore((s) => s.sessions.length > 0);
   const togglePanel = useStore((s) => s.togglePanel);
   const defaultSubject = useStore((s) => s.settings.defaultSubject);
   const [override, setOverride] = useState<Subject | 'Auto'>('Auto');
@@ -113,7 +133,10 @@ export function OverlayButton() {
 
   if (pos.mode === 'fixed' && !pos.visible) return null;
 
+  const isInjecting = injected && status === 'loading' && !hasSession;
+
   function onMain() {
+    if (isInjecting) return;
     if (injected) {
       togglePanel();
       return;
@@ -160,32 +183,39 @@ export function OverlayButton() {
         )}
       </AnimatePresence>
 
-      <motion.button
-        type="button"
-        className={`slm-inject-btn ${injected ? 'is-done' : ''}`}
-        onClick={onMain}
-        whileTap={{ scale: 0.96 }}
-        title={
-          injected
-            ? 'Open stemLM panel'
-            : `Solve with stemLM (${override === 'Auto' ? 'Auto-detect subject' : override})`
-        }
-        aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
-      >
-        {injected ? (
-          <>
-            <IconCheck width={12} height={12} />
-            <span>stemLM</span>
-          </>
-        ) : (
-          <>
-            <span className="slm-inject-btn-mark" aria-hidden="true">
-              ✦
-            </span>
-            <span>stemLM</span>
-          </>
-        )}
-      </motion.button>
+      {isInjecting ? (
+        <span className="slm-inject-status" aria-live="polite">
+          <InjectSpinner />
+          <span>Injecting...</span>
+        </span>
+      ) : (
+        <motion.button
+          type="button"
+          className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
+          onClick={onMain}
+          whileTap={{ scale: 0.96 }}
+          title={
+            injected
+              ? 'Open stemLM panel'
+              : `Solve with stemLM (${override === 'Auto' ? 'Auto-detect subject' : override})`
+          }
+          aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
+        >
+          {injected ? (
+            <>
+              <IconCheck width={12} height={12} />
+              <span>{panelOpen ? 'stemLM' : 'Attached'}</span>
+            </>
+          ) : (
+            <>
+              <span className="slm-inject-btn-mark" aria-hidden="true">
+                ✦
+              </span>
+              <span>stemLM</span>
+            </>
+          )}
+        </motion.button>
+      )}
 
       {!injected && (
         <button

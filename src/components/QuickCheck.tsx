@@ -4,13 +4,23 @@ import type { QuickCheck as QuickCheckType } from '@/src/protocol/types';
 import { MathMarkdown } from './MathMarkdown';
 import { trackEvent } from '@/src/lib/analytics';
 
-export function QuickCheck({ check, platform }: { check: QuickCheckType; platform?: string }) {
+export function QuickCheck({
+  check,
+  platform,
+  checkNumber,
+}: {
+  check: QuickCheckType;
+  platform?: string;
+  checkNumber?: number;
+}) {
   const [revealed, setRevealed] = useState(false);
 
   return (
     <div className="slm-quickcheck">
       <div className="slm-quickcheck-head">
-        <span className="slm-quickcheck-badge">Quick check</span>
+        <span className="slm-quickcheck-badge">
+          Check {checkNumber ?? 1}
+        </span>
       </div>
       <div className="slm-quickcheck-q">
         <MathMarkdown content={check.question} />

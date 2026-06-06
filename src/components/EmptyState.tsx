@@ -17,8 +17,7 @@ export function EmptyState() {
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">
-        Type your question in Gemini, then tap ✦ stemLM beside send. Your answer appears here
-        as structured steps with formulas and diagrams.
+        Type your question in Gemini, then tap ✦ stemLM beside send.
       </p>
       <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
         <IconLayers /> Load from conversation
