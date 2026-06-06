@@ -16,6 +16,22 @@ import { setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
 
+function isArrowKey(key: string) {
+  return key === 'ArrowLeft' || key === 'ArrowRight';
+}
+
+function shouldHandleStepArrow(e: KeyboardEvent, panel: HTMLElement): boolean {
+  if (!isArrowKey(e.key)) return false;
+  if (!e.composedPath().includes(panel)) return false;
+  const target = e.target as HTMLElement | null;
+  const tag = target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
+  if (target?.isContentEditable) return false;
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed && panel.contains(sel.anchorNode)) return false;
+  return true;
+}
+
 export function Panel() {
   const {
     panelOpen,
@@ -48,8 +64,29 @@ export function Panel() {
 
   // Focus the panel when it opens so keyboard nav works immediately.
   useEffect(() => {
-    if (panelOpen) panelRef.current?.focus();
+    if (panelOpen) panelRef.current?.focus({ preventScroll: true });
   }, [panelOpen]);
+
+  // Arrow keys: prev/next step while the panel (not Gemini) has interaction focus.
+  useEffect(() => {
+    if (!panelOpen || view !== 'steps' || !session) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const onWindowKey = (e: KeyboardEvent) => {
+      if (!shouldHandleStepArrow(e, panel)) return;
+      if (e.key === 'ArrowRight') {
+        nextStep();
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') {
+        prevStep();
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', onWindowKey, true);
+    return () => window.removeEventListener('keydown', onWindowKey, true);
+  }, [panelOpen, view, session, nextStep, prevStep]);
 
   // Make the panel responsive to its own (variable) width: tag it narrow/mid/
   // wide so CSS can adapt layout density independent of the viewport.
@@ -103,17 +140,21 @@ export function Panel() {
       closePanel();
       return;
     }
-    // Don't hijack arrows while the user is selecting/in a control.
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-    if (session && view === 'steps') {
-      if (e.key === 'ArrowRight') {
-        nextStep();
-        e.preventDefault();
-      } else if (e.key === 'ArrowLeft') {
-        prevStep();
-        e.preventDefault();
-      }
+    if (!session || view !== 'steps') return;
+    const panel = panelRef.current;
+    if (!panel || !shouldHandleStepArrow(e.nativeEvent, panel)) return;
+    if (e.key === 'ArrowRight') {
+      nextStep();
+      e.preventDefault();
+    } else if (e.key === 'ArrowLeft') {
+      prevStep();
+      e.preventDefault();
+    }
+  }
+
+  function onPanelPointerDown(e: React.PointerEvent) {
+    if (panelRef.current?.contains(e.target as Node)) {
+      panelRef.current.focus({ preventScroll: true });
     }
   }
 
@@ -124,6 +165,7 @@ export function Panel() {
       style={{ width: `${(splitRatio * 100).toFixed(3)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
+      onPointerDown={onPanelPointerDown}
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
@@ -213,7 +255,7 @@ export function Panel() {
                 >
                   <IconChevronLeft /> Prev
                 </button>
-                <span className="slm-stepnav-count">
+                <span className="slm-stepnav-count" title="Use ← → arrow keys">
                   {activeStepIndex + 1} / {total}
                 </span>
                 <button
