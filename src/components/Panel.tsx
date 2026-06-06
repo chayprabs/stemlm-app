@@ -22,6 +22,7 @@ function isArrowKey(key: string) {
 }
 
 function shouldHandleStepArrow(e: KeyboardEvent, panel: HTMLElement): boolean {
+  if (e.repeat) return false;
   if (!isArrowKey(e.key)) return false;
   if (!e.composedPath().includes(panel)) return false;
   const target = e.target as HTMLElement | null;
@@ -67,27 +68,6 @@ export function Panel() {
   useEffect(() => {
     if (panelOpen) panelRef.current?.focus({ preventScroll: true });
   }, [panelOpen]);
-
-  // Arrow keys: prev/next step while the panel (not Gemini) has interaction focus.
-  useEffect(() => {
-    if (!panelOpen || view !== 'steps' || !session) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-
-    const onWindowKey = (e: KeyboardEvent) => {
-      if (!shouldHandleStepArrow(e, panel)) return;
-      if (e.key === 'ArrowRight') {
-        nextStep();
-        e.preventDefault();
-      } else if (e.key === 'ArrowLeft') {
-        prevStep();
-        e.preventDefault();
-      }
-    };
-
-    window.addEventListener('keydown', onWindowKey, true);
-    return () => window.removeEventListener('keydown', onWindowKey, true);
-  }, [panelOpen, view, session, nextStep, prevStep]);
 
   // Make the panel responsive to its own (variable) width: tag it narrow/mid/
   // wide so CSS can adapt layout density independent of the viewport.
@@ -153,9 +133,11 @@ export function Panel() {
     if (e.key === 'ArrowRight') {
       nextStep();
       e.preventDefault();
+      e.stopPropagation();
     } else if (e.key === 'ArrowLeft') {
       prevStep();
       e.preventDefault();
+      e.stopPropagation();
     }
   }
 

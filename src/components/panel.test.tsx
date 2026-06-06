@@ -116,5 +116,56 @@ describe('Panel diagram well', () => {
     });
     container.remove();
   });
+
+  it('moves one step per arrow key press', () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+      activeStepIndex: 0,
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    const panel = container.querySelector('.slm-panel') as HTMLElement;
+    panel.focus();
+
+    act(() => {
+      panel.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(useStore.getState().activeStepIndex).toBe(1);
+
+    act(() => {
+      panel.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(useStore.getState().activeStepIndex).toBe(1);
+
+    act(() => {
+      panel.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(useStore.getState().activeStepIndex).toBe(0);
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
 });
 
