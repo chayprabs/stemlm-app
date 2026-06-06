@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe('Panel diagram well', () => {
-  it('shows the active step diagram instead of the first session diagram', () => {
+  it('shows the active step diagram instead of the first session diagram', async () => {
     const session = buildTwoDiagramSession();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -70,6 +70,10 @@ describe('Panel diagram well', () => {
     act(() => {
       root = createRoot(container);
       root.render(<Panel />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
     });
 
     const html = container.innerHTML;

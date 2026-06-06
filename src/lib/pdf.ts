@@ -8,8 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import type { Session } from '@/src/protocol/types';
 import { Report, collectDiagrams } from '@/src/components/Report';
-import { sanitizeSvg, extractSvg } from './sanitize';
-import { renderMermaid } from './mermaid';
+import { resolveDiagramSvg } from './resolve-diagram';
 import { trackEvent } from './analytics';
 
 export interface PdfExportResult {
@@ -52,16 +51,7 @@ export function reportPrintTitle(session: Session): string {
 async function resolveDiagrams(session: Session): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   for (const { key, diagram } of collectDiagrams(session)) {
-    try {
-      if (diagram.type === 'svg') {
-        map[key] = sanitizeSvg(extractSvg(diagram.content));
-      } else {
-        const rendered = await renderMermaid(diagram.content, 'light');
-        map[key] = sanitizeSvg(extractSvg(rendered));
-      }
-    } catch {
-      map[key] = '';
-    }
+    map[key] = await resolveDiagramSvg(diagram, 'light');
   }
   return map;
 }

@@ -30,23 +30,56 @@ import {
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
   '@endmeta',
+  '@metaend',
   '@step',
   '@endstep',
+  '@stepend',
   '@formula',
   '@endformula',
+  '@formulaend',
   '@body',
   '@endbody',
+  '@bodyend',
   '@enddiagram',
+  '@diagramend',
   '@takeaway',
   '@endtakeaway',
+  '@takeawayend',
   '@quickcheck',
   '@endquickcheck',
+  '@quickcheckend',
   '@followup',
   '@endfollowup',
+  '@followupend',
   '@solution',
   '@endsolution',
+  '@solutionend',
   CAPSULE_END_TOKEN,
 ]);
+
+/** Models sometimes emit @bodyend instead of @endbody — normalize before parsing. */
+const ALT_END_MARKERS: Record<string, string> = {
+  '@bodyend': '@endbody',
+  '@formulaend': '@endformula',
+  '@diagramend': '@enddiagram',
+  '@takeawayend': '@endtakeaway',
+  '@stepend': '@endstep',
+  '@metaend': '@endmeta',
+  '@solutionend': '@endsolution',
+  '@quickcheckend': '@endquickcheck',
+  '@followupend': '@endfollowup',
+};
+
+function normalizeCapsuleText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      const t = line.trim();
+      const canonical = ALT_END_MARKERS[t];
+      return canonical ? line.replace(t, canonical) : line;
+    })
+    .join('\n');
+}
 
 function addWarning(
   warnings: string[],
@@ -348,7 +381,8 @@ export function parseCapsule(capsuleText: string): ParseResult {
   const warnings: string[] = [];
   const warningCodes: ParseWarningCode[] = [];
   const raw = capsuleText;
-  const lines = capsuleText.replace(/\r\n/g, '\n').split('\n');
+  const normalizedText = normalizeCapsuleText(capsuleText.replace(/\r\n/g, '\n'));
+  const lines = normalizedText.split('\n');
   const c: Cursor = { lines, i: 0 };
 
   let subject: Subject = 'General';

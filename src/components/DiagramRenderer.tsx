@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Diagram } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
-import { sanitizeSvg, extractSvg } from '@/src/lib/sanitize';
-import { renderMermaid } from '@/src/lib/mermaid';
+import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
+import { mountSvgMarkup } from '@/src/lib/mount-svg';
 
 export interface DiagramRendererProps {
   diagram: Diagram;
@@ -20,36 +20,28 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mounted = useRef(true);
+  const svgHostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mounted.current = true;
     setSvg(null);
     setFailed(false);
 
-    if (diagram.type === 'svg') {
-      const clean = sanitizeSvg(extractSvg(diagram.content));
+    void resolveDiagramSvg(diagram, theme).then((clean) => {
+      if (!mounted.current) return;
       if (clean) setSvg(clean);
       else setFailed(true);
-      return;
-    }
-
-    // mermaid
-    renderMermaid(diagram.content, theme)
-      .then((out) => {
-        const clean = sanitizeSvg(extractSvg(out));
-        if (mounted.current) {
-          if (clean) setSvg(clean);
-          else setFailed(true);
-        }
-      })
-      .catch(() => {
-        if (mounted.current) setFailed(true);
-      });
+    });
 
     return () => {
       mounted.current = false;
     };
   }, [diagram.content, diagram.type, theme]);
+
+  useLayoutEffect(() => {
+    if (!svg || !svgHostRef.current) return;
+    mountSvgMarkup(svgHostRef.current, svg);
+  }, [svg]);
 
   if (failed) {
     return (
@@ -66,7 +58,7 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
       data-empty={svg ? undefined : 'true'}
     >
       {svg ? (
-        <div className="slm-diagram-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+        <div ref={svgHostRef} className="slm-diagram-svg" />
       ) : (
         <div className="slm-diagram-skeleton" aria-hidden />
       )}

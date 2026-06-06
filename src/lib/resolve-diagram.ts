@@ -1,0 +1,55 @@
+/**
+ * Shared diagram → sanitized SVG resolution for the panel and PDF export.
+ */
+import type { Diagram } from '@/src/protocol/types';
+import type { ResolvedTheme } from './theme';
+import { sanitizeSvg, extractSvg } from './sanitize';
+import { renderMermaid } from './mermaid';
+
+const MERMAID_TIMEOUT_MS = 12_000;
+
+/** Strip fences / HTML-entity encoding so extractSvg can find markup. */
+export function normalizeDiagramSource(content: string): string {
+  let s = content.trim();
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:svg|xml)?[^\n]*\n?/i, '').replace(/\n?```\s*$/, '').trim();
+  }
+  if (/&lt;svg/i.test(s)) {
+    const ta = document.createElement('textarea');
+    ta.innerHTML = s;
+    s = ta.value;
+  }
+  return s;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('diagram render timeout')), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** Resolve a diagram to sanitized SVG markup, or empty string on failure. */
+export async function resolveDiagramSvg(
+  diagram: Diagram,
+  theme: ResolvedTheme,
+): Promise<string> {
+  try {
+    if (diagram.type === 'svg') {
+      return sanitizeSvg(extractSvg(normalizeDiagramSource(diagram.content)));
+    }
+    const rendered = await withTimeout(renderMermaid(diagram.content, theme), MERMAID_TIMEOUT_MS);
+    return sanitizeSvg(extractSvg(rendered));
+  } catch {
+    return '';
+  }
+}

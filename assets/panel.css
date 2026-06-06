@@ -410,6 +410,14 @@
   background: transparent;
   padding: 0;
 }
+.slm-diagram-well:not(:has(.slm-diagram-svg svg)):not(:has(.slm-diagram--failed)) {
+  min-height: 0;
+  padding-block: 0;
+}
+.slm-diagram-svg {
+  width: 100%;
+  line-height: 0;
+}
 /* ---------- vertical step rail (numbered circles) ---------- */
 .slm-step-rail {
   flex: 0 0 auto;
@@ -809,6 +817,8 @@
   align-items: center;
 }
 .slm-diagram-svg svg {
+  display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
 }

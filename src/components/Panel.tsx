@@ -207,6 +207,7 @@ export function Panel() {
         {session && view === 'steps' && (
           <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
             <DiagramWell
+              key={step?.id ?? activeStepIndex}
               diagram={panelDiagram}
               theme={theme}
             />

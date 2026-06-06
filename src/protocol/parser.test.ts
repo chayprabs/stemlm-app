@@ -350,4 +350,38 @@ describe('atomic step guidance', () => {
     const r = parseCapsule(`@meta\nsubject: Math\ntopic: test\n@endmeta\n${steps}\n@solution\ns\n@endsolution\n@end`);
     expect(r.warningCodes).toContain('invalid_step_count');
   });
+
+  it('normalizes alternate @bodyend/@formulaend markers from the model', () => {
+    const r = parseCapsule(
+      [
+        '@meta',
+        'subject: Physics',
+        'topic: Projectile range',
+        '@endmeta',
+        '@step',
+        'title: Choose the range formula',
+        '@formula',
+        '$$R = \\frac{u^2\\sin(2\\theta)}{g}$$',
+        '@formulaend',
+        '@body',
+        'Horizontal range from ground level.',
+        '@bodyend',
+        '@diagram type=svg',
+        '<svg viewBox="0 0 80 40"><text x="4" y="20">range-diagram</text></svg>',
+        '@diagramend',
+        '@takeaway',
+        'Same launch and landing height.',
+        '@takeawayend',
+        '@endstep',
+        '@solution',
+        'Done.',
+        '@endsolution',
+        '@end',
+      ].join('\n'),
+    );
+    expect(r.capsule?.steps[0]!.formula).toContain('R =');
+    expect(r.capsule?.steps[0]!.body).not.toContain('@bodyend');
+    expect(r.capsule?.steps[0]!.diagram?.content).toContain('range-diagram');
+    expect(r.capsule?.steps[0]!.takeaway).not.toContain('@takeawayend');
+  });
 });
