@@ -92,7 +92,7 @@ describe('StemController.inject', () => {
     adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const c = new StemController(adapter);
 
-    const ok = await c.inject('Auto');
+    const ok = await c.inject();
     expect(ok).toBe(true);
     expect(adapter.inserted).toContain('Solve this circuit');
     expect(adapter.inserted).toContain('stemlm-protocol.txt');
@@ -101,6 +101,20 @@ describe('StemController.inject', () => {
     expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
+    c.stopWatching();
+  });
+
+  it('auto-classifies the subject from the question text', async () => {
+    const question = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const adapter = new MockAdapter();
+    adapter.editorText = question;
+    const c = new StemController(adapter);
+
+    const ok = await c.inject();
+    expect(ok).toBe(true);
+    expect(adapter.lastPayload?.subject).toBe('Electrical');
+    expect(adapter.lastPayload?.composerText).toContain('exactly (Electrical).');
+    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL');
     c.stopWatching();
   });
 

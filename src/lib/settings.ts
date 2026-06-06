@@ -5,7 +5,6 @@
  */
 import { browser } from 'wxt/browser';
 import type { ThemePref } from './theme';
-import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import type { PromptVariant } from '@/src/protocol/protocol';
 export interface Settings {
   theme: ThemePref;
@@ -13,8 +12,6 @@ export interface Settings {
   shareAcrossTabs: boolean;
   /** Auto-open the study panel when the assistant starts answering. */
   autoOpenOnAnswer: boolean;
-  /** Default subject routing for injection. */
-  defaultSubject: Subject | 'Auto';
   /** Prompt protocol variant used for injected questions. */
   promptVariant: PromptVariant;
   /** Opt out of anonymous usage analytics. */
@@ -36,7 +33,6 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
-  defaultSubject: 'Auto',
   promptVariant: 'balanced',
   analyticsOptOut: false,
   splitRatio: 0.5,
@@ -48,30 +44,27 @@ function normalizeTheme(value: unknown): ThemePref {
   return value === 'light' || value === 'dark' || value === 'auto' ? value : DEFAULT_SETTINGS.theme;
 }
 
-function normalizeDefaultSubject(value: unknown): Subject | 'Auto' {
-  if (value === 'Auto') return 'Auto';
-  if (typeof value === 'string' && (SUBJECTS as readonly string[]).includes(value)) {
-    return value as Subject;
-  }
-  return DEFAULT_SETTINGS.defaultSubject;
-}
-
 function normalizePromptVariant(value: unknown): PromptVariant {
   return value === 'ultra' || value === 'balanced' ? value : DEFAULT_SETTINGS.promptVariant;
 }
 
+type StoredSettings = Partial<Settings> & {
+  autoOpenOnInject?: boolean;
+  /** Legacy — subject is always auto-detected from the question now. */
+  defaultSubject?: unknown;
+};
+
 /** Merge stored settings over defaults, migrating any legacy keys. */
-export function hydrateSettings(
-  stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {},
-): Settings {
+export function hydrateSettings(stored: StoredSettings = {}): Settings {
   // Legacy: `autoOpenOnInject` was renamed to `autoOpenOnAnswer`.
   const autoOpenOnAnswer =
     stored.autoOpenOnAnswer ?? stored.autoOpenOnInject ?? DEFAULT_SETTINGS.autoOpenOnAnswer;
+  const { defaultSubject: _legacyDefaultSubject, autoOpenOnInject: _legacyAutoOpenOnInject, ...rest } =
+    stored;
   return {
     ...DEFAULT_SETTINGS,
-    ...stored,
+    ...rest,
     theme: normalizeTheme(stored.theme),
-    defaultSubject: normalizeDefaultSubject(stored.defaultSubject),
     autoOpenOnAnswer: Boolean(autoOpenOnAnswer),
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
     analyticsOptOut: Boolean(stored.analyticsOptOut),

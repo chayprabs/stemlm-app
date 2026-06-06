@@ -50,7 +50,7 @@ Civil / Chemical engineering.**
 1. **Ask.** Type your question on [gemini.google.com](https://gemini.google.com)
    and click the small **stemLM** button next to the send button. stemLM attaches
    `stemlm-protocol.txt` and inserts a short instruction stub (clicking again
-   won't add it twice). Pick a subject from the **Auto** selector, or leave it on Auto.
+   won't add it twice). stemLM auto-detects the subject from your question.
 2. **Structured answer.** The model is instructed to reply in a single
    machine-readable **"capsule"** (one ` ```stemlm ` code block) — far more
    reliable to read back from the page than scraping prose.

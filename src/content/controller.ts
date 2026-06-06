@@ -73,7 +73,7 @@ export class StemController {
   }
 
   /** Attach protocol file + short composer stub (no full-text paste). */
-  async inject(subjectOverride?: Subject | 'Auto'): Promise<boolean> {
+  async inject(): Promise<boolean> {
     const store = useStore.getState();
     if (store.buttonInjected) return false;
 
@@ -81,7 +81,7 @@ export class StemController {
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
-    const payload = buildInjectionPayload(question, { subject: subjectOverride, variant });
+    const payload = buildInjectionPayload(question, { variant });
     const { ok, method } = await this.adapter.injectWithProtocolFile(payload);
 
     if (!ok) {

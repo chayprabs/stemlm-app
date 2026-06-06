@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { StemMark } from './icons';
 
-export function Loading({ subject }: { subject?: string }) {
+export function Loading() {
   return (
     <div className="slm-loading">
       <div className="slm-loading-head">
@@ -14,10 +14,7 @@ export function Loading({ subject }: { subject?: string }) {
         </motion.span>
         <div>
           <p className="slm-loading-title">Reading response</p>
-          <p className="slm-loading-sub">
-            Matching framework and building step cards
-            {subject && subject !== 'Auto' ? ` · ${subject}` : ''}
-          </p>
+          <p className="slm-loading-sub">Matching framework and building step cards</p>
         </div>
       </div>
 

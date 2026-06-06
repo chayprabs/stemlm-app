@@ -184,16 +184,6 @@
   color: #fff;
   border-color: var(--slm-success);
 }
-.slm-fab-wrap--neutral.slm-fab-wrap--dark .slm-fab-subject {
-  background: #212121;
-  border-color: #2a2a35;
-  color: #8a8a9a;
-}
-.slm-fab-wrap--neutral.slm-fab-wrap--light .slm-fab-subject {
-  background: #ffffff;
-  border-color: #e2e8f0;
-  color: #64748b;
-}
 .slm-inject-status {
   display: inline-flex;
   align-items: center;
@@ -223,69 +213,6 @@
   flex-shrink: 0;
   line-height: 0;
 }
-.slm-fab-subject {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.1rem;
-  max-width: 5.5rem;
-  padding: 0.05rem 0.35rem;
-  border: 0.5px solid var(--slm-border);
-  border-radius: var(--radius-pill);
-  background: var(--slm-bg-elevated);
-  color: var(--slm-fg-muted);
-  font-size: 9px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.slm-fab-subject:hover {
-  color: var(--slm-accent);
-  border-color: var(--slm-accent);
-}
-.slm-fab-subject-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.slm-fab-menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 0.25rem;
-  list-style: none;
-  width: 11rem;
-  max-height: 14rem;
-  overflow-y: auto;
-  background: var(--slm-bg-elevated);
-  border: 0.5px solid var(--slm-border);
-  border-radius: var(--radius-md);
-  z-index: 10;
-  scrollbar-width: thin;
-}
-.slm-fab-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  text-align: left;
-  padding: 0.4rem 0.55rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--slm-fg);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.slm-fab-menu-item:hover,
-.slm-fab-menu-item.is-active {
-  background: var(--slm-accent-soft);
-  color: var(--slm-accent);
-}
-
 /* ---------- panel shell ---------- */
 .slm-panel {
   position: fixed;

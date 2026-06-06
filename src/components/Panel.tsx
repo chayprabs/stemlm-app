@@ -217,7 +217,7 @@ export function Panel() {
       )}
 
       <div className="slm-body">
-        {status === 'loading' && !session && <Loading subject={settings.defaultSubject} />}
+        {status === 'loading' && !session && <Loading />}
 
         {!session && status !== 'loading' && <EmptyState />}
 

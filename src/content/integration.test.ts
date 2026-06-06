@@ -47,7 +47,7 @@ describe('integration: Gemini adapter + controller capture', () => {
       'Find the current in this 12V series resistor circuit (Kirchhoff).';
 
     const c = new StemController(geminiAdapter);
-    const ok = await c.inject('Auto');
+    const ok = await c.inject();
     expect(ok).toBe(true);
 
     const injected = geminiAdapter.getEditorText();

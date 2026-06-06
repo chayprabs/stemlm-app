@@ -8,7 +8,6 @@ import {
 } from '@/src/lib/settings';
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import type { PromptVariant } from '@/src/protocol/protocol';
-import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
 import { StemMark } from '@/src/components/icons';
 
@@ -119,28 +118,6 @@ export default function App() {
           checked={settings.autoOpenOnAnswer}
           onChange={(v) => update({ autoOpenOnAnswer: v })}
         />
-        <div className="slm-opt-row">
-          <span className="slm-opt-text">
-            <span className="slm-opt-label">Default subject</span>
-            <span className="slm-opt-hint">
-              Pre-selects the subject chip beside the inject button. Auto detects from your
-              question.
-            </span>
-          </span>
-          <select
-            className="slm-select"
-            value={settings.defaultSubject}
-            aria-label="Default subject"
-            onChange={(e) => update({ defaultSubject: e.target.value as Subject | 'Auto' })}
-          >
-            <option value="Auto">Auto (recommended)</option>
-            {SUBJECTS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
       </section>
 
       <section className="slm-opt-card">

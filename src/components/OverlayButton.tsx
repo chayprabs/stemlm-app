@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
-import { SUBJECTS, type Subject } from '@/src/protocol/types';
-import { IconCheck, IconChevronDown, StemMark } from './icons';
+import { IconCheck, StemMark } from './icons';
 
 const BTN_W = 76;
 const FAB_STACK_H = 44;
@@ -111,26 +110,10 @@ export function OverlayButton() {
   const panelOpen = useStore((s) => s.panelOpen);
   const hasSession = useStore((s) => s.sessions.length > 0);
   const togglePanel = useStore((s) => s.togglePanel);
-  const defaultSubject = useStore((s) => s.settings.defaultSubject);
-  const [override, setOverride] = useState<Subject | 'Auto'>('Auto');
-  const [menuOpen, setMenuOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
   const adapter = detectAdapter();
   const hostScheme = detectHostScheme();
   const neutral = adapter?.brand.neutral ?? false;
-
-  useEffect(() => {
-    setOverride(defaultSubject);
-  }, [defaultSubject]);
-
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, []);
 
   // After a captured answer, unlock inject when the student types a new question.
   useEffect(() => {
@@ -160,13 +143,7 @@ export function OverlayButton() {
       togglePanel();
       return;
     }
-    void getController()?.inject(override);
-  }
-
-  function chooseSubject(s: Subject | 'Auto') {
-    setOverride(s);
-    setMenuOpen(false);
-    void getController()?.inject(s);
+    void getController()?.inject();
   }
 
   const wrapClass = [
@@ -180,37 +157,6 @@ export function OverlayButton() {
 
   const content = (
     <>
-      <AnimatePresence>
-        {menuOpen && !injected && (
-          <motion.ul
-            className="slm-fab-menu"
-            role="listbox"
-            initial={{ opacity: 0, y: 6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.16 }}
-          >
-            {(['Auto', ...SUBJECTS] as (Subject | 'Auto')[]).map((s) => (
-              <li key={s}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={override === s}
-                  className={`slm-fab-menu-item ${override === s ? 'is-active' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    chooseSubject(s);
-                  }}
-                >
-                  {s === 'Auto' ? 'Auto · recommended' : s}
-                  {override === s && <IconCheck width={13} height={13} />}
-                </button>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-
       {isInjecting ? (
         <span className="slm-inject-status" aria-live="polite">
           <InjectSpinner />
@@ -222,11 +168,7 @@ export function OverlayButton() {
           className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
           onClick={onMain}
           whileTap={{ scale: 0.96 }}
-          title={
-            injected
-              ? 'Open stemLM panel'
-              : `Solve with stemLM (${override === 'Auto' ? 'Auto-detect subject' : override})`
-          }
+          title={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
           aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
         >
           {injected ? (
@@ -244,29 +186,12 @@ export function OverlayButton() {
           )}
         </motion.button>
       )}
-
-      {!injected && (
-        <button
-          type="button"
-          className="slm-fab-subject"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((v) => !v);
-          }}
-          aria-haspopup="listbox"
-          aria-expanded={menuOpen}
-          title="Choose subject"
-        >
-          <span className="slm-fab-subject-text">{override === 'Auto' ? 'Auto' : override}</span>
-          <IconChevronDown />
-        </button>
-      )}
     </>
   );
 
   if (pos.mode === 'docked') {
     return createPortal(
-      <div ref={ref} className={wrapClass}>
+      <div className={wrapClass}>
         {content}
       </div>,
       pos.slot,
@@ -275,7 +200,6 @@ export function OverlayButton() {
 
   return (
     <div
-      ref={ref}
       className={wrapClass}
       style={{ top: pos.top, left: pos.left }}
     >

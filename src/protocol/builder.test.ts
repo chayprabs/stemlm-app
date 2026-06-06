@@ -89,12 +89,49 @@ describe('buildInjectionPayload', () => {
     expect(content).toContain('CS (one move per step)');
     expect(content).toContain('OUTPUT:');
   });
+
+  it('uses classified subject in composerText and fileContent for auto routing', () => {
+    const question = 'Solve this circuit with a resistor and 12V voltage source';
+    const payloads = [
+      buildInjectionPayload(question),
+      buildInjectionPayload(question, { subject: 'Auto' }),
+      buildInjectionPayload(question, { subject: undefined }),
+    ];
+
+    for (const payload of payloads) {
+      expect(payload.subject).toBe('Electrical');
+      expect(payload.composerText).toContain('Follow the attached stemlm-protocol.txt exactly (Electrical).');
+      expect(payload.fileContent).toContain('ELECTRICAL');
+      expect(payload.composerText).not.toContain('OUTPUT:');
+    }
+
+    expect(payloads[0]).toEqual(payloads[1]);
+    expect(payloads[1]).toEqual(payloads[2]);
+  });
 });
 
 describe('resolveSubject', () => {
-  it('classifies when Auto', () => {
+  const circuitQuestion = 'Solve this circuit with a resistor and 12V voltage source';
+
+  it('classifies when subject is Auto', () => {
     expect(resolveSubject('derivative and integral of polynomial', { subject: 'Auto' })).toBe('Math');
   });
+
+  it('classifies when subject is omitted', () => {
+    expect(resolveSubject(circuitQuestion)).toBe('Electrical');
+    expect(resolveSubject(circuitQuestion, {})).toBe('Electrical');
+    expect(resolveSubject(circuitQuestion, { subject: undefined })).toBe('Electrical');
+  });
+
+  it('treats Auto, undefined, and no option identically', () => {
+    const noOpt = resolveSubject(circuitQuestion);
+    const auto = resolveSubject(circuitQuestion, { subject: 'Auto' });
+    const undef = resolveSubject(circuitQuestion, { subject: undefined });
+    expect(auto).toBe(noOpt);
+    expect(undef).toBe(noOpt);
+    expect(noOpt).toBe('Electrical');
+  });
+
   it('returns the override when provided', () => {
     expect(resolveSubject('derivative', { subject: 'Physics' })).toBe('Physics');
   });

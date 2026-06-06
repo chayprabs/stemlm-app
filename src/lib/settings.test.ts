@@ -64,22 +64,21 @@ describe('hydrateSettings', () => {
     expect(settings.autoOpenOnAnswer).toBe(false);
   });
 
-  it('rejects invalid theme and default subject values', () => {
+  it('rejects invalid theme and prompt variant values', () => {
     const settings = hydrateSettings({
       theme: 'purple' as never,
-      defaultSubject: 'NotASubject' as never,
       promptVariant: 'tiny' as never,
       splitRatio: 9,
     });
     expect(settings.theme).toBe('auto');
-    expect(settings.defaultSubject).toBe('Auto');
     expect(settings.promptVariant).toBe('balanced');
     expect(settings.splitRatio).toBe(0.75);
   });
 
-  it('accepts valid subject overrides', () => {
+  it('drops legacy defaultSubject from stored settings', () => {
     const settings = hydrateSettings({ defaultSubject: 'Physics' });
-    expect(settings.defaultSubject).toBe('Physics');
+    expect(settings).not.toHaveProperty('defaultSubject');
+    expect(settings.theme).toBe('auto');
   });
 });
 
@@ -103,9 +102,10 @@ describe('setSettings', () => {
   });
 
   it('round-trips through getSettings', async () => {
-    await setSettings({ shareAcrossTabs: true, defaultSubject: 'Math' });
+    await setSettings({ shareAcrossTabs: true, promptVariant: 'ultra' });
     const loaded = await getSettings();
     expect(loaded.shareAcrossTabs).toBe(true);
-    expect(loaded.defaultSubject).toBe('Math');
+    expect(loaded.promptVariant).toBe('ultra');
+    expect(loaded).not.toHaveProperty('defaultSubject');
   });
 });
