@@ -1091,15 +1091,108 @@
   color: var(--slm-fg-subtle);
 }
 
-/* ---------- prose ---------- */
-.slm-prose { font-size: 13px; }
+/* ---------- prose (GFM markdown in steps + solution) ---------- */
+.slm-prose {
+  font-size: 13px;
+  line-height: 1.6;
+  color: inherit;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
 .slm-prose :first-child { margin-top: 0; }
 .slm-prose :last-child { margin-bottom: 0; }
 .slm-prose p { margin: 0 0 0.5rem; }
-.slm-prose h1, .slm-prose h2, .slm-prose h3 {
+.slm-prose strong,
+.slm-prose b {
+  font-weight: 600;
+  color: var(--slm-fg);
+}
+.slm-prose em,
+.slm-prose i {
+  font-style: italic;
+}
+.slm-prose del,
+.slm-prose s {
+  text-decoration: line-through;
+  opacity: 0.88;
+}
+.slm-prose h1,
+.slm-prose h2,
+.slm-prose h3,
+.slm-prose h4,
+.slm-prose h5,
+.slm-prose h6 {
   margin: 0.65rem 0 0.35rem;
   font-weight: 500;
   line-height: 1.35;
+  color: var(--slm-fg);
+}
+.slm-prose h1 { font-size: 1.2em; }
+.slm-prose h2 { font-size: 1.12em; }
+.slm-prose h3 { font-size: 1.06em; }
+.slm-prose h4 { font-size: 1em; }
+.slm-prose ul,
+.slm-prose ol {
+  margin: 0.35rem 0 0.65rem;
+  padding-left: 1.4rem;
+}
+.slm-prose ul { list-style: disc; }
+.slm-prose ol { list-style: decimal; }
+.slm-prose li {
+  margin: 0.2rem 0;
+  padding-left: 0.15rem;
+}
+.slm-prose li > ul,
+.slm-prose li > ol {
+  margin-top: 0.2rem;
+  margin-bottom: 0.15rem;
+}
+.slm-prose ul.contains-task-list,
+.slm-prose ol.contains-task-list {
+  list-style: none;
+  padding-left: 0.2rem;
+}
+.slm-prose li.task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  list-style: none;
+}
+.slm-prose li.task-list-item input[type='checkbox'] {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  accent-color: var(--slm-accent);
+}
+.slm-prose blockquote {
+  margin: 0.5rem 0;
+  padding: 0.35rem 0.75rem;
+  border-left: 2px solid var(--slm-border);
+  color: var(--slm-fg-muted);
+}
+.slm-prose hr {
+  border: none;
+  border-top: 0.5px solid var(--slm-border);
+  margin: 0.75rem 0;
+}
+.slm-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 12px;
+}
+.slm-prose thead th {
+  background: var(--slm-bg-subtle);
+}
+.slm-prose th,
+.slm-prose td {
+  border: 0.5px solid var(--slm-border);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+.slm-prose th {
+  font-weight: 500;
+  color: var(--slm-fg);
 }
 .slm-prose code {
   font-family: var(--font-mono);
@@ -1114,8 +1207,33 @@
   border-radius: var(--radius-sm);
   padding: 0.6rem;
   overflow-x: auto;
+  margin: 0.5rem 0;
 }
-.slm-prose a { color: var(--slm-accent); text-decoration: underline; }
+.slm-prose pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.88em;
+}
+.slm-prose a {
+  color: var(--slm-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.slm-prose a:hover {
+  color: var(--slm-accent-hover);
+}
+.slm-prose img {
+  max-width: 100%;
+  height: auto;
+}
+.slm-prose .katex {
+  font-size: 1.02em;
+}
+.slm-formula .slm-prose strong,
+.slm-formula .slm-prose b {
+  color: var(--slm-formula-fg);
+}
 .slm-solution { font-size: 13px; }
 .slm-selectable { user-select: text; }
 
