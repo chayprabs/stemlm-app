@@ -1,7 +1,7 @@
 import type { PlatformAdapter, PlatformId } from './types';
 import { geminiAdapter } from './gemini';
 
-/** Gemini-only — other platforms disabled until file-attach injection is ready. */
+/** Gemini-only. */
 export const ADAPTERS: PlatformAdapter[] = [geminiAdapter];
 
 export function detectAdapter(host: string = location.hostname): PlatformAdapter | null {

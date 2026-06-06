@@ -92,7 +92,7 @@ export default function App() {
         <h2 className="slm-opt-title">Behaviour</h2>
         <Toggle
           label="Share sessions across tabs"
-          hint="Off (default): each chatbot tab gets its own fresh workspace."
+          hint="Off (default): each Gemini tab gets its own fresh workspace."
           checked={settings.shareAcrossTabs}
           onChange={(v) => update({ shareAcrossTabs: v })}
         />
@@ -120,15 +120,6 @@ export default function App() {
             ))}
           </select>
         </div>
-      </section>
-
-      <section className="slm-opt-card">
-        <h2 className="slm-opt-title">Platform</h2>
-        <p className="slm-opt-platform-note">
-          stemLM currently runs on <strong>Gemini</strong> (gemini.google.com) only. Protocol
-          instructions are attached as <code>stemlm-protocol.txt</code> — not pasted into your
-          prompt.
-        </p>
       </section>
 
       <section className="slm-opt-card">

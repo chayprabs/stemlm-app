@@ -1,6 +1,6 @@
 {
   "name": "stemlm-app",
-  "description": "stemLM - a structured STEM learning overlay for AI chatbots (ChatGPT, Claude, Gemini)",
+  "description": "stemLM - a structured STEM learning overlay for Gemini",
   "private": true,
   "version": "0.1.0",
   "type": "module",

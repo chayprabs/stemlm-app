@@ -3,6 +3,7 @@
  * returns). These types are shared by the parser, the store, the UI, and PDF
  * export.
  */
+import type { PlatformId } from '@/src/platforms/types';
 
 export type Subject =
   | 'Physics'
@@ -115,7 +116,7 @@ export interface Session {
   id: string;
   createdAt: number;
   updatedAt: number;
-  platform: 'chatgpt' | 'claude' | 'gemini' | 'perplexity' | 'grok' | 'deepseek';
+  platform: PlatformId;
   question: string;
   capsule: Capsule;
   /** Step ids the student has marked reviewed. */

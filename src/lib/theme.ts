@@ -21,7 +21,7 @@ export function resolveTheme(pref: ThemePref): ResolvedTheme {
 /**
  * Detect the host page's effective light/dark scheme by sampling the first
  * opaque background colour up the DOM from <body>. Used so the overlay button
- * adapts to whichever site the user is on (e.g. ChatGPT dark vs Gemini light),
+ * adapts to Gemini's light/dark chrome,
  * independent of the panel's own theme. Falls back to the system preference.
  */
 export function detectHostScheme(): ResolvedTheme {

@@ -5,7 +5,7 @@ import { setSettings } from '@/src/lib/settings';
 /**
  * Draggable divider on the panel's left edge. Dragging updates the split ratio
  * live; on release the ratio is persisted to extension storage (shared across
- * all chatbot sites, so the same split is restored everywhere).
+ * Gemini tabs, so the same split is restored across sessions).
  */
 export function ResizeHandle() {
   const setSplitRatio = useStore((s) => s.setSplitRatio);

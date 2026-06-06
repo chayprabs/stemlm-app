@@ -27,9 +27,8 @@ describe('detectAdapter', () => {
   });
 
   it('returns null for unsupported hosts', () => {
-    expect(detectAdapter('chatgpt.com')).toBeNull();
-    expect(detectAdapter('claude.ai')).toBeNull();
     expect(detectAdapter('example.com')).toBeNull();
+    expect(detectAdapter('notgemini.google.com.evil.com')).toBeNull();
   });
 
   it('looks up Gemini by id', () => {

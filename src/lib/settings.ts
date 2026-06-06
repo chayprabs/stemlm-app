@@ -7,16 +7,12 @@ import { browser } from 'wxt/browser';
 import type { ThemePref } from './theme';
 import type { Subject } from '@/src/protocol/types';
 import type { PromptVariant } from '@/src/protocol/protocol';
-import type { PlatformId } from '@/src/platforms/types';
-
 export interface Settings {
   theme: ThemePref;
   /** Share active (unsaved) sessions across tabs. Default off = each tab fresh. */
   shareAcrossTabs: boolean;
   /** Auto-open the study panel when the assistant starts answering. */
   autoOpenOnAnswer: boolean;
-  /** Per-platform enable toggles for the overlay button. */
-  enabledPlatforms: Record<PlatformId, boolean>;
   /** Default subject routing for injection. */
   defaultSubject: Subject | 'Auto';
   /** Prompt protocol variant used for injected questions. */
@@ -25,7 +21,7 @@ export interface Settings {
   analyticsOptOut: boolean;
   /**
    * Split-screen width of the study panel as a fraction of the viewport
-   * (0 = none, 1 = full). Shared across all chatbot sites via extension storage
+   * (0 = none, 1 = full). Shared across Gemini tabs via extension storage
    * (page localStorage would be per-origin). Clamped to [0.25, 0.75].
    */
   splitRatio: number;
@@ -41,9 +37,6 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
-  enabledPlatforms: {
-    gemini: true,
-  },
   defaultSubject: 'Auto',
   promptVariant: 'balanced',
   analyticsOptOut: false,
@@ -66,7 +59,6 @@ function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}
         ? stored.promptVariant
         : DEFAULT_SETTINGS.promptVariant,
     splitRatio: clampSplitRatio(stored.splitRatio ?? DEFAULT_SETTINGS.splitRatio),
-    enabledPlatforms: { ...DEFAULT_SETTINGS.enabledPlatforms, ...stored.enabledPlatforms },
   };
 }
 
@@ -84,7 +76,6 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
   const next = {
     ...current,
     ...patch,
-    enabledPlatforms: { ...current.enabledPlatforms, ...patch.enabledPlatforms },
   };
   await browser.storage.local.set({ [KEY]: next });
   return next;

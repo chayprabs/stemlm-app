@@ -12,7 +12,7 @@ function buildSession(): Session {
     id: 'r1',
     createdAt: 0,
     updatedAt: 0,
-    platform: 'chatgpt',
+    platform: 'gemini',
     question: 'What is the current?',
     capsule: result.capsule!,
     reviewedStepIds: [],

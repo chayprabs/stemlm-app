@@ -33,8 +33,6 @@ export default defineContentScript({
     if (!adapter) return;
 
     const settings = await getSettings();
-    if (!settings.enabledPlatforms[adapter.id]) return;
-
     const controller = initController(adapter);
     // Open the study panel only once the assistant actually starts answering
     // (not the moment we inject), so the panel never appears while the user is

@@ -82,19 +82,6 @@ body {
   max-width: 24rem;
   line-height: 1.45;
 }
-.slm-opt-platform-note {
-  margin: 0.5rem 0 0.25rem;
-  font-size: 0.82rem;
-  color: var(--slm-fg-muted);
-  line-height: 1.5;
-}
-.slm-opt-platform-note code {
-  font-size: 0.78rem;
-  background: var(--slm-bg-subtle);
-  padding: 0.1rem 0.35rem;
-  border-radius: 0.3rem;
-}
-
 /* switch */
 .slm-switch {
   position: relative;

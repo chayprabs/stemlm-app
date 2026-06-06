@@ -7,7 +7,7 @@ export type PlatformId = 'gemini';
  * Per-site brand colours used to make the overlay button visually belong on
  * each host (combined with the detected host light/dark scheme). `accent` is
  * the site's signature colour; `neutral` opts the button into a monochrome look
- * matching the site's own send button (ChatGPT / Grok).
+ * matching Gemini's send button when `neutral` is set.
  */
 export interface PlatformBrand {
   accent: string;

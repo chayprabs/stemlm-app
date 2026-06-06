@@ -1,9 +1,9 @@
 /**
  * Adapter factory + shared DOM helpers.
  *
- * The three platforms differ only in selectors and a couple of behaviours, so
+ * Gemini differs only in selectors and a couple of behaviours, so
  * we build each adapter from a declarative AdapterConfig. The fragile,
- * frequently-changing bits (selectors) live in the per-platform config files
+ * frequently-changing bits (selectors) live in the Gemini config file
  * for easy maintenance.
  */
 import type { AdapterConfig, PlatformAdapter } from './types';

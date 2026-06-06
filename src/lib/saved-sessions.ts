@@ -10,10 +10,14 @@ import type { Session } from '@/src/protocol/types';
 const KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
 
+function normalizeSession(raw: Session): Session {
+  return { ...raw, platform: 'gemini' };
+}
+
 export async function getSavedSessions(): Promise<Session[]> {
   try {
     const list = (await browser.storage.local.get(KEY))[KEY] as Session[] | undefined;
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.map(normalizeSession) : [];
   } catch {
     return [];
   }
