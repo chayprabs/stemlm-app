@@ -6,6 +6,7 @@ import { DiagramRenderer } from './DiagramRenderer';
 import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
 import { IconCheck } from './icons';
+import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
 
 export function StepCard({
   session,
@@ -24,7 +25,9 @@ export function StepCard({
   if (!step) return null;
 
   const stepNo = String(step.index).padStart(2, '0');
-
+  const isLastStep = index === session.capsule.steps.length - 1;
+  const followupSelection =
+    step.followup ?? (isLastStep ? buildLastStepFollowupSelection(session, step) : undefined);
   return (
     <motion.article
       key={step.id}
@@ -79,11 +82,12 @@ export function StepCard({
         <QuickCheck check={step.quickCheck} platform={session.platform} checkNumber={step.index} />
       )}
 
-      {step.followup && (
+      {followupSelection && (
         <FollowupBar
-          followup={step.followup}
+          followup={followupSelection}
           subject={session.capsule.meta.subject}
           stepTitle={step.title}
+          intent={step.followup ? 'dig-deeper' : 'ask'}
         />
       )}
     </motion.article>

@@ -185,6 +185,12 @@ describe('buildFollowupPrompt', () => {
     expect(prompt).not.toContain(PROTOCOL_FILENAME);
   });
 
+  it('uses ask intent copy for free-form last-step follow-ups', () => {
+    const prompt = buildFollowupPrompt({ ...opts, intent: 'ask' });
+    expect(prompt).toContain('finished the step-by-step solution');
+    expect(prompt).toContain('type a follow-up question');
+  });
+
   it('buildFollowupComposerText references the attached protocol file', () => {
     const composer = buildFollowupComposerText(opts);
     expect(composer).toContain(PROTOCOL_FILENAME);

@@ -16,6 +16,7 @@ import {
 } from '@/src/protocol/builder';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
+import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
@@ -125,6 +126,7 @@ export class StemController {
     selection: string,
     stepTitle: string | undefined,
     subject: Subject,
+    opt?: { intent?: FollowupIntent },
   ): Promise<boolean> {
     const normalized = normalizeFollowupSelection(selection);
     if (normalized.length < 3) {
@@ -140,6 +142,7 @@ export class StemController {
       stepTitle,
       subject,
       variant,
+      intent: opt?.intent,
     });
     const ok = await this.insertVerifiedPrompt(prompt);
 

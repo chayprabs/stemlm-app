@@ -115,6 +115,8 @@ export function buildInjectionPrompt(question: string, opt?: BuildOptions): Buil
   return { prompt, subject, variant };
 }
 
+export type FollowupIntent = 'dig-deeper' | 'ask';
+
 export interface FollowupOptions {
   /** The text the student selected to drill into. */
   selection: string;
@@ -123,6 +125,8 @@ export interface FollowupOptions {
   /** Subject so we keep the right playbook conventions. */
   subject?: Subject;
   variant?: PromptVariant;
+  /** dig-deeper = quote-reply on a step prompt; ask = free-form follow-up on last step. */
+  intent?: FollowupIntent;
 }
 
 function formatQuotedSelection(selection: string): string {
@@ -138,13 +142,21 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
   const context = opt.stepTitle?.trim()
     ? ` (from the step "${opt.stepTitle.trim()}")`
     : '';
+  const lead =
+    opt.intent === 'ask'
+      ? `The student finished the step-by-step solution and will type a follow-up question in the composer above${context}. Use this context when answering:`
+      : `Dig deeper into this specific part of your previous answer${context}:`;
+  const guidance =
+    opt.intent === 'ask'
+      ? 'Answer their follow-up in the same stemLM capsule format — split into atomic @step blocks when the explanation needs multiple moves.'
+      : 'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.';
   return [
     FOLLOWUP_CONTEXT_HEADER,
-    `Dig deeper into this specific part of your previous answer${context}:`,
+    lead,
     '',
     formatQuotedSelection(selection),
     '',
-    'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.',
+    guidance,
     'Follow the stemLM protocol below exactly.',
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     'No prose outside the block.',

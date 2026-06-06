@@ -88,6 +88,37 @@ describe('Panel step diagram', () => {
     container.remove();
   });
 
+  it('shows Ask in chat on the last step even without a model @followup block', () => {
+    const session = buildTwoDiagramSession();
+    session.capsule.steps[1]!.followup = undefined;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.getState().setActiveStep(1);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    expect(container.querySelector('.slm-followup')).toBeTruthy();
+    expect(container.textContent).toContain('Ask in chat');
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
   it('keeps the question in the header when the active step changes', () => {
     const session = buildTwoDiagramSession();
     const container = document.createElement('div');

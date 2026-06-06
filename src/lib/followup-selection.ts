@@ -2,6 +2,9 @@
  * Read and normalize text the student selected inside the study panel for
  * quote-reply follow-ups.
  */
+import type { Session, Step } from '@/src/protocol/types';
+import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 
 /** Strip invisible chars and collapse noisy whitespace while keeping line breaks. */
 export function normalizeFollowupSelection(text: string): string {
@@ -48,4 +51,15 @@ export function readPanelSelection(panel: HTMLElement): PanelSelection | null {
     x: hasBox ? rect.left + rect.width / 2 : 0,
     y: hasBox ? rect.bottom : 0,
   };
+}
+
+/** Context quoted into Gemini when the model omits @followup on the final step. */
+export function buildLastStepFollowupSelection(session: Session, step: Step): string {
+  const question = cleanSessionQuestion(session.question) || session.capsule.meta.topic;
+  const lines = [`Problem: ${question}`, `Final step: ${step.title}`];
+  const takeaway = step.takeaway ? stripProtocolMarkers(step.takeaway) : '';
+  const body = step.body ? stripProtocolMarkers(step.body) : '';
+  if (takeaway) lines.push(`Takeaway: ${takeaway}`);
+  else if (body) lines.push(`Context: ${body.slice(0, 280)}`);
+  return lines.join('\n');
 }

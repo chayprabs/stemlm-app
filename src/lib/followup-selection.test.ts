@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeFollowupSelection, readPanelSelection } from './followup-selection';
+import {
+  buildLastStepFollowupSelection,
+  normalizeFollowupSelection,
+  readPanelSelection,
+} from './followup-selection';
+import type { Session } from '@/src/protocol/types';
 
 describe('normalizeFollowupSelection', () => {
   it('trims and collapses whitespace per line', () => {
@@ -8,6 +13,39 @@ describe('normalizeFollowupSelection', () => {
 
   it('strips zero-width and nbsp characters', () => {
     expect(normalizeFollowupSelection('a\u00a0b\u200b')).toBe('a b');
+  });
+});
+
+describe('buildLastStepFollowupSelection', () => {
+  it('quotes the problem and final step when the model omits @followup', () => {
+    const session: Session = {
+      id: 's1',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find the RLC impedance at 60 Hz.',
+      reviewedStepIds: [],
+      raw: '',
+      capsule: {
+        meta: { version: 1, subject: 'Electrical', topic: 'RLC impedance' },
+        solution: '',
+        solutionDiagrams: [],
+        steps: [
+          {
+            id: 'step-7',
+            index: 7,
+            title: 'Determine circuit nature via reactance comparison',
+            body: 'Compare XL and XC.',
+            takeaway: 'Capacitive when XC exceeds XL.',
+          },
+        ],
+      },
+    };
+    const step = session.capsule.steps[0]!;
+    const selection = buildLastStepFollowupSelection(session, step);
+    expect(selection).toContain('Find the RLC impedance at 60 Hz.');
+    expect(selection).toContain('Determine circuit nature');
+    expect(selection).toContain('Capacitive when XC exceeds XL.');
   });
 });
 
