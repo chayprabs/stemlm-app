@@ -560,8 +560,10 @@
   position: sticky;
   top: 0;
   align-self: flex-start;
-  max-height: calc(100vh - 220px);
+  max-height: min(calc(100vh - 12rem), 28rem);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 0.5rem 0;
   padding: 0.85rem 0.45rem 0.85rem 0.75rem;
   border-right: 0.5px solid var(--slm-border);
   background: var(--slm-bg-elevated);
@@ -624,6 +626,12 @@
   line-height: 1;
   color: var(--slm-fg-muted);
   transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.12s;
+}
+.slm-step-rail-dot.is-wide {
+  width: 2rem;
+  min-width: 2rem;
+  font-size: 9px;
+  letter-spacing: -0.02em;
 }
 .slm-step-rail-btn:hover .slm-step-rail-dot {
   transform: scale(1.06);

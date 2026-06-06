@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { Step } from '@/src/protocol/types';
 import { IconCheck } from './icons';
 
@@ -13,8 +14,18 @@ export function StepList({
   reviewedIds: string[];
   onSelect: (index: number) => void;
 }) {
+  const railRef = useRef<HTMLElement>(null);
+
+  // Keep the active step visible when navigating long (8–12 step) capsules.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const active = rail.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
+    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [activeIndex, steps.length]);
+
   return (
-    <nav className="slm-step-rail" aria-label="Solution steps">
+    <nav ref={railRef} className="slm-step-rail" aria-label="Solution steps">
       <ol className="slm-step-rail-track">
         {steps.map((step, i) => {
           const active = i === activeIndex;
@@ -41,7 +52,14 @@ export function StepList({
                 aria-label={`Step ${step.index}: ${step.title}`}
                 title={step.title}
               >
-                <span className="slm-step-rail-dot">
+                <span
+                  className={[
+                    'slm-step-rail-dot',
+                    !reviewed && step.index >= 10 ? 'is-wide' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
                   {reviewed ? <IconCheck width={12} height={12} /> : step.index}
                 </span>
               </button>

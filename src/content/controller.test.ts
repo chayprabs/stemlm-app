@@ -4,8 +4,10 @@ import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import type { InjectionPayload } from '@/src/protocol/builder';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
+import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
+const TEN_STEP_BODY = TEN_STEP_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 
 class MockAdapter implements PlatformAdapter {
   id = 'gemini' as const;
@@ -144,6 +146,20 @@ describe('StemController capture', () => {
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
     expect(useStore.getState().sessions.length).toBe(1);
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+  });
+
+  it('captures a ten-step capsule with all steps intact', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [TEN_STEP_BODY];
+    const c = new StemController(adapter);
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const session = useStore.getState().sessions[0];
+    expect(session?.capsule.steps).toHaveLength(10);
+    expect(session?.capsule.steps[9]?.index).toBe(10);
+    expect(useStore.getState().activeStepIndex).toBe(0);
     expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
   });
