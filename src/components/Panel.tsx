@@ -166,7 +166,6 @@ export function Panel() {
       <PanelHeader
         session={session}
         view={view}
-        activeStepIndex={activeStepIndex}
         reviewedCount={reviewedCount}
         theme={theme}
         saved={saved}

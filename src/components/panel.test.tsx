@@ -86,7 +86,7 @@ describe('Panel diagram well', () => {
     container.remove();
   });
 
-  it('updates the header title when the active step changes', () => {
+  it('keeps the question in the header when the active step changes', () => {
     const session = buildTwoDiagramSession();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -107,13 +107,13 @@ describe('Panel diagram well', () => {
       root.render(<Panel />);
     });
 
-    expect(container.querySelector('.slm-topic')?.textContent).toBe('First visual state');
+    expect(container.querySelector('.slm-topic')?.textContent).toBe('Show progressive diagrams');
 
     act(() => {
       useStore.getState().setActiveStep(1);
     });
 
-    expect(container.querySelector('.slm-topic')?.textContent).toBe('Second visual state');
+    expect(container.querySelector('.slm-topic')?.textContent).toBe('Show progressive diagrams');
 
     act(() => {
       root?.unmount();

@@ -1,6 +1,7 @@
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
+import { sessionQuestionHeading } from '@/src/lib/session-question';
 import { BrandWordmark } from './BrandWordmark';
 import {
   IconBook,
@@ -16,7 +17,6 @@ import {
 export function PanelHeader({
   session,
   view,
-  activeStepIndex,
   reviewedCount,
   theme,
   saved,
@@ -28,7 +28,6 @@ export function PanelHeader({
 }: {
   session: Session | undefined;
   view: PanelView;
-  activeStepIndex: number;
   reviewedCount: number;
   theme: ResolvedTheme;
   saved: boolean;
@@ -39,9 +38,7 @@ export function PanelHeader({
   onToggleTheme: () => void;
 }) {
   const total = session?.capsule.steps.length ?? 0;
-  const activeStep = session?.capsule.steps[activeStepIndex];
-  const heading =
-    view === 'steps' && activeStep ? activeStep.title : session?.capsule.meta.topic ?? '';
+  const heading = session ? sessionQuestionHeading(session) : '';
 
   return (
     <header className="slm-header">
