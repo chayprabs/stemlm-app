@@ -9,7 +9,8 @@ import {
 import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { IconClose, IconLayers, IconPdf, StemMark } from '@/src/components/icons';
+import { ExtensionLogo } from '@/src/components/ExtensionLogo';
+import { IconClose, IconLayers, IconPdf } from '@/src/components/icons';
 import { deliverStemLmMessage, getActiveTab, isGeminiUrl } from '@/src/lib/tab-bridge';
 import type { StemLmMessage } from '@/src/lib/messages';
 
@@ -84,9 +85,7 @@ export default function App() {
   return (
     <div className="slm-popup">
       <header className="slm-popup-head">
-        <span className="slm-brand-mark" aria-hidden="true">
-          <StemMark width={16} height={16} />
-        </span>
+        <ExtensionLogo />
         <div className="slm-popup-head-text">
           <h1>
             <BrandWordmark />

@@ -26,6 +26,11 @@ body[data-stemlm-theme] {
   background: var(--slm-accent-soft);
   color: var(--slm-accent);
 }
+.slm-extension-logo {
+  display: block;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+}
 .slm-wordmark {
   font-weight: 500;
   letter-spacing: -0.02em;

@@ -9,7 +9,7 @@ import {
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import type { PromptVariant } from '@/src/protocol/protocol';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { StemMark } from '@/src/components/icons';
+import { ExtensionLogo } from '@/src/components/ExtensionLogo';
 
 function Toggle({
   checked,
@@ -70,9 +70,7 @@ export default function App() {
   return (
     <div className="slm-options">
       <header className="slm-options-head">
-        <span className="slm-brand-mark" aria-hidden="true">
-          <StemMark width={16} height={16} />
-        </span>
+        <ExtensionLogo />
         <h1>
           <BrandWordmark /> Settings
         </h1>
