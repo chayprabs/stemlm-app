@@ -7,7 +7,13 @@
  * chatbot's own history) and the quote-reply follow-up flow.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
-import { buildInjectionPayload, buildFollowupPrompt, buildRepairPrompt } from '@/src/protocol/builder';
+import {
+  buildInjectionPayload,
+  buildFollowupPayload,
+  buildFollowupPrompt,
+  buildRepairPrompt,
+  normalizeFollowupSelection,
+} from '@/src/protocol/builder';
 import { parse, looksComplete } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import { useStore } from '@/src/state/store';
@@ -101,11 +107,51 @@ export class StemController {
     return true;
   }
 
-  /** Inject a quote-reply that drills into selected text and re-arm capture. */
-  followUp(selection: string, stepTitle: string | undefined, subject: Subject): boolean {
-    const prompt = buildFollowupPrompt({ selection, stepTitle, subject });
-    const ok = this.adapter.insertPrompt(prompt);
-    if (!ok) return false;
+  /**
+   * Inject a quote-reply that drills into selected text and re-arm capture.
+   * Prefers protocol-file attach (Gemini); falls back to full inline paste.
+   */
+  async followUp(
+    selection: string,
+    stepTitle: string | undefined,
+    subject: Subject,
+  ): Promise<boolean> {
+    const normalized = normalizeFollowupSelection(selection);
+    if (normalized.length < 3) {
+      useStore
+        .getState()
+        .setStatus('error', 'Select more text (or use the Dig deeper prompt) before asking in chat.');
+      return false;
+    }
+
+    const variant = useStore.getState().settings.promptVariant;
+    const payload = buildFollowupPayload({
+      selection: normalized,
+      stepTitle,
+      subject,
+      variant,
+    });
+
+    let ok = false;
+    const injected = await this.adapter.injectWithProtocolFile(payload);
+    ok = injected.ok;
+
+    if (!ok) {
+      const full = buildFollowupPrompt({ selection: normalized, stepTitle, subject, variant });
+      ok = this.adapter.insertPrompt(full);
+    }
+
+    if (!ok) {
+      useStore
+        .getState()
+        .setStatus(
+          'error',
+          'Could not insert the follow-up into Gemini. Click in the chat box and try again.',
+        );
+      return false;
+    }
+
+    this.lastQuestion = normalized;
     useStore.getState().setStatus('loading');
     this.armAnswerDetection();
     void trackEvent('followup_used', { platform: this.adapter.id });

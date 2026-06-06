@@ -5,6 +5,8 @@ import {
   buildComposerStub,
   buildProtocolFileContent,
   buildFollowupPrompt,
+  buildFollowupPayload,
+  buildFollowupComposerText,
   buildRepairPrompt,
   resolveSubject,
   PROTOCOL_FILENAME,
@@ -99,16 +101,38 @@ describe('resolveSubject', () => {
 });
 
 describe('buildFollowupPrompt', () => {
-  it('quotes the selection and asks for capsule format', () => {
-    const prompt = buildFollowupPrompt({
-      selection: 'Total resistance is R1 + R2',
-      stepTitle: 'Solve for current',
-      subject: 'Electrical',
-    });
+  const opts = {
+    selection: 'Total resistance is R1 + R2',
+    stepTitle: 'Solve for current',
+    subject: 'Electrical' as const,
+  };
+
+  it('quotes the selection and includes full core protocol + playbook for paste', () => {
+    const prompt = buildFollowupPrompt(opts);
     expect(prompt).toContain('> Total resistance is R1 + R2');
     expect(prompt).toContain('Solve for current');
     expect(prompt).toContain('stemlm');
+    expect(prompt).toContain('OUTPUT:');
+    expect(prompt).toContain('ELECTRICAL');
+    expect(prompt).toContain('stemLM instructions');
     expect(prompt).not.toContain('```stemlm');
+    expect(prompt).not.toContain(PROTOCOL_FILENAME);
+  });
+
+  it('buildFollowupComposerText references the attached protocol file', () => {
+    const composer = buildFollowupComposerText(opts);
+    expect(composer).toContain(PROTOCOL_FILENAME);
+    expect(composer).toContain('> Total resistance is R1 + R2');
+    expect(composer).not.toContain('OUTPUT:');
+    expect(composer).toContain('No prose outside the block.');
+  });
+
+  it('buildFollowupPayload pairs composer stub with protocol file content', () => {
+    const payload = buildFollowupPayload(opts);
+    expect(payload.composerText).toBe(buildFollowupComposerText(opts));
+    expect(payload.fileContent).toContain('OUTPUT:');
+    expect(payload.fileContent).toContain('ELECTRICAL');
+    expect(payload.subject).toBe('Electrical');
   });
 });
 

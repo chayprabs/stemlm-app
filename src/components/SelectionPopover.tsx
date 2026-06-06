@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconReply } from './icons';
 import { getController } from '@/src/content/controller';
+import { readPanelSelection } from '@/src/lib/followup-selection';
 import type { Subject } from '@/src/protocol/types';
 
 interface Sel {
@@ -32,44 +33,55 @@ export function SelectionPopover({
     const root = containerRef.current;
     if (!root) return;
 
-    const onMouseUp = (e: MouseEvent) => {
-      // Read selection after the browser finalizes it.
-      setTimeout(() => {
-        const selection = (root.getRootNode() as Document | ShadowRoot & { getSelection?: () => Selection })
-          .getSelection?.() ?? window.getSelection();
-        const text = selection?.toString().trim() ?? '';
-        const target = e.target as HTMLElement | null;
-        const inSelectable = target?.closest?.('.slm-selectable');
-        if (text.length >= 3 && inSelectable) {
-          setSel({ text, x: e.clientX, y: e.clientY });
-        } else {
-          setSel(null);
-        }
-      }, 0);
+    const refresh = () => {
+      setSel(readPanelSelection(root));
     };
 
-    root.addEventListener('mouseup', onMouseUp as EventListener);
-    return () => root.removeEventListener('mouseup', onMouseUp as EventListener);
+    const onPointerUp = () => {
+      // Read selection after the browser finalizes it.
+      setTimeout(refresh, 0);
+    };
+
+    const onSelectionChange = () => {
+      refresh();
+    };
+
+    const onScroll = () => setSel(null);
+
+    root.addEventListener('pointerup', onPointerUp);
+    root.addEventListener('keyup', onPointerUp);
+    document.addEventListener('selectionchange', onSelectionChange);
+    window.addEventListener('scroll', onScroll, true);
+
+    return () => {
+      root.removeEventListener('pointerup', onPointerUp);
+      root.removeEventListener('keyup', onPointerUp);
+      document.removeEventListener('selectionchange', onSelectionChange);
+      window.removeEventListener('scroll', onScroll, true);
+    };
   }, [containerRef]);
 
-  function ask() {
+  async function ask() {
     const current = selRef.current;
     if (!current) return;
-    getController()?.followUp(current.text, stepTitle, subject);
     setSel(null);
     try {
       window.getSelection()?.removeAllRanges();
     } catch {
       /* ignore */
     }
+    await getController()?.followUp(current.text, stepTitle, subject);
   }
+
+  const left = sel ? Math.min(Math.max(sel.x - 80, 8), window.innerWidth - 168) : 0;
+  const top = sel ? Math.min(sel.y + 10, window.innerHeight - 48) : 0;
 
   return (
     <AnimatePresence>
       {sel && (
         <motion.div
           className="slm-selpop"
-          style={{ left: Math.min(sel.x, window.innerWidth - 160), top: sel.y + 12 }}
+          style={{ left, top }}
           initial={{ opacity: 0, y: -4, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
@@ -79,7 +91,7 @@ export function SelectionPopover({
           <button
             type="button"
             className="slm-btn slm-btn-soft slm-selpop-btn"
-            onClick={ask}
+            onClick={() => void ask()}
             aria-label="Ask about selected text in chat"
           >
             <IconReply /> Ask in chat

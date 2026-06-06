@@ -17,6 +17,9 @@ import {
 } from './protocol';
 import { getPlaybook } from './playbooks';
 import { classifySubject } from './classifier';
+import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
+
+export { normalizeFollowupSelection };
 
 const SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 
@@ -104,25 +107,60 @@ export interface FollowupOptions {
   stepTitle?: string;
   /** Subject so we keep the right playbook conventions. */
   subject?: Subject;
+  variant?: PromptVariant;
 }
 
-export function buildFollowupPrompt(opt: FollowupOptions): string {
+function formatQuotedSelection(selection: string): string {
+  return selection
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+}
+
+/** Composer text for follow-ups — pairs with an attached protocol file on Gemini. */
+export function buildFollowupComposerText(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
-  const quoted = (opt.selection || '').trim();
-  const context = opt.stepTitle ? ` (from the step "${opt.stepTitle}")` : '';
+  const selection = normalizeFollowupSelection(opt.selection);
+  const context = opt.stepTitle?.trim()
+    ? ` (from the step "${opt.stepTitle.trim()}")`
+    : '';
   return [
     `Dig deeper into this specific part of your previous answer${context}:`,
     '',
-    quoted
-      .split('\n')
-      .map((l) => `> ${l}`)
-      .join('\n'),
+    formatQuotedSelection(selection),
     '',
     'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.',
-    `Answer using the SAME stemLM capsule format as before (one fenced block, info string stemlm, @meta … ${STEP_COUNT_TARGET} @step blocks, @end, with step diagrams).`,
-    '',
-    getPlaybook(subject),
+    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
+    `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
+    'No prose outside the block.',
   ].join('\n');
+}
+
+/** File-attach follow-up payload (preferred on Gemini — same path as initial injection). */
+export function buildFollowupPayload(opt: FollowupOptions): InjectionPayload {
+  const subject = opt.subject ?? 'General';
+  const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
+  const selection = normalizeFollowupSelection(opt.selection);
+  const content = `${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  return {
+    composerText: buildFollowupComposerText({ ...opt, selection, subject, variant }),
+    fileContent: content,
+    subject,
+    variant,
+  };
+}
+
+/**
+ * Full self-contained follow-up prompt for clipboard paste (includes core
+ * protocol + playbook inline when file attach is unavailable).
+ */
+export function buildFollowupPrompt(opt: FollowupOptions): string {
+  const payload = buildFollowupPayload(opt);
+  const pasteIntro = payload.composerText.replace(
+    `Follow the attached ${PROTOCOL_FILENAME} exactly (${payload.subject}).`,
+    'Follow the stemLM protocol below exactly.',
+  );
+  return `${pasteIntro}${SEP}${payload.fileContent}`;
 }
 
 export interface RepairPromptOptions {
