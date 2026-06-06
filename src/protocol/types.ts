@@ -84,6 +84,7 @@ export type ParseWarningCode =
   | 'missing_end'
   | 'inner_triple_backticks'
   | 'invalid_step_count'
+  | 'step_body_too_long'
   | 'invalid_subject'
   | 'missing_topic'
   | 'missing_step_title'

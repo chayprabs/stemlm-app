@@ -1,32 +1,31 @@
 /**
  * Subject playbooks. The builder appends exactly ONE of these to the core
  * protocol (chosen by the classifier or the user's override). Each gives the
- * model subject-specific guidance on what the intermediate steps are and what
- * each step's diagram should depict. Kept short on purpose — the heavy lifting
- * is in protocol.ts; these just steer the domain.
+ * model subject-specific guidance on atomic intermediate steps and what each
+ * step's diagram should depict.
  */
 import type { Subject } from './types';
 
 export const PLAYBOOKS: Record<Subject, string> = {
-  Physics: `PHYSICS: knowns/unknowns + sketch → principle (Newton/energy/momentum/kinematics/fields) → free-body/ray/field diagram → equations → solve symbolically then substitute → check units & magnitude. SVG: labelled force arrows, rays after THIS surface (with normals/angles), motion/field vectors. Carry units & sig figs.`,
+  Physics: `PHYSICS (one move per step): list knowns → name unknowns → pick principle (Newton/energy/momentum/kinematics/fields) → draw state diagram for this step → write governing equation (symbols only) → substitute one group of values → isolate target → numeric result → units & magnitude check. SVG: force arrows, rays after THIS surface, field vectors — labelled for the current state only.`,
 
-  Chemistry: `CHEMISTRY: species/phases/amounts → balanced equation → moles → controlling relation (stoichiometry/K/rate/thermo) → solve → check limiting reagent & units. mhchem: $\\ce{2H2 + O2 -> 2H2O}$. SVG: reaction-stage structures, energy profiles (reactants→TS→products, $\\Delta H$), ICE tables.`,
+  Chemistry: `CHEMISTRY (one move per step): identify species/phases → balance equation → convert to moles (one species per step) → pick controlling relation (stoich/K/rate/thermo) → substitute one value → solve for next unknown → check limiting reagent & units. mhchem: $\\ce{2H2 + O2 -> 2H2O}$. SVG: structures/energy profile/ICE table for THIS stage only.`,
 
-  Math: `MATH: name the rule before each move (chain/product/u-sub; each algebra manip; proof: claim→strategy→deductive steps) → never skip algebra → verify by substitution/edge case. Show key lines with $$…$$. SVG: labelled graphs/axes, geometric figures with marked lengths/angles, number lines, integral/probability regions.`,
+  Math: `MATH (one move per step): restate goal → name the rule for THIS line (chain/product/u-sub/partials) → apply it once → simplify one expression → substitute values → verify. Never combine two algebra manipulations in one step. Show each key line with $$…$$. SVG: graph/figure/number line showing the state after this move.`,
 
-  Biology: `BIOLOGY: define structures/processes → mechanism stage by stage (each phase/pathway step) → inputs/outputs → regulation/significance → common misconception. SVG (or mermaid for pathways): labelled cell/organelle diagrams, Punnett squares, cycle diagrams, curves — for that step's stage.`,
+  Biology: `BIOLOGY (one move per step): name structure/process → one mechanism phase at a time → inputs for this phase → outputs → regulation/significance → common misconception. SVG (or mermaid for pathways): cell/organelle/Punnett/cycle diagram for THIS phase only.`,
 
-  CS: `CS: restate + constraints → approach → trace a small concrete input → data-structure state after each key op → correctness → time/space $O(\\cdot)$. Mermaid for control flow/sequence/state; SVG for arrays/trees/lists in their state AT THAT STEP. Code only as inline \`code\`, never a fence.`,
+  CS: `CS (one move per step): restate + constraints → pick approach → trace one operation on a concrete input → show data-structure state after that op → next op → correctness argument → time/space $O(\\cdot)$. Mermaid for control flow; SVG for array/tree/list state AT THAT STEP. Code only as inline \`code\`, never a fence.`,
 
-  Electrical: `ELECTRICAL: label nodes/components/reference directions → method (series-parallel/KVL/KCL/node/mesh/Thevenin) → equations → reduce stage by stage → back-substitute → check power balance. SVG: redraw only what's analysed so far — standard symbols, labelled node voltages & branch currents with arrows.`,
+  Electrical: `ELECTRICAL (one move per step): label nodes & reference directions → pick method (series-parallel/KVL/KCL/node/mesh/Thevenin) → write one equation or one reduction → simplify one branch at a time → back-substitute one unknown → check power balance. SVG: redraw only what's analysed so far — symbols, node voltages, branch currents.`,
 
-  Mechanical: `MECHANICAL: body + assumptions → free-body or thermo-state diagram → governing equations (equilibrium/energy/dynamics/fluids) → solve → interpret (factor of safety/efficiency/direction) → units check. SVG: force/moment arrows, stress/shear-bending sketches, linkage states, P-V/T-s plots.`,
+  Mechanical: `MECHANICAL (one move per step): identify body + assumptions → one free-body or thermo-state diagram → write one governing equation → substitute one term → solve for one unknown → interpret (direction/factor of safety) → units check. SVG: forces/moments/stress/P-V for THIS state only.`,
 
-  Civil: `CIVIL: idealise structure + supports + loads → reactions from equilibrium → internal forces (axial/shear/moment) section by section → shear/moment diagrams → stress/deflection or design check → verify equilibrium. SVG: beam/truss with pin/roller supports & load arrows, then SFD & BMD.`,
+  Civil: `CIVIL (one move per step): idealise structure + supports + loads → solve for one reaction → internal forces at one section → next section → one SFD/BMD segment → stress/deflection or design check → verify equilibrium. SVG: beam/truss with loads, then shear/moment for the section just found.`,
 
-  Chemical: `CHEMICAL ENG: control volume + streams → basis → balances (in − out + gen = acc) → equilibrium/transport relations → solve → check conservation & units. SVG or mermaid: labelled process-flow diagram (units, stream flows/compositions) + the control volume for that balance.`,
+  Chemical: `CHEMICAL ENG (one move per step): draw control volume + streams → pick basis → write one balance (mass/energy) → add one equilibrium/transport relation → solve for one unknown → check conservation & units. SVG/mermaid: PFD with the stream or CV used in THIS balance.`,
 
-  General: `GENERAL: first pick the most specific subject and adopt its conventions. Expose where students stick: setup → principle → work line by line → result → sanity check. Add an SVG (spatial/physical) or mermaid (flows/relations) diagram of that step's state whenever it clarifies.`,
+  General: `GENERAL: pick the most specific subject and its conventions. Break work into atomic moves: identify givens → choose principle → one manipulation per step → numeric substitution → sanity check. Never lump "setup" and "solve" together. Diagram = state after THIS move only.`,
 };
 
 export function getPlaybook(subject: Subject): string {

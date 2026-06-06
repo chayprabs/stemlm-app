@@ -11,6 +11,8 @@ import type { Subject } from './types';
 import {
   CORE_PROTOCOL_BY_VARIANT,
   DEFAULT_PROMPT_VARIANT,
+  STEP_COUNT_MAX,
+  STEP_COUNT_TARGET,
   type PromptVariant,
 } from './protocol';
 import { getPlaybook } from './playbooks';
@@ -69,7 +71,7 @@ export function buildComposerStub(question: string, subject: Subject): string {
     head,
     '',
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
-    'Reply in one fenced code block with info string stemlm: @meta … @step (3–7) … @solution … @end.',
+    `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     'No prose outside the block.',
   ].join('\n');
 }
@@ -116,8 +118,8 @@ export function buildFollowupPrompt(opt: FollowupOptions): string {
       .map((l) => `> ${l}`)
       .join('\n'),
     '',
-    'Explain it more thoroughly — expand the reasoning, add the missing intermediate steps, and clarify anything subtle.',
-    'Answer using the SAME stemLM capsule format as before (one fenced block, info string stemlm, @meta ... @end, with step diagrams).',
+    'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.',
+    `Answer using the SAME stemLM capsule format as before (one fenced block, info string stemlm, @meta … ${STEP_COUNT_TARGET} @step blocks, @end, with step diagrams).`,
     '',
     getPlaybook(subject),
   ].join('\n');
@@ -133,6 +135,6 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
     `Your previous answer broke the stemLM capsule format.${reason}`,
     'Re-emit the same answer as exactly one fenced block with info string stemlm.',
     'No prose outside the block. Preserve the math, diagrams, and explanation; fix only the format.',
-    'The capsule must include @meta, 3-7 @step blocks, @solution, @endsolution, and final @end.',
+    `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
   ].join('\n');
 }

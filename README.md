@@ -14,7 +14,7 @@ STEM study workspace — right beside the chat, in a real split screen.
 
 ---
 
-AI is great at final answers but routinely skips the 3-7 intermediate steps where
+AI is great at final answers but routinely skips the atomic intermediate steps where
 students actually get stuck, and it formats every subject the same way. stemLM
 fixes that: ask your question on Gemini, tap the small **stemLM** button next to
 the send button, and the answer comes back as an ordered study capsule — with the

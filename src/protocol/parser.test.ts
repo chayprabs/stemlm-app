@@ -154,3 +154,27 @@ describe('parseCapsule subject normalization', () => {
     expect(r.capsule?.meta.subject).toBe('CS');
   });
 });
+
+describe('atomic step guidance', () => {
+  it('warns when a step body packs multiple moves', () => {
+    const body = [
+      'First we substitute $x=2$.',
+      'Then we expand the bracket.',
+      'Next we collect like terms.',
+      'Finally we divide by the coefficient.',
+      'The result follows immediately.',
+    ].join(' ');
+    const r = parseCapsule(
+      `@meta\nsubject: Math\ntopic: test\n@endmeta\n@step\ntitle: Do everything\n@body\n${body}\n@endbody\n@endstep\n@step\ntitle: b\n@body\nok\n@endbody\n@endstep\n@step\ntitle: c\n@body\nok\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end`,
+    );
+    expect(r.warningCodes).toContain('step_body_too_long');
+  });
+
+  it('warns when step count exceeds the maximum', () => {
+    const steps = Array.from({ length: 13 }, (_, i) =>
+      `@step\ntitle: Move ${i + 1}\n@body\nOne line.\n@endbody\n@endstep`,
+    ).join('\n');
+    const r = parseCapsule(`@meta\nsubject: Math\ntopic: test\n@endmeta\n${steps}\n@solution\ns\n@endsolution\n@end`);
+    expect(r.warningCodes).toContain('invalid_step_count');
+  });
+});

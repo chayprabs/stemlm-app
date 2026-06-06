@@ -96,7 +96,7 @@ describe('StemController.inject', () => {
     expect(adapter.inserted).toContain('stemlm-protocol.txt');
     expect(adapter.inserted).not.toContain('OUTPUT:');
     expect(adapter.lastPayload?.fileContent).toContain('OUTPUT:');
-    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL:');
+    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();

@@ -19,7 +19,13 @@ import {
   type Subject,
   SUBJECTS,
 } from './types';
-import { CAPSULE_END_TOKEN, CAPSULE_FENCE_TAG, PROTOCOL_VERSION } from './protocol';
+import {
+  CAPSULE_END_TOKEN,
+  CAPSULE_FENCE_TAG,
+  PROTOCOL_VERSION,
+  STEP_COUNT_MAX,
+  STEP_COUNT_MIN,
+} from './protocol';
 
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
@@ -448,13 +454,24 @@ export function parseCapsule(capsuleText: string): ParseResult {
   if (!sawEnd) {
     addWarning(warnings, warningCodes, 'missing_end', 'Capsule had no final @end token.');
   }
-  if (steps.length > 0 && (steps.length < 3 || steps.length > 7)) {
+  if (steps.length > 0 && (steps.length < STEP_COUNT_MIN || steps.length > STEP_COUNT_MAX)) {
     addWarning(
       warnings,
       warningCodes,
       'invalid_step_count',
-      `Capsule had ${steps.length} step(s); expected 3-7.`,
+      `Capsule had ${steps.length} step(s); expected ${STEP_COUNT_MIN}-${STEP_COUNT_MAX}.`,
     );
+  }
+  for (const step of steps) {
+    const sentences = step.body.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+    if (step.body.length > 420 || sentences.length > 4) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'step_body_too_long',
+        `Step ${step.index} ("${step.title}") packs multiple moves; split into smaller steps.`,
+      );
+    }
   }
   if (!solution) {
     addWarning(warnings, warningCodes, 'missing_solution', 'Capsule had no solution block.');

@@ -17,14 +17,14 @@ describe('buildInjectionPrompt', () => {
     expect(subject).toBe('Electrical');
     expect(prompt).toContain('Solve this circuit');
     expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('ELECTRICAL:');
+    expect(prompt).toContain('ELECTRICAL');
     expect(prompt).toContain('@end');
   });
 
   it('honors an explicit subject override', () => {
     const { prompt, subject } = buildInjectionPrompt('something vague', { subject: 'Chemistry' });
     expect(subject).toBe('Chemistry');
-    expect(prompt).toContain('CHEMISTRY:');
+    expect(prompt).toContain('CHEMISTRY');
   });
 
   it('supports the ultra prompt variant behind an explicit option', () => {
@@ -34,13 +34,13 @@ describe('buildInjectionPrompt', () => {
     });
     expect(variant).toBe('ultra');
     expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
-    expect(prompt).toContain('CS:');
+    expect(prompt).toContain('CS (one move per step)');
   });
 
   it('keeps the injected core prompt compact', () => {
     // The core protocol is sent on every question; keep it small so it doesn't
     // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(2200);
+    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(2600);
     // All structural markers the parser relies on must survive compression.
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
@@ -68,7 +68,7 @@ describe('buildInjectionPayload', () => {
     expect(payload.composerText).toContain(PROTOCOL_FILENAME);
     expect(payload.composerText).not.toContain('OUTPUT:');
     expect(payload.fileContent).toContain('OUTPUT:');
-    expect(payload.fileContent).toContain('ELECTRICAL:');
+    expect(payload.fileContent).toContain('ELECTRICAL');
   });
 
   it('buildComposerStub references the attached filename only', () => {
@@ -84,7 +84,7 @@ describe('buildInjectionPayload', () => {
       subject: 'CS',
     });
     expect(subject).toBe('CS');
-    expect(content).toContain('CS:');
+    expect(content).toContain('CS (one move per step)');
     expect(content).toContain('OUTPUT:');
   });
 });

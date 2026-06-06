@@ -23,6 +23,12 @@ export const CAPSULE_END_TOKEN = '@end';
 export const PROTOCOL_VERSION = 1;
 export type PromptVariant = 'balanced' | 'ultra';
 
+/** Hard parser bounds — simple problems may have 3 atomic steps. */
+export const STEP_COUNT_MIN = 3;
+/** Target range in prompts for typical multi-step problems. */
+export const STEP_COUNT_MAX = 12;
+export const STEP_COUNT_TARGET = '5-12';
+
 /**
  * The core protocol text lives in `core-protocol.md` (a compact ~1.7 kB file,
  * imported raw) so the prompt we paste into the chat composer stays small — a
