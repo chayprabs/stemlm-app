@@ -108,17 +108,32 @@ export default defineContentScript({
       }
     });
 
+    let lastSettings = settings;
     const stopSettingsWatch = onSettingsChanged((next) => {
+      const prev = lastSettings;
+      lastSettings = next;
+
       useStore.getState().setSettings(next);
       useStore.getState().setTheme(resolveTheme(next.theme));
-      // Keep the split ratio in sync across tabs/sites (but don't fight an
-      // in-progress drag — only adopt the stored value when it differs).
+
       const state = useStore.getState();
       if (
         !state.splitDragging &&
         Math.abs(state.splitRatio - next.splitRatio) > 0.001
       ) {
         state.setSplitRatio(next.splitRatio);
+      }
+
+      if (next.shareAcrossTabs && !prev.shareAcrossTabs) {
+        if (state.sessions.length) {
+          void mirrorActiveSessions(state.sessions);
+        } else {
+          void loadMirroredSessions().then((shared) => {
+            if (shared.length) useStore.getState().setSessions(shared);
+          });
+        }
+      } else if (!next.shareAcrossTabs && prev.shareAcrossTabs) {
+        void mirrorActiveSessions([]);
       }
     });
 

@@ -5,7 +5,7 @@
  */
 import { browser } from 'wxt/browser';
 import type { ThemePref } from './theme';
-import type { Subject } from '@/src/protocol/types';
+import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import type { PromptVariant } from '@/src/protocol/protocol';
 export interface Settings {
   theme: ThemePref;
@@ -43,19 +43,38 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = 'stemlm_settings';
 
+function normalizeTheme(value: unknown): ThemePref {
+  return value === 'light' || value === 'dark' || value === 'auto' ? value : DEFAULT_SETTINGS.theme;
+}
+
+function normalizeDefaultSubject(value: unknown): Subject | 'Auto' {
+  if (value === 'Auto') return 'Auto';
+  if (typeof value === 'string' && (SUBJECTS as readonly string[]).includes(value)) {
+    return value as Subject;
+  }
+  return DEFAULT_SETTINGS.defaultSubject;
+}
+
+function normalizePromptVariant(value: unknown): PromptVariant {
+  return value === 'ultra' || value === 'balanced' ? value : DEFAULT_SETTINGS.promptVariant;
+}
+
 /** Merge stored settings over defaults, migrating any legacy keys. */
-function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}): Settings {
+export function hydrateSettings(
+  stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {},
+): Settings {
   // Legacy: `autoOpenOnInject` was renamed to `autoOpenOnAnswer`.
   const autoOpenOnAnswer =
     stored.autoOpenOnAnswer ?? stored.autoOpenOnInject ?? DEFAULT_SETTINGS.autoOpenOnAnswer;
   return {
     ...DEFAULT_SETTINGS,
     ...stored,
-    autoOpenOnAnswer,
-    promptVariant:
-      stored.promptVariant === 'ultra' || stored.promptVariant === 'balanced'
-        ? stored.promptVariant
-        : DEFAULT_SETTINGS.promptVariant,
+    theme: normalizeTheme(stored.theme),
+    defaultSubject: normalizeDefaultSubject(stored.defaultSubject),
+    autoOpenOnAnswer: Boolean(autoOpenOnAnswer),
+    shareAcrossTabs: Boolean(stored.shareAcrossTabs),
+    analyticsOptOut: Boolean(stored.analyticsOptOut),
+    promptVariant: normalizePromptVariant(stored.promptVariant),
     splitRatio: clampSplitRatio(stored.splitRatio ?? DEFAULT_SETTINGS.splitRatio),
   };
 }
@@ -63,7 +82,7 @@ function hydrate(stored: Partial<Settings> & { autoOpenOnInject?: boolean } = {}
 export async function getSettings(): Promise<Settings> {
   try {
     const stored = (await browser.storage.local.get(KEY))[KEY] as Partial<Settings> | undefined;
-    return hydrate(stored);
+    return hydrateSettings(stored);
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -71,10 +90,7 @@ export async function getSettings(): Promise<Settings> {
 
 export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
-  const next = {
-    ...current,
-    ...patch,
-  };
+  const next = hydrateSettings({ ...current, ...patch });
   await browser.storage.local.set({ [KEY]: next });
   return next;
 }
@@ -82,7 +98,7 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
 export function onSettingsChanged(cb: (settings: Settings) => void): () => void {
   const handler = (changes: Record<string, { newValue?: unknown }>, area: string) => {
     if (area === 'local' && changes[KEY]?.newValue) {
-      cb(hydrate(changes[KEY].newValue as Partial<Settings>));
+      cb(hydrateSettings(changes[KEY].newValue as Partial<Settings>));
     }
   };
   browser.storage.onChanged.addListener(handler);

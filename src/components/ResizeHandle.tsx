@@ -76,12 +76,19 @@ export function ResizeHandle() {
       }}
       onKeyDown={(e) => {
         const step = e.shiftKey ? 0.05 : 0.02;
-        if (e.key === 'ArrowLeft') {
-          setSplitRatio(useStore.getState().splitRatio + step);
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const delta = e.key === 'ArrowLeft' ? step : -step;
+          setSplitRatio(useStore.getState().splitRatio + delta);
           e.preventDefault();
-        } else if (e.key === 'ArrowRight') {
-          setSplitRatio(useStore.getState().splitRatio - step);
-          e.preventDefault();
+        }
+      }}
+      onKeyUp={(e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          void (async () => {
+            const ratio = useStore.getState().splitRatio;
+            const updated = await setSettings({ splitRatio: ratio });
+            setStoreSettings(updated);
+          })();
         }
       }}
     >
