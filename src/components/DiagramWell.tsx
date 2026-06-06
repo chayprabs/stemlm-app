@@ -19,8 +19,3 @@ export function DiagramWell({
   );
 }
 
-export function firstSessionDiagram(
-  steps: { diagram?: Diagram }[],
-): Diagram | undefined {
-  return steps.find((s) => s.diagram)?.diagram;
-}

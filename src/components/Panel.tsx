@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
-import { DiagramWell, firstSessionDiagram } from './DiagramWell';
+import { DiagramWell } from './DiagramWell';
 import { StepList } from './StepList';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
@@ -108,9 +108,8 @@ export function Panel() {
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
   const reviewedCount = session?.reviewedStepIds.length ?? 0;
-  const panelDiagram = session ? firstSessionDiagram(session.capsule.steps) : undefined;
-  const hideStepDiagram =
-    !!step?.diagram && !!panelDiagram && step.diagram === panelDiagram;
+  const panelDiagram = step?.diagram;
+  const hideStepDiagram = !!panelDiagram;
 
   async function onSave() {
     if (!session) return;
@@ -225,7 +224,7 @@ export function Panel() {
         {session && view === 'steps' && (
           <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
             <DiagramWell
-              diagram={firstSessionDiagram(session.capsule.steps)}
+              diagram={panelDiagram}
               theme={theme}
             />
             <div className="slm-steps-layout">

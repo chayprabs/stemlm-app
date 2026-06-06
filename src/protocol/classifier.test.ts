@@ -46,6 +46,7 @@ describe('classifySubject — subject coverage table', () => {
     ['A projectile is launched at 20 m/s; find its range and max height', 'Physics'],
     ['Use conservation of momentum for this elastic collision', 'Physics'],
     ['Find the angle of refraction using Snell\'s law for light entering glass', 'Physics'],
+    ['Convex lens f=10 cm and object distance 15 cm, draw the ray diagram', 'Physics'],
     // Chemistry
     ['Balance this redox reaction and find the cell potential', 'Chemistry'],
     ['Calculate the pH of a 0.1 M acetic acid buffer solution', 'Chemistry'],
@@ -76,14 +77,17 @@ describe('classifySubject — subject coverage table', () => {
     ['Compute the bending stress and factor of safety for this shaft under torque', 'Mechanical'],
     ['Analyze the Carnot cycle efficiency of this heat engine', 'Mechanical'],
     ['Use Bernoulli\'s equation for fluid mechanics in this pipe', 'Mechanical'],
+    ['10 mm steel bar under 5 kN axial tensile load with yield strength 250 MPa', 'Mechanical'],
     // Civil
     ['Draw the shear force and bending moment diagram for a simply supported beam', 'Civil'],
     ['Find the support reactions for this truss with a distributed load', 'Civil'],
     ['Design the reinforced concrete column for this load', 'Civil'],
+    ['Draw SFD and BMD for a 6 m beam with a 10 kN central point load', 'Civil'],
     // Chemical
     ['Perform a mass balance on this distillation column with reflux', 'Chemical'],
     ['Size the CSTR reactor for this reaction with a control volume', 'Chemical'],
     ['Apply Raoult\'s law for vapor-liquid equilibrium in this flash drum', 'Chemical'],
+    ['Mix 100 kg/h of 20 wt% NaCl with 50 kg/h of 5 wt% NaCl in a mixer', 'Chemical'],
   ];
 
   it.each(cases)('routes %j → %s', (q, expected) => {

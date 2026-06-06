@@ -6,7 +6,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { parse, parseCapsule } from './parser';
-import { RLC_AC_IMPEDANCE, RLC_REFERENCE } from './__fixtures__';
+import {
+  RLC_AC_IMPEDANCE,
+  RLC_AC_IMPEDANCE_10V,
+  RLC_REFERENCE,
+  RLC_10V_REFERENCE,
+} from './__fixtures__';
 import { sanitizeSvg } from '@/src/lib/sanitize';
 import { classifySubject } from './classifier';
 import type { Capsule } from './types';
@@ -152,6 +157,63 @@ describe('RLC AC capsule — math consistency', () => {
     const f0 = 1 / (2 * Math.PI * Math.sqrt(ref.L * ref.C));
     expect(f0).toBeGreaterThan(0);
     expect(Math.abs(f0 - 60)).toBeGreaterThan(10);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Tough 1 kHz RLC benchmark from visual audit                         */
+/* ------------------------------------------------------------------ */
+describe('RLC AC capsule — 10 V 1 kHz hard benchmark', () => {
+  const result = parse(RLC_AC_IMPEDANCE_10V);
+  const capsule = result.capsule!;
+  const ref = RLC_10V_REFERENCE;
+  const allText = [
+    ...capsule.steps.map((s) => s.formula ?? ''),
+    ...capsule.steps.map((s) => s.body),
+    capsule.solution,
+  ].join(' ');
+
+  function close(actual: number, expected: number, label: string) {
+    const rel = Math.abs(actual - expected) / Math.abs(expected);
+    expect(rel, `${label}: ${actual} vs ${expected}`).toBeLessThan(0.01);
+  }
+
+  it('parses with Electrical metadata', () => {
+    expect(result.status).toBe('ok');
+    expect(capsule.meta.subject).toBe('Electrical');
+    expect(capsule.meta.topic).toContain('1 kHz');
+  });
+
+  it('verified reference values match the analytical solution', () => {
+    close(ref.omega, 6283.19, 'omega');
+    close(ref.XL, 314.16, 'XL');
+    close(ref.XC, 1591.55, 'XC');
+    close(ref.Zimag, -1277.39, 'Zimag');
+    close(ref.Zmag, 1281.3, 'Zmag');
+    close(ref.currentMagnitude * 1000, 7.805, 'current mA');
+    close(ref.currentAngleDeg, 85.52, 'current phase');
+    expect(ref.isCapacitive).toBe(true);
+  });
+
+  it('states signed impedance, current phase, and leading-current classification', () => {
+    expect(allText).toMatch(/100-j1277\.39|100\s*-\s*j1277\.39/);
+    expect(allText).toMatch(/1281\.30/);
+    expect(allText).toMatch(/7\.80/);
+    expect(allText).toMatch(/\+85\.52/);
+    expect(allText).toMatch(/current leads|leads voltage/i);
+    expect(allText).toMatch(/capacitive/i);
+  });
+
+  it('contains circuit, impedance-triangle, and phasor SVGs with semantic labels', () => {
+    const svgs = capsule.steps
+      .map((s) => s.diagram)
+      .filter((d): d is NonNullable<typeof d> => d?.type === 'svg');
+    expect(svgs).toHaveLength(3);
+    expect(svgs[0]!.content).toContain('C=0.1µF');
+    expect(svgs[1]!.content).toContain('−1277.39Ω');
+    expect(svgs[1]!.content).toContain('−85.52°');
+    expect(svgs[2]!.content).toContain('+85.52°');
+    expect(svgs[2]!.content).toMatch(/current leads/i);
   });
 });
 

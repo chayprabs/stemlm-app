@@ -424,9 +424,10 @@ const NV_R3_BRANCH = [
 ].join('');
 
 const NV_ISRC = [
-  '<line x1="370" y1="190" x2="370" y2="130" stroke="#333" stroke-width="2"/>',
+  '<line x1="370" y1="190" x2="370" y2="124" stroke="#333" stroke-width="2"/>',
   '<circle cx="370" cy="108" r="16" fill="none" stroke="#333" stroke-width="2"/>',
-  '<line x1="370" y1="92" x2="370" y2="35" stroke="#333" stroke-width="2" marker-end="url(#arr)"/>',
+  '<line x1="370" y1="120" x2="370" y2="96" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>',
+  '<line x1="370" y1="92" x2="370" y2="30" stroke="#333" stroke-width="2"/>',
   '<line x1="370" y1="30" x2="305" y2="30" stroke="#333" stroke-width="2"/>',
   '<text x="390" y="112" font-size="10">2A</text>',
 ].join('');
@@ -525,6 +526,11 @@ const NV_SVG_5_SOLVED = [
   '<g id="branch-currents">',
   '<line x1="55" y1="24" x2="75" y2="24" stroke="#d32f2f" stroke-width="1.5" marker-end="url(#arr-r)"/>',
   '<text x="65" y="18" font-size="9" text-anchor="middle" fill="#d32f2f">4/13 A</text>',
+  '<line x1="185" y1="24" x2="205" y2="24" stroke="#d32f2f" stroke-width="1.5" marker-end="url(#arr-r)"/>',
+  '<text x="195" y="18" font-size="9" text-anchor="middle" fill="#d32f2f">4/13 A</text>',
+  '<line x1="294" y1="50" x2="294" y2="68" stroke="#d32f2f" stroke-width="1.5" marker-end="url(#arr-r)"/>',
+  '<text x="278" y="62" font-size="9" text-anchor="end" fill="#d32f2f">30/13 A</text>',
+  '<text x="354" y="82" font-size="9" text-anchor="middle" fill="#d32f2f">2 A up</text>',
   '</g>',
   '</svg>',
 ].join('\n');
