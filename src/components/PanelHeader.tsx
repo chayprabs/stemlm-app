@@ -52,7 +52,6 @@ export function PanelHeader({
           </span>
           <BrandWordmark className="slm-brand-name" />
         </div>
-        <span className="slm-panel-label">SIDE PANEL</span>
         <div className="slm-header-actions">
           <button
             type="button"

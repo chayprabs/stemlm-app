@@ -279,19 +279,6 @@
   gap: 0.5rem;
   min-width: 0;
 }
-.slm-panel-label {
-  font-size: 8px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  flex: 1;
-  text-align: center;
-  margin: 0 0.25rem;
-}
-[data-stemlm-theme='dark'] .slm-panel-label {
-  color: var(--slm-fg-subtle);
-}
 .slm-header-actions {
   display: flex;
   gap: 0.1rem;
