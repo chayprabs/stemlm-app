@@ -6,6 +6,7 @@
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session } from '@/src/protocol/types';
 import { exportSessionPdf, type PdfExportResult } from './pdf';
+import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
 export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
@@ -131,9 +132,14 @@ export async function saveSession(session: Session): Promise<void> {
   const next = [...list];
   if (idx >= 0) next[idx] = snapshot;
   else next.unshift(snapshot);
-  await browser.storage.local.set({
-    [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED),
-  });
+  try {
+    await browser.storage.local.set({
+      [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED),
+    });
+  } catch (err) {
+    if (isStorageQuotaError(err)) throw new StorageQuotaError();
+    throw err;
+  }
 }
 
 export async function deleteSavedSession(id: string): Promise<void> {

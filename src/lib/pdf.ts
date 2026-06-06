@@ -56,7 +56,8 @@ async function resolveDiagrams(session: Session): Promise<Record<string, string>
       if (diagram.type === 'svg') {
         map[key] = sanitizeSvg(extractSvg(diagram.content));
       } else {
-        map[key] = await renderMermaid(diagram.content, 'light');
+        const rendered = await renderMermaid(diagram.content, 'light');
+        map[key] = sanitizeSvg(extractSvg(rendered));
       }
     } catch {
       map[key] = '';

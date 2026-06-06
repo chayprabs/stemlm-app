@@ -44,6 +44,7 @@ export class StemController {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private stabilityTimer: ReturnType<typeof setTimeout> | null = null;
   private capturedRaw = new Set<string>();
+  private static readonly CAPTURED_RAW_MAX = 100;
   private lastQuestion = '';
   private watching = false;
   private repairPromptInserted = false;
@@ -271,13 +272,13 @@ export class StemController {
     const usable = result.status !== 'empty' && result.capsule && result.capsule.steps.length > 0;
     if (!usable) {
       if (complete) {
-        this.capturedRaw.add(key);
+        this.rememberCaptured(key);
         this.offerRepairPrompt(result);
       }
       return;
     }
 
-    this.capturedRaw.add(key);
+    this.rememberCaptured(key);
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
@@ -365,7 +366,7 @@ export class StemController {
       if (!looksComplete(text)) continue;
       const result = parse(text);
       if (result.status !== 'empty' && result.capsule) {
-        this.capturedRaw.add(text);
+        this.rememberCaptured(text);
         sessions.push({
           id: makeId(),
           createdAt: Date.now(),
@@ -387,9 +388,22 @@ export class StemController {
     return sessions.length;
   }
 
+  /** Question text from the last inject / follow-up (used to detect a new prompt). */
+  getLastQuestion(): string {
+    return this.lastQuestion;
+  }
+
   /** Allow the user to inject again (e.g. after starting a new question). */
   resetInjection(): void {
     useStore.getState().setButtonInjected(false);
+  }
+
+  private rememberCaptured(raw: string): void {
+    if (this.capturedRaw.size >= StemController.CAPTURED_RAW_MAX) {
+      const keep = [...this.capturedRaw].slice(-Math.floor(StemController.CAPTURED_RAW_MAX / 2));
+      this.capturedRaw = new Set(keep);
+    }
+    this.capturedRaw.add(raw);
   }
 }
 

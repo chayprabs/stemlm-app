@@ -12,6 +12,7 @@ import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
 import { IconChevronLeft, IconChevronRight } from './icons';
 import { saveSession, isSessionSaved } from '@/src/lib/saved-sessions';
+import { StorageQuotaError } from '@/src/lib/storage-errors';
 import { setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
@@ -117,9 +118,13 @@ export function Panel() {
       await saveSession(session);
       setSaved(true);
       void trackEvent('session_saved', { platform: session.platform });
-    } catch {
+    } catch (err) {
       setSaved(false);
-      useStore.getState().setStatus('error', 'Could not save session. Try again.');
+      const msg =
+        err instanceof StorageQuotaError
+          ? err.message
+          : 'Could not save session. Try again.';
+      useStore.getState().setStatus('error', msg);
     }
   }
 

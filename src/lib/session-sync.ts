@@ -11,9 +11,17 @@ import type { Session } from '@/src/protocol/types';
 
 const KEY = 'stemlm_active_sessions';
 
+/** Strip bulky fields before cross-tab mirror (steps + raw text stay in-tab). */
+export function sessionsForMirror(sessions: Session[]): Session[] {
+  return sessions.map((s) => ({
+    ...s,
+    raw: '',
+  }));
+}
+
 export async function mirrorActiveSessions(sessions: Session[]): Promise<void> {
   try {
-    await browser.storage.session.set({ [KEY]: sessions });
+    await browser.storage.session.set({ [KEY]: sessionsForMirror(sessions) });
   } catch {
     /* session storage may be unavailable */
   }

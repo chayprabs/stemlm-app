@@ -70,7 +70,7 @@ export default defineConfig({
     name: 'stemLM — Structured STEM Study Overlay',
     description:
       'Turn Gemini into a guided STEM study workspace: step-by-step solutions, step-synced diagrams, quick-checks, and clean PDF export.',
-    permissions: ['storage', 'activeTab', 'scripting'],
+    permissions: ['storage'],
     host_permissions: [
       'https://fonts.googleapis.com/*',
       'https://fonts.gstatic.com/*',

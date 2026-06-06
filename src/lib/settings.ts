@@ -28,6 +28,7 @@ export interface Settings {
 }
 
 import { clampSplitRatio } from './split-ratio';
+import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
 export { clampSplitRatio };
 
@@ -91,7 +92,12 @@ export async function getSettings(): Promise<Settings> {
 export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
   const next = hydrateSettings({ ...current, ...patch });
-  await browser.storage.local.set({ [KEY]: next });
+  try {
+    await browser.storage.local.set({ [KEY]: next });
+  } catch (err) {
+    if (isStorageQuotaError(err)) throw new StorageQuotaError();
+    throw err;
+  }
   return next;
 }
 

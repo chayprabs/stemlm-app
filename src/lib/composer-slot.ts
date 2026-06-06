@@ -221,6 +221,10 @@ export function ensureComposerSlot(
 
 export function removeComposerSlot() {
   document.querySelector(`[${SLOT_ATTR}]`)?.remove();
+  document.getElementById(STYLE_ID)?.remove();
+  document.querySelectorAll(`[${PARENT_ATTR}]`).forEach((el) => {
+    el.removeAttribute(PARENT_ATTR);
+  });
 }
 
 export const _composerSlotGap = SLOT_GAP_PX;

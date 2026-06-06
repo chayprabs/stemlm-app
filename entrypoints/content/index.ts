@@ -17,6 +17,8 @@ import {
   onMirroredSessionsChanged,
 } from '@/src/lib/session-sync';
 import { removeSplit } from '@/src/lib/split-screen';
+import { removeComposerSlot } from '@/src/lib/composer-slot';
+import { parseStemLmMessage } from '@/src/lib/messages';
 
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
@@ -137,12 +139,14 @@ export default defineContentScript({
       }
     });
 
-    const onMessage = (msg: unknown) => {
-      const type = typeof msg === 'object' && msg ? (msg as { type?: string }).type : undefined;
-      if (type === 'stemlm:open-panel') {
+    const onMessage = (msg: unknown, sender: { id?: string }) => {
+      const parsed = parseStemLmMessage(msg, sender);
+      if (!parsed) return;
+
+      if (parsed.type === 'stemlm:open-panel') {
         useStore.getState().openPanel();
         void trackEvent('panel_opened', { platform: adapter.id, source: 'toolbar' });
-      } else if (type === 'stemlm:load-conversation') {
+      } else if (parsed.type === 'stemlm:load-conversation') {
         getController()?.loadConversation();
         useStore.getState().openPanel();
       }
@@ -151,11 +155,12 @@ export default defineContentScript({
 
     ctx.onInvalidated(() => {
       removeSplit();
+      removeComposerSlot();
+      getController()?.stopWatching();
       stopSystemWatch();
       stopSettingsWatch();
       stopMirrorWatch();
       browser.runtime.onMessage.removeListener(onMessage);
-      getController()?.stopWatching();
     });
   },
 });

@@ -60,10 +60,16 @@ function preStripDangerous(svg: string): string {
     .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*')/gi, '');
 }
 
+function safeViewBox(raw: string | undefined): string {
+  if (!raw) return '0 0 100 100';
+  const trimmed = raw.trim();
+  return /^[\d.\s+-]+$/.test(trimmed) ? trimmed : '0 0 100 100';
+}
+
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
 export function sanitizeSvg(svg: string): string {
   if (!svg) return '';
-  const viewBox = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1] ?? '0 0 100 100';
+  const viewBox = safeViewBox(/viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1]);
   ensureConfigured();
   const preClean = preStripDangerous(svg);
   const clean = DOMPurify.sanitize(preClean, {

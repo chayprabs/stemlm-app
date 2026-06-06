@@ -36,6 +36,7 @@ export default function App() {
   const [onGemini, setOnGemini] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -48,15 +49,18 @@ export default function App() {
   }, []);
 
   async function sendToTab(payload: { type: string }) {
+    setSendError(null);
     const tab = await activeTab();
-    if (tab?.id != null) {
-      try {
-        await browser.tabs.sendMessage(tab.id, payload);
-      } catch {
-        /* no content script */
-      }
+    if (tab?.id == null) {
+      setSendError('No active tab found.');
+      return;
     }
-    window.close();
+    try {
+      await browser.tabs.sendMessage(tab.id, payload);
+      window.close();
+    } catch {
+      setSendError('Reload the Gemini tab, then try again.');
+    }
   }
 
   function send(type: string) {
@@ -145,6 +149,7 @@ export default function App() {
             Open gemini.google.com, type your question, then click the stemLM button beside send.
           </p>
         )}
+        {sendError && <p className="slm-popup-error">{sendError}</p>}
       </section>
 
       <section className="slm-popup-section" aria-label="Saved sessions">

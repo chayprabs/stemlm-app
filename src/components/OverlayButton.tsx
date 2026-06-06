@@ -132,6 +132,24 @@ export function OverlayButton() {
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
+  // After a captured answer, unlock inject when the student types a new question.
+  useEffect(() => {
+    if (!injected || status !== 'ready' || !adapter) return;
+    const ctrl = getController();
+    if (!ctrl) return;
+
+    const tick = () => {
+      const text = adapter.getEditorText().trim();
+      const last = ctrl.getLastQuestion().trim();
+      if (text.length > 0 && last.length > 0 && text !== last) {
+        ctrl.resetInjection();
+      }
+    };
+
+    const id = window.setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [injected, status, adapter]);
+
   if (pos.mode === 'fixed' && !pos.visible) return null;
 
   const isInjecting = injected && status === 'loading' && !hasSession;

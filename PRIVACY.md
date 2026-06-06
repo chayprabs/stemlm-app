@@ -52,8 +52,9 @@ distributor has supplied GA credentials at build time.
 ## Permissions and why they're needed
 
 - **`storage`** — save your settings and saved sessions locally.
-- **`activeTab` / `scripting`** — let the toolbar button open the panel on the
-  current Gemini tab.
+- **Toolbar popup** — sends messages to the active Gemini tab to open the panel
+  or load a conversation (no extra permissions beyond `storage` and the Gemini
+  host permission).
 - **Host permission** for `gemini.google.com` — so the content script can render
   the overlay button and read the answer **only** on Gemini. stemLM does not run
   on any other websites.

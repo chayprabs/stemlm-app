@@ -17,6 +17,13 @@ function normalizeMathDelimiters(src: string): string {
     .replace(/\\\((.+?)\\\)/gs, (_m, e) => `$${e}$`);
 }
 
+function safeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (/^(https?:|mailto:)/i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed;
+  return '';
+}
+
 export interface MathMarkdownProps {
   content: string;
   className?: string;
@@ -28,6 +35,7 @@ export const MathMarkdown = memo(function MathMarkdown({ content, className }: M
       <Markdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+        urlTransform={safeUrl}
       >
         {normalizeMathDelimiters(content)}
       </Markdown>

@@ -14,7 +14,9 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
-const exportSessionPdf = vi.fn(async () => ({ ok: true, method: 'print' as const }));
+const { exportSessionPdfMock } = vi.hoisted(() => ({
+  exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+}));
 
 vi.mock('wxt/browser', () => ({
   browser: {
@@ -25,7 +27,7 @@ vi.mock('wxt/browser', () => ({
 }));
 
 vi.mock('./pdf', () => ({
-  exportSessionPdf: (...args: unknown[]) => exportSessionPdf(...args),
+  exportSessionPdf: exportSessionPdfMock,
 }));
 
 import {
@@ -215,9 +217,11 @@ describe('saved-sessions', () => {
 
       const result = await downloadSavedSessionPdf('lib-1');
       expect(result.ok).toBe(true);
-      expect(exportSessionPdf).toHaveBeenCalledOnce();
+      expect(exportSessionPdfMock).toHaveBeenCalledOnce();
 
-      const exported = exportSessionPdf.mock.calls[0]?.[0] as Session;
+      const calls = exportSessionPdfMock.mock.calls as unknown as [Session][];
+      expect(calls[0]).toBeDefined();
+      const exported = calls[0]![0];
       expect(exported.question).toBe('Saved Q');
       expect(exported.capsule.steps).toEqual([]);
       expect(exported.capsule.solution).toBe('x = 1');
@@ -226,7 +230,7 @@ describe('saved-sessions', () => {
     it('returns failed when the id is missing', async () => {
       const result = await downloadSavedSessionPdf('missing');
       expect(result.ok).toBe(false);
-      expect(exportSessionPdf).not.toHaveBeenCalled();
+      expect(exportSessionPdfMock).not.toHaveBeenCalled();
     });
   });
 
