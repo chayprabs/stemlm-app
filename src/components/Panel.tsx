@@ -178,13 +178,14 @@ export function Panel() {
               diagram={firstSessionDiagram(session.capsule.steps)}
               theme={theme}
             />
-            <StepList
-              steps={session.capsule.steps}
-              activeIndex={activeStepIndex}
-              reviewedIds={session.reviewedStepIds}
-              onSelect={setActiveStep}
-            />
-            <div className="slm-steps-detail">
+            <div className="slm-steps-layout">
+              <StepList
+                steps={session.capsule.steps}
+                activeIndex={activeStepIndex}
+                reviewedIds={session.reviewedStepIds}
+                onSelect={setActiveStep}
+              />
+              <div className="slm-steps-detail">
               <AnimatePresence mode="wait">
                 {step && (
                   <StepCard
@@ -225,6 +226,7 @@ export function Panel() {
                   Next <IconChevronRight />
                 </button>
               </footer>
+              </div>
             </div>
           </div>
         )}

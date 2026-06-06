@@ -502,7 +502,15 @@
   flex-direction: column;
   min-height: 100%;
 }
+.slm-steps-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
 .slm-steps-detail {
+  flex: 1;
+  min-width: 0;
   padding: 0.75rem 1rem 1rem;
 }
 .slm-diagram-well {
@@ -523,57 +531,90 @@
   background: transparent;
   padding: 0;
 }
-.slm-step-list {
+/* ---------- vertical step rail (numbered circles) ---------- */
+.slm-step-rail {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding: 0.75rem 0.5rem 0.75rem 0.85rem;
+  border-right: 0.5px solid var(--slm-border);
+}
+.slm-step-rail-track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 0.5px solid var(--slm-border);
 }
-.slm-step-row {
+.slm-step-rail-item {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  width: 100%;
-  text-align: left;
-  padding: 0.65rem;
-  border: 1px solid var(--slm-border);
-  border-radius: var(--radius-sm);
-  background: #f8f9fc;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  justify-content: center;
+  padding: 0.15rem 0;
 }
-[data-stemlm-theme='dark'] .slm-step-row {
-  background: var(--slm-bg-subtle);
+.slm-step-rail-item:not(.is-last)::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2.05rem;
+  bottom: -0.15rem;
+  transform: translateX(-50%);
+  width: 0;
+  border-left: 1px dashed var(--slm-border);
+  pointer-events: none;
 }
-.slm-step-row:hover {
-  border-color: var(--slm-accent);
-}
-.slm-step-row.is-active {
-  border-color: var(--slm-accent);
-  background: var(--slm-accent-soft);
-}
-.slm-step-row-head {
+.slm-step-rail-btn {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0.3rem;
+  cursor: pointer;
+  border-radius: 50%;
 }
-.slm-step-row-title {
+.slm-step-rail-btn:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-step-rail-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--slm-border);
+  background: var(--slm-bg);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
-  color: var(--slm-fg);
-  line-height: 1.35;
-}
-.slm-step-row-value {
-  padding-left: 1.85rem;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  line-height: 1;
   color: var(--slm-fg-muted);
-  line-height: 1.45;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
 }
-.slm-step-row.is-reviewed .slm-step-badge {
-  background: var(--slm-success-soft);
-  color: var(--slm-success);
+.slm-step-rail-btn:hover .slm-step-rail-dot {
+  border-color: var(--slm-accent);
+  color: var(--slm-accent);
+}
+.slm-step-rail-item.is-active .slm-step-rail-dot {
+  border-color: var(--slm-accent);
+  background: var(--slm-accent);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--slm-bg), 0 0 0 3.5px var(--slm-accent);
+}
+.slm-step-rail-item.is-reviewed .slm-step-rail-dot {
+  border-color: var(--slm-success);
+  background: var(--slm-success);
+  color: #fff;
+}
+.slm-step-rail-item.is-reviewed.is-active .slm-step-rail-dot {
+  border-color: var(--slm-accent);
+  background: var(--slm-accent);
+  box-shadow: 0 0 0 2px var(--slm-bg), 0 0 0 3.5px var(--slm-accent);
 }
 
 /* ---------- progress rail (hero step badges) ---------- */
@@ -1005,11 +1046,13 @@
 .slm-selectable { user-select: text; }
 
 .slm-body::-webkit-scrollbar,
-.slm-rail::-webkit-scrollbar {
+.slm-rail::-webkit-scrollbar,
+.slm-step-rail::-webkit-scrollbar {
   width: 6px;
 }
 .slm-body::-webkit-scrollbar-thumb,
-.slm-rail::-webkit-scrollbar-thumb {
+.slm-rail::-webkit-scrollbar-thumb,
+.slm-step-rail::-webkit-scrollbar-thumb {
   background: var(--slm-border);
   border-radius: var(--radius-pill);
 }
@@ -1018,6 +1061,7 @@
 .slm-panel[data-width='narrow'] .slm-rail-dot { max-width: 2rem; }
 .slm-panel[data-width='narrow'] .slm-rail-dot-label { display: none; }
 .slm-panel[data-width='narrow'] .slm-stepnav { flex-wrap: wrap; gap: 0.35rem; justify-content: center; }
+.slm-panel[data-width='narrow'] .slm-step-rail { padding-left: 0.5rem; padding-right: 0.35rem; }
 .slm-panel[data-width='wide'] .slm-rail-dot-label { display: -webkit-box; }
 
 .slm-selpop {
@@ -1032,7 +1076,8 @@
   .slm-inject-btn,
   .slm-btn,
   .slm-tab,
-  .slm-rail-dot-mark {
+  .slm-rail-dot-mark,
+  .slm-step-rail-dot {
     transition: none;
   }
 }
