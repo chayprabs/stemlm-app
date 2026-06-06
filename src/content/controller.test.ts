@@ -30,10 +30,8 @@ class MockAdapter implements PlatformAdapter {
   }
   insertPrompt(text: string) {
     this.inserted = text;
+    this.editorText = text;
     return this.insertOk;
-  }
-  async injectWithProtocolFile() {
-    return { ok: false, method: 'text' as const };
   }
   getComposerBox() {
     return document.body;
@@ -93,6 +91,7 @@ describe('StemController.inject', () => {
     expect(adapter.inserted).toContain('OUTPUT:');
     expect(adapter.inserted).toContain('ELECTRICAL');
     expect(adapter.inserted).toContain('stemLM instructions');
+    expect(adapter.inserted).not.toContain('stemlm-protocol.txt');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();

@@ -1,5 +1,3 @@
-import type { InjectionPayload } from '@/src/protocol/builder';
-
 /** Platform adapter contract. Gemini-only for now. */
 export type PlatformId = 'gemini';
 
@@ -42,14 +40,6 @@ export interface PlatformAdapter {
 
   /** Replace the composer content with `text`. Returns success. */
   insertPrompt(text: string): boolean;
-
-  /**
-   * Paste the full protocol prompt into the composer (legacy API — prefer
-   * `insertPrompt` with `buildInjectionPrompt` / `buildFollowupPrompt`).
-   */
-  injectWithProtocolFile(
-    payload: InjectionPayload,
-  ): Promise<{ ok: boolean; method: 'text' }>;
 
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;

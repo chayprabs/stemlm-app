@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { detectAdapter, adapterById } from './detect';
 import { geminiAdapter } from './gemini';
-import { createAdapter, setEditorText, getEditorTextOf } from './factory';
+import { buildInjectionPrompt } from '@/src/protocol/builder';
+import { createAdapter, setEditorText, getEditorTextOf, editorReflectsText } from './factory';
 
 const CAPSULE_BODY = [
   '@meta',
@@ -90,6 +91,18 @@ describe('Gemini adapter', () => {
     expect(geminiAdapter.getEditorText()).toContain('hello');
   });
 
+  it('inserts the full stemLM protocol into a Quill-like editor', () => {
+    const { prompt } = buildInjectionPrompt(
+      'Solve this circuit with a 12V source and resistor (Kirchhoff)',
+    );
+    expect(geminiAdapter.insertPrompt(prompt)).toBe(true);
+    const got = geminiAdapter.getEditorText();
+    expect(got).toContain('stemLM instructions');
+    expect(got).toContain('OUTPUT:');
+    expect(got).toContain('ELECTRICAL');
+    expect(got).not.toContain('stemlm-protocol.txt');
+  });
+
   it('extracts the capsule from code-block', () => {
     const caps = geminiAdapter.extractCapsules();
     expect(caps.length).toBeGreaterThanOrEqual(1);
@@ -162,5 +175,15 @@ describe('setEditorText on textarea', () => {
     const ta = document.getElementById('t') as HTMLTextAreaElement;
     expect(setEditorText(ta, 'abc')).toBe(true);
     expect(getEditorTextOf(ta)).toBe('abc');
+  });
+});
+
+describe('editorReflectsText', () => {
+  it('requires protocol markers for stemLM injection prompts', () => {
+    setBody('<div id="ed" contenteditable="true"></div>');
+    const el = document.getElementById('ed')!;
+    const { prompt } = buildInjectionPrompt('derivative of x^2');
+    setEditorText(el, prompt);
+    expect(editorReflectsText(el, prompt)).toBe(true);
   });
 });

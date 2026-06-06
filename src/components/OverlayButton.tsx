@@ -105,10 +105,10 @@ function InjectSpinner() {
 
 export function OverlayButton() {
   const pos = useComposerPosition();
+  const [pasting, setPasting] = useState(false);
   const injected = useStore((s) => s.buttonInjected);
   const status = useStore((s) => s.status);
   const panelOpen = useStore((s) => s.panelOpen);
-  const hasSession = useStore((s) => s.sessions.length > 0);
   const togglePanel = useStore((s) => s.togglePanel);
 
   const adapter = detectAdapter();
@@ -135,15 +135,16 @@ export function OverlayButton() {
 
   if (pos.mode === 'fixed' && !pos.visible) return null;
 
-  const isInjecting = injected && status === 'loading' && !hasSession;
-
   function onMain() {
-    if (isInjecting) return;
+    if (pasting) return;
     if (injected) {
       togglePanel();
       return;
     }
-    void getController()?.inject();
+    setPasting(true);
+    void getController()
+      ?.inject()
+      .finally(() => setPasting(false));
   }
 
   const wrapClass = [
@@ -157,7 +158,7 @@ export function OverlayButton() {
 
   const content = (
     <>
-      {isInjecting ? (
+      {pasting ? (
         <span className="slm-inject-status" aria-live="polite">
           <InjectSpinner />
           <span>Injecting...</span>

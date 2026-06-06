@@ -81,10 +81,13 @@ export class StemController {
 
     const variant = store.settings.promptVariant;
     const { prompt, subject } = buildInjectionPrompt(question, { variant });
-    const ok = this.adapter.insertPrompt(prompt);
+    const ok = await this.insertVerifiedPrompt(prompt);
 
     if (!ok) {
-      store.setStatus('error', 'Could not find the chat input. Refresh the page and try again.');
+      store.setStatus(
+        'error',
+        'Could not paste the stemLM protocol into the chat box. Click in the input and try stemLM again.',
+      );
       store.openPanel();
       return false;
     }
@@ -119,7 +122,7 @@ export class StemController {
 
     const variant = useStore.getState().settings.promptVariant;
     const prompt = buildFollowupPrompt({ selection: normalized, stepTitle, subject, variant });
-    const ok = this.adapter.insertPrompt(prompt);
+    const ok = await this.insertVerifiedPrompt(prompt);
 
     if (!ok) {
       useStore
@@ -137,6 +140,25 @@ export class StemController {
     void trackEvent('followup_used', { platform: this.adapter.id });
     this.startWatching();
     return true;
+  }
+
+  /**
+   * Write `prompt` into the composer and confirm the full protocol is visible
+   * (not the old short file-attach stub). Retries once after a brief pause.
+   */
+  private async insertVerifiedPrompt(prompt: string): Promise<boolean> {
+    const marker = 'stemLM instructions';
+    const looksComplete = (text: string) =>
+      text.includes(marker) && text.includes('OUTPUT:') && !text.includes('stemlm-protocol.txt');
+
+    const tryOnce = () => {
+      if (!this.adapter.insertPrompt(prompt)) return false;
+      return looksComplete(this.adapter.getEditorText());
+    };
+
+    if (tryOnce()) return true;
+    await new Promise((r) => setTimeout(r, 120));
+    return tryOnce();
   }
 
   /** Reset answer-started detection and snapshot the current message count. */

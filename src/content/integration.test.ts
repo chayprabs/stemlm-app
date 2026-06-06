@@ -50,6 +50,8 @@ describe('integration: Gemini adapter + controller capture', () => {
     expect(injected).toContain('12V series resistor');
     expect(injected).toContain('OUTPUT:');
     expect(injected).toContain('stemLM instructions');
+    expect(injected).not.toContain('stemlm-protocol.txt');
+    expect(injected).not.toContain('Follow the attached');
     expect(useStore.getState().status).toBe('loading');
 
     const thread = document.getElementById('thread')!;

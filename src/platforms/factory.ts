@@ -54,6 +54,50 @@ function innermost(elements: HTMLElement[]): HTMLElement[] {
   return elements.filter((el) => !elements.some((other) => other !== el && el.contains(other)));
 }
 
+function selectAllContents(el: HTMLElement): void {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/** True when the editor visibly contains the text we tried to write. */
+export function editorReflectsText(el: HTMLElement, expected: string): boolean {
+  const got = getEditorTextOf(el);
+  if (expected.includes('stemLM instructions')) {
+    return got.includes('stemLM instructions') && got.includes('OUTPUT:');
+  }
+  const probe = expected.trim().slice(0, 48);
+  return probe.length > 0 && got.includes(probe);
+}
+
+function dispatchSyntheticPaste(el: HTMLElement, text: string): boolean {
+  try {
+    const dt = new DataTransfer();
+    dt.setData('text/plain', text);
+    const evt = new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dt,
+    });
+    return el.dispatchEvent(evt);
+  } catch {
+    return false;
+  }
+}
+
+function rebuildParagraphs(el: HTMLElement, text: string): void {
+  el.textContent = '';
+  for (const line of text.split('\n')) {
+    const p = document.createElement('p');
+    p.textContent = line.length ? line : '\u00a0';
+    el.appendChild(p);
+  }
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+}
+
 /** Replace the content of a composer editor with `text`. Returns success. */
 export function setEditorText(el: HTMLElement, text: string): boolean {
   const tag = el.tagName;
@@ -63,38 +107,25 @@ export function setEditorText(el: HTMLElement, text: string): boolean {
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     setter?.call(el, text);
     el.dispatchEvent(new Event('input', { bubbles: true }));
-    return true;
+    return editorReflectsText(el, text);
   }
 
-  // contenteditable (ProseMirror / Quill / Lexical)
+  // contenteditable (ProseMirror / Quill / Lexical) — try several strategies and
+  // verify the full protocol landed (Gemini Quill often truncates execCommand).
   el.focus();
+  selectAllContents(el);
+
+  if (dispatchSyntheticPaste(el, text) && editorReflectsText(el, text)) return true;
+
   try {
-    const sel = window.getSelection();
-    if (sel) {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-    // execCommand is deprecated but remains the most reliable way to drive
-    // framework-backed contenteditable editors (React/ProseMirror listen for
-    // beforeinput/input which execCommand fires natively).
-    const ok = document.execCommand('insertText', false, text);
-    if (ok && el.innerText.trim().length > 0) return true;
+    selectAllContents(el);
+    if (document.execCommand('insertText', false, text) && editorReflectsText(el, text)) return true;
   } catch {
-    /* fall through to manual fallback */
+    /* fall through */
   }
 
-  // Fallback: rebuild paragraphs manually and fire an input event.
-  el.textContent = '';
-  const lines = text.split('\n');
-  for (const line of lines) {
-    const p = document.createElement('p');
-    p.textContent = line.length ? line : '\u00a0';
-    el.appendChild(p);
-  }
-  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
-  return true;
+  rebuildParagraphs(el, text);
+  return editorReflectsText(el, text);
 }
 
 export function getEditorTextOf(el: HTMLElement | null): string {
@@ -131,16 +162,6 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       const editor = firstMatch(config.editor);
       if (!editor) return false;
       return setEditorText(editor, text);
-    },
-
-    async injectWithProtocolFile(payload) {
-      const intro = payload.composerText.replace(
-        /Follow the attached [^\n]+\./,
-        'Follow the stemLM protocol below exactly.',
-      );
-      const full = `${intro}\n\n--- stemLM instructions (do not remove) ---\n${payload.fileContent}`;
-      const ok = this.insertPrompt(full);
-      return { ok, method: 'text' as const };
     },
 
     getComposerBox() {

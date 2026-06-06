@@ -58,6 +58,14 @@ describe('buildInjectionPrompt', () => {
     const { prompt } = buildInjectionPrompt('   ');
     expect(prompt).toContain('has not typed a question');
   });
+
+  it('pastes the full protocol inline — never the old file-attach stub', () => {
+    const { prompt } = buildInjectionPrompt('');
+    expect(prompt).toContain('stemLM instructions');
+    expect(prompt).toContain('OUTPUT:');
+    expect(prompt).not.toContain(PROTOCOL_FILENAME);
+    expect(prompt).not.toContain('Follow the attached');
+  });
 });
 
 describe('buildInjectionPayload', () => {
