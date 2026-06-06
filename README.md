@@ -8,7 +8,7 @@ A Manifest V3 browser extension that turns **Gemini** into a guided, step-by-ste
 STEM study workspace — right beside the chat, in a real split screen.
 
 [Install (unpacked)](#load-the-unpacked-build) | [How it works](#how-it-works) |
-[Privacy](PRIVACY.md) | [Terms](TERMS.md) | [License](LICENSE)
+[Privacy](docs/legal/PRIVACY.md) | [Terms](docs/legal/TERMS.md) | [License](docs/legal/LICENSE)
 
 </div>
 
@@ -43,7 +43,7 @@ Civil / Chemical engineering.**
 - **Fast, vector PDF.** Export a clean, textbook-style PDF (Q. / Ans., step by
   step, with your SVG diagrams) generated directly by the extension — no slow
   rasterisation, crisp and selectable.
-- **No server, no login.** Everything runs in your browser. See [PRIVACY.md](PRIVACY.md).
+- **No server, no login.** Everything runs in your browser. See [Privacy](docs/legal/PRIVACY.md).
 
 ## How it works
 
@@ -157,7 +157,7 @@ default subject routing, split ratio (drag to set), and analytics opt-out.
 The analytics **endpoints and events are fully wired** but send **nothing** until
 GA4 credentials are provided (safe no-op otherwise), and users can opt out. Only
 content-free event counts are sent — never your questions or answers.
-See [PRIVACY.md](PRIVACY.md). To enable:
+See [Privacy](docs/legal/PRIVACY.md). To enable:
 
 1. GA4 → **Admin → Data Streams → Web** → copy the **Measurement ID** (`G-XXXXXXXXXX`).
 2. In that stream → **Measurement Protocol API secrets → Create** → copy the **API secret**.
@@ -197,7 +197,7 @@ appearing or answers stop being captured, update those selector arrays.
 
 ## License
 
-[MIT](LICENSE) | See also [Privacy Policy](PRIVACY.md) and [Terms of Use](TERMS.md).
+[MIT](docs/legal/LICENSE) | See also [Privacy Policy](docs/legal/PRIVACY.md) and [Terms of Use](docs/legal/TERMS.md).
 
 ---
 

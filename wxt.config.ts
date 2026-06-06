@@ -59,6 +59,23 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: '.',
   imports: false, // we use explicit imports for clarity / testability
+  zip: {
+    // Extension artifact zips are built from .output/ only; these patterns apply to
+    // Firefox source zips and any extra files WXT might bundle alongside the build.
+    exclude: ['**/*.md', 'docs/**', 'scripts/**', 'LICENSE', 'PRIVACY.md', 'TERMS.md'],
+    excludeSources: [
+      'docs/**',
+      '**/*.md',
+      '!src/protocol/*.md',
+      'scripts/**',
+      'UI_ALIGNMENT_PROMPT.md',
+      'stemLM-prompt-optimization.md',
+      'vitest.config.ts',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      'pnpm-lock.yaml',
+    ],
+  },
   vite: () => ({
     plugins: [tailwindcss(), asciiSafeOutput()],
     define: {
