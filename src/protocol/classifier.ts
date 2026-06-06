@@ -46,19 +46,19 @@ const RULES: Rule[] = [
   {
     subject: 'Civil',
     patterns: [
-      { re: /\b(truss|beam|bending moment|shear force|shear[- ]and[- ]moment|simply supported|reinforced concrete|structural (analysis|engineer)|foundation|soil mechanic|geotechnical|load[- ]bearing|cantilever|deflection|support reaction|pin support|roller support|distributed load|point load|column buckling|retaining wall)\b/i, w: 3 },
+      { re: /\b(truss|beam|bending moment|bending moment diagram|\bbmd\b|shear force|shear force diagram|\bsfd\b|shear[- ]and[- ]moment|simply supported|reinforced concrete|structural (analysis|engineer)|foundation|soil mechanic|geotechnical|load[- ]bearing|cantilever|deflection|support reaction|pin support|roller support|distributed load|point load|column buckling|retaining wall)\b/i, w: 3 },
     ],
   },
   {
     subject: 'Chemical',
     patterns: [
-      { re: /\b(mass balance|energy balance|material balance|distillation|reactor design|cstr|pfr\b|reflux|process flow|flowsheet|heat exchanger|fugacity|raoult'?s? law|mass transfer|unit operation|control volume|reflux ratio|vapor[- ]liquid equilibrium|vle\b|absorption column|chemical engineering)\b/i, w: 3 },
+      { re: /\b(mass balance|energy balance|material balance|component balance|distillation|reactor design|cstr|pfr\b|reflux|process flow|flowsheet|heat exchanger|fugacity|raoult'?s? law|mass transfer|unit operation|control volume|reflux ratio|vapor[- ]liquid equilibrium|vle\b|absorption column|chemical engineering|mixer|mixing streams?|feed stream|outlet stream|mass flow|kg\/h|wt%|aqueous stream)\b/i, w: 3 },
     ],
   },
   {
     subject: 'Mechanical',
     patterns: [
-      { re: /\b(torque|moment of inertia|\bgear\b|gearbox|\bshaft\b|bending stress|shear stress|stress and strain|young'?s modulus|thermodynamic cycle|carnot|otto cycle|heat engine|refrigerat|fluid mechanics|bernoulli|reynolds|viscosity|factor of safety|linkage|cam\b|crank|piston|pulley system|mechanical advantage|vibration|natural frequency)\b/i, w: 3 },
+      { re: /\b(torque|moment of inertia|\bgear\b|gearbox|\bshaft\b|axial stress|normal stress|tensile stress|yield strength|steel bar|cross[- ]section|stress area|bending stress|shear stress|stress and strain|young'?s modulus|thermodynamic cycle|carnot|otto cycle|heat engine|refrigerat|fluid mechanics|bernoulli|reynolds|viscosity|factor of safety|linkage|cam\b|crank|piston|pulley system|mechanical advantage|vibration|natural frequency)\b/i, w: 3 },
     ],
   },
   {

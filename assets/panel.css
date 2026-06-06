@@ -1175,7 +1175,10 @@
   margin: 0.75rem 0;
 }
 .slm-prose table {
-  width: 100%;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0.5rem 0;
   font-size: 12px;
