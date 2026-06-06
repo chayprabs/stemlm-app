@@ -17,6 +17,7 @@ import {
   onMirroredSessionsChanged,
 } from '@/src/lib/session-sync';
 import { openSavedSession } from '@/src/lib/saved-sessions';
+import { removeSplit } from '@/src/lib/split-screen';
 
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
@@ -113,8 +114,12 @@ export default defineContentScript({
       useStore.getState().setTheme(resolveTheme(next.theme));
       // Keep the split ratio in sync across tabs/sites (but don't fight an
       // in-progress drag — only adopt the stored value when it differs).
-      if (Math.abs(useStore.getState().splitRatio - next.splitRatio) > 0.001) {
-        useStore.getState().setSplitRatio(next.splitRatio);
+      const state = useStore.getState();
+      if (
+        !state.splitDragging &&
+        Math.abs(state.splitRatio - next.splitRatio) > 0.001
+      ) {
+        state.setSplitRatio(next.splitRatio);
       }
     });
 
@@ -134,6 +139,7 @@ export default defineContentScript({
     browser.runtime.onMessage.addListener(onMessage);
 
     ctx.onInvalidated(() => {
+      removeSplit();
       stopSystemWatch();
       stopSettingsWatch();
       stopMirrorWatch();

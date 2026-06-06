@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/src/state/store';
 import { setSettings } from '@/src/lib/settings';
+import { ratioFromPointer } from '@/src/lib/split-ratio';
 
 /**
  * Draggable divider on the panel's left edge. Dragging updates the split ratio
@@ -9,47 +10,82 @@ import { setSettings } from '@/src/lib/settings';
  */
 export function ResizeHandle() {
   const setSplitRatio = useStore((s) => s.setSplitRatio);
+  const setSplitDragging = useStore((s) => s.setSplitDragging);
   const setStoreSettings = useStore((s) => s.setSettings);
   const draggingRef = useRef(false);
+  const handleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function onMove(e: PointerEvent) {
-      if (!draggingRef.current) return;
-      e.preventDefault();
-      // Panel is docked right; ratio = fraction of viewport to its right.
-      const ratio = 1 - e.clientX / window.innerWidth;
-      setSplitRatio(ratio);
-    }
-    async function onUp() {
+    async function endDrag(e?: PointerEvent) {
       if (!draggingRef.current) return;
       draggingRef.current = false;
       document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      setSplitDragging(false);
+
+      if (e && handleRef.current?.hasPointerCapture?.(e.pointerId)) {
+        handleRef.current.releasePointerCapture(e.pointerId);
+      }
+
       const ratio = useStore.getState().splitRatio;
       const updated = await setSettings({ splitRatio: ratio });
       setStoreSettings(updated);
     }
+
+    function onMove(e: PointerEvent) {
+      if (!draggingRef.current) return;
+      e.preventDefault();
+      setSplitRatio(ratioFromPointer(e.clientX));
+    }
+
+    function onEnd(e: PointerEvent) {
+      void endDrag(e);
+    }
+
     window.addEventListener('pointermove', onMove, { passive: false });
-    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
     return () => {
       window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      if (draggingRef.current) void endDrag();
     };
-  }, [setSplitRatio, setStoreSettings]);
+  }, [setSplitDragging, setSplitRatio, setStoreSettings]);
 
   return (
     <div
+      ref={handleRef}
       className="slm-resize-handle"
       role="separator"
       aria-orientation="vertical"
+      aria-valuemin={25}
+      aria-valuemax={75}
+      tabIndex={0}
       aria-label="Resize study panel"
       title="Drag to resize"
       onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
         draggingRef.current = true;
         document.body.style.userSelect = 'none';
-        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        document.body.style.cursor = 'col-resize';
+        setSplitDragging(true);
+        setSplitRatio(ratioFromPointer(e.clientX));
+        handleRef.current?.setPointerCapture?.(e.pointerId);
+      }}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 0.05 : 0.02;
+        if (e.key === 'ArrowLeft') {
+          setSplitRatio(useStore.getState().splitRatio + step);
+          e.preventDefault();
+        } else if (e.key === 'ArrowRight') {
+          setSplitRatio(useStore.getState().splitRatio - step);
+          e.preventDefault();
+        }
       }}
     >
-      <span className="slm-resize-grip" />
+      <span className="slm-resize-grip" aria-hidden="true" />
     </div>
   );
 }

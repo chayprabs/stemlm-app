@@ -104,8 +104,6 @@ export function Panel() {
     return () => ro.disconnect();
   }, [panelOpen]);
 
-  if (!panelOpen) return null;
-
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
   const reviewedCount = session?.reviewedStepIds.length ?? 0;
@@ -174,7 +172,7 @@ export function Panel() {
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
-      transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+      transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       role="complementary"
       aria-label="stemLM study panel"
     >

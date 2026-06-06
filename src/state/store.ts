@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import type { Session } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { DEFAULT_SETTINGS, type Settings } from '@/src/lib/settings';
+import { clampSplitRatio } from '@/src/lib/split-ratio';
 
 export type PanelStatus = 'idle' | 'loading' | 'ready' | 'error';
 export type PanelView = 'steps' | 'solution';
@@ -26,6 +27,8 @@ export interface StoreState {
 
   /** Split-screen width of the panel as a fraction of the viewport [0.25, 0.75]. */
   splitRatio: number;
+  /** True while the user is dragging the resize handle. */
+  splitDragging: boolean;
 
   // Data
   sessions: Session[];
@@ -42,6 +45,7 @@ export interface StoreState {
   setSettings: (settings: Settings) => void;
   setButtonInjected: (v: boolean) => void;
   setSplitRatio: (ratio: number) => void;
+  setSplitDragging: (dragging: boolean) => void;
 
   addSession: (session: Session) => void;
   /** Replace all sessions (used by "Load conversation"). */
@@ -62,6 +66,7 @@ export const useStore = create<StoreState>((set, get) => ({
   buttonInjected: false,
   settings: DEFAULT_SETTINGS,
   splitRatio: DEFAULT_SETTINGS.splitRatio,
+  splitDragging: false,
   sessions: [],
   activeStepIndex: 0,
 
@@ -73,8 +78,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setTheme: (theme) => set({ theme }),
   setSettings: (settings) => set({ settings }),
   setButtonInjected: (buttonInjected) => set({ buttonInjected }),
-  setSplitRatio: (ratio) =>
-    set({ splitRatio: Math.min(0.75, Math.max(0.25, ratio)) }),
+  setSplitRatio: (ratio) => set({ splitRatio: clampSplitRatio(ratio) }),
+  setSplitDragging: (splitDragging) => set({ splitDragging }),
 
   addSession: (session) =>
     set((s) => ({

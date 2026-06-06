@@ -278,7 +278,8 @@
   z-index: 2147483630;
   height: 100vh;
   width: 50vw;
-  min-width: 320px;
+  min-width: 0;
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
   background: var(--slm-bg);
@@ -289,8 +290,8 @@
 .slm-resize-handle {
   position: absolute;
   top: 0;
-  left: -3px;
-  width: 10px;
+  left: -12px;
+  width: 24px;
   height: 100%;
   cursor: col-resize;
   z-index: 5;
@@ -298,6 +299,10 @@
   align-items: center;
   justify-content: center;
   touch-action: none;
+}
+.slm-resize-handle:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: -2px;
 }
 .slm-resize-grip {
   width: 3px;

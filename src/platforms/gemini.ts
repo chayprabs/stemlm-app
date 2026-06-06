@@ -64,7 +64,15 @@ const config: AdapterConfig = {
     '.stop-icon',
   ],
   brand: { accent: '#0EA5A0', accentFg: '#ffffff', neutral: true },
-  layoutRoots: ['main', 'chat-window', '#app-root'],
+  layoutRoots: [
+    'main',
+    'chat-window',
+    '#app-root',
+    'infinite-scroller',
+    '.conversation-container',
+    'chat-app',
+    'div[class*="conversation"]',
+  ],
 };
 
 const GEMINI_FILE_INPUT = [

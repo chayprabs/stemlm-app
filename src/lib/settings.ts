@@ -27,11 +27,9 @@ export interface Settings {
   splitRatio: number;
 }
 
-/** Clamp a split ratio to the usable range. */
-export function clampSplitRatio(r: number): number {
-  if (!Number.isFinite(r)) return 0.5;
-  return Math.min(0.75, Math.max(0.25, r));
-}
+import { clampSplitRatio } from './split-ratio';
+
+export { clampSplitRatio };
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
