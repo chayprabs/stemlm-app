@@ -17,6 +17,7 @@ import {
 export function PanelHeader({
   session,
   view,
+  activeStepIndex,
   reviewedCount,
   theme,
   saved,
@@ -28,6 +29,7 @@ export function PanelHeader({
 }: {
   session: Session | undefined;
   view: PanelView;
+  activeStepIndex: number;
   reviewedCount: number;
   theme: ResolvedTheme;
   saved: boolean;
@@ -38,6 +40,9 @@ export function PanelHeader({
   onToggleTheme: () => void;
 }) {
   const total = session?.capsule.steps.length ?? 0;
+  const activeStep = session?.capsule.steps[activeStepIndex];
+  const heading =
+    view === 'steps' && activeStep ? activeStep.title : session?.capsule.meta.topic ?? '';
 
   return (
     <header className="slm-header">
@@ -95,7 +100,7 @@ export function PanelHeader({
           </div>
 
           <div className="slm-topic-row">
-            <h1 className="slm-topic">{session.capsule.meta.topic}</h1>
+            <h1 className="slm-topic">{heading}</h1>
             <span className="slm-subject-chip">{session.capsule.meta.subject}</span>
           </div>
 

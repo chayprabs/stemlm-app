@@ -81,5 +81,40 @@ describe('Panel diagram well', () => {
     });
     container.remove();
   });
+
+  it('updates the header title when the active step changes', () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.getState().setActiveStep(0);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    expect(container.querySelector('.slm-topic')?.textContent).toBe('First visual state');
+
+    act(() => {
+      useStore.getState().setActiveStep(1);
+    });
+
+    expect(container.querySelector('.slm-topic')?.textContent).toBe('Second visual state');
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
 });
 
