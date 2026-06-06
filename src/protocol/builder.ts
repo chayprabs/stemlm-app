@@ -215,12 +215,16 @@ const QUALITY_REPAIR_CODES = new Set([
   'formula_without_body',
   'step_missing_substitution',
   'step_missing_symbol_defs',
+  'quickcheck_thin_answer',
+  'quickcheck_generic_trivia',
+  'quickcheck_missing_question',
+  'quickcheck_missing_answer',
 ]);
 
 export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
   const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
   const qualityFix = opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode)
-    ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone.'
+    ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
     : '';
   return [
     `Your previous answer broke the stemLM capsule format.${reason}`,
@@ -228,5 +232,6 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
     `No prose outside the block. Preserve the math and diagrams; fix format and step completeness.${qualityFix}`,
     `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
     'Every @step needs a non-empty @body with symbol definitions and worked numbers when a formula is used.',
+    '@quickcheck: test this step\'s result; answer with because + formula/number — not one word.',
   ].join('\n');
 }

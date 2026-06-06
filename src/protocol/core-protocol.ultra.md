@@ -19,8 +19,8 @@ title: <one line — single move>
 <one line>
 @endtakeaway
 @quickcheck
-q: <one line>
-a: <one line>
+q: <test this step's result>
+a: <answer + because + formula/number from this step; not one word>
 @endquickcheck
 @followup
 <deeper prompt>
@@ -30,4 +30,4 @@ a: <one line>
 <full answer, markdown + $math$>
 @endsolution
 __END__
-Rules: one move per @step; @body required (never empty); if @formula has symbols, @body defines them + substitutes numbers; no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].
+Rules: one move per @step; @body required (never empty); if @formula has symbols, @body defines them + substitutes numbers; @quickcheck answers need because + formula/number (never one word); no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].

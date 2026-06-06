@@ -23,8 +23,8 @@ title: <imperative, one line — name the single move>
 <one memorable line>
 @endtakeaway
 @quickcheck
-q: <one-line self-test>
-a: <one-line answer>
+q: <test THIS step's move or numeric result — use values from the problem when possible>
+a: <answer + because/since + cite a formula or number from this step; never one word>
 @endquickcheck
 @followup
 <ready-to-send deeper prompt>
@@ -43,6 +43,7 @@ RULES:
 - @body is REQUIRED on every @step (non-empty). If @formula introduces a law or symbol, @body MUST define the symbol and show the numeric plug-in — a bare formula line alone is never enough.
 - @formula = the relation (symbols). @body = definitions + substitution + arithmetic + result. Do not put the only calculation in @formula with a one-line interpretation in @body.
 - title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @formula/@diagram optional; max one @diagram per @step. For circuit+waveform/phasor/triangle, use separate steps.
+- @quickcheck optional (2–4 per capsule on the hardest moves). Skip on pure diagram/label steps. Never answer with one word ("Low frequencies", "Capacitive", "Yes") — always explain why using a formula or number from this step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
 - Each @diagram = that step's evolving state (circuit reduced so far, ray after this surface, structure after this op), not one final picture.
 - svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; arrowheads via <defs><marker>…<polygon/></marker></defs> with marker-end="url(#id)"; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/physical/chem/bio/geometry/EE circuits.

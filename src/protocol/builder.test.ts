@@ -43,7 +43,7 @@ describe('buildInjectionPrompt', () => {
   it('keeps the injected core prompt compact', () => {
     // The core protocol is sent on every question; keep it small so it doesn't
     // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(3300);
+    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(3600);
     // All structural markers the parser relies on must survive compression.
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',

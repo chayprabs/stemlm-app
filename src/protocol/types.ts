@@ -93,7 +93,11 @@ export type ParseWarningCode =
   | 'missing_step_body'
   | 'formula_without_body'
   | 'step_missing_substitution'
-  | 'step_missing_symbol_defs';
+  | 'step_missing_symbol_defs'
+  | 'quickcheck_missing_question'
+  | 'quickcheck_missing_answer'
+  | 'quickcheck_thin_answer'
+  | 'quickcheck_generic_trivia';
 
 export type ParseErrorCode =
   | 'no_capsule'

@@ -24,7 +24,7 @@ export const FENCED_ELECTRICAL = [
   '@endtakeaway',
   '@quickcheck',
   'q: What is shared in a series circuit?',
-  'a: The current.',
+  'a: The same current $I$ — because charge has only one path, $I=2\\,\\text{A}$ through both $R_1$ and $R_2$.',
   '@endquickcheck',
   '@followup',
   'Show how this changes if R2 is doubled.',
@@ -315,7 +315,7 @@ export const THEVENIN_ELECTRICAL = [
   '@endtakeaway',
   '@quickcheck',
   'q: How many independent loops does this circuit have?',
-  'a: One mesh loop.',
+  'a: One mesh loop — because the 10 V, 2 Ω, 5 V, 3 Ω, and 6 Ω branches form a single closed path.',
   '@endquickcheck',
   '@endstep',
 

@@ -32,6 +32,11 @@ import {
   stripProtocolMarkers,
 } from './strip-markers';
 import { auditStepQuality, stepQualityMessage } from './step-quality';
+import {
+  auditQuickCheck,
+  isSubstantiveQuickCheck,
+  quickCheckQualityMessage,
+} from './quickcheck-quality';
 
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
@@ -529,6 +534,16 @@ export function parseCapsule(capsuleText: string): ParseResult {
     for (const code of auditStepQuality(step)) {
       if (!warningCodes.includes(code)) {
         addWarning(warnings, warningCodes, code, stepQualityMessage(code, step));
+      }
+    }
+    if (step.quickCheck) {
+      for (const code of auditQuickCheck(step.quickCheck, step)) {
+        if (!warningCodes.includes(code)) {
+          addWarning(warnings, warningCodes, code, quickCheckQualityMessage(code, step));
+        }
+      }
+      if (!isSubstantiveQuickCheck(step.quickCheck)) {
+        step.quickCheck = undefined;
       }
     }
   }
