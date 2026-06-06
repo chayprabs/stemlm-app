@@ -180,23 +180,14 @@ export default defineContentScript({
       const parsed = parseStemLmMessage(msg, sender);
       if (!parsed) return false;
 
-      if (parsed.type === 'stemlm:ping') {
-        sendResponse({
-          ok: true,
-          panelOpen: useStore.getState().panelOpen,
-          sessions: useStore.getState().sessions.length,
-        });
-        return true;
-      }
-
-      sendResponse(handleStemLmPanelMessage(parsed.type, adapter.id));
+      void handleStemLmPanelMessage(parsed.type, adapter.id).then(sendResponse);
       return true;
     };
     browser.runtime.onMessage.addListener(onMessage);
 
     if (tabId != null) {
       const pending = await takePendingPanelAction(tabId);
-      if (pending) handleStemLmPanelMessage(pending, adapter.id);
+      if (pending) await handleStemLmPanelMessage(pending, adapter.id);
     }
 
     ctx.onInvalidated(() => {

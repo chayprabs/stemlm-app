@@ -6,12 +6,18 @@ import { getController } from '@/src/content/controller';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 
-export function handleStemLmPanelMessage(
+export interface PanelMessageResult {
+  ok: boolean;
+  loaded?: number;
+}
+
+export async function handleStemLmPanelMessage(
   type: StemLmMessage['type'],
   platform: 'gemini',
-): { ok: boolean } {
+): Promise<PanelMessageResult> {
   if (type === 'stemlm:ping') {
-    return { ok: true };
+    const state = useStore.getState();
+    return { ok: true, loaded: state.sessions.length };
   }
 
   if (type === 'stemlm:open-panel') {
@@ -21,9 +27,13 @@ export function handleStemLmPanelMessage(
   }
 
   if (type === 'stemlm:load-conversation') {
-    getController()?.loadConversation();
+    const waitMs = 12_000;
+    const count = (await getController()?.loadConversation({ maxWaitMs: waitMs })) ?? 0;
     useStore.getState().openPanel();
-    return { ok: true };
+    if (count > 0) {
+      void trackEvent('panel_opened', { platform, source: 'toolbar' });
+    }
+    return { ok: true, loaded: count };
   }
 
   return { ok: false };

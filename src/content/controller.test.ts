@@ -129,6 +129,47 @@ describe('StemController.inject', () => {
   });
 });
 
+describe('StemController.loadConversation', () => {
+  beforeEach(resetStore);
+
+  it('loads sessions from visible chat capsules', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [CAPSULE_BODY];
+    const c = new StemController(adapter);
+
+    const count = await c.loadConversation({ maxWaitMs: 0 });
+    expect(count).toBe(1);
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+  });
+
+  it('polls until capsules appear in the chat', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+
+    setTimeout(() => {
+      adapter.capsules = [CAPSULE_BODY];
+    }, 400);
+
+    const count = await c.loadConversation({ maxWaitMs: 1200 });
+    expect(count).toBe(1);
+    expect(useStore.getState().sessions).toHaveLength(1);
+    c.stopWatching();
+  });
+
+  it('surfaces an error when no stemLM answers are on the page', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+
+    const count = await c.loadConversation({ maxWaitMs: 0 });
+    expect(count).toBe(0);
+    expect(useStore.getState().sessions).toHaveLength(0);
+    expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+});
+
 describe('StemController capture', () => {
   beforeEach(resetStore);
 

@@ -5,8 +5,8 @@ import { getController } from '@/src/content/controller';
 export function EmptyState() {
   const [status, setStatus] = useState<'idle' | 'none'>('idle');
 
-  function load() {
-    const n = getController()?.loadConversation() ?? 0;
+  async function load() {
+    const n = (await getController()?.loadConversation()) ?? 0;
     if (n === 0) setStatus('none');
   }
 

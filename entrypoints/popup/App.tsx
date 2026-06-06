@@ -33,7 +33,11 @@ export default function App() {
   async function send(type: StemLmMessage['type']) {
     setSendError(null);
     try {
-      await deliverStemLmMessage(type);
+      const res = await deliverStemLmMessage(type);
+      if (type === 'stemlm:load-conversation' && (res.loaded ?? 0) === 0) {
+        setSendError('No stemLM answers found in this chat. Use stemLM on a question first.');
+        return;
+      }
       window.close();
     } catch (err) {
       const code = err instanceof Error ? err.message : '';

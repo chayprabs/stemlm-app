@@ -13,7 +13,7 @@ import {
   buildRepairPrompt,
   normalizeFollowupSelection,
 } from '@/src/protocol/builder';
-import { parse, looksComplete } from '@/src/protocol/parser';
+import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
@@ -358,33 +358,66 @@ export class StemController {
   /**
    * Rebuild sessions from the chatbot's own visible history (no server). Used
    * when the panel was lost (tab closed) but the chat history remains.
+   *
+   * Polls briefly so Gemini has time to render history after a tab reload.
    */
-  loadConversation(): number {
+  async loadConversation(opt?: { maxWaitMs?: number }): Promise<number> {
+    const maxWaitMs = opt?.maxWaitMs ?? 2500;
+    const deadline = Date.now() + maxWaitMs;
+
+    while (true) {
+      const count = this.loadConversationOnce();
+      if (count > 0) return count;
+      if (Date.now() >= deadline) break;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    const store = useStore.getState();
+    store.setStatus(
+      'error',
+      'No stemLM answers found in this chat. Solve a question with stemLM first.',
+    );
+    this.startWatching();
+    return 0;
+  }
+
+  /** Single pass over the visible chat history. */
+  private loadConversationOnce(): number {
     const store = useStore.getState();
     const capsules = this.adapter.extractCapsules();
     const sessions: Session[] = [];
-    for (const text of capsules) {
-      if (!looksComplete(text)) continue;
-      const result = parse(text);
-      if (result.status !== 'empty' && result.capsule) {
-        this.rememberCaptured(text);
-        sessions.push({
-          id: makeId(),
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          platform: this.adapter.id,
-          question: result.capsule.meta.topic,
-          capsule: result.capsule,
-          reviewedStepIds: [],
-          raw: result.raw,
-        });
-      }
+    const seen = new Set<string>();
+
+    for (const candidate of capsules) {
+      const text = findCapsuleRaw(candidate) ?? candidate;
+      const key = text.trim();
+      if (!key.includes('@meta') || seen.has(key)) continue;
+
+      const result = parse(candidate);
+      const usable =
+        result.status !== 'empty' && result.capsule && result.capsule.steps.length > 0;
+      if (!usable) continue;
+
+      seen.add(key);
+      this.rememberCaptured(key);
+      sessions.push({
+        id: makeId(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        platform: this.adapter.id,
+        question: result.capsule!.meta.topic,
+        capsule: result.capsule!,
+        reviewedStepIds: [],
+        raw: result.raw,
+      });
     }
+
     if (sessions.length) {
       store.setSessions(sessions);
+      store.setStatus('ready');
       void trackEvent('conversation_loaded', { platform: this.adapter.id, count: sessions.length });
     }
-    // Keep watching for any further answers.
+
     this.startWatching();
     return sessions.length;
   }

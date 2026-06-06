@@ -264,6 +264,23 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
           if (text.includes('@meta')) capsules.push(text);
         }
       }
+
+      // Last resort: scan the conversation container for any stemLM code blocks.
+      if (capsules.length === 0) {
+        const roots = allMatches([...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS]);
+        const seen = new Set(capsules);
+        for (const root of roots.length ? roots : [document.body]) {
+          const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], root));
+          for (const code of codes) {
+            const text = code.textContent ?? '';
+            if (text.includes('@meta') && !seen.has(text)) {
+              seen.add(text);
+              capsules.push(text);
+            }
+          }
+        }
+      }
+
       return capsules;
     },
 

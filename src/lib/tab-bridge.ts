@@ -54,22 +54,32 @@ function waitForTabLoad(tabId: number, timeoutMs = 20000): Promise<void> {
   });
 }
 
-async function sendStemLmMessage(tabId: number, message: StemLmMessage): Promise<void> {
+export interface StemLmDeliveryResult {
+  ok?: boolean;
+  loaded?: number;
+}
+
+async function sendStemLmMessage(
+  tabId: number,
+  message: StemLmMessage,
+): Promise<StemLmDeliveryResult> {
   const res = await browser.tabs.sendMessage(tabId, message);
   if (res && typeof res === 'object' && (res as { ok?: boolean }).ok === false) {
     throw new Error('content script rejected message');
   }
+  return (res as StemLmDeliveryResult) ?? { ok: true };
 }
 
 /** Send a stemLM action to the active Gemini tab, reloading once if needed. */
-export async function deliverStemLmMessage(type: StemLmMessage['type']): Promise<void> {
+export async function deliverStemLmMessage(
+  type: StemLmMessage['type'],
+): Promise<StemLmDeliveryResult> {
   const tab = await getActiveTab();
   if (tab?.id == null) throw new Error('no-active-tab');
   if (!isGeminiUrl(tab.url)) throw new Error('not-gemini');
 
   try {
-    await sendStemLmMessage(tab.id, { type });
-    return;
+    return await sendStemLmMessage(tab.id, { type });
   } catch {
     /* content script not connected — reload and let it consume the pending action */
   }
@@ -79,8 +89,9 @@ export async function deliverStemLmMessage(type: StemLmMessage['type']): Promise
   await waitForTabLoad(tab.id);
 
   try {
-    await sendStemLmMessage(tab.id, { type });
+    return await sendStemLmMessage(tab.id, { type });
   } catch {
-    /* Pending action on content-script init will open the panel if this races. */
+    /* Pending action on content-script init handles open/load if this races. */
+    return { ok: true };
   }
 }

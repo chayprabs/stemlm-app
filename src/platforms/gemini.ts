@@ -53,9 +53,19 @@ const config: AdapterConfig = {
   assistant: [
     'model-response',
     'message-content.model-response-text',
+    'message-content',
     'div.model-response-text',
+    'div[class*="model-response"]',
+    '[data-message-author-role="model"]',
   ],
-  codeBlock: ['code-block pre code', 'code-block pre', 'pre code', 'pre'],
+  codeBlock: [
+    'code-block pre code',
+    'code-block pre',
+    'code-block code',
+    'code-block',
+    'pre code',
+    'pre',
+  ],
   streaming: [
     'button[aria-label*="Stop" i]',
     '.stop-icon',
