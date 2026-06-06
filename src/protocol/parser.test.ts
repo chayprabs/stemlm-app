@@ -221,8 +221,8 @@ describe('parse (half-wave diode rectifier capsule)', () => {
     expect(result.capsule?.meta.topic).toBe('Half-wave diode rectifier');
   });
 
-  it('parses two steps', () => {
-    expect(result.capsule!.steps).toHaveLength(2);
+  it('parses three steps', () => {
+    expect(result.capsule!.steps).toHaveLength(3);
   });
 
   it('step 1 has the diode triangle-line symbol', () => {
@@ -239,6 +239,13 @@ describe('parse (half-wave diode rectifier capsule)', () => {
     expect(s.title).toBe('Sketch the rectified output waveform');
     expect(s.diagram?.content).toContain('<path');
     expect(s.diagram?.content).toContain('5V');
+  });
+
+  it('step 3 computes peak current and average voltage', () => {
+    const s = result.capsule!.steps[2]!;
+    expect(s.title).toContain('peak');
+    expect(s.formula).toMatch(/5.*mA|V_p/);
+    expect(s.formula).toContain('\\pi');
   });
 
   it('solution includes average voltage', () => {

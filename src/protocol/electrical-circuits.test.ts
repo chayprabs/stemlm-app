@@ -1,8 +1,129 @@
 import { describe, it, expect } from 'vitest';
 import { parse, parseCapsule } from './parser';
-import { THEVENIN_ELECTRICAL } from './__fixtures__';
-import { NODE_VOLTAGE_CIRCUIT, NV_VERIFIED } from './__fixtures-electrical';
+import {
+  THEVENIN_ELECTRICAL,
+  RLC_AC_IMPEDANCE,
+  OPAMP_NONINVERTING,
+  DIODE_HALFWAVE_RECTIFIER,
+} from './__fixtures__';
+import {
+  SERIES_PARALLEL_CIRCUIT,
+  VERIFIED,
+  NODE_VOLTAGE_CIRCUIT,
+  NV_VERIFIED,
+} from './__fixtures-electrical';
 import { sanitizeSvg, extractSvg } from '@/src/lib/sanitize';
+import { scoreRaw } from './score';
+import type { Diagram } from './types';
+
+function svgParses(svg: string): boolean {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  return !doc.querySelector('parsererror') && doc.documentElement.tagName.toLowerCase() === 'svg';
+}
+
+function assertDiagramSurvivesPipeline(diagram: Diagram | undefined): void {
+  expect(diagram).toBeTruthy();
+  const clean = sanitizeSvg(extractSvg(diagram!.content));
+  expect(clean).toContain('<svg');
+  expect(clean.length).toBeGreaterThan(40);
+  expect(svgParses(clean)).toBe(true);
+}
+
+// ---------------------------------------------------------------------------
+// 0. Series-parallel resistor network (KVL/KCL) — R18 benchmark
+// ---------------------------------------------------------------------------
+
+describe('Series-parallel circuit (parse)', () => {
+  const result = parse(SERIES_PARALLEL_CIRCUIT);
+
+  it('returns ok status with no warnings', () => {
+    expect(result.status).toBe('ok');
+    expect(result.warningCodes).toHaveLength(0);
+  });
+
+  it('parses Electrical subject and topic', () => {
+    expect(result.capsule?.meta.subject).toBe('Electrical');
+    expect(result.capsule?.meta.topic).toContain('Series-parallel');
+  });
+
+  it('has six progressive steps with SVG diagrams', () => {
+    expect(result.capsule?.steps).toHaveLength(VERIFIED.stepCount);
+    for (const step of result.capsule!.steps) {
+      expect(step.diagram?.type).toBe('svg');
+      expect(step.diagram?.content).toContain('<svg');
+    }
+  });
+
+  it('step titles follow the reduction workflow', () => {
+    const titles = result.capsule!.steps.map((s) => s.title);
+    expect(titles[0]).toContain('Label');
+    expect(titles[1]).toContain('parallel');
+    expect(titles[2]).toContain('parallel equivalent');
+    expect(titles[3]).toContain('series');
+    expect(titles[4]).toContain('current');
+    expect(titles[5]).toMatch(/KVL|Kirchhoff/i);
+  });
+});
+
+describe('Series-parallel circuit (math accuracy)', () => {
+  const result = parse(SERIES_PARALLEL_CIRCUIT);
+  const steps = result.capsule!.steps;
+  const allText = steps.map((s) => [s.formula, s.body, s.takeaway].join(' ')).join(' ');
+
+  it('computes R_parallel = 5 Ω', () => {
+    expect(steps[2]!.formula).toContain('5');
+    expect(allText).toMatch(/5\s*\\,?\\Omega|R_\{\\parallel\}\s*=\s*5/);
+  });
+
+  it('computes R_total = 9 Ω', () => {
+    expect(steps[3]!.formula).toContain('9');
+    expect(VERIFIED.R_total).toBe(VERIFIED.R1 + VERIFIED.R_parallel);
+  });
+
+  it('computes I_R1 = 4/3 A', () => {
+    expect(steps[4]!.formula).toMatch(/4\/3|\\frac\{4\}\{3\}/);
+    expect(VERIFIED.I_R1).toBeCloseTo(VERIFIED.V_source / VERIFIED.R_total, 6);
+  });
+
+  it('KVL check: V_R1 + V_parallel = 12 V', () => {
+    expect(VERIFIED.V_R1 + VERIFIED.V_parallel).toBeCloseTo(VERIFIED.V_source, 6);
+    expect(steps[5]!.body).toMatch(/12/);
+  });
+
+  it('solution states the final current', () => {
+    expect(result.capsule!.solution).toMatch(/4\/3|1\.33/);
+  });
+});
+
+describe('Series-parallel circuit (SVG pipeline)', () => {
+  const result = parse(SERIES_PARALLEL_CIRCUIT);
+
+  it('every step diagram survives sanitize → valid XML', () => {
+    for (const step of result.capsule!.steps) {
+      assertDiagramSurvivesPipeline(step.diagram);
+    }
+  });
+
+  it('step 1 retains resistor zigzags, voltage source, and labels', () => {
+    const clean = sanitizeSvg(extractSvg(result.capsule!.steps[0]!.diagram!.content));
+    expect(clean).toContain('polyline');
+    expect(clean).toContain('circle');
+    expect(clean).toContain('12V');
+    expect(clean).toContain('R1');
+  });
+
+  it('step 2 highlights parallel branches (dashed rect)', () => {
+    const raw = result.capsule!.steps[1]!.diagram!.content;
+    expect(raw).toMatch(/stroke-dasharray|dasharray/);
+    assertDiagramSurvivesPipeline(result.capsule!.steps[1]!.diagram);
+  });
+
+  it('step 5 shows current arrow with marker-end', () => {
+    const clean = sanitizeSvg(extractSvg(result.capsule!.steps[4]!.diagram!.content));
+    expect(clean).toContain('marker');
+    expect(clean).toMatch(/4\/3|marker-end/);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // 1. Thevenin capsule fixture — parse & structural validation
@@ -636,4 +757,32 @@ describe('Sanitize pipeline: marker edge cases', () => {
     expect(out).toContain('text-anchor');
     expect(out).toContain('V_N1');
   });
+});
+
+// ---------------------------------------------------------------------------
+// 5. End-to-end scoreRaw gate — all five EE benchmark fixtures
+// ---------------------------------------------------------------------------
+
+const EE_FIXTURES = [
+  { name: 'series-parallel', raw: SERIES_PARALLEL_CIRCUIT },
+  { name: 'Thevenin', raw: THEVENIN_ELECTRICAL },
+  { name: 'node-voltage', raw: NODE_VOLTAGE_CIRCUIT },
+  { name: 'RLC AC impedance', raw: RLC_AC_IMPEDANCE },
+  { name: 'op-amp non-inverting', raw: OPAMP_NONINVERTING },
+  { name: 'diode half-wave rectifier', raw: DIODE_HALFWAVE_RECTIFIER },
+] as const;
+
+describe('Electrical fixtures pass scoreRaw gate', () => {
+  for (const { name, raw } of EE_FIXTURES) {
+    it(`${name}: parse_ok, clean_fence, svg_valid`, async () => {
+      const score = await scoreRaw(raw);
+      expect(score.parse_ok, `${name} parse_ok`).toBe(1);
+      expect(score.clean_fence, `${name} clean_fence`).toBe(1);
+      expect(score.step_count, `${name} step_count`).toBeGreaterThanOrEqual(3);
+      if (score.svg_valid !== null) {
+        expect(score.svg_valid, `${name} svg_valid`).toBe(1);
+      }
+      expect(score.error_code, `${name} error_code`).toBeUndefined();
+    });
+  }
 });
