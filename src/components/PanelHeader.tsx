@@ -11,7 +11,6 @@ import {
   IconPdf,
   IconSave,
   IconSun,
-  StemMark,
 } from './icons';
 
 export function PanelHeader({
@@ -44,9 +43,6 @@ export function PanelHeader({
     <header className="slm-header">
       <div className="slm-header-top">
         <div className="slm-brand">
-          <span className="slm-brand-mark" aria-hidden="true">
-            <StemMark width={13} height={13} />
-          </span>
           <BrandWordmark className="slm-brand-name" />
         </div>
         <div className="slm-header-actions">
