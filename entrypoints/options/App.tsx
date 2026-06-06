@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, getSettings, setSettings, type Settings } from '@/src
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
+import { StemMark } from '@/src/components/icons';
 
 function Toggle({
   checked,
@@ -60,6 +61,9 @@ export default function App() {
   return (
     <div className="slm-options">
       <header className="slm-options-head">
+        <span className="slm-brand-mark" aria-hidden="true">
+          <StemMark width={16} height={16} />
+        </span>
         <h1>
           <BrandWordmark /> Settings
         </h1>

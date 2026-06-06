@@ -5,7 +5,7 @@ import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import type { Session } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { IconLayers, IconBook } from '@/src/components/icons';
+import { IconLayers, IconBook, StemMark } from '@/src/components/icons';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
@@ -72,11 +72,17 @@ export default function App() {
 
   return (
     <div className="slm-popup">
-      <div className="slm-popup-head">
-        <h1>
-          <BrandWordmark />
-        </h1>
-      </div>
+      <header className="slm-popup-head">
+        <span className="slm-brand-mark" aria-hidden="true">
+          <StemMark width={14} height={14} />
+        </span>
+        <div className="slm-popup-head-text">
+          <h1>
+            <BrandWordmark />
+          </h1>
+          <p className="slm-popup-tagline">Structured STEM study overlay</p>
+        </div>
+      </header>
       <p className="slm-popup-sub">
         Structured STEM study overlay for Gemini. Attaches a small protocol file instead of pasting
         long instructions into your prompt.

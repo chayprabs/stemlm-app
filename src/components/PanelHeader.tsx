@@ -3,7 +3,16 @@ import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { frameworkKey } from '@/src/lib/framework-key';
 import { BrandWordmark } from './BrandWordmark';
-import { IconBook, IconClose, IconLayers, IconMoon, IconPdf, IconSave, IconSun } from './icons';
+import {
+  IconBook,
+  IconClose,
+  IconLayers,
+  IconMoon,
+  IconPdf,
+  IconSave,
+  IconSun,
+  StemMark,
+} from './icons';
 
 export function PanelHeader({
   session,
@@ -34,6 +43,9 @@ export function PanelHeader({
     <header className="slm-header">
       <div className="slm-header-top">
         <div className="slm-brand">
+          <span className="slm-brand-mark" aria-hidden="true">
+            <StemMark width={13} height={13} />
+          </span>
           <BrandWordmark className="slm-brand-name" />
         </div>
         <span className="slm-panel-label">SIDE PANEL</span>

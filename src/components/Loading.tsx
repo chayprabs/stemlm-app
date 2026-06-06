@@ -6,11 +6,11 @@ export function Loading({ subject }: { subject?: string }) {
     <div className="slm-loading">
       <div className="slm-loading-head">
         <motion.span
-          className="slm-loading-spark"
-          animate={{ opacity: [0.5, 1, 0.5] }}
+          className="slm-loading-mark"
+          animate={{ opacity: [0.55, 1, 0.55] }}
           transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
         >
-          <StemMark />
+          <StemMark width={16} height={16} />
         </motion.span>
         <div>
           <p className="slm-loading-title">Reading response</p>
