@@ -167,12 +167,20 @@ describe('buildFollowupPrompt', () => {
 
   it('quotes the selection and includes full core protocol + playbook for paste', () => {
     const prompt = buildFollowupPrompt(opts);
+    expect(prompt).toMatch(/^Ask your question here:/);
+    expect(prompt).toContain('stemLM follow-up context');
     expect(prompt).toContain('> Total resistance is R1 + R2');
     expect(prompt).toContain('Solve for current');
     expect(prompt).toContain('stemlm');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).toContain('ELECTRICAL');
     expect(prompt).toContain('stemLM instructions');
+    expect(prompt.indexOf('Ask your question here:')).toBeLessThan(
+      prompt.indexOf('stemLM follow-up context'),
+    );
+    expect(prompt.indexOf('stemLM follow-up context')).toBeLessThan(
+      prompt.indexOf('stemLM instructions'),
+    );
     expect(prompt).not.toContain('```stemlm');
     expect(prompt).not.toContain(PROTOCOL_FILENAME);
   });

@@ -10,7 +10,7 @@ import type { PlatformAdapter } from '@/src/platforms/types';
 import {
   buildInjectionAppendix,
   buildInjectionPrompt,
-  buildFollowupPrompt,
+  buildFollowupAskInChatPrompt,
   buildRepairPrompt,
   normalizeFollowupSelection,
 } from '@/src/protocol/builder';
@@ -134,7 +134,12 @@ export class StemController {
     }
 
     const variant = useStore.getState().settings.promptVariant;
-    const prompt = buildFollowupPrompt({ selection: normalized, stepTitle, subject, variant });
+    const prompt = buildFollowupAskInChatPrompt({
+      selection: normalized,
+      stepTitle,
+      subject,
+      variant,
+    });
     const ok = await this.insertVerifiedPrompt(prompt);
 
     if (!ok) {
@@ -147,6 +152,7 @@ export class StemController {
       return false;
     }
 
+    this.adapter.focusComposerQuestionSlot();
     this.lastQuestion = normalized;
     useStore.getState().setStatus('loading');
     this.armAnswerDetection();

@@ -70,6 +70,9 @@ class MockAdapter implements PlatformAdapter {
   composerHasAttachments() {
     return false;
   }
+  focusComposerQuestionSlot() {
+    /* noop */
+  }
 }
 
 function resetStore() {
@@ -179,6 +182,31 @@ describe('StemController.inject', () => {
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(false);
     expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+});
+
+describe('StemController.followUp', () => {
+  beforeEach(resetStore);
+
+  it('inserts a question slot above follow-up context and protocol', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    let focused = false;
+    adapter.focusComposerQuestionSlot = () => {
+      focused = true;
+    };
+
+    const ok = await c.followUp(
+      'Why is total resistance R1 + R2 here?',
+      'Combine series resistors',
+      'Electrical',
+    );
+    expect(ok).toBe(true);
+    expect(adapter.editorText).toMatch(/^Ask your question here:/);
+    expect(adapter.editorText).toContain('> Why is total resistance R1 + R2 here?');
+    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(focused).toBe(true);
     c.stopWatching();
   });
 });

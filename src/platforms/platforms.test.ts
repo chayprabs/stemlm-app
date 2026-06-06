@@ -9,7 +9,9 @@ import {
   getEditorTextOf,
   editorReflectsText,
   composerHasAttachments,
+  focusComposerQuestionSlot,
 } from './factory';
+import { buildFollowupAskInChatPrompt } from '@/src/protocol/builder';
 import { buildInjectionAppendix } from '@/src/protocol/builder';
 
 const CAPSULE_BODY = [
@@ -207,6 +209,19 @@ describe('setEditorText on textarea', () => {
     const ta = document.getElementById('t') as HTMLTextAreaElement;
     expect(setEditorText(ta, 'abc')).toBe(true);
     expect(getEditorTextOf(ta)).toBe('abc');
+  });
+
+  it('focuses the caret in the follow-up question slot', () => {
+    setBody('<textarea id="t"></textarea>');
+    const ta = document.getElementById('t') as HTMLTextAreaElement;
+    const prompt = buildFollowupAskInChatPrompt({
+      selection: 'Explain the sign of reactance',
+      subject: 'Electrical',
+    });
+    setEditorText(ta, prompt);
+    focusComposerQuestionSlot(ta);
+    expect(ta.selectionStart).toBeGreaterThan(0);
+    expect(ta.selectionStart).toBeLessThan(ta.value.indexOf('stemLM follow-up context'));
   });
 });
 

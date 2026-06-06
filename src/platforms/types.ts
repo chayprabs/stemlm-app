@@ -47,6 +47,9 @@ export interface PlatformAdapter {
   /** True when the composer has file/image attachments (e.g. a photo of a problem). */
   composerHasAttachments(): boolean;
 
+  /** Move focus into the follow-up "Ask your question here:" slot. */
+  focusComposerQuestionSlot(): void;
+
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;
 

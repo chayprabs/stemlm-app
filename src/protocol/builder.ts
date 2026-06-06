@@ -24,6 +24,11 @@ export { normalizeFollowupSelection };
 export const STEMLM_INSTRUCTIONS_SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 const SEP = STEMLM_INSTRUCTIONS_SEP;
 
+/** Blank lines after this label are where the student types their follow-up question. */
+export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
+
+const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
+
 export interface BuildOptions {
   /** 'Auto' => classify from the question; otherwise force this subject. */
   subject?: Subject | 'Auto';
@@ -127,23 +132,33 @@ function formatQuotedSelection(selection: string): string {
     .join('\n');
 }
 
-/** Composer text for follow-ups — pairs with an attached protocol file on Gemini. */
-export function buildFollowupComposerText(opt: FollowupOptions): string {
-  const subject = opt.subject ?? 'General';
+/** Dig-deeper context block (selection quote + instructions), without protocol. */
+export function buildFollowupContextBlock(opt: FollowupOptions): string {
   const selection = normalizeFollowupSelection(opt.selection);
   const context = opt.stepTitle?.trim()
     ? ` (from the step "${opt.stepTitle.trim()}")`
     : '';
   return [
+    FOLLOWUP_CONTEXT_HEADER,
     `Dig deeper into this specific part of your previous answer${context}:`,
     '',
     formatQuotedSelection(selection),
     '',
     'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.',
-    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
+    'Follow the stemLM protocol below exactly.',
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     'No prose outside the block.',
   ].join('\n');
+}
+
+/** Composer text for follow-ups — pairs with an attached protocol file on Gemini. */
+export function buildFollowupComposerText(opt: FollowupOptions): string {
+  const subject = opt.subject ?? 'General';
+  const block = buildFollowupContextBlock(opt);
+  return block.replace(
+    'Follow the stemLM protocol below exactly.',
+    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
+  );
 }
 
 /** File-attach follow-up payload (preferred on Gemini — same path as initial injection). */
@@ -161,16 +176,20 @@ export function buildFollowupPayload(opt: FollowupOptions): InjectionPayload {
 }
 
 /**
- * Full self-contained follow-up prompt for clipboard paste (includes core
- * protocol + playbook inline when file attach is unavailable).
+ * Ask-in-chat / clipboard follow-up prompt: question slot at the top, dig-deeper
+ * context in the middle, protocol appendix at the bottom.
  */
+export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
+  const subject = opt.subject ?? 'General';
+  const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
+  const context = buildFollowupContextBlock({ ...opt, subject, variant });
+  const appendix = `${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  return `${FOLLOWUP_QUESTION_SLOT}${context}${appendix}`;
+}
+
+/** @alias buildFollowupAskInChatPrompt */
 export function buildFollowupPrompt(opt: FollowupOptions): string {
-  const payload = buildFollowupPayload(opt);
-  const pasteIntro = payload.composerText.replace(
-    `Follow the attached ${PROTOCOL_FILENAME} exactly (${payload.subject}).`,
-    'Follow the stemLM protocol below exactly.',
-  );
-  return `${pasteIntro}${SEP}${payload.fileContent}`;
+  return buildFollowupAskInChatPrompt(opt);
 }
 
 export interface RepairPromptOptions {

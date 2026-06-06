@@ -98,6 +98,18 @@ function rebuildParagraphs(el: HTMLElement, text: string): void {
   el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
 }
 
+const FOLLOWUP_QUESTION_MARKER = 'Ask your question here:';
+
+function moveCursorToStart(el: HTMLElement): void {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 function moveCursorToEnd(el: HTMLElement): void {
   const sel = window.getSelection();
   if (!sel) return;
@@ -203,6 +215,33 @@ export function setEditorText(el: HTMLElement, text: string): boolean {
   return editorReflectsText(el, text);
 }
 
+/** Place the caret in the follow-up question slot (after "Ask your question here:"). */
+export function focusComposerQuestionSlot(editor: HTMLElement | null): void {
+  if (!editor) return;
+  editor.focus();
+
+  if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+    const input = editor as HTMLTextAreaElement | HTMLInputElement;
+    const value = input.value;
+    const idx = value.indexOf(FOLLOWUP_QUESTION_MARKER);
+    let pos = idx === -1 ? 0 : idx + FOLLOWUP_QUESTION_MARKER.length;
+    while (pos < value.length && (value[pos] === '\n' || value[pos] === '\r')) pos++;
+    input.setSelectionRange(pos, pos);
+    return;
+  }
+
+  const text = getEditorTextOf(editor);
+  const idx = text.indexOf(FOLLOWUP_QUESTION_MARKER);
+  if (idx === -1) {
+    moveCursorToStart(editor);
+    return;
+  }
+  let offset = idx + FOLLOWUP_QUESTION_MARKER.length;
+  while (offset < text.length && text[offset] === '\n') offset++;
+  // Best-effort: focus start of editor so the blank lines under the label are reachable.
+  moveCursorToStart(editor);
+}
+
 export function getEditorTextOf(el: HTMLElement | null): string {
   if (!el) return '';
   if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
@@ -241,6 +280,10 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
 
     composerHasAttachments() {
       return composerHasAttachments(firstMatch(config.editor));
+    },
+
+    focusComposerQuestionSlot() {
+      focusComposerQuestionSlot(firstMatch(config.editor));
     },
 
     getComposerBox() {
