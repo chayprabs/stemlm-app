@@ -50,8 +50,8 @@ afterEach(() => {
   useStore.getState().resetSessions();
 });
 
-describe('Panel diagram well', () => {
-  it('shows the active step diagram instead of the first session diagram', async () => {
+describe('Panel step diagram', () => {
+  it('shows the active step diagram inside the step card', async () => {
     const session = buildTwoDiagramSession();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -77,8 +77,10 @@ describe('Panel diagram well', () => {
     });
 
     const html = container.innerHTML;
+    expect(html).toContain('slm-step-diagram');
     expect(html).toContain('second-diagram');
     expect(html).not.toContain('first-diagram');
+    expect(html).not.toContain('slm-diagram-well');
 
     act(() => {
       root?.unmount();

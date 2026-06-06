@@ -2,7 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DiagramRenderer } from './DiagramRenderer';
-import { DiagramWell } from './DiagramWell';
 import { parseCapsule } from '@/src/protocol/parser';
 import { MECHANICAL_AXIAL_STRESS_BAR } from '@/src/protocol/__fixtures-visual-subjects';
 
@@ -39,10 +38,14 @@ describe('DiagramRenderer in shadow DOM', () => {
     root = undefined;
   });
 
-  it('renders fixture SVG with non-zero size in DiagramWell (dark theme)', async () => {
+  it('renders fixture SVG inside the step diagram box (dark theme)', async () => {
     const parsed = parseCapsule(MECHANICAL_AXIAL_STRESS_BAR);
     const diagram = parsed.capsule!.steps[0]!.diagram!;
-    const mounted = mountInShadow(<DiagramWell diagram={diagram} theme="dark" />);
+    const mounted = mountInShadow(
+      <div className="slm-step-diagram">
+        <DiagramRenderer diagram={diagram} theme="dark" />
+      </div>,
+    );
     host = mounted.host;
     root = mounted.root;
 

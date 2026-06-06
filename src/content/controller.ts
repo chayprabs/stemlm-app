@@ -18,6 +18,7 @@ import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
+import { cleanSessionQuestion } from '@/src/lib/session-question';
 
 /** Quiet period after the last DOM mutation before we inspect the page. */
 const DEBOUNCE_MS = 350;
@@ -360,7 +361,7 @@ export class StemController {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       platform: this.adapter.id,
-      question: question || result.capsule.meta.topic,
+      question: cleanSessionQuestion(question) || result.capsule.meta.topic,
       capsule: result.capsule,
       reviewedStepIds: [],
       raw: result.raw,

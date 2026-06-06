@@ -12,15 +12,12 @@ export function StepCard({
   index,
   theme,
   reviewed,
-  hideDiagram,
   onToggleReviewed,
 }: {
   session: Session;
   index: number;
   theme: ResolvedTheme;
   reviewed: boolean;
-  /** When diagram is shown in the panel-level well. */
-  hideDiagram?: boolean;
   onToggleReviewed: () => void;
 }) {
   const step = session.capsule.steps[index];
@@ -53,16 +50,17 @@ export function StepCard({
         <h2 className="slm-card-title">{step.title}</h2>
       </header>
 
-      {step.diagram && !hideDiagram && (
-        <div className="slm-diagram-hero">
-          <DiagramRenderer diagram={step.diagram} theme={theme} />
-        </div>
-      )}
-
       {step.formula && (
         <div className="slm-formula">
           <span className="slm-formula-label">Formula</span>
           <MathMarkdown content={step.formula} />
+        </div>
+      )}
+
+      {step.diagram && (
+        <div className="slm-step-diagram">
+          <span className="slm-step-diagram-label">Diagram</span>
+          <DiagramRenderer diagram={step.diagram} theme={theme} />
         </div>
       )}
 

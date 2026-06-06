@@ -396,28 +396,12 @@
   display: flex;
   flex-direction: column;
 }
-.slm-diagram-well {
-  flex: 0 0 auto;
-  min-height: 110px;
-  padding: 0.65rem 1rem;
-  background: var(--slm-bg-muted);
-  border-bottom: 0.5px solid var(--slm-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.slm-diagram-well .slm-diagram {
-  width: 100%;
-  background: transparent;
-  padding: 0;
-}
-.slm-diagram-well:not(:has(.slm-diagram-svg svg)):not(:has(.slm-diagram--failed)) {
-  min-height: 0;
-  padding-block: 0;
-}
 .slm-diagram-svg {
   width: 100%;
   line-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 /* ---------- vertical step rail (numbered circles) ---------- */
 .slm-step-rail {
@@ -665,12 +649,41 @@
   border-color: var(--slm-accent);
   color: var(--slm-accent);
 }
-.slm-diagram-hero {
-  margin-bottom: 0.65rem;
-  padding: 0.65rem;
-  border-radius: var(--radius-sm);
-  background: var(--slm-bg-muted);
+.slm-step-diagram {
+  margin: 0.5rem 0 0.65rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--slm-bg-subtle);
   border: 0.5px solid var(--slm-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.slm-step-diagram-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slm-fg-subtle);
+  margin-bottom: 0.35rem;
+}
+.slm-step-diagram .slm-diagram {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  width: 100%;
+  max-height: min(220px, 34vh);
+}
+.slm-step-diagram .slm-diagram-svg {
+  max-height: min(200px, 32vh);
+  overflow: hidden;
+}
+.slm-step-diagram .slm-diagram-svg svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(200px, 32vh);
 }
 .slm-formula {
   margin: 0.5rem 0 0.65rem;
@@ -819,12 +832,23 @@
 }
 .slm-diagram-svg svg {
   display: block;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   height: auto;
 }
+.slm-diagram-svg svg text,
+.slm-diagram-svg svg tspan {
+  font-family: var(--font-sans);
+  paint-order: stroke fill;
+  stroke: var(--slm-bg-subtle);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 .slm-diagram--large {
   padding: 0.75rem;
+}
+.slm-diagram--large .slm-diagram-svg svg {
+  max-height: min(280px, 40vh);
 }
 .slm-diagram figcaption {
   margin-top: 0.35rem;

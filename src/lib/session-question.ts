@@ -8,6 +8,11 @@ const FULL_QUESTION_MAX = 280;
 /** Hard cap for compressed one-line headings. */
 const COMPACT_MAX = 200;
 
+/** Remove stemLM composer noise from a stored question string. */
+export function cleanSessionQuestion(text: string): string {
+  return stripInjectedNoise(text);
+}
+
 function stripInjectedNoise(text: string): string {
   const markers = ['--- stemLM', 'stemLM instructions', 'Ask your question here:'];
   let cut = text.length;

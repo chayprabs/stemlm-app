@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
-import { DiagramWell } from './DiagramWell';
 import { StepList } from './StepList';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
@@ -88,9 +87,6 @@ export function Panel() {
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
   const reviewedCount = session?.reviewedStepIds.length ?? 0;
-  const panelDiagram = step?.diagram;
-  const hideStepDiagram = !!panelDiagram;
-
   async function onSave() {
     if (!session) return;
     try {
@@ -205,11 +201,6 @@ export function Panel() {
 
         {session && view === 'steps' && (
           <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
-            <DiagramWell
-              key={step?.id ?? activeStepIndex}
-              diagram={panelDiagram}
-              theme={theme}
-            />
             <div className="slm-steps-layout">
               <StepList
                 steps={session.capsule.steps}
@@ -225,7 +216,6 @@ export function Panel() {
                     session={session}
                     index={activeStepIndex}
                     theme={theme}
-                    hideDiagram={hideStepDiagram}
                     reviewed={session.reviewedStepIds.includes(step.id)}
                     onToggleReviewed={() => {
                       toggleReviewed(step.id);
