@@ -89,10 +89,12 @@ export const IconCopy = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+/** Classic floppy-disk save — distinct tray + label slot so it reads at 16px. */
 export const IconSave = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-    <path d="M17 21v-8H7v8M7 3v5h8" />
+    <path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8L15.2 3Z" />
+    <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+    <path d="M7 3v4a1 1 0 0 0 1 1h7" />
   </svg>
 );
 
