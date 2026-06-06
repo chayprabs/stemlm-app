@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 // Registers \ce{} (chemistry) on the shared KaTeX instance used by rehype-katex.
 import 'katex/contrib/mhchem';
+import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 
 /**
  * Renders markdown with embedded LaTeX (KaTeX) and GitHub-flavoured markdown.
@@ -37,7 +38,7 @@ export const MathMarkdown = memo(function MathMarkdown({ content, className }: M
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         urlTransform={safeUrl}
       >
-        {normalizeMathDelimiters(content)}
+        {normalizeMathDelimiters(stripProtocolMarkers(content))}
       </Markdown>
     </div>
   );

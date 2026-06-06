@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IconCopy, IconReply } from './icons';
 import { getController } from '@/src/content/controller';
+import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { buildFollowupPrompt } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
@@ -20,6 +21,7 @@ export function FollowupBar({
 }) {
   const [copied, setCopied] = useState(false);
   const promptVariant = useStore((s) => s.settings.promptVariant);
+  const displayFollowup = stripProtocolMarkers(followup);
 
   function buildPrompt() {
     return buildFollowupPrompt({
@@ -50,7 +52,7 @@ export function FollowupBar({
   return (
     <div className="slm-followup">
       <span className="slm-followup-label">Dig deeper</span>
-      <p className="slm-followup-text">{followup}</p>
+      <p className="slm-followup-text">{displayFollowup}</p>
       <div className="slm-followup-actions">
         <button type="button" className="slm-btn slm-btn-ghost" onClick={copy}>
           <IconCopy /> {copied ? 'Copied' : 'Copy prompt'}

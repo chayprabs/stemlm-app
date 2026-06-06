@@ -384,4 +384,31 @@ describe('atomic step guidance', () => {
     expect(r.capsule?.steps[0]!.diagram?.content).toContain('range-diagram');
     expect(r.capsule?.steps[0]!.takeaway).not.toContain('@takeawayend');
   });
+
+  it('strips inline @formulaend on the same line as the formula', () => {
+    const r = parseCapsule(
+      [
+        '@meta',
+        'subject: Physics',
+        'topic: Range',
+        '@endmeta',
+        '@step',
+        'title: Formula',
+        '@formula',
+        '$$R = \\frac{u^2\\sin(2\\theta)}{g}$$ @formulaend',
+        '@body',
+        'Text @bodyend',
+        '@endstep',
+        '@solution',
+        's',
+        '@endsolution',
+        '@end',
+      ].join('\n'),
+    );
+    const step = r.capsule!.steps[0]!;
+    expect(step.formula).toBe('$$R = \\frac{u^2\\sin(2\\theta)}{g}$$');
+    expect(step.body).toBe('Text');
+    expect(step.formula).not.toContain('@');
+    expect(step.body).not.toContain('@');
+  });
 });

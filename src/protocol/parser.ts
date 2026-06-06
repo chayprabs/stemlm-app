@@ -26,6 +26,11 @@ import {
   STEP_COUNT_MAX,
   STEP_COUNT_MIN,
 } from './protocol';
+import {
+  ALT_END_MARKERS,
+  normalizeCapsuleText,
+  stripProtocolMarkers,
+} from './strip-markers';
 
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
@@ -56,30 +61,6 @@ const STRUCTURAL_MARKERS = new Set([
   '@solutionend',
   CAPSULE_END_TOKEN,
 ]);
-
-/** Models sometimes emit @bodyend instead of @endbody — normalize before parsing. */
-const ALT_END_MARKERS: Record<string, string> = {
-  '@bodyend': '@endbody',
-  '@formulaend': '@endformula',
-  '@diagramend': '@enddiagram',
-  '@takeawayend': '@endtakeaway',
-  '@stepend': '@endstep',
-  '@metaend': '@endmeta',
-  '@solutionend': '@endsolution',
-  '@quickcheckend': '@endquickcheck',
-  '@followupend': '@endfollowup',
-};
-
-function normalizeCapsuleText(text: string): string {
-  return text
-    .split('\n')
-    .map((line) => {
-      const t = line.trim();
-      const canonical = ALT_END_MARKERS[t];
-      return canonical ? line.replace(t, canonical) : line;
-    })
-    .join('\n');
-}
 
 function addWarning(
   warnings: string[],
@@ -169,21 +150,44 @@ interface Cursor {
   i: number;
 }
 
+function endMarkersFor(canonical: string): string[] {
+  const alts = Object.entries(ALT_END_MARKERS)
+    .filter(([, v]) => v === canonical)
+    .map(([k]) => k);
+  return [canonical, ...alts];
+}
+
+/** Split a line when an end marker is glued to content on the same line. */
+function splitInlineEndMarker(line: string, endMarker: string): { text: string; closed: boolean } {
+  const markers = endMarkersFor(endMarker);
+  let cut = -1;
+  for (const marker of markers) {
+    const idx = line.indexOf(marker);
+    if (idx !== -1 && (cut === -1 || idx < cut)) cut = idx;
+  }
+  if (cut === -1) return { text: line, closed: false };
+  return { text: line.slice(0, cut).trimEnd(), closed: true };
+}
+
 /** Read lines until `endMarker` or any structural marker (tolerant close). */
 function readBlock(c: Cursor, endMarker: string): string {
   const out: string[] = [];
+  const markers = endMarkersFor(endMarker);
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
-    if (t === endMarker) {
+    if (markers.includes(t)) {
       c.i++; // consume terminator
       break;
     }
     if (isStructural(line)) break; // implicit close, leave marker for caller
-    out.push(line);
+
+    const inline = splitInlineEndMarker(line, endMarker);
+    if (inline.text) out.push(inline.text);
     c.i++;
+    if (inline.closed) break;
   }
-  return out.join('\n').trim();
+  return stripProtocolMarkers(out.join('\n').trim());
 }
 
 /**
@@ -264,6 +268,20 @@ function extractSolutionDiagrams(body: string): { text: string; diagrams: Diagra
     i++;
   }
   return { text: outLines.join('\n').trim(), diagrams };
+}
+
+function sanitizeStepFields(step: Step): void {
+  step.title = stripProtocolMarkers(step.title);
+  step.body = stripProtocolMarkers(step.body);
+  if (step.formula) step.formula = stripProtocolMarkers(step.formula);
+  if (step.takeaway) step.takeaway = stripProtocolMarkers(step.takeaway);
+  if (step.followup) step.followup = stripProtocolMarkers(step.followup);
+  if (step.quickCheck) {
+    step.quickCheck = {
+      question: stripProtocolMarkers(step.quickCheck.question),
+      answer: stripProtocolMarkers(step.quickCheck.answer),
+    };
+  }
 }
 
 function isMalformedDiagram(diagram: Diagram): boolean {
@@ -373,6 +391,7 @@ function parseStep(
     step.title = `Step ${index}`;
     addWarning(warnings, warningCodes, 'missing_step_title', `Step ${index} had no title.`);
   }
+  sanitizeStepFields(step);
   return step;
 }
 
@@ -512,9 +531,9 @@ export function parseCapsule(capsuleText: string): ParseResult {
   }
 
   const capsule: Capsule = {
-    meta: { version, subject, topic },
+    meta: { version, subject, topic: stripProtocolMarkers(topic) },
     steps,
-    solution,
+    solution: stripProtocolMarkers(solution),
     solutionDiagrams,
   };
 

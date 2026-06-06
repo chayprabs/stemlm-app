@@ -42,4 +42,12 @@ describe('MathMarkdown', () => {
     const html = renderToStaticMarkup(<MathMarkdown content="**bold**" />);
     expect(html).toContain('slm-prose');
   });
+
+  it('strips leaked @formulaend from rendered math', () => {
+    const html = renderToStaticMarkup(
+      <MathMarkdown content={'$$R = \\frac{u^2}{g}$$ @formulaend'} />,
+    );
+    expect(html).not.toContain('@formulaend');
+    expect(html).not.toContain('@endformula');
+  });
 });
