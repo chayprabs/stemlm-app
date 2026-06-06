@@ -43,7 +43,7 @@ RULES:
 - title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @formula/@diagram optional per step, but diagram often.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
 - Each @diagram = that step's evolving state (circuit reduced so far, ray after this surface, structure after this op), not one final picture.
-- svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/text; arrowheads as small filled <polygon>; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/physical/chem/bio/geometry.
+- svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; arrowheads via <defs><marker>…<polygon/></marker></defs> with marker-end="url(#id)"; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/physical/chem/bio/geometry/EE circuits.
 - mermaid: CS flow/sequence/state only; valid `graph TD`/`sequenceDiagram`; quote every node label — A["v = u+at"] — no ( ) { } ` in labels.
 
 Now produce the capsule.

@@ -5,6 +5,8 @@ import {
   TOLERANT_PARTIAL,
   NO_CAPSULE,
   NOISY_FENCED,
+  OPAMP_NONINVERTING,
+  DIODE_HALFWAVE_RECTIFIER,
 } from './__fixtures__';
 
 describe('findCapsuleRaw', () => {
@@ -152,6 +154,96 @@ describe('parseCapsule subject normalization', () => {
   it('maps aliases to canonical subjects', () => {
     const r = parseCapsule('@meta\nsubject: computer science\ntopic: x\n@endmeta\n@step\ntitle: a\n@body\nb\n@endstep\n@end');
     expect(r.capsule?.meta.subject).toBe('CS');
+  });
+});
+
+describe('parse (op-amp non-inverting capsule)', () => {
+  const result = parse(OPAMP_NONINVERTING);
+
+  it('returns ok status', () => {
+    expect(result.status).toBe('ok');
+  });
+
+  it('classifies as Electrical with correct topic', () => {
+    expect(result.capsule?.meta.subject).toBe('Electrical');
+    expect(result.capsule?.meta.topic).toBe('Non-inverting op-amp gain');
+  });
+
+  it('parses all six steps', () => {
+    expect(result.capsule!.steps).toHaveLength(6);
+  });
+
+  it('step 1 draws the op-amp triangle symbol', () => {
+    const s = result.capsule!.steps[0]!;
+    expect(s.title).toBe('Draw the op-amp triangle symbol');
+    expect(s.diagram?.type).toBe('svg');
+    expect(s.diagram?.content).toContain('<polygon');
+    expect(s.diagram?.content).toContain('<svg');
+  });
+
+  it('step 3 has the feedback resistor network diagram', () => {
+    const s = result.capsule!.steps[2]!;
+    expect(s.title).toBe('Attach the feedback resistor network');
+    expect(s.diagram?.content).toContain('Rf=10k');
+    expect(s.diagram?.content).toContain('Rg=2k');
+    expect(s.diagram?.content).toContain('<rect');
+  });
+
+  it('step 4 invokes the virtual short', () => {
+    const s = result.capsule!.steps[3]!;
+    expect(s.title).toBe('Invoke the virtual short');
+    expect(s.formula).toContain('V_+');
+    expect(s.body).toContain('feedback forces');
+    expect(s.takeaway).toContain('Virtual short');
+  });
+
+  it('step 6 computes Vout = 6 V', () => {
+    const s = result.capsule!.steps[5]!;
+    expect(s.formula).toContain('6');
+    expect(s.body).toContain('6\\,\\text{V}');
+  });
+
+  it('solution references the gain formula', () => {
+    expect(result.capsule!.solution).toContain('V_{\\text{out}}');
+    expect(result.capsule!.solution).toContain('virtual-short');
+  });
+});
+
+describe('parse (half-wave diode rectifier capsule)', () => {
+  const result = parse(DIODE_HALFWAVE_RECTIFIER);
+
+  it('returns ok status', () => {
+    expect(result.status).toBe('ok');
+  });
+
+  it('classifies as Electrical', () => {
+    expect(result.capsule?.meta.subject).toBe('Electrical');
+    expect(result.capsule?.meta.topic).toBe('Half-wave diode rectifier');
+  });
+
+  it('parses two steps', () => {
+    expect(result.capsule!.steps).toHaveLength(2);
+  });
+
+  it('step 1 has the diode triangle-line symbol', () => {
+    const s = result.capsule!.steps[0]!;
+    expect(s.title).toBe('Draw the half-wave rectifier circuit');
+    expect(s.diagram?.type).toBe('svg');
+    expect(s.diagram?.content).toContain('<polygon');
+    expect(s.diagram?.content).toContain('<circle');
+    expect(s.diagram?.content).toContain('<rect');
+  });
+
+  it('step 2 sketches the output waveform with path arcs', () => {
+    const s = result.capsule!.steps[1]!;
+    expect(s.title).toBe('Sketch the rectified output waveform');
+    expect(s.diagram?.content).toContain('<path');
+    expect(s.diagram?.content).toContain('5V');
+  });
+
+  it('solution includes average voltage', () => {
+    expect(result.capsule!.solution).toContain('V_{\\text{avg}}');
+    expect(result.capsule!.solution).toContain('1.59');
   });
 });
 

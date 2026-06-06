@@ -30,4 +30,4 @@ a: <one line>
 <full answer, markdown + $math$>
 @endsolution
 __END__
-Rules: one move per @step; no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/text, arrowheads as polygons, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].
+Rules: one move per @step; no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].
