@@ -81,11 +81,12 @@ body{font:11.5pt/1.55 'Inter',ui-sans-serif,system-ui,sans-serif;-webkit-print-c
 .slm-report-wordmark .slm-wordmark-lm{color:${T.accent};}
 .slm-report-subject{font-size:9pt;font-weight:500;letter-spacing:.02em;text-transform:uppercase;color:${T.fgMuted};padding:2px 8px;border:0.5px solid ${T.border};border-radius:999px;background:${T.bgSubtle};}
 .slm-report-topic{margin:0 0 16px;font-size:14pt;font-weight:500;letter-spacing:-.02em;line-height:1.35;color:${T.fg};}
-.slm-report-label{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:22px;padding:0 6px;font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;font-size:9pt;border-radius:${T.radiusSm};background:${T.accentSoft};color:${T.accent};margin-right:8px;flex-shrink:0;}
-.slm-report-q{display:flex;align-items:flex-start;margin-bottom:20px;padding:12px 14px;background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};}
+.slm-report-label{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:22px;padding:0 8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:500;font-size:9pt;letter-spacing:.04em;text-transform:uppercase;border-radius:${T.radiusSm};background:${T.accentSoft};color:${T.accent};}
+.slm-report-q-block{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:20px;}
+.slm-report-q{width:100%;padding:12px 14px;background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};}
 .slm-report-q-text{font-weight:500;font-size:11pt;line-height:1.45;color:${T.fg};}
-.slm-report-a{display:flex;align-items:flex-start;}
-.slm-report-a-body{flex:1;min-width:0;}
+.slm-report-a{display:flex;flex-direction:column;align-items:flex-start;gap:10px;}
+.slm-report-a-body{width:100%;}
 .slm-report-step{margin:0 0 16px;padding:12px 14px;border:0.5px solid ${T.border};border-radius:${T.radiusSm};page-break-inside:avoid;break-inside:avoid;background:${T.bgSubtle};}
 .slm-report-step-title{font-size:11pt;font-weight:500;margin:0 0 8px;color:${T.fg};}
 .slm-report-step-no{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;margin-right:6px;padding:0 4px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:8pt;font-weight:500;border-radius:${T.radiusSm};background:${T.accentSoft};color:${T.accent};vertical-align:middle;}

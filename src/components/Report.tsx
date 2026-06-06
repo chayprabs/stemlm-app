@@ -42,9 +42,11 @@ export function Report({
         <h1 className="slm-report-topic">{meta.topic}</h1>
       )}
 
-      <section className="slm-report-q">
+      <section className="slm-report-q-block">
         <span className="slm-report-label">Q</span>
-        <div className="slm-report-q-text">{question}</div>
+        <div className="slm-report-q">
+          <div className="slm-report-q-text">{question}</div>
+        </div>
       </section>
 
       <section className="slm-report-a">
