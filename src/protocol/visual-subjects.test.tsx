@@ -130,9 +130,9 @@ describe('hard visual tables render through MathMarkdown', () => {
     const csHtml = renderToStaticMarkup(<MathMarkdown content={parse(CS_MIN_COINS_DP).capsule!.solution} />);
     const chemHtml = renderToStaticMarkup(<MathMarkdown content={parse(CHEMICAL_NACL_MIXER).capsule!.solution} />);
     expect(csHtml).toContain('<table>');
-    expect(csHtml).toContain('<td>11</td>');
+    expect(csHtml).toMatch(/>11<\/th>/);
     expect(chemHtml).toContain('<table>');
-    expect(chemHtml).toContain('<td>150</td>');
+    expect(chemHtml).toMatch(/>150<\/td>/);
   });
 });
 

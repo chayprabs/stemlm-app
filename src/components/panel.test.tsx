@@ -1,8 +1,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { Panel } from './Panel';
 import { useStore } from '@/src/state/store';
 import type { Session } from '@/src/protocol/types';
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 function buildTwoDiagramSession(): Session {
   return {
@@ -50,19 +53,33 @@ afterEach(() => {
 describe('Panel diagram well', () => {
   it('shows the active step diagram instead of the first session diagram', () => {
     const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.getState().setActiveStep(1);
     useStore.setState({
       panelOpen: true,
       status: 'ready',
       view: 'steps',
       theme: 'light',
-      sessions: [session],
-      activeSessionId: session.id,
-      activeStepIndex: 1,
     });
 
-    const html = renderToStaticMarkup(<Panel />);
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    const html = container.innerHTML;
     expect(html).toContain('second-diagram');
     expect(html).not.toContain('first-diagram');
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
   });
 });
 
