@@ -3,6 +3,7 @@ import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { sessionQuestionHeading } from '@/src/lib/session-question';
 import { BrandWordmark } from './BrandWordmark';
+import { ExtensionLogo } from './ExtensionLogo';
 import {
   IconBook,
   IconClose,
@@ -43,6 +44,7 @@ export function PanelHeader({
     <header className="slm-header">
       <div className="slm-header-top">
         <div className="slm-brand">
+          <ExtensionLogo size={26} />
           <BrandWordmark className="slm-brand-name" />
         </div>
         <div className="slm-header-actions">

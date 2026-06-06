@@ -25,6 +25,11 @@
   background: var(--slm-accent-soft);
   color: var(--slm-accent);
 }
+.slm-extension-logo {
+  display: block;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
 .slm-wordmark {
   font-weight: 500;
   letter-spacing: -0.02em;
