@@ -1,265 +1,265 @@
 import { describe, it, expect } from 'vitest';
-import { parse, parseCapsule } from './parser';
-import { THEVENIN_ELECTRICAL } from './__fixtures__';
-import { sanitizeSvg } from '@/src/lib/sanitize';
+import { parse, findCapsuleRaw, looksComplete, SOLUTION_DIAGRAM_TOKEN } from './parser';
+import { sanitizeSvg, extractSvg } from '../lib/sanitize';
+import { SERIES_PARALLEL_CIRCUIT, VERIFIED } from './__fixtures-electrical';
+import type { Step, Diagram } from './types';
 
-// ---------------------------------------------------------------------------
-// 1. Thevenin capsule fixture — parse & structural validation
-// ---------------------------------------------------------------------------
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-describe('Thevenin equivalent capsule (parse)', () => {
-  const result = parse(THEVENIN_ELECTRICAL);
+function svgIsValidXml(svg: string): { valid: boolean; error?: string } {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svg, 'text/xml');
+  const err = doc.querySelector('parsererror');
+  return err ? { valid: false, error: err.textContent ?? 'parse error' } : { valid: true };
+}
 
-  it('returns ok status', () => {
+function collectStepDiagrams(steps: Step[]): Diagram[] {
+  return steps.filter((s) => s.diagram).map((s) => s.diagram!);
+}
+
+// ── Parse the capsule once for all tests ───────────────────────────────────────
+
+const result = parse(SERIES_PARALLEL_CIRCUIT);
+const capsule = result.capsule!;
+const steps = capsule?.steps ?? [];
+
+// ── 1. Parse correctness ───────────────────────────────────────────────────────
+
+describe('Series-parallel circuit: parse', () => {
+  it('returns status ok', () => {
     expect(result.status).toBe('ok');
   });
 
-  it('parses subject as Electrical', () => {
-    expect(result.capsule?.meta.subject).toBe('Electrical');
+  it('finds the capsule in raw text', () => {
+    const raw = findCapsuleRaw(SERIES_PARALLEL_CIRCUIT);
+    expect(raw).not.toBeNull();
+    expect(raw).toContain('@meta');
+    expect(raw).toContain('@end');
   });
 
-  it('parses topic', () => {
-    expect(result.capsule?.meta.topic).toContain('Thevenin');
+  it('looks complete (streaming-done signal)', () => {
+    expect(looksComplete(SERIES_PARALLEL_CIRCUIT)).toBe(true);
   });
 
-  it('has 7 steps', () => {
-    expect(result.capsule?.steps).toHaveLength(7);
+  it('parses meta correctly', () => {
+    expect(capsule.meta.version).toBe(1);
+    expect(capsule.meta.subject).toBe('Electrical');
+    expect(capsule.meta.topic).toBe('Series-parallel resistor current');
   });
 
-  it('step titles cover the full Thevenin workflow', () => {
-    const titles = result.capsule!.steps.map((s) => s.title);
-    expect(titles[0]).toContain('Label');
-    expect(titles[1]).toContain('KVL');
-    expect(titles[2]).toContain('loop current');
-    expect(titles[3]).toContain('Vth');
-    expect(titles[4]).toContain('Kill');
-    expect(titles[5]).toContain('Rth');
-    expect(titles[6]).toContain('Thevenin equivalent');
+  it(`parses exactly ${VERIFIED.stepCount} steps`, () => {
+    expect(steps).toHaveLength(VERIFIED.stepCount);
   });
 
-  it('step 1 diagram is SVG and contains key elements', () => {
-    const diag = result.capsule!.steps[0]!.diagram;
-    expect(diag?.type).toBe('svg');
-    expect(diag?.content).toContain('<svg');
-    expect(diag?.content).toContain('<g');
-    expect(diag?.content).toContain('<ellipse');
-    expect(diag?.content).toContain('<polyline');
-    expect(diag?.content).toContain('10V');
-    expect(diag?.content).toContain('2Ω');
-  });
-
-  it('step 4 diagram labels Vth', () => {
-    const diag = result.capsule!.steps[3]!.diagram;
-    expect(diag?.type).toBe('svg');
-    expect(diag?.content).toContain('70/11');
-  });
-
-  it('step 5 (sources killed) diagram has ground symbol polyline', () => {
-    const diag = result.capsule!.steps[4]!.diagram;
-    expect(diag?.content).toContain('<polyline');
-    expect(diag?.content).toContain('GND');
-  });
-
-  it('step 7 diagram shows the final Thevenin equivalent', () => {
-    const diag = result.capsule!.steps[6]!.diagram;
-    expect(diag?.content).toContain('Rth');
-    expect(diag?.content).toContain('Vth');
-    expect(diag?.content).toContain('<ellipse');
-  });
-
-  it('solution contains the final numeric answers', () => {
-    const sol = result.capsule!.solution;
-    expect(sol).toContain('70');
-    expect(sol).toContain('24');
-  });
-
-  it('solution has one inline SVG diagram', () => {
-    expect(result.capsule!.solutionDiagrams).toHaveLength(1);
-    expect(result.capsule!.solutionDiagrams[0]!.type).toBe('svg');
-  });
-
-  it('formulas appear on appropriate steps', () => {
-    expect(result.capsule!.steps[1]!.formula).toContain('10');
-    expect(result.capsule!.steps[2]!.formula).toContain('\\frac{5}{11}');
-    expect(result.capsule!.steps[3]!.formula).toContain('\\frac{70}{11}');
-    expect(result.capsule!.steps[5]!.formula).toContain('\\frac{24}{11}');
-  });
-
-  it('quickcheck is present on step 1 and step 7', () => {
-    expect(result.capsule!.steps[0]!.quickCheck?.question).toContain('loop');
-    expect(result.capsule!.steps[6]!.quickCheck?.question).toContain('load');
-  });
-
-  it('followup is present on the final step', () => {
-    expect(result.capsule!.steps[6]!.followup).toContain('Norton');
-  });
-
-  it('takeaways are present on steps 1, 5, and 7', () => {
-    expect(result.capsule!.steps[0]!.takeaway).toBeTruthy();
-    expect(result.capsule!.steps[4]!.takeaway).toContain('short');
-    expect(result.capsule!.steps[6]!.takeaway).toContain('load');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 2. Complex multi-element SVG sanitization — ensure realistic circuit
-//    elements survive the sanitizer intact.
-// ---------------------------------------------------------------------------
-
-describe('SVG sanitizer preserves complex circuit elements', () => {
-  const CIRCUIT_SVG = [
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260">',
-    '  <g id="circuit-group">',
-    '    <line x1="40" y1="240" x2="40" y2="40" stroke="#222" stroke-width="2"/>',
-    '    <rect x="120" y="28" width="60" height="24" rx="4" fill="none" stroke="#222" stroke-width="2"/>',
-    '    <ellipse cx="220" cy="40" rx="6" ry="6" fill="#e53e3e"/>',
-    '    <circle cx="380" cy="40" r="6" fill="#3182ce"/>',
-    '    <polyline points="40,240 40,260" stroke="#222" stroke-width="2" fill="none"/>',
-    '    <polygon points="100,10 120,40 80,40" fill="#ddd" stroke="#222" stroke-width="1"/>',
-    '    <path d="M0,0 L10,5 L0,10 Z" fill="#222"/>',
-    '    <text x="10" y="140" font-size="14" fill="#222">10V</text>',
-    '    <text x="135" y="46" font-size="12" fill="#222">2Ω</text>',
-    '  </g>',
-    '  <g id="labels">',
-    '    <text x="210" y="28" font-size="14" font-weight="bold" fill="#e53e3e">A</text>',
-    '    <text x="370" y="28" font-size="14" font-weight="bold" fill="#3182ce">B</text>',
-    '    <text x="20" y="258" font-size="12" fill="#888">GND</text>',
-    '  </g>',
-    '</svg>',
-  ].join('\n');
-
-  it('preserves <g> group elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('<g');
-  });
-
-  it('preserves <ellipse> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('ellipse');
-  });
-
-  it('preserves <polyline> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('polyline');
-  });
-
-  it('preserves <polygon> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('polygon');
-  });
-
-  it('preserves <circle> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('circle');
-  });
-
-  it('preserves <rect> with rx attribute', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('rect');
-    expect(out).toContain('rx=');
-  });
-
-  it('preserves <path> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('<path');
-  });
-
-  it('preserves <text> with font attributes', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('<text');
-    expect(out).toContain('font-size');
-  });
-
-  it('preserves <line> elements', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('<line');
-  });
-
-  it('preserves node label text A, B, GND', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('>A<');
-    expect(out).toContain('>B<');
-    expect(out).toContain('GND');
-  });
-
-  it('preserves fill and stroke attributes', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('fill=');
-    expect(out).toContain('stroke=');
-  });
-
-  it('preserves stroke-dasharray for dashed lines', () => {
-    const dashed = '<svg viewBox="0 0 100 100"><line x1="0" y1="0" x2="100" y2="100" stroke="#222" stroke-width="2" stroke-dasharray="6,3"/></svg>';
-    const out = sanitizeSvg(dashed);
-    expect(out).toContain('stroke-dasharray');
-  });
-
-  it('preserves multiple resistors and voltage sources in one diagram', () => {
-    const out = sanitizeSvg(CIRCUIT_SVG);
-    expect(out).toContain('10V');
-    expect(out).toContain('2Ω');
-  });
-
-  it('still strips dangerous content from complex circuit SVGs', () => {
-    const evil = [
-      '<svg viewBox="0 0 100 100">',
-      '  <g id="ok"><ellipse cx="50" cy="50" rx="10" ry="10"/></g>',
-      '  <script>alert("xss")</script>',
-      '  <polyline points="0,0 50,50" onclick="evil()"/>',
-      '</svg>',
-    ].join('\n');
-    const out = sanitizeSvg(evil);
-    expect(out).toContain('ellipse');
-    expect(out).toContain('polyline');
-    expect(out).not.toContain('script');
-    expect(out).not.toContain('alert');
-    expect(out).not.toContain('onclick');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 3. Full round-trip: parse Thevenin fixture, then sanitize each SVG diagram.
-// ---------------------------------------------------------------------------
-
-describe('Thevenin SVG diagrams survive sanitization round-trip', () => {
-  const result = parse(THEVENIN_ELECTRICAL);
-  const steps = result.capsule!.steps;
-
-  it('all step SVG diagrams survive sanitization', () => {
+  it('every step has a non-empty title and body', () => {
     for (const step of steps) {
-      if (step.diagram?.type === 'svg') {
-        const clean = sanitizeSvg(step.diagram.content);
-        expect(clean).toContain('<svg');
-        expect(clean.length).toBeGreaterThan(50);
-      }
+      expect(step.title.length).toBeGreaterThan(0);
+      expect(step.body.length).toBeGreaterThan(0);
     }
   });
 
-  it('step 1 SVG retains g, ellipse, polyline after sanitization', () => {
-    const clean = sanitizeSvg(steps[0]!.diagram!.content);
-    expect(clean).toContain('<g');
-    expect(clean).toContain('ellipse');
-    expect(clean).toContain('polyline');
+  it('every step has a formula, takeaway, quickcheck, and followup', () => {
+    for (const step of steps) {
+      expect(step.formula).toBeTruthy();
+      expect(step.takeaway).toBeTruthy();
+      expect(step.quickCheck).toBeTruthy();
+      expect(step.quickCheck!.question.length).toBeGreaterThan(0);
+      expect(step.quickCheck!.answer.length).toBeGreaterThan(0);
+      expect(step.followup).toBeTruthy();
+    }
   });
 
-  it('step 5 (sources killed) SVG retains g, ellipse, polyline after sanitization', () => {
-    const clean = sanitizeSvg(steps[4]!.diagram!.content);
-    expect(clean).toContain('<g');
-    expect(clean).toContain('ellipse');
-    expect(clean).toContain('polyline');
+  it('parses a solution block with an inline mermaid diagram', () => {
+    expect(capsule.solution).toBeTruthy();
+    expect(capsule.solutionDiagrams).toHaveLength(1);
+    expect(capsule.solutionDiagrams[0]!.type).toBe('mermaid');
+    expect(capsule.solution).toContain(SOLUTION_DIAGRAM_TOKEN(0));
+  });
+});
+
+// ── 2. Math accuracy ──────────────────────────────────────────────────────────
+
+describe('Series-parallel circuit: math accuracy', () => {
+  const allText = [
+    ...steps.map((s) => s.body),
+    ...steps.map((s) => s.formula ?? ''),
+    capsule.solution,
+  ].join(' ');
+
+  it('R_parallel = 5 Ω appears in formulas/body', () => {
+    expect(allText).toMatch(/R_\{?\\parallel\}?\s*=\s*5/);
   });
 
-  it('step 7 (final equivalent) SVG retains ellipse, polyline after sanitization', () => {
-    const clean = sanitizeSvg(steps[6]!.diagram!.content);
-    expect(clean).toContain('ellipse');
-    expect(clean).toContain('polyline');
+  it('R_total = 9 Ω appears in formulas/body', () => {
+    expect(allText).toMatch(/=\s*9\\,\\Omega|=\s*9\b/);
   });
 
-  it('solution diagram survives sanitization', () => {
-    const solDiag = result.capsule!.solutionDiagrams[0]!;
-    const clean = sanitizeSvg(solDiag.content);
-    expect(clean).toContain('<svg');
-    expect(clean).toContain('ellipse');
-    expect(clean).toContain('<g');
+  it('I_R1 = 4/3 ≈ 1.333 A appears in formulas/body', () => {
+    expect(allText).toMatch(/\\frac\{4\}\{3\}|4\/3|1\.333/);
+  });
+
+  it('product-over-sum yields 100/20 = 5', () => {
+    expect(allText).toContain('100');
+    expect(allText).toContain('20');
+  });
+
+  it('KVL check: V_R1 = 16/3 and V_parallel = 20/3 sum to 12', () => {
+    expect(allText).toMatch(/16\/3|\\frac\{16\}\{3\}/);
+    expect(allText).toMatch(/20\/3|\\frac\{20\}\{3\}/);
+  });
+
+  it('numeric values agree with verified constants', () => {
+    expect(VERIFIED.R_parallel).toBe(
+      (VERIFIED.R2 * VERIFIED.R3) / (VERIFIED.R2 + VERIFIED.R3),
+    );
+    expect(VERIFIED.R_total).toBe(VERIFIED.R1 + VERIFIED.R_parallel);
+    expect(VERIFIED.I_R1).toBeCloseTo(VERIFIED.V_source / VERIFIED.R_total, 10);
+    expect(VERIFIED.V_R1 + VERIFIED.V_parallel).toBeCloseTo(VERIFIED.V_source, 10);
+  });
+});
+
+// ── 3. SVG diagrams survive sanitize pipeline ──────────────────────────────────
+
+describe('Series-parallel circuit: SVG diagram integrity', () => {
+  const stepDiagrams = collectStepDiagrams(steps);
+
+  it('every step has an SVG diagram', () => {
+    expect(stepDiagrams).toHaveLength(VERIFIED.stepCount);
+    for (const d of stepDiagrams) {
+      expect(d.type).toBe('svg');
+    }
+  });
+
+  it.each(steps.map((s) => [s.title, s.diagram!] as const))(
+    'step "%s" SVG survives extractSvg',
+    (_title, diagram) => {
+      const extracted = extractSvg(diagram.content);
+      expect(extracted).toMatch(/^<svg[\s>]/i);
+      expect(extracted).toMatch(/<\/svg>$/i);
+    },
+  );
+
+  it.each(steps.map((s) => [s.title, s.diagram!] as const))(
+    'step "%s" SVG survives sanitizeSvg',
+    (_title, diagram) => {
+      const sanitized = sanitizeSvg(diagram.content);
+      expect(sanitized.length).toBeGreaterThan(0);
+      expect(sanitized).toContain('<svg');
+      expect(sanitized).toContain('</svg>');
+    },
+  );
+
+  it.each(steps.map((s) => [s.title, s.diagram!] as const))(
+    'step "%s" sanitized SVG is valid XML',
+    (_title, diagram) => {
+      const sanitized = sanitizeSvg(extractSvg(diagram.content));
+      const { valid, error } = svgIsValidXml(sanitized);
+      expect(valid, `Invalid XML: ${error}`).toBe(true);
+    },
+  );
+
+  it('preserves polyline elements (resistor zigzags)', () => {
+    const first = sanitizeSvg(extractSvg(steps[0]!.diagram!.content));
+    expect(first).toContain('polyline');
+  });
+
+  it('preserves circle elements (voltage source)', () => {
+    const first = sanitizeSvg(extractSvg(steps[0]!.diagram!.content));
+    expect(first).toContain('circle');
+  });
+
+  it('preserves text labels after sanitization', () => {
+    const first = sanitizeSvg(extractSvg(steps[0]!.diagram!.content));
+    expect(first).toContain('<text');
+  });
+
+  it('preserves marker arrowheads through the pipeline', () => {
+    const step5 = sanitizeSvg(extractSvg(steps[4]!.diagram!.content));
+    expect(step5).toContain('marker');
+    expect(step5).toContain('marker-end');
+  });
+
+  it('sanitizeSvg strips width/height from <svg> but keeps viewBox', () => {
+    const withDims =
+      '<svg viewBox="0 0 100 100" width="100" height="100"><circle r="5"/></svg>';
+    const out = sanitizeSvg(withDims);
+    expect(out).toContain('viewBox');
+    expect(out).not.toMatch(/\bwidth\s*=/);
+    expect(out).not.toMatch(/\bheight\s*=/);
+  });
+});
+
+// ── 4. No warning regressions ──────────────────────────────────────────────────
+
+describe('Series-parallel circuit: no warnings', () => {
+  it('has no malformed_diagram warnings', () => {
+    expect(result.warningCodes).not.toContain('malformed_diagram');
+  });
+
+  it('has no missing_step_title warnings', () => {
+    expect(result.warningCodes).not.toContain('missing_step_title');
+  });
+
+  it('has no missing_solution warnings', () => {
+    expect(result.warningCodes).not.toContain('missing_solution');
+  });
+
+  it('has no missing_meta warnings', () => {
+    expect(result.warningCodes).not.toContain('missing_meta');
+  });
+
+  it('has no missing_end warnings', () => {
+    expect(result.warningCodes).not.toContain('missing_end');
+  });
+
+  it('has no step_body_too_long warnings', () => {
+    expect(result.warningCodes).not.toContain('step_body_too_long');
+  });
+
+  it('has no invalid_step_count warnings', () => {
+    expect(result.warningCodes).not.toContain('invalid_step_count');
+  });
+
+  it('has zero warnings total (clean capsule)', () => {
+    expect(result.warnings).toHaveLength(0);
+  });
+});
+
+// ── 5. Progressive diagram reduction ──────────────────────────────────────────
+
+describe('Series-parallel circuit: progressive reduction', () => {
+  it('step 1 diagram has all three resistors', () => {
+    const svg = steps[0]!.diagram!.content;
+    expect(svg).toContain('R1');
+    expect(svg).toContain('R2');
+    expect(svg).toContain('R3');
+  });
+
+  it('step 2 diagram highlights the parallel section', () => {
+    const svg = steps[1]!.diagram!.content;
+    expect(svg).toContain('stroke-dasharray');
+    expect(svg).toContain('R2');
+    expect(svg).toContain('R3');
+  });
+
+  it('step 3 diagram shows reduced parallel equivalent', () => {
+    const svg = steps[2]!.diagram!.content;
+    expect(svg).toMatch(/R\u2225|R_par/);
+  });
+
+  it('step 4 diagram shows single total resistance', () => {
+    const svg = steps[3]!.diagram!.content;
+    expect(svg).toContain('R_total');
+  });
+
+  it('step 5 diagram shows current value', () => {
+    const svg = steps[4]!.diagram!.content;
+    expect(svg).toContain('4/3');
+  });
+
+  it('step 6 diagram shows voltage drop labels', () => {
+    const svg = steps[5]!.diagram!.content;
+    expect(svg).toContain('16/3');
+    expect(svg).toContain('20/3');
   });
 });
