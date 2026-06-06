@@ -38,8 +38,14 @@ export interface PlatformAdapter {
   /** Current text in the composer. */
   getEditorText(): string;
 
-  /** Replace the composer content with `text`. Returns success. */
-  insertPrompt(text: string): boolean;
+  /**
+   * Write `text` into the composer. `append` keeps existing text/attachments and
+   * adds the protocol at the bottom; `replace` clears the composer first.
+   */
+  insertPrompt(text: string, mode?: 'replace' | 'append'): boolean;
+
+  /** True when the composer has file/image attachments (e.g. a photo of a problem). */
+  composerHasAttachments(): boolean;
 
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;

@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { detectAdapter, adapterById } from './detect';
 import { geminiAdapter } from './gemini';
 import { buildInjectionPrompt } from '@/src/protocol/builder';
-import { createAdapter, setEditorText, getEditorTextOf, editorReflectsText } from './factory';
+import {
+  appendEditorText,
+  createAdapter,
+  setEditorText,
+  getEditorTextOf,
+  editorReflectsText,
+  composerHasAttachments,
+} from './factory';
+import { buildInjectionAppendix } from '@/src/protocol/builder';
 
 const CAPSULE_BODY = [
   '@meta',
@@ -101,6 +109,30 @@ describe('Gemini adapter', () => {
     expect(got).toContain('OUTPUT:');
     expect(got).toContain('ELECTRICAL');
     expect(got).not.toContain('stemlm-protocol.txt');
+  });
+
+  it('appends the protocol below an existing question without erasing it', () => {
+    const editor = geminiAdapter.findEditor()!;
+    editor.innerHTML = '<p>Find the range of a projectile launched at 60 degrees</p>';
+    const { prompt } = buildInjectionAppendix(
+      'Find the range of a projectile launched at 60 degrees',
+    );
+    expect(geminiAdapter.insertPrompt(prompt, 'append')).toBe(true);
+    const got = geminiAdapter.getEditorText();
+    expect(got).toContain('Find the range of a projectile launched at 60 degrees');
+    expect(got).toContain('stemLM instructions');
+    expect(got).toContain('OUTPUT:');
+  });
+
+  it('keeps image attachments when appending the protocol', () => {
+    const editor = geminiAdapter.findEditor()!;
+    editor.innerHTML = '<p>See attached problem</p><img alt="problem photo" src="blob:test">';
+    expect(composerHasAttachments(editor)).toBe(true);
+    const { prompt } = buildInjectionAppendix('See attached problem');
+    expect(appendEditorText(editor, prompt)).toBe(true);
+    expect(editor.querySelector('img[alt="problem photo"]')).not.toBeNull();
+    expect(getEditorTextOf(editor)).toContain('See attached problem');
+    expect(getEditorTextOf(editor)).toContain('stemLM instructions');
   });
 
   it('extracts the capsule from code-block', () => {

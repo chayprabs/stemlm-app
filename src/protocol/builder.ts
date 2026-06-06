@@ -21,7 +21,8 @@ import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
 
 export { normalizeFollowupSelection };
 
-const SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
+export const STEMLM_INSTRUCTIONS_SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
+const SEP = STEMLM_INSTRUCTIONS_SEP;
 
 export interface BuildOptions {
   /** 'Auto' => classify from the question; otherwise force this subject. */
@@ -90,13 +91,22 @@ export function buildInjectionPayload(question: string, opt?: BuildOptions): Inj
   };
 }
 
-/** Legacy: full text paste (fallback when file attach is unavailable). */
+/** Protocol + playbook block only — appended below existing composer content. */
+export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
+  const subject = resolveSubject(question, opt);
+  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
+  const prompt = `${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  return { prompt, subject, variant };
+}
+
+/** Full text paste when the composer is empty (question + protocol). */
 export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const q = (question || '').trim();
   const head = q.length > 0 ? q : '(The student has not typed a question yet — ask them to type one.)';
-  const prompt = `${head}${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const { prompt: appendix } = buildInjectionAppendix(question, opt);
+  const prompt = `${head}${appendix}`;
   return { prompt, subject, variant };
 }
 

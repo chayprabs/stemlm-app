@@ -98,6 +98,81 @@ function rebuildParagraphs(el: HTMLElement, text: string): void {
   el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
 }
 
+function moveCursorToEnd(el: HTMLElement): void {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+const ATTACHMENT_SELECTOR =
+  'img, video, [class*="upload" i], [class*="attachment" i], [class*="file-preview" i], [data-test-id*="upload" i], uploader';
+
+/** True when the composer area contains uploads (e.g. a pasted problem photo). */
+export function composerHasAttachments(editor: HTMLElement | null): boolean {
+  if (!editor) return false;
+  const roots = new Set<ParentNode>([editor]);
+  const shell = editor.closest(
+    'input-area-v2, input-area, rich-textarea, .input-area, [class*="input-area"]',
+  );
+  if (shell) roots.add(shell);
+  for (const root of roots) {
+    if (root.querySelector(ATTACHMENT_SELECTOR)) return true;
+  }
+  return false;
+}
+
+/** Append `text` to the end of the composer without clearing existing content. */
+export function appendEditorText(el: HTMLElement, text: string): boolean {
+  const tag = el.tagName;
+  const prefix = getEditorTextOf(el).trim().length > 0 ? '\n\n' : '\n';
+  const chunk = `${prefix}${text}`;
+
+  if (tag === 'TEXTAREA' || tag === 'INPUT') {
+    const input = el as HTMLTextAreaElement | HTMLInputElement;
+    const next = `${input.value.trimEnd()}${chunk}`;
+    const proto = tag === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    setter?.call(el, next);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return editorReflectsText(el, text);
+  }
+
+  el.focus();
+  moveCursorToEnd(el);
+
+  if (dispatchSyntheticPaste(el, chunk) && editorReflectsText(el, text)) return true;
+
+  try {
+    moveCursorToEnd(el);
+    if (document.execCommand('insertText', false, chunk) && editorReflectsText(el, text)) return true;
+  } catch {
+    /* fall through */
+  }
+
+  // DOM append — preserves images and other non-text nodes in the composer.
+  appendDomText(el, text);
+  return editorReflectsText(el, text);
+}
+
+/** Append plain text as new paragraphs without removing existing editor children. */
+function appendDomText(el: HTMLElement, text: string): void {
+  if (getEditorTextOf(el).trim().length > 0) {
+    const gap = document.createElement('p');
+    gap.textContent = '\u00a0';
+    el.appendChild(gap);
+  }
+  for (const line of text.split('\n')) {
+    const p = document.createElement('p');
+    p.textContent = line.length ? line : '\u00a0';
+    el.appendChild(p);
+  }
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+}
+
 /** Replace the content of a composer editor with `text`. Returns success. */
 export function setEditorText(el: HTMLElement, text: string): boolean {
   const tag = el.tagName;
@@ -158,10 +233,14 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       return getEditorTextOf(firstMatch(config.editor));
     },
 
-    insertPrompt(text: string) {
+    insertPrompt(text: string, mode: 'replace' | 'append' = 'replace') {
       const editor = firstMatch(config.editor);
       if (!editor) return false;
-      return setEditorText(editor, text);
+      return mode === 'append' ? appendEditorText(editor, text) : setEditorText(editor, text);
+    },
+
+    composerHasAttachments() {
+      return composerHasAttachments(firstMatch(config.editor));
     },
 
     getComposerBox() {

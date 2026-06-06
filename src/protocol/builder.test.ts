@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildInjectionAppendix,
   buildInjectionPrompt,
   buildInjectionPayload,
   buildComposerStub,
@@ -65,6 +66,18 @@ describe('buildInjectionPrompt', () => {
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain(PROTOCOL_FILENAME);
     expect(prompt).not.toContain('Follow the attached');
+  });
+});
+
+describe('buildInjectionAppendix', () => {
+  it('returns only the separator and protocol (no question line)', () => {
+    const { prompt, subject } = buildInjectionAppendix(
+      'A projectile is launched at 20 m/s at 45 degrees',
+    );
+    expect(subject).toBe('Physics');
+    expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
+    expect(prompt).toContain('OUTPUT:');
+    expect(prompt).not.toContain('A projectile is launched');
   });
 });
 

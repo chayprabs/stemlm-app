@@ -8,6 +8,7 @@
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 import {
+  buildInjectionAppendix,
   buildInjectionPrompt,
   buildFollowupPrompt,
   buildRepairPrompt,
@@ -71,17 +72,29 @@ export class StemController {
     this.onAnswerStartedCb = cb;
   }
 
+  /** True when the composer already has a question (text and/or image attachment). */
+  private composerHasUserContent(): boolean {
+    const text = this.adapter.getEditorText().trim();
+    if (text.includes('stemLM instructions')) return false;
+    if (text.length > 0) return true;
+    return this.adapter.composerHasAttachments();
+  }
+
   /** Paste the full protocol prompt into the chat composer. */
   async inject(): Promise<boolean> {
     const store = useStore.getState();
     if (store.buttonInjected) return false;
 
-    const question = this.adapter.getEditorText().trim();
+    const existing = this.adapter.getEditorText().trim();
+    const hasUserContent = this.composerHasUserContent();
+    const question = existing;
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
-    const { prompt, subject } = buildInjectionPrompt(question, { variant });
-    const ok = await this.insertVerifiedPrompt(prompt);
+    const { prompt, subject } = hasUserContent
+      ? buildInjectionAppendix(question, { variant })
+      : buildInjectionPrompt(question, { variant });
+    const ok = await this.insertVerifiedPrompt(prompt, hasUserContent ? 'append' : 'replace');
 
     if (!ok) {
       store.setStatus(
@@ -146,13 +159,16 @@ export class StemController {
    * Write `prompt` into the composer and confirm the full protocol is visible
    * (not the old short file-attach stub). Retries once after a brief pause.
    */
-  private async insertVerifiedPrompt(prompt: string): Promise<boolean> {
+  private async insertVerifiedPrompt(
+    prompt: string,
+    mode: 'replace' | 'append' = 'replace',
+  ): Promise<boolean> {
     const marker = 'stemLM instructions';
     const looksComplete = (text: string) =>
       text.includes(marker) && text.includes('OUTPUT:') && !text.includes('stemlm-protocol.txt');
 
     const tryOnce = () => {
-      if (!this.adapter.insertPrompt(prompt)) return false;
+      if (!this.adapter.insertPrompt(prompt, mode)) return false;
       return looksComplete(this.adapter.getEditorText());
     };
 

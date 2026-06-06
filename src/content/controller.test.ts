@@ -28,9 +28,13 @@ class MockAdapter implements PlatformAdapter {
   getEditorText() {
     return this.editorText;
   }
-  insertPrompt(text: string) {
+  insertPrompt(text: string, mode: 'replace' | 'append' = 'replace') {
     this.inserted = text;
-    this.editorText = text;
+    if (mode === 'append' && this.editorText.trim()) {
+      this.editorText = `${this.editorText.trimEnd()}\n\n${text}`;
+    } else {
+      this.editorText = text;
+    }
     return this.insertOk;
   }
   getComposerBox() {
@@ -63,6 +67,9 @@ class MockAdapter implements PlatformAdapter {
   isStreaming() {
     return this.streaming;
   }
+  composerHasAttachments() {
+    return false;
+  }
 }
 
 function resetStore() {
@@ -87,13 +94,43 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
-    expect(adapter.inserted).toContain('Solve this circuit');
-    expect(adapter.inserted).toContain('OUTPUT:');
-    expect(adapter.inserted).toContain('ELECTRICAL');
+    expect(adapter.editorText).toContain('Solve this circuit');
+    expect(adapter.editorText).toContain('OUTPUT:');
+    expect(adapter.editorText).toContain('ELECTRICAL');
+    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.editorText).not.toContain('stemlm-protocol.txt');
     expect(adapter.inserted).toContain('stemLM instructions');
-    expect(adapter.inserted).not.toContain('stemlm-protocol.txt');
+    expect(adapter.inserted).not.toContain('Solve this circuit');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
+    c.stopWatching();
+  });
+
+  it('appends the protocol when only an image attachment is present', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = '';
+    adapter.composerHasAttachments = () => true;
+    const c = new StemController(adapter);
+
+    const ok = await c.inject();
+    expect(ok).toBe(true);
+    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.inserted).toContain('stemLM instructions');
+    c.stopWatching();
+  });
+
+  it('appends the protocol when the composer already has a question', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'What is the horizontal range of this projectile?';
+    const c = new StemController(adapter);
+
+    const ok = await c.inject();
+    expect(ok).toBe(true);
+    expect(adapter.editorText).toMatch(/^What is the horizontal range/);
+    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.editorText.indexOf('What is the horizontal range')).toBeLessThan(
+      adapter.editorText.indexOf('stemLM instructions'),
+    );
     c.stopWatching();
   });
 
