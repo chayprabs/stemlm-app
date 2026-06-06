@@ -25,5 +25,20 @@ describe('resolveDiagramSvg', () => {
     );
     expect(svg).toContain('probe-diagram');
     expect(svg).toContain('<svg');
+    expect(svg).toContain('width="40"');
+    expect(svg).toContain('height="20"');
+  });
+
+  it('uses print profile bounds for PDF export', async () => {
+    const svg = await resolveDiagramSvg(
+      {
+        type: 'svg',
+        content: '<svg viewBox="0 0 520 260"><text x="1" y="10">pdf-diagram</text></svg>',
+      },
+      'light',
+      'print',
+    );
+    expect(svg).toContain('width="280"');
+    expect(svg).toContain('height="140"');
   });
 });

@@ -397,7 +397,8 @@
   flex-direction: column;
 }
 .slm-diagram-svg {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   line-height: 0;
   display: flex;
   align-items: center;
@@ -672,18 +673,12 @@
   background: transparent;
   border: none;
   width: 100%;
-  max-height: min(220px, 34vh);
-}
-.slm-step-diagram .slm-diagram-svg {
-  max-height: min(200px, 32vh);
-  overflow: hidden;
 }
 .slm-step-diagram .slm-diagram-svg svg {
   display: block;
   width: auto;
   max-width: 100%;
   height: auto;
-  max-height: min(200px, 32vh);
 }
 .slm-formula {
   margin: 0.5rem 0 0.65rem;
@@ -844,11 +839,8 @@
   stroke-width: 3px;
   stroke-linejoin: round;
 }
-.slm-diagram--large {
-  padding: 0.75rem;
-}
-.slm-diagram--large .slm-diagram-svg svg {
-  max-height: min(280px, 40vh);
+.slm-diagram--solution {
+  padding: 0.65rem;
 }
 .slm-diagram figcaption {
   margin-top: 0.35rem;

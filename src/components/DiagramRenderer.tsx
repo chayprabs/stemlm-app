@@ -7,8 +7,8 @@ import { mountSvgMarkup } from '@/src/lib/mount-svg';
 export interface DiagramRendererProps {
   diagram: Diagram;
   theme: ResolvedTheme;
-  /** Larger paddings/min-height for the solution view. */
-  large?: boolean;
+  /** Display profile — step cards use tighter bounds than the solution tab. */
+  size?: 'step' | 'solution';
 }
 
 /**
@@ -16,7 +16,7 @@ export interface DiagramRendererProps {
  * lazily compiled to SVG. Failures degrade gracefully to the raw source so the
  * student never sees a blank box.
  */
-export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps) {
+export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRendererProps) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mounted = useRef(true);
@@ -27,7 +27,7 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
     setSvg(null);
     setFailed(false);
 
-    void resolveDiagramSvg(diagram, theme).then((clean) => {
+    void resolveDiagramSvg(diagram, theme, size).then((clean) => {
       if (!mounted.current) return;
       if (clean) setSvg(clean);
       else setFailed(true);
@@ -36,7 +36,7 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
     return () => {
       mounted.current = false;
     };
-  }, [diagram.content, diagram.type, theme]);
+  }, [diagram.content, diagram.type, theme, size]);
 
   useLayoutEffect(() => {
     if (!svg || !svgHostRef.current) return;
@@ -54,7 +54,7 @@ export function DiagramRenderer({ diagram, theme, large }: DiagramRendererProps)
 
   return (
     <figure
-      className={`slm-diagram ${large ? 'slm-diagram--large' : ''}`}
+      className={`slm-diagram slm-diagram--${size}`}
       data-empty={svg ? undefined : 'true'}
     >
       {svg ? (

@@ -30,13 +30,20 @@ describe('presentSvg', () => {
     expect(out).toContain('stroke="#334155"');
   });
 
-  it('sets preserveAspectRatio and drops fixed width/height on the root svg', () => {
+  it('sets proportional display dimensions from viewBox', () => {
     const raw =
-      '<svg width="900" height="400" viewBox="0 0 200 80"><rect width="10" height="10"/></svg>';
-    const out = presentSvg(raw, 'light');
+      '<svg width="900" height="400" viewBox="0 0 520 260"><rect width="10" height="10"/></svg>';
+    const out = presentSvg(raw, 'light', 'step');
     expect(out).toContain('preserveAspectRatio="xMidYMid meet"');
-    expect(out).toMatch(/^<svg[^>]*viewBox="0 0 200 80"/);
-    expect(out).not.toMatch(/^<svg[^>]*\bwidth="/);
-    expect(out).not.toMatch(/^<svg[^>]*\bheight="/);
+    expect(out).toContain('viewBox="0 0 520 260"');
+    expect(out).toContain('width="248"');
+    expect(out).toContain('height="124"');
+  });
+
+  it('uses print profile dimensions for PDF output', () => {
+    const raw = '<svg viewBox="0 0 520 260"><rect width="10" height="10"/></svg>';
+    const out = presentSvg(raw, 'light', 'print');
+    expect(out).toContain('width="280"');
+    expect(out).toContain('height="140"');
   });
 });

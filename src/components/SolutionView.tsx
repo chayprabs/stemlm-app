@@ -91,7 +91,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
                 return diagram ? (
                   <div key={`d-${i}`} className="slm-step-diagram">
                     <span className="slm-step-diagram-label">Diagram</span>
-                    <DiagramRenderer diagram={diagram} theme={theme} large />
+                    <DiagramRenderer diagram={diagram} theme={theme} size="solution" />
                   </div>
                 ) : null;
               }

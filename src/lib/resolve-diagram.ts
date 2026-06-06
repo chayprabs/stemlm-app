@@ -5,6 +5,7 @@ import type { Diagram } from '@/src/protocol/types';
 import type { ResolvedTheme } from './theme';
 import { sanitizeSvg, extractSvg } from './sanitize';
 import { renderMermaid } from './mermaid';
+import type { DiagramSizeProfile } from './diagram-bounds';
 import { presentSvg } from './svg-present';
 
 const MERMAID_TIMEOUT_MS = 12_000;
@@ -39,22 +40,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function finalizeSvg(svg: string, theme: ResolvedTheme): string {
+function finalizeSvg(
+  svg: string,
+  theme: ResolvedTheme,
+  profile: DiagramSizeProfile,
+): string {
   const clean = sanitizeSvg(extractSvg(svg));
-  return clean ? presentSvg(clean, theme) : '';
+  return clean ? presentSvg(clean, theme, profile) : '';
 }
 
 /** Resolve a diagram to sanitized SVG markup, or empty string on failure. */
 export async function resolveDiagramSvg(
   diagram: Diagram,
   theme: ResolvedTheme,
+  profile: DiagramSizeProfile = 'step',
 ): Promise<string> {
   try {
     if (diagram.type === 'svg') {
-      return finalizeSvg(normalizeDiagramSource(diagram.content), theme);
+      return finalizeSvg(normalizeDiagramSource(diagram.content), theme, profile);
     }
     const rendered = await withTimeout(renderMermaid(diagram.content, theme), MERMAID_TIMEOUT_MS);
-    return finalizeSvg(rendered, theme);
+    return finalizeSvg(rendered, theme, profile);
   } catch {
     return '';
   }

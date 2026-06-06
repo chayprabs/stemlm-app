@@ -51,7 +51,7 @@ export function reportPrintTitle(session: Session): string {
 async function resolveDiagrams(session: Session): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   for (const { key, diagram } of collectDiagrams(session)) {
-    map[key] = await resolveDiagramSvg(diagram, 'light');
+    map[key] = await resolveDiagramSvg(diagram, 'light', 'print');
   }
   return map;
 }
@@ -94,8 +94,8 @@ pre{word-break:break-word;overflow-wrap:anywhere;}
 .slm-report-takeaway p{display:inline;margin:0;}
 .slm-report-solution{margin-top:14px;padding:14px;border-top:0.5px solid ${T.border};}
 .slm-report-solution-title{font-size:12pt;font-weight:500;margin:0 0 10px;color:${T.accent};}
-.slm-report-diagram{display:flex;justify-content:center;margin:10px 0;page-break-inside:avoid;break-inside:avoid;}
-.slm-report-diagram svg{max-width:100%;max-height:320px;width:auto;height:auto;}
+.slm-report-diagram{display:flex;justify-content:center;align-items:center;margin:8px 0;padding:6px 0;page-break-inside:avoid;break-inside:avoid;}
+.slm-report-diagram svg{display:block;max-width:100%;height:auto;}
 .slm-report-foot{margin-top:20px;padding-top:10px;border-top:0.5px solid ${T.border};text-align:center;font-size:8.5pt;color:${T.fgSubtle};}
 ul,ol{margin:0 0 6px;padding-left:20px;}
 li{margin:2px 0;}

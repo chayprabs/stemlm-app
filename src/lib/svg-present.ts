@@ -3,6 +3,10 @@
  * and keep aspect ratio sane inside the step card.
  */
 import type { ResolvedTheme } from './theme';
+import {
+  type DiagramSizeProfile,
+  computeDisplaySize,
+} from './diagram-bounds';
 
 const LATEX_IN_TEXT: [RegExp, string][] = [
   [/\\\s*Omega\b/gi, 'Ω'],
@@ -133,19 +137,29 @@ function decodeTextNodes(svg: string): string {
 }
 
 /** Prepare sanitized SVG markup for themed, proportional panel display. */
-export function presentSvg(svg: string, theme: ResolvedTheme): string {
+export function presentSvg(
+  svg: string,
+  theme: ResolvedTheme,
+  profile: DiagramSizeProfile = 'step',
+): string {
   if (!svg.trim()) return svg;
 
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
   const root = doc.documentElement;
   if (root.tagName.toLowerCase() !== 'svg') return svg;
 
+  if (!root.getAttribute('viewBox')) {
+    root.setAttribute('viewBox', '0 0 100 100');
+  }
+
+  const { width, height } = computeDisplaySize(root.getAttribute('viewBox'), profile);
+  root.setAttribute('width', String(width));
+  root.setAttribute('height', String(height));
   root.setAttribute('data-stemlm-theme', theme);
+  root.setAttribute('data-stemlm-size', profile);
   if (!root.getAttribute('preserveAspectRatio')) {
     root.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   }
-  root.removeAttribute('width');
-  root.removeAttribute('height');
 
   let out = new XMLSerializer().serializeToString(root);
   out = retintAccentAttributes(out, theme);
