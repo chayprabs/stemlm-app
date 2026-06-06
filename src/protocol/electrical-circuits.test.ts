@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { parse, parseCapsule } from './parser';
 import { THEVENIN_ELECTRICAL } from './__fixtures__';
-import { sanitizeSvg } from '@/src/lib/sanitize';
+import { NODE_VOLTAGE_CIRCUIT, NV_VERIFIED } from './__fixtures-electrical';
+import { sanitizeSvg, extractSvg } from '@/src/lib/sanitize';
 
 // ---------------------------------------------------------------------------
 // 1. Thevenin capsule fixture — parse & structural validation
@@ -102,8 +103,7 @@ describe('Thevenin equivalent capsule (parse)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Complex multi-element SVG sanitization — ensure realistic circuit
-//    elements survive the sanitizer intact.
+// 2. Complex multi-element SVG sanitization
 // ---------------------------------------------------------------------------
 
 describe('SVG sanitizer preserves complex circuit elements', () => {
@@ -218,7 +218,7 @@ describe('SVG sanitizer preserves complex circuit elements', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Full round-trip: parse Thevenin fixture, then sanitize each SVG diagram.
+// 3. Thevenin SVG diagrams survive sanitization round-trip
 // ---------------------------------------------------------------------------
 
 describe('Thevenin SVG diagrams survive sanitization round-trip', () => {
@@ -261,5 +261,379 @@ describe('Thevenin SVG diagrams survive sanitization round-trip', () => {
     expect(clean).toContain('<svg');
     expect(clean).toContain('ellipse');
     expect(clean).toContain('<g');
+  });
+});
+
+// ===========================================================================
+// 4. Node-Voltage / Mesh Analysis: 3-node multi-source circuit
+// ===========================================================================
+
+const nvResult = parse(NODE_VOLTAGE_CIRCUIT);
+const nvCapsule = nvResult.capsule!;
+const nvSteps = nvCapsule?.steps ?? [];
+
+// ---------------------------------------------------------------------------
+// 4a. Parse correctness
+// ---------------------------------------------------------------------------
+
+describe('Node-voltage circuit (parse)', () => {
+  it('returns ok status', () => {
+    expect(nvResult.status).toBe('ok');
+  });
+
+  it('parses subject as Electrical', () => {
+    expect(nvCapsule.meta.subject).toBe('Electrical');
+  });
+
+  it('parses topic', () => {
+    expect(nvCapsule.meta.topic).toContain('node-voltage');
+  });
+
+  it(`has ${NV_VERIFIED.stepCount} steps`, () => {
+    expect(nvSteps).toHaveLength(NV_VERIFIED.stepCount);
+  });
+
+  it('every step has a non-empty title and body', () => {
+    for (const step of nvSteps) {
+      expect(step.title.length).toBeGreaterThan(0);
+      expect(step.body.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('step titles cover the node-voltage workflow', () => {
+    const titles = nvSteps.map((s) => s.title);
+    expect(titles[0]).toMatch(/label|node|ground/i);
+    expect(titles[1]).toMatch(/KCL.*N1/i);
+    expect(titles[2]).toMatch(/KCL.*N2/i);
+    expect(titles[3]).toMatch(/solve|system/i);
+    expect(titles[4]).toMatch(/back.?sub/i);
+    expect(titles[5]).toMatch(/verif|power/i);
+  });
+
+  it('every step has a formula, takeaway, quickcheck, and followup', () => {
+    for (const step of nvSteps) {
+      expect(step.formula).toBeTruthy();
+      expect(step.takeaway).toBeTruthy();
+      expect(step.quickCheck).toBeTruthy();
+      expect(step.quickCheck!.question.length).toBeGreaterThan(0);
+      expect(step.quickCheck!.answer.length).toBeGreaterThan(0);
+      expect(step.followup).toBeTruthy();
+    }
+  });
+
+  it('every step has an SVG diagram', () => {
+    for (const step of nvSteps) {
+      expect(step.diagram?.type).toBe('svg');
+      expect(step.diagram?.content).toContain('<svg');
+    }
+  });
+
+  it('solution block references the final answers', () => {
+    expect(nvCapsule.solution).toContain('132');
+    expect(nvCapsule.solution).toContain('120');
+    expect(nvCapsule.solution).toContain('13');
+  });
+
+  it('solution has one inline SVG diagram', () => {
+    expect(nvCapsule.solutionDiagrams).toHaveLength(1);
+    expect(nvCapsule.solutionDiagrams[0]!.type).toBe('svg');
+  });
+
+  it('produces no error code', () => {
+    expect(nvResult.errorCode).toBeUndefined();
+  });
+
+  it('has zero warnings (clean capsule)', () => {
+    expect(nvResult.warnings).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. Math accuracy — verified against analytic solution
+// ---------------------------------------------------------------------------
+
+describe('Node-voltage circuit (math accuracy)', () => {
+  const ref = NV_VERIFIED;
+  const allText = [
+    ...nvSteps.map((s) => s.body),
+    ...nvSteps.map((s) => s.formula ?? ''),
+    nvCapsule.solution,
+  ].join(' ');
+
+  it('KCL at N1: 3·V1 − 2·V2 = 12 appears in formulas', () => {
+    expect(allText).toMatch(/3\s*V_?1\s*.*2\s*V_?2\s*=\s*12|3V_1\s*-\s*2V_2\s*=\s*12/);
+  });
+
+  it('KCL at N2: 4·V1 − 7·V2 = −24 appears in formulas', () => {
+    expect(allText).toMatch(/4V_?1\s*.*7V_?2\s*=\s*-?\s*24|4V_1\s*-\s*7V_2/);
+  });
+
+  it('V_N2 = 120/13 appears in the solution', () => {
+    expect(allText).toMatch(/120.*13|\\frac\{120\}\{13\}/);
+  });
+
+  it('V_N1 = 132/13 appears in the solution', () => {
+    expect(allText).toMatch(/132.*13|\\frac\{132\}\{13\}/);
+  });
+
+  it('branch currents 4/13 A appear', () => {
+    expect(allText).toMatch(/4\/13|\\frac\{4\}\{13\}/);
+  });
+
+  it('power balance 288/13 W appears', () => {
+    expect(allText).toMatch(/288.*13|288\/13/);
+  });
+
+  it('numeric values satisfy KCL at N1', () => {
+    const lhs = (ref.V_source - ref.V_N1) / ref.R1;
+    const rhs = (ref.V_N1 - ref.V_N2) / ref.R2;
+    expect(lhs).toBeCloseTo(rhs, 10);
+  });
+
+  it('numeric values satisfy KCL at N2', () => {
+    const lhs = (ref.V_N1 - ref.V_N2) / ref.R2 + ref.I_source;
+    const rhs = ref.V_N2 / ref.R3;
+    expect(lhs).toBeCloseTo(rhs, 10);
+  });
+
+  it('I_R1 = I_R2 (series path, no junction between them)', () => {
+    expect(ref.I_R1).toBeCloseTo(ref.I_R2, 10);
+  });
+
+  it('I_R3 = I_R2 + I_source (KCL at N2)', () => {
+    expect(ref.I_R3).toBeCloseTo(ref.I_R2 + ref.I_source, 10);
+  });
+
+  it('power balance: P_gen = P_abs', () => {
+    const P_gen = ref.P_V1 + ref.P_Isrc;
+    const P_R1 = ref.I_R1 ** 2 * ref.R1;
+    const P_R2 = ref.I_R2 ** 2 * ref.R2;
+    const P_R3 = ref.I_R3 ** 2 * ref.R3;
+    const P_abs = P_R1 + P_R2 + P_R3;
+    expect(P_gen).toBeCloseTo(P_abs, 10);
+    expect(P_gen).toBeCloseTo(ref.P_total, 10);
+  });
+
+  it('V_N1 > V_N2 (current flows from N1 to N2)', () => {
+    expect(ref.V_N1).toBeGreaterThan(ref.V_N2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4c. Marker-based current arrows survive full pipeline (sanitize → render)
+// ---------------------------------------------------------------------------
+
+describe('Node-voltage SVG marker arrows survive sanitize pipeline', () => {
+  it('step 1 SVG (full circuit) preserves defs, marker, polygon, marker-end', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('<defs>');
+    expect(clean).toContain('<marker');
+    expect(clean).toContain('<polygon');
+    expect(clean).toContain('marker-end');
+    expect(clean).toContain('url(#');
+  });
+
+  it('step 1 preserves multiple marker IDs (arr, arr-r)', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toMatch(/id="arr"/);
+    expect(clean).toMatch(/id="arr-r"/);
+  });
+
+  it('step 1 preserves <g> groups with id and transform attributes', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('<g');
+    expect(clean).toContain('id="gnd"');
+    expect(clean).toContain('transform=');
+    expect(clean).toContain('id="circuit"');
+    expect(clean).toContain('id="current-arrows"');
+    expect(clean).toContain('id="voltage-labels"');
+  });
+
+  it('step 1 preserves markerUnits attribute', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean.toLowerCase()).toContain('markerunits');
+  });
+
+  it('step 1 preserves ground symbol (nested g with lines)', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('GND');
+    expect(clean).toContain('translate(');
+  });
+
+  it('step 1 preserves node voltage text labels (V₁, V₂)', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('V\u2081');
+    expect(clean).toContain('V\u2082');
+  });
+
+  it('step 1 preserves current direction text labels (I₁, I₂, I₃)', () => {
+    const raw = nvSteps[0]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('I\u2081');
+    expect(clean).toContain('I\u2082');
+    expect(clean).toContain('I\u2083');
+  });
+
+  it('step 2 SVG (KCL at N1) preserves marker arrows on current lines', () => {
+    const raw = nvSteps[1]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('marker-end');
+    expect(clean).toContain('url(#arr)');
+  });
+
+  it('step 2 preserves dashed circle (KCL boundary)', () => {
+    const raw = nvSteps[1]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('stroke-dasharray');
+    expect(clean).toContain('N1');
+  });
+
+  it('step 3 SVG (KCL at N2) preserves marker arrows and 2A current source', () => {
+    const raw = nvSteps[2]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('marker-end');
+    expect(clean).toContain('2A');
+    expect(clean).toContain('N2');
+  });
+
+  it('step 5 SVG (solved) preserves branch current labels and markers', () => {
+    const raw = nvSteps[4]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('marker-end');
+    expect(clean).toContain('132/13');
+    expect(clean).toContain('120/13');
+  });
+
+  it('step 6 SVG (power table) preserves g group and text', () => {
+    const raw = nvSteps[5]!.diagram!.content;
+    const clean = sanitizeSvg(extractSvg(raw));
+    expect(clean).toContain('<g');
+    expect(clean).toContain('Power');
+    expect(clean).toContain('288/13');
+  });
+
+  it('all node-voltage SVG diagrams survive full round-trip', () => {
+    for (const step of nvSteps) {
+      if (step.diagram?.type === 'svg') {
+        const clean = sanitizeSvg(extractSvg(step.diagram.content));
+        expect(clean, `Step "${step.title}" SVG was empty`).toContain('<svg');
+        expect(clean.length).toBeGreaterThan(50);
+      }
+    }
+  });
+
+  it('solution diagram survives sanitization with markers intact', () => {
+    const solDiag = nvCapsule.solutionDiagrams[0]!;
+    const clean = sanitizeSvg(extractSvg(solDiag.content));
+    expect(clean).toContain('<svg');
+    expect(clean).toContain('<marker');
+    expect(clean).toContain('marker-end');
+    expect(clean).toContain('132/13');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Edge cases: markers/defs/g survive with dangerous content nearby
+// ---------------------------------------------------------------------------
+
+describe('Sanitize pipeline: marker edge cases', () => {
+  it('marker-end url(#id) survives when script tags are nearby', () => {
+    const svg = [
+      '<svg viewBox="0 0 100 100">',
+      '<defs><marker id="a" markerWidth="4" markerHeight="4" refX="4" refY="2" orient="auto">',
+      '<polygon points="0,0 4,2 0,4" fill="black"/></marker></defs>',
+      '<script>alert(1)</script>',
+      '<line x1="0" y1="0" x2="80" y2="80" marker-end="url(#a)"/>',
+      '</svg>',
+    ].join('');
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('marker-end');
+    expect(out).toContain('<marker');
+    expect(out).toContain('<line');
+    expect(out).not.toContain('script');
+  });
+
+  it('multiple markers with different IDs coexist', () => {
+    const svg = [
+      '<svg viewBox="0 0 200 100">',
+      '<defs>',
+      '<marker id="start" markerWidth="4" markerHeight="4" refX="0" refY="2" orient="auto"><polygon points="0,0 4,2 0,4" fill="red"/></marker>',
+      '<marker id="end" markerWidth="4" markerHeight="4" refX="4" refY="2" orient="auto"><polygon points="0,0 4,2 0,4" fill="blue"/></marker>',
+      '</defs>',
+      '<line x1="10" y1="50" x2="190" y2="50" marker-start="url(#start)" marker-end="url(#end)"/>',
+      '</svg>',
+    ].join('');
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('id="start"');
+    expect(out).toContain('id="end"');
+    expect(out).toContain('marker-start');
+    expect(out).toContain('marker-end');
+  });
+
+  it('nested <g> elements with transform survive', () => {
+    const svg = [
+      '<svg viewBox="0 0 200 200">',
+      '<g id="outer" transform="translate(50,50)">',
+      '<g id="inner" transform="rotate(45)">',
+      '<line x1="0" y1="0" x2="50" y2="50" stroke="black"/>',
+      '</g>',
+      '</g>',
+      '</svg>',
+    ].join('');
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('id="outer"');
+    expect(out).toContain('id="inner"');
+    expect(out).toContain('translate(50,50)');
+    expect(out).toContain('rotate(45)');
+  });
+
+  it('marker with orient="auto-start-reverse" survives', () => {
+    const svg = [
+      '<svg viewBox="0 0 100 100">',
+      '<defs><marker id="bi" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse">',
+      '<path d="M0,0 L6,3 L0,6 Z" fill="#333"/></marker></defs>',
+      '<line x1="10" y1="50" x2="90" y2="50" marker-start="url(#bi)" marker-end="url(#bi)"/>',
+      '</svg>',
+    ].join('');
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('orient');
+    expect(out).toContain('marker-start');
+    expect(out).toContain('marker-end');
+  });
+
+  it('preserves current source circle with internal arrow marker', () => {
+    const svg = [
+      '<svg viewBox="0 0 100 200">',
+      '<defs><marker id="up" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">',
+      '<polygon points="0,0 6,2 0,4" fill="#333"/></marker></defs>',
+      '<circle cx="50" cy="100" r="16" fill="none" stroke="#333" stroke-width="2"/>',
+      '<line x1="50" y1="116" x2="50" y2="84" stroke="#333" stroke-width="1.5" marker-end="url(#up)"/>',
+      '<text x="70" y="104" font-size="10">2A</text>',
+      '</svg>',
+    ].join('');
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('<circle');
+    expect(out).toContain('marker-end');
+    expect(out).toContain('2A');
+  });
+
+  it('font-weight="bold" survives on text elements', () => {
+    const svg = '<svg viewBox="0 0 100 50"><text x="10" y="30" font-weight="bold" font-size="14" fill="blue">N1</text></svg>';
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('font-weight');
+    expect(out).toContain('N1');
+  });
+
+  it('text-anchor="middle" survives on text elements', () => {
+    const svg = '<svg viewBox="0 0 100 50"><text x="50" y="30" text-anchor="middle" font-size="12">V_N1</text></svg>';
+    const out = sanitizeSvg(svg);
+    expect(out).toContain('text-anchor');
+    expect(out).toContain('V_N1');
   });
 });
