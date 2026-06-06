@@ -57,8 +57,10 @@ export default function App() {
     try {
       const result = await downloadSavedSessionPdf(snapshot.id);
       if (!result.ok) {
-        setDownloadError('PDF export failed. Try again or use Save as PDF in the print dialog.');
+        setDownloadError('PDF export failed. Try again.');
+        return;
       }
+      window.close();
     } catch {
       setDownloadError('Could not export PDF. Try again.');
     } finally {

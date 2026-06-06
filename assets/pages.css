@@ -422,3 +422,29 @@ body[data-stemlm-theme] {
 .slm-link:hover {
   color: var(--slm-accent-hover);
 }
+
+/* ---------- saved PDF export tab ---------- */
+.slm-saved-pdf-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.slm-saved-pdf-card {
+  width: min(100%, 22rem);
+  padding: 1.25rem 1.35rem;
+  background: var(--slm-bg-elevated);
+  border: 0.5px solid var(--slm-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.slm-saved-pdf-status {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--slm-fg-muted);
+}
+.slm-saved-pdf-status.is-error {
+  color: #dc2626;
+}

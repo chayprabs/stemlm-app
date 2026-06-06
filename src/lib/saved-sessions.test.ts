@@ -14,14 +14,21 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
-const { exportSessionPdfMock } = vi.hoisted(() => ({
+const { exportSessionPdfMock, tabsCreateMock } = vi.hoisted(() => ({
   exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+  tabsCreateMock: vi.fn(async () => ({ id: 1 })),
 }));
 
 vi.mock('wxt/browser', () => ({
   browser: {
     storage: {
       local: mockLocalStorage,
+    },
+    tabs: {
+      create: tabsCreateMock,
+    },
+    runtime: {
+      getURL: (path: string) => `chrome-extension://test${path}`,
     },
   },
 }));
@@ -212,24 +219,20 @@ describe('saved-sessions', () => {
   });
 
   describe('downloadSavedSessionPdf', () => {
-    it('exports a step-free session as PDF', async () => {
+    it('opens the saved-pdf export tab for a stored snapshot', async () => {
       seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
 
       const result = await downloadSavedSessionPdf('lib-1');
       expect(result.ok).toBe(true);
-      expect(exportSessionPdfMock).toHaveBeenCalledOnce();
-
-      const calls = exportSessionPdfMock.mock.calls as unknown as [Session][];
-      expect(calls[0]).toBeDefined();
-      const exported = calls[0]![0];
-      expect(exported.question).toBe('Saved Q');
-      expect(exported.capsule.steps).toEqual([]);
-      expect(exported.capsule.solution).toBe('x = 1');
+      expect(tabsCreateMock).toHaveBeenCalledOnce();
+      expect(tabsCreateMock.mock.calls[0]?.[0]?.url).toContain('saved-pdf.html?id=lib-1');
+      expect(exportSessionPdfMock).not.toHaveBeenCalled();
     });
 
     it('returns failed when the id is missing', async () => {
       const result = await downloadSavedSessionPdf('missing');
       expect(result.ok).toBe(false);
+      expect(tabsCreateMock).not.toHaveBeenCalled();
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
     });
   });

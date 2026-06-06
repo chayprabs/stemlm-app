@@ -147,8 +147,26 @@ export async function deleteSavedSession(id: string): Promise<void> {
   await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: list });
 }
 
-/** Open the system print / Save-as-PDF dialog for a saved snapshot. */
+/**
+ * Open the system print / Save-as-PDF dialog for a saved snapshot.
+ * Uses a dedicated extension tab — the popup cannot host a reliable print iframe.
+ */
 export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
+  const snapshot = await getSavedSession(id);
+  if (!snapshot) return { ok: false, method: 'failed' };
+
+  try {
+    const url = new URL(browser.runtime.getURL('/saved-pdf.html'));
+    url.searchParams.set('id', id);
+    await browser.tabs.create({ url: url.href, active: true });
+    return { ok: true, method: 'print' };
+  } catch {
+    return { ok: false, method: 'failed' };
+  }
+}
+
+/** Print a saved snapshot in the current page (panel export path). */
+export async function printSavedSessionPdf(id: string): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
   if (!snapshot) return { ok: false, method: 'failed' };
   return exportSessionPdf(snapshotToSession(snapshot));
