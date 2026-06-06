@@ -218,8 +218,10 @@
   }
 }
 .slm-inject-btn-mark {
-  font-size: 11px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
 }
 .slm-fab-subject {
   display: inline-flex;

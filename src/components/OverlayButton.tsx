@@ -7,7 +7,7 @@ import { detectAdapter } from '@/src/platforms/detect';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
-import { IconCheck, IconChevronDown } from './icons';
+import { IconCheck, IconChevronDown, StemMark } from './icons';
 
 const BTN_W = 76;
 const FAB_STACK_H = 44;
@@ -219,7 +219,7 @@ export function OverlayButton() {
           ) : (
             <>
               <span className="slm-inject-btn-mark" aria-hidden="true">
-                ✦
+                <StemMark width={11} height={11} />
               </span>
               <span>stemLM</span>
             </>

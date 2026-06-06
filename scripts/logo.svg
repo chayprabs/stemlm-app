@@ -1,17 +1,10 @@
 <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-  <rect x="6" y="6" width="116" height="116" rx="24" fill="#F8F9FC"/>
-  <!-- circuit nodes -->
-  <rect x="28" y="36" width="18" height="12" rx="3" fill="#0F1117"/>
-  <rect x="54" y="36" width="18" height="12" rx="3" fill="#0F1117"/>
-  <rect x="80" y="36" width="18" height="12" rx="3" fill="#0F1117"/>
-  <line x1="46" y1="42" x2="54" y2="42" stroke="#0F1117" stroke-width="2"/>
-  <line x1="72" y1="42" x2="80" y2="42" stroke="#0F1117" stroke-width="2"/>
-  <!-- teal accent dots -->
-  <circle cx="37" cy="42" r="3" fill="#0EA5A0"/>
-  <circle cx="63" cy="42" r="3" fill="#0EA5A0"/>
-  <circle cx="89" cy="42" r="3" fill="#0EA5A0"/>
-  <!-- ascending steps -->
-  <rect x="30" y="72" width="18" height="18" rx="4" fill="#0F1117"/>
-  <rect x="54" y="58" width="18" height="32" rx="4" fill="#0F1117"/>
-  <rect x="78" y="44" width="18" height="46" rx="4" fill="#0EA5A0"/>
+  <rect x="6" y="6" width="116" height="116" rx="26" fill="#F8F9FC"/>
+  <g transform="translate(40 32)" fill="#0EA5A0">
+    <path d="M24 40V17" stroke="#0EA5A0" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+    <path d="M24 25.5C17.5 24 9.5 19.5 10.5 26.5C11.5 30.5 17 29.5 24 27.5" fill="#0EA5A0"/>
+    <path d="M24 27.5C30.5 24 38.5 19.5 37.5 26.5C36.5 30.5 31 29.5 24 27.5" fill="#0EA5A0" opacity="0.58"/>
+    <path d="M24 17C21.2 13.2 19.5 10.5 21.8 8.2C23.5 10 24 13.5 24 17Z" fill="#0EA5A0" opacity="0.82"/>
+    <path d="M24 17C26.8 13.2 28.5 10.5 26.2 8.2C24.5 10 24 13.5 24 17Z" fill="#0EA5A0" opacity="0.82"/>
+  </g>
 </svg>

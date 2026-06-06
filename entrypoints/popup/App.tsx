@@ -112,7 +112,7 @@ export default function App() {
 
       {!onGemini && (
         <p className="slm-popup-empty">
-          Open gemini.google.com, type your question, then click stemLM beside the send button.
+          Open gemini.google.com, type your question, then click the stemLM button beside send.
         </p>
       )}
 

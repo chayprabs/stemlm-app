@@ -13,15 +13,34 @@ const base = (props: SVGProps<SVGSVGElement>) => ({
   ...props,
 });
 
-/** Branching fork mark from stemlm.app hero. */
+/** Botanical stem mark — sprouting stem with paired leaves (#0EA5A0 via currentColor). */
 export const StemMark = (p: SVGProps<SVGSVGElement>) => (
-  <svg width={14} height={14} viewBox="0 0 48 48" aria-hidden="true" {...p}>
-    <rect x="16" y="2" width="16" height="16" rx="4" fill="currentColor" />
-    <rect x="2" y="30" width="16" height="16" rx="4" fill="currentColor" opacity="0.4" />
-    <rect x="30" y="30" width="16" height="16" rx="4" fill="currentColor" opacity="0.4" />
-    <line x1="24" y1="18" x2="24" y2="28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <line x1="24" y1="28" x2="10" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <line x1="24" y1="28" x2="38" y2="30" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  <svg width={14} height={14} viewBox="0 0 48 48" fill="none" aria-hidden="true" {...p}>
+    <path
+      d="M24 40V17"
+      stroke="currentColor"
+      strokeWidth="3.5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M24 25.5C17.5 24 9.5 19.5 10.5 26.5C11.5 30.5 17 29.5 24 27.5"
+      fill="currentColor"
+    />
+    <path
+      d="M24 27.5C30.5 24 38.5 19.5 37.5 26.5C36.5 30.5 31 29.5 24 27.5"
+      fill="currentColor"
+      opacity="0.58"
+    />
+    <path
+      d="M24 17C21.2 13.2 19.5 10.5 21.8 8.2C23.5 10 24 13.5 24 17Z"
+      fill="currentColor"
+      opacity="0.82"
+    />
+    <path
+      d="M24 17C26.8 13.2 28.5 10.5 26.2 8.2C24.5 10 24 13.5 24 17Z"
+      fill="currentColor"
+      opacity="0.82"
+    />
   </svg>
 );
 
