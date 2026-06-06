@@ -31,8 +31,9 @@ export function Report({
     <div className="slm-report">
       <header className="slm-report-head">
         <div className="slm-report-brand-wrap">
-          <span className="slm-report-brand-dot" aria-hidden="true" />
-          <span className="slm-report-brand">stemLM</span>
+          <span className="slm-report-brand">
+            stem<span className="slm-report-brand-lm">LM</span>
+          </span>
         </div>
         <span className="slm-report-meta">
           {meta.subject} · {date}

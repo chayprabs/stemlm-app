@@ -1,69 +1,65 @@
 @import 'tailwindcss';
 
 /*
- * stemLM design system — aligned with stemlm.app brand.
- * Theme driven by `data-stemlm-theme` on the shadow-root host.
+ * stemLM design system — matches stemlm.app / DESIGN_SYSTEM.md
+ * Light panel (hero mockup) + optional dark extension theme.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  --radius-card: 0.875rem;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-card: 14px;
   --radius-pill: 999px;
 }
 
 :where([data-stemlm-theme]) {
-  --slm-bg: #fafafb;
-  --slm-bg-subtle: #f3f4f6;
+  /* Light — hero side panel & workspace demo */
+  --slm-bg: #ffffff;
+  --slm-bg-subtle: #f8f9fc;
   --slm-bg-elevated: #ffffff;
-  --slm-bg-muted: #ebedf0;
-  --slm-border: #e2e4ea;
+  --slm-bg-muted: #f1f5f5;
+  --slm-border: #e2e8f0;
   --slm-border-subtle: #eceef2;
   --slm-fg: #0f1117;
-  --slm-fg-muted: #5c6370;
-  --slm-fg-subtle: #8b919d;
-  --slm-accent: #6d5efc;
-  --slm-accent-hover: #5b46e0;
-  --slm-accent-fg: #ffffff;
-  --slm-accent-soft: #eeebff;
-  --slm-accent-glow: rgba(109, 94, 252, 0.18);
-  --slm-gradient: linear-gradient(135deg, #7c6bff 0%, #5b46e0 100%);
-  --slm-success: #16a34a;
-  --slm-success-soft: rgba(22, 163, 74, 0.1);
-  --slm-warning: #d97706;
-  --slm-formula-bg: linear-gradient(135deg, rgba(22, 163, 74, 0.06) 0%, rgba(109, 94, 252, 0.04) 100%);
-  --slm-formula-border: rgba(22, 163, 74, 0.22);
-  --slm-formula-fg: #15803d;
-  --slm-shadow-sm: 0 1px 2px rgba(15, 17, 23, 0.04);
-  --slm-shadow: 0 1px 3px rgba(15, 17, 23, 0.06), 0 8px 24px rgba(15, 17, 23, 0.06);
-  --slm-shadow-lg: 0 4px 16px rgba(15, 17, 23, 0.08), 0 16px 48px rgba(15, 17, 23, 0.1);
-  --slm-ring: rgba(109, 94, 252, 0.35);
+  --slm-fg-muted: #64748b;
+  --slm-fg-subtle: #8a8a9a;
+  --slm-accent: #0ea5a0;
+  --slm-accent-hover: #0d9490;
+  --slm-accent-fg: #f0f0f2;
+  --slm-accent-soft: #0ea5a015;
+  --slm-accent-dim: #0ea5a015;
+  --slm-amber: #f59e0b;
+  --slm-amber-dim: #f59e0b15;
+  --slm-success: #22c55e;
+  --slm-success-soft: #22c55e15;
+  --slm-warning: #f59e0b;
+  --slm-error: #ef4444;
+  --slm-formula-bg: #f8f9fc;
+  --slm-formula-border: #e2e8f0;
+  --slm-formula-fg: #0ea5a0;
+  --slm-ring: #0ea5a0;
 }
 
 [data-stemlm-theme='dark'] {
-  --slm-bg: #0a0b0f;
-  --slm-bg-subtle: #12141a;
-  --slm-bg-elevated: #16181f;
-  --slm-bg-muted: #1c1f28;
-  --slm-border: #262a35;
-  --slm-border-subtle: #1e2129;
-  --slm-fg: #f0f2f7;
-  --slm-fg-muted: #9aa1ae;
-  --slm-fg-subtle: #6b7280;
-  --slm-accent: #8c7dff;
-  --slm-accent-hover: #7c6bff;
-  --slm-accent-fg: #0a0b0f;
-  --slm-accent-soft: rgba(124, 107, 255, 0.12);
-  --slm-accent-glow: rgba(124, 107, 255, 0.2);
-  --slm-gradient: linear-gradient(135deg, #8c7dff 0%, #6d5efc 50%, #5b46e0 100%);
-  --slm-success: #34d17e;
-  --slm-success-soft: rgba(52, 209, 126, 0.1);
-  --slm-warning: #f0a93a;
-  --slm-formula-bg: linear-gradient(135deg, rgba(52, 209, 126, 0.08) 0%, rgba(124, 107, 255, 0.06) 100%);
-  --slm-formula-border: rgba(52, 209, 126, 0.25);
-  --slm-formula-fg: #4ade80;
-  --slm-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --slm-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 8px 32px rgba(0, 0, 0, 0.4);
-  --slm-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.45), 0 20px 60px rgba(0, 0, 0, 0.5);
-  --slm-ring: rgba(140, 125, 255, 0.45);
+  --slm-bg: #0c0c0f;
+  --slm-bg-subtle: #141418;
+  --slm-bg-elevated: #141418;
+  --slm-bg-muted: #1a1a22;
+  --slm-border: #1e1e24;
+  --slm-border-subtle: #2a2a35;
+  --slm-fg: #f0f0f2;
+  --slm-fg-muted: #8a8a9a;
+  --slm-fg-subtle: #4a4a5a;
+  --slm-accent: #0ea5a0;
+  --slm-accent-hover: #0d9490;
+  --slm-accent-fg: #f0f0f2;
+  --slm-accent-soft: #0ea5a015;
+  --slm-accent-dim: #0ea5a015;
+  --slm-formula-bg: #1a1a22;
+  --slm-formula-border: #2a2a35;
+  --slm-formula-fg: #0ea5a0;
+  --slm-ring: #0ea5a0;
 }

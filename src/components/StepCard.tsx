@@ -7,11 +7,6 @@ import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
 import { IconCheck } from './icons';
 
-/**
- * A single study step: title, key formula, explanation, the step-synced
- * diagram, the takeaway, a quick-check, and a follow-up prompt. The whole body
- * is selectable so the panel can offer a quote-reply drill-down.
- */
 export function StepCard({
   session,
   index,
@@ -28,34 +23,42 @@ export function StepCard({
   const step = session.capsule.steps[index];
   if (!step) return null;
 
+  const stepNo = String(step.index).padStart(2, '0');
+
   return (
     <motion.article
       key={step.id}
       className="slm-card"
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
     >
       <header className="slm-card-head">
         <div className="slm-card-meta">
-          <span className="slm-card-step">Step {step.index}</span>
+          <span className="slm-step-badge">{stepNo}</span>
         </div>
-        <h2 className="slm-card-title">{step.title}</h2>
         <button
           type="button"
           className={`slm-review ${reviewed ? 'is-on' : ''}`}
           onClick={onToggleReviewed}
           aria-pressed={reviewed}
         >
-          <span className="slm-review-box">{reviewed && <IconCheck />}</span>
+          <span className="slm-review-box">{reviewed && <IconCheck width={10} height={10} />}</span>
           {reviewed ? 'Reviewed' : 'Mark reviewed'}
         </button>
+        <h2 className="slm-card-title">{step.title}</h2>
       </header>
+
+      {step.diagram && (
+        <div className="slm-diagram-hero">
+          <DiagramRenderer diagram={step.diagram} theme={theme} />
+        </div>
+      )}
 
       {step.formula && (
         <div className="slm-formula">
-          <span className="slm-formula-label">Key formula</span>
+          <span className="slm-formula-label">Formula</span>
           <MathMarkdown content={step.formula} />
         </div>
       )}
@@ -63,12 +66,6 @@ export function StepCard({
       <div className="slm-card-body slm-selectable">
         <MathMarkdown content={step.body} />
       </div>
-
-      {step.diagram && (
-        <div className="slm-card-diagram">
-          <DiagramRenderer diagram={step.diagram} theme={theme} />
-        </div>
-      )}
 
       {step.takeaway && (
         <div className="slm-takeaway slm-selectable">

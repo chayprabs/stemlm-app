@@ -60,7 +60,6 @@ export default function App() {
   return (
     <div className="slm-options">
       <header className="slm-options-head">
-        <span className="slm-brand-dot" />
         <h1>
           <BrandWordmark /> Settings
         </h1>

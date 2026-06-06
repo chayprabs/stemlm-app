@@ -1,6 +1,5 @@
 /**
- * Light-DOM slot for docking the stemLM button inside each platform's composer
- * action row. Keeps the button visually inside the input box across all hosts.
+ * Light-DOM slot for docking the stemLM inject pill inside Gemini's composer.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 
@@ -11,7 +10,7 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] {
   display: inline-flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
   gap: 4px;
   flex-shrink: 0;
@@ -25,34 +24,32 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-fab-wrap {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 4px;
   position: relative;
-  top: auto;
-  left: auto;
 }
-[data-stemlm-composer-slot] .slm-fab {
+[data-stemlm-composer-slot] .slm-inject-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
+  gap: 3px;
+  min-width: 72px;
+  height: 26px;
+  padding: 0 8px;
   border: none;
-  border-radius: 50%;
-  background: var(--slm-fab-surface, linear-gradient(135deg, #7c6bff, #5b46e0));
-  color: var(--slm-fab-fg, #fff);
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06);
-  transition: transform 0.12s ease, box-shadow 0.15s ease, filter 0.15s ease;
-}
-[data-stemlm-composer-slot] .slm-fab:hover {
-  filter: brightness(1.06);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.22), 0 0 0 2px var(--slm-fab-ring, rgba(91,70,224,0.35));
-}
-[data-stemlm-composer-slot] .slm-fab.is-done {
-  background: #16a34a;
+  border-radius: 6px;
+  background: #0EA5A0;
   color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+[data-stemlm-composer-slot] .slm-inject-btn:hover {
+  background: #0D9490;
+}
+[data-stemlm-composer-slot] .slm-inject-btn.is-done {
+  background: #22C55E;
 }
 [data-stemlm-composer-slot] .slm-fab-subject {
   display: inline-flex;
@@ -60,14 +57,13 @@ const SLOT_CSS = `
   gap: 2px;
   max-width: 5.5rem;
   padding: 1px 6px;
-  border: 1px solid var(--slm-slot-border, rgba(128,128,128,0.25));
+  border: 0.5px solid var(--slm-slot-border, #E2E8F0);
   border-radius: 999px;
-  background: var(--slm-slot-bg, rgba(255,255,255,0.94));
-  color: var(--slm-slot-fg, #5c6370);
+  background: var(--slm-slot-bg, #fff);
+  color: var(--slm-slot-fg, #64748B);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 [data-stemlm-composer-slot] .slm-fab-subject-text {
   overflow: hidden;
@@ -77,8 +73,7 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-fab-menu {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0;
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -86,9 +81,8 @@ const SLOT_CSS = `
   max-height: 14rem;
   overflow-y: auto;
   background: var(--slm-slot-bg, #fff);
-  border: 1px solid var(--slm-slot-border, #e2e4ea);
+  border: 0.5px solid var(--slm-slot-border, #E2E8F0);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   z-index: 100;
 }
 [data-stemlm-composer-slot] .slm-fab-menu-item {
@@ -101,23 +95,21 @@ const SLOT_CSS = `
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--slm-slot-fg-strong, #0f1117);
+  color: var(--slm-slot-fg-strong, #0F1117);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 [data-stemlm-composer-slot] .slm-fab-menu-item:hover,
 [data-stemlm-composer-slot] .slm-fab-menu-item.is-active {
-  background: var(--slm-slot-active, #eeebff);
-  color: var(--slm-slot-accent, #5b46e0);
+  background: #0EA5A015;
+  color: #0EA5A0;
 }
 [data-stemlm-composer-slot][data-scheme="dark"] {
-  --slm-slot-bg: #1a1d25;
-  --slm-slot-border: #262a35;
-  --slm-slot-fg: #9aa1ae;
-  --slm-slot-fg-strong: #f0f2f7;
-  --slm-slot-active: rgba(124,107,255,0.15);
-  --slm-slot-accent: #8c7dff;
+  --slm-slot-bg: #141418;
+  --slm-slot-border: #1E1E24;
+  --slm-slot-fg: #8A8A9A;
+  --slm-slot-fg-strong: #F0F0F2;
 }
 `;
 
@@ -129,7 +121,6 @@ function ensureStyles() {
   document.head.appendChild(style);
 }
 
-/** Insert or return the light-DOM slot inside the composer action row. */
 export function ensureComposerSlot(
   adapter: PlatformAdapter,
   scheme: 'light' | 'dark' = 'light',

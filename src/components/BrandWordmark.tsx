@@ -1,4 +1,4 @@
-/** stemLM wordmark: "stem" in foreground + "LM" in accent teal. */
+/** stemLM wordmark: lowercase stem + uppercase LM in accent teal. */
 export function BrandWordmark({ className }: { className?: string }) {
   return (
     <span className={`slm-wordmark ${className ?? ''}`}>

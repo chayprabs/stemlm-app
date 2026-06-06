@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
-import type { PlatformBrand } from '@/src/platforms/types';
-import { detectHostScheme, type ResolvedTheme } from '@/src/lib/theme';
+import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot } from '@/src/lib/composer-slot';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
-import { IconLogo, IconCheck, IconChevronDown } from './icons';
+import { IconCheck, IconChevronDown } from './icons';
 
-const FAB_SIZE = 32;
+const BTN_W = 76;
+const BTN_H = 26;
 
 type PosMode =
   | { mode: 'docked'; slot: HTMLElement }
@@ -58,15 +58,15 @@ function useComposerPosition(): PosMode {
 
       const PAD = 8;
       const GAP = 6;
-      const top = rowR.top + (rowR.height - FAB_SIZE) / 2;
-      const left = (sendR?.left ?? rowR.right) - FAB_SIZE - GAP;
+      const top = rowR.top + (rowR.height - BTN_H) / 2;
+      const left = (sendR?.left ?? rowR.right) - BTN_W - GAP;
 
       const clampedTop = boxR
-        ? clamp(top, boxR.top + PAD, boxR.bottom - FAB_SIZE - PAD)
-        : clamp(top, PAD, window.innerHeight - FAB_SIZE - PAD);
+        ? clamp(top, boxR.top + PAD, boxR.bottom - BTN_H - PAD)
+        : clamp(top, PAD, window.innerHeight - BTN_H - PAD);
       const clampedLeft = boxR
-        ? clamp(left, boxR.left + PAD, boxR.right - FAB_SIZE - PAD)
-        : clamp(left, PAD, window.innerWidth - FAB_SIZE - PAD);
+        ? clamp(left, boxR.left + PAD, boxR.right - BTN_W - PAD)
+        : clamp(left, PAD, window.innerWidth - BTN_W - PAD);
 
       setPos({ mode: 'fixed', top: clampedTop, left: clampedLeft, visible: true });
     };
@@ -90,34 +90,6 @@ function useComposerPosition(): PosMode {
   return pos;
 }
 
-function hexToRgba(hex: string, a: number): string {
-  const h = hex.replace('#', '');
-  const v =
-    h.length === 3
-      ? h.split('').map((c) => c + c).join('')
-      : h.padEnd(6, '0').slice(0, 6);
-  const r = parseInt(v.slice(0, 2), 16);
-  const g = parseInt(v.slice(2, 4), 16);
-  const b = parseInt(v.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-function fabPalette(brand: PlatformBrand, scheme: ResolvedTheme): React.CSSProperties {
-  if (brand.neutral) {
-    const dark = scheme === 'dark';
-    return {
-      ['--slm-fab-surface' as string]: dark ? '#ffffff' : '#0d0d0d',
-      ['--slm-fab-fg' as string]: dark ? '#0d0d0d' : '#ffffff',
-      ['--slm-fab-ring' as string]: dark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)',
-    } as React.CSSProperties;
-  }
-  return {
-    ['--slm-fab-surface' as string]: 'linear-gradient(135deg, #7c6bff, #5b46e0)',
-    ['--slm-fab-fg' as string]: '#ffffff',
-    ['--slm-fab-ring' as string]: hexToRgba('#7c6bff', 0.4),
-  } as React.CSSProperties;
-}
-
 export function OverlayButton() {
   const pos = useComposerPosition();
   const injected = useStore((s) => s.buttonInjected);
@@ -125,29 +97,11 @@ export function OverlayButton() {
   const defaultSubject = useStore((s) => s.settings.defaultSubject);
   const [override, setOverride] = useState<Subject | 'Auto'>('Auto');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [scheme, setScheme] = useState<ResolvedTheme>('light');
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOverride(defaultSubject);
   }, [defaultSubject]);
-
-  useEffect(() => {
-    const sync = () => setScheme(detectHostScheme());
-    sync();
-    const id = window.setInterval(sync, 2000);
-    let mql: MediaQueryList | null = null;
-    try {
-      mql = window.matchMedia('(prefers-color-scheme: dark)');
-      mql.addEventListener('change', sync);
-    } catch {
-      /* ignore */
-    }
-    return () => {
-      window.clearInterval(id);
-      mql?.removeEventListener('change', sync);
-    };
-  }, []);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -156,11 +110,6 @@ export function OverlayButton() {
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
   }, []);
-
-  const palette = useMemo(() => {
-    const brand = detectAdapter()?.brand ?? { accent: '#5b46e0' };
-    return fabPalette(brand, scheme);
-  }, [scheme]);
 
   if (pos.mode === 'fixed' && !pos.visible) return null;
 
@@ -213,9 +162,9 @@ export function OverlayButton() {
 
       <motion.button
         type="button"
-        className={`slm-fab ${injected ? 'is-done' : ''}`}
+        className={`slm-inject-btn ${injected ? 'is-done' : ''}`}
         onClick={onMain}
-        whileTap={{ scale: 0.92 }}
+        whileTap={{ scale: 0.96 }}
         title={
           injected
             ? 'Open stemLM panel'
@@ -223,7 +172,19 @@ export function OverlayButton() {
         }
         aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
       >
-        {injected ? <IconCheck width={16} height={16} /> : <IconLogo />}
+        {injected ? (
+          <>
+            <IconCheck width={12} height={12} />
+            <span>stemLM</span>
+          </>
+        ) : (
+          <>
+            <span className="slm-inject-btn-mark" aria-hidden="true">
+              ✦
+            </span>
+            <span>stemLM</span>
+          </>
+        )}
       </motion.button>
 
       {!injected && (
@@ -247,7 +208,7 @@ export function OverlayButton() {
 
   if (pos.mode === 'docked') {
     return createPortal(
-      <div ref={ref} className="slm-fab-wrap" style={palette}>
+      <div ref={ref} className="slm-fab-wrap">
         {content}
       </div>,
       pos.slot,
@@ -258,7 +219,7 @@ export function OverlayButton() {
     <div
       ref={ref}
       className="slm-fab-wrap slm-fab-wrap--fixed"
-      style={{ top: pos.top, left: pos.left, ...palette }}
+      style={{ top: pos.top, left: pos.left }}
     >
       {content}
     </div>

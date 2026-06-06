@@ -53,7 +53,7 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     '.stop-icon',
   ],
-  brand: { accent: '#4285f4', accentFg: '#ffffff' },
+  brand: { accent: '#0EA5A0', accentFg: '#ffffff' },
   layoutRoots: ['main', 'chat-window', '#app-root'],
 };
 

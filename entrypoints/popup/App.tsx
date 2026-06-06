@@ -65,7 +65,6 @@ export default function App() {
   return (
     <div className="slm-popup">
       <div className="slm-popup-head">
-        <span className="slm-brand-dot" />
         <h1>
           <BrandWordmark />
         </h1>

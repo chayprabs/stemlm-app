@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { IconLogo, IconLayers } from './icons';
+import { StemMark, IconLayers } from './icons';
 import { getController } from '@/src/content/controller';
 
 export function EmptyState() {
@@ -13,19 +13,19 @@ export function EmptyState() {
   return (
     <div className="slm-empty">
       <div className="slm-empty-mark">
-        <IconLogo width={24} height={24} />
+        <StemMark width={20} height={20} />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">
-        Type your question in the chat, then tap the stemLM button beside the send control.
-        Your answer will appear here as structured steps with formulas and diagrams.
+        Type your question in Gemini, then tap ✦ stemLM beside send. Your answer appears here
+        as structured steps with formulas and diagrams.
       </p>
       <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
         <IconLayers /> Load from conversation
       </button>
       {status === 'none' && (
         <p className="slm-empty-hint">
-          No stemLM answers found in this chat. Use the button next to send to get started.
+          No stemLM answers found in this chat. Use ✦ stemLM next to send to get started.
         </p>
       )}
     </div>

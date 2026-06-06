@@ -4,6 +4,15 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { BrandWordmark } from './BrandWordmark';
 import { IconBook, IconClose, IconLayers, IconMoon, IconPdf, IconSave, IconSun } from './icons';
 
+function frameworkKey(session: Session): string {
+  const subj = session.capsule.meta.subject.replace(/\s+/g, '').toUpperCase().slice(0, 6);
+  const topic = session.capsule.meta.topic
+    .replace(/[^a-z0-9]/gi, '')
+    .toUpperCase()
+    .slice(0, 8);
+  return `STEM-${subj}-${topic || 'TOPIC'}`;
+}
+
 export function PanelHeader({
   session,
   view,
@@ -22,10 +31,10 @@ export function PanelHeader({
   theme: ResolvedTheme;
   saved: boolean;
   onSetView: (v: PanelView) => void;
-  onToggleTheme: () => void;
   onSave: () => void;
   onExportPdf: () => void;
   onClose: () => void;
+  onToggleTheme: () => void;
 }) {
   const total = session?.capsule.steps.length ?? 0;
 
@@ -33,10 +42,10 @@ export function PanelHeader({
     <header className="slm-header">
       <div className="slm-header-top">
         <div className="slm-brand">
-          <span className="slm-brand-dot" />
           <BrandWordmark className="slm-brand-name" />
           {session && <span className="slm-subject-chip">{session.capsule.meta.subject}</span>}
         </div>
+        <span className="slm-panel-label">Side panel</span>
         <div className="slm-header-actions">
           <button
             type="button"
@@ -73,7 +82,17 @@ export function PanelHeader({
 
       {session && (
         <>
+          <div className="slm-extraction">
+            <div className="slm-extraction-label">Extraction status</div>
+            <div className="slm-extraction-row">
+              <span className="slm-status-dot" aria-hidden="true" />
+              <span>Framework matched in response.</span>
+            </div>
+            <span className="slm-framework-key">{frameworkKey(session)}</span>
+          </div>
+
           <h1 className="slm-topic">{session.capsule.meta.topic}</h1>
+
           <div className="slm-header-bottom">
             <div className="slm-tabs" role="tablist" aria-label="Study view">
               <button
