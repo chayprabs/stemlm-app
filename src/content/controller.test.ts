@@ -109,12 +109,29 @@ describe('StemController.inject', () => {
     c.stopWatching();
   });
 
-  it('does not inject twice (single injection)', async () => {
+  it('does not inject twice while the protocol is still in the composer', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'something';
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(true);
     expect(await c.inject()).toBe(false);
+    c.stopWatching();
+  });
+
+  it('allows a second injection after capture resets the button', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Find the range of a projectile at 45 degrees';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    expect(useStore.getState().buttonInjected).toBe(true);
+
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().buttonInjected).toBe(false);
+
+    adapter.editorText = 'Another projectile question';
+    expect(await c.inject()).toBe(true);
     c.stopWatching();
   });
 
@@ -181,6 +198,7 @@ describe('StemController capture', () => {
     await new Promise((r) => setTimeout(r, 500));
     expect(useStore.getState().sessions.length).toBe(1);
     expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().buttonInjected).toBe(false);
     c.stopWatching();
   });
 

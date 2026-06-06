@@ -107,7 +107,6 @@ export function OverlayButton() {
   const pos = useComposerPosition();
   const [pasting, setPasting] = useState(false);
   const injected = useStore((s) => s.buttonInjected);
-  const status = useStore((s) => s.status);
   const panelOpen = useStore((s) => s.panelOpen);
   const togglePanel = useStore((s) => s.togglePanel);
 
@@ -115,22 +114,29 @@ export function OverlayButton() {
   const hostScheme = detectHostScheme();
   const neutral = adapter?.brand.neutral ?? false;
 
+  // Return the inject button to its default state once the user sends (composer
+  // clears) or starts typing a new question — not only after capture completes.
   useEffect(() => {
-    if (!injected || status !== 'ready' || !adapter) return;
+    if (!injected || !adapter) return;
     const ctrl = getController();
     if (!ctrl) return;
 
     const tick = () => {
       const text = adapter.getEditorText().trim();
+      if (text.length === 0) {
+        ctrl.resetInjection();
+        return;
+      }
       const last = ctrl.getLastQuestion().trim();
-      if (text.length > 0 && last.length > 0 && text !== last) {
+      const hasProtocol = text.includes('stemLM instructions');
+      if (!hasProtocol && last.length > 0 && text !== last) {
         ctrl.resetInjection();
       }
     };
 
-    const id = window.setInterval(tick, 1000);
+    const id = window.setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [injected, status, adapter]);
+  }, [injected, adapter]);
 
   if (pos.mode === 'fixed' && !pos.visible) return null;
 

@@ -292,6 +292,7 @@ export class StemController {
     useStore
       .getState()
       .setStatus('error', `stemLM couldn't read a structured answer from this response.${suffix}`);
+    this.resetInjection();
     void trackEvent('extension_error', {
       platform: this.adapter.id,
       source: 'parse',
@@ -343,6 +344,7 @@ export class StemController {
       raw: result.raw,
     };
     useStore.getState().addSession(session);
+    this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,
       subject: result.capsule.meta.subject,
