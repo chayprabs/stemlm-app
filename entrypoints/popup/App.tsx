@@ -37,16 +37,24 @@ export default function App() {
     activeTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
 
-  async function send(type: string) {
+  async function sendToTab(payload: { type: string; id?: string }) {
     const tab = await activeTab();
     if (tab?.id != null) {
       try {
-        await browser.tabs.sendMessage(tab.id, { type });
+        await browser.tabs.sendMessage(tab.id, payload);
       } catch {
         /* no content script */
       }
     }
     window.close();
+  }
+
+  function send(type: string) {
+    void sendToTab({ type });
+  }
+
+  function openSaved(id: string) {
+    void sendToTab({ type: 'stemlm:open-saved-session', id });
   }
 
   async function remove(id: string) {
@@ -109,14 +117,22 @@ export default function App() {
         <ul className="slm-saved-list">
           {saved.map((s) => (
             <li key={s.id} className="slm-saved-item">
-              <span className="slm-saved-meta">
-                <span className="slm-saved-topic">
-                  <IconBook width={13} height={13} /> {s.capsule.meta.topic}
+              <button
+                type="button"
+                className="slm-saved-open"
+                onClick={() => openSaved(s.id)}
+                disabled={!onGemini}
+                title={onGemini ? 'Open in study panel' : 'Open gemini.google.com first'}
+              >
+                <span className="slm-saved-meta">
+                  <span className="slm-saved-topic">
+                    <IconBook width={13} height={13} /> {s.capsule.meta.topic}
+                  </span>
+                  <span className="slm-saved-sub">
+                    {s.capsule.meta.subject} · {s.capsule.steps.length} steps
+                  </span>
                 </span>
-                <span className="slm-saved-sub">
-                  {s.capsule.meta.subject} · {s.capsule.steps.length} steps
-                </span>
-              </span>
+              </button>
               <button
                 type="button"
                 className="slm-saved-del"

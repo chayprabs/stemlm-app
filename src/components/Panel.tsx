@@ -115,9 +115,14 @@ export function Panel() {
 
   async function onSave() {
     if (!session) return;
-    await saveSession(session);
-    setSaved(true);
-    void trackEvent('session_saved', { platform: session.platform });
+    try {
+      await saveSession(session);
+      setSaved(true);
+      void trackEvent('session_saved', { platform: session.platform });
+    } catch {
+      setSaved(false);
+      useStore.getState().setStatus('error', 'Could not save session. Try again.');
+    }
   }
 
   async function onToggleTheme() {

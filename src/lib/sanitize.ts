@@ -47,6 +47,7 @@ function stripRemoteRefs(svg: string): string {
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
 export function sanitizeSvg(svg: string): string {
   if (!svg) return '';
+  const viewBox = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1] ?? '0 0 100 100';
   ensureConfigured();
   const clean = DOMPurify.sanitize(svg, {
     USE_PROFILES: { svg: true, svgFilters: true },
@@ -64,7 +65,11 @@ export function sanitizeSvg(svg: string): string {
     FORBID_TAGS: ['script', 'style', 'foreignObject', 'image'],
     FORBID_ATTR: ['style', 'onload', 'onclick', 'onmouseover'],
   });
-  return stripRemoteRefs(clean).trim();
+  let result = stripRemoteRefs(clean).trim();
+  if (result && !/^<svg[\s>]/i.test(result)) {
+    result = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${result}</svg>`;
+  }
+  return result;
 }
 
 /** Extract the first <svg>...</svg> from arbitrary text, else return as-is. */

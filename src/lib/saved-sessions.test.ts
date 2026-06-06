@@ -29,7 +29,9 @@ import {
   saveSession,
   deleteSavedSession,
   isSessionSaved,
+  openSavedSession,
 } from './saved-sessions';
+import { useStore } from '@/src/state/store';
 
 function makeSession(overrides: Partial<Session> & { id: string }): Session {
   const now = overrides.updatedAt ?? overrides.createdAt ?? 1_000;
@@ -113,13 +115,13 @@ describe('saved-sessions', () => {
   });
 
   describe('saveSession', () => {
-    it('overwrites storage with only the new session when a read fails (known bug)', async () => {
+    it('does not write when storage read fails', async () => {
       seedStorage([makeSession({ id: 'existing' })]);
       mockLocalStorage.get.mockRejectedValueOnce(new Error('storage unavailable'));
 
-      await saveSession(makeSession({ id: 'replacement' }));
-
-      expect(storedSessions().map((s) => s.id)).toEqual(['replacement']);
+      await expect(saveSession(makeSession({ id: 'replacement' }))).rejects.toThrow();
+      expect(storedSessions().map((s) => s.id)).toEqual(['existing']);
+      expect(mockLocalStorage.set).not.toHaveBeenCalled();
     });
 
     it('adds a new session to storage', async () => {
@@ -220,6 +222,38 @@ describe('saved-sessions', () => {
 
     it('returns false when storage is empty', async () => {
       expect(await isSessionSaved('any')).toBe(false);
+    });
+  });
+
+  describe('openSavedSession', () => {
+    beforeEach(() => {
+      useStore.setState({
+        panelOpen: false,
+        status: 'idle',
+        sessions: [],
+        activeSessionId: undefined,
+        activeStepIndex: 0,
+      });
+    });
+
+    it('loads a saved session into the store and opens the panel', async () => {
+      const session = makeSession({ id: 'lib-1', question: 'Saved Q' });
+      seedStorage([session]);
+
+      const ok = await openSavedSession('lib-1');
+      expect(ok).toBe(true);
+
+      const state = useStore.getState();
+      expect(state.panelOpen).toBe(true);
+      expect(state.status).toBe('ready');
+      expect(state.sessions).toHaveLength(1);
+      expect(state.sessions[0]?.question).toBe('Saved Q');
+      expect(state.activeSessionId).toBe('lib-1');
+    });
+
+    it('returns false when the id is missing', async () => {
+      expect(await openSavedSession('missing')).toBe(false);
+      expect(useStore.getState().sessions).toHaveLength(0);
     });
   });
 

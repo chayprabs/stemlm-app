@@ -6,35 +6,62 @@
  */
 import { browser } from 'wxt/browser';
 import type { Session } from '@/src/protocol/types';
+import { useStore } from '@/src/state/store';
 
-const KEY = 'stemlm_saved_sessions';
+export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
 
 function normalizeSession(raw: Session): Session {
   return { ...raw, platform: 'gemini' };
 }
 
+function sortByRecent(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+async function readSavedSessions(): Promise<Session[]> {
+  const list = (await browser.storage.local.get(SAVED_SESSIONS_KEY))[SAVED_SESSIONS_KEY] as
+    | Session[]
+    | undefined;
+  return Array.isArray(list) ? sortByRecent(list.map(normalizeSession)) : [];
+}
+
 export async function getSavedSessions(): Promise<Session[]> {
   try {
-    const list = (await browser.storage.local.get(KEY))[KEY] as Session[] | undefined;
-    return Array.isArray(list) ? list.map(normalizeSession) : [];
+    return await readSavedSessions();
   } catch {
     return [];
   }
 }
 
+export async function getSavedSession(id: string): Promise<Session | undefined> {
+  return (await getSavedSessions()).find((s) => s.id === id);
+}
+
 export async function saveSession(session: Session): Promise<void> {
-  const list = await getSavedSessions();
+  const list = await readSavedSessions();
   const idx = list.findIndex((s) => s.id === session.id);
-  const updated = { ...session, updatedAt: Date.now() };
-  if (idx >= 0) list[idx] = updated;
-  else list.unshift(updated);
-  await browser.storage.local.set({ [KEY]: list.slice(0, MAX_SAVED) });
+  const updated = normalizeSession({ ...session, updatedAt: Date.now() });
+  const next = [...list];
+  if (idx >= 0) next[idx] = updated;
+  else next.unshift(updated);
+  await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED) });
 }
 
 export async function deleteSavedSession(id: string): Promise<void> {
-  const list = (await getSavedSessions()).filter((s) => s.id !== id);
-  await browser.storage.local.set({ [KEY]: list });
+  const list = (await readSavedSessions()).filter((s) => s.id !== id);
+  await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: list });
+}
+
+/** Load a saved library session into the active tab store and open the panel. */
+export async function openSavedSession(id: string): Promise<boolean> {
+  const session = await getSavedSession(id);
+  if (!session) return false;
+  const store = useStore.getState();
+  store.setSessions([session]);
+  store.setStatus('ready');
+  store.openPanel();
+  return true;
 }
 
 export async function isSessionSaved(id: string): Promise<boolean> {

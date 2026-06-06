@@ -244,8 +244,24 @@ body {
 .slm-saved-item:hover {
   border-color: var(--slm-accent);
 }
+.slm-saved-open {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.slm-saved-open:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .slm-saved-meta {
   min-width: 0;
+  display: block;
 }
 .slm-saved-topic {
   font-size: 13px;
