@@ -85,6 +85,7 @@ export type StemLmEvent =
   | 'quickcheck_revealed'
   | 'followup_used'
   | 'session_saved'
+  | 'session_unsaved'
   | 'pdf_exported'
   | 'conversation_loaded'
   | 'extension_error';

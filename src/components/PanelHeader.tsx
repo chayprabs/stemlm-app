@@ -22,7 +22,7 @@ export function PanelHeader({
   saved,
   onSetView,
   onToggleTheme,
-  onSave,
+  onToggleSave,
   onExportPdf,
   onClose,
 }: {
@@ -32,7 +32,7 @@ export function PanelHeader({
   theme: ResolvedTheme;
   saved: boolean;
   onSetView: (v: PanelView) => void;
-  onSave: () => void;
+  onToggleSave: () => void;
   onExportPdf: () => void;
   onClose: () => void;
   onToggleTheme: () => void;
@@ -61,8 +61,10 @@ export function PanelHeader({
           <button
             type="button"
             className="slm-icon-btn"
-            aria-label={saved ? 'Session saved' : 'Save session'}
-            onClick={onSave}
+            aria-label={saved ? 'Remove from saved sessions' : 'Save session'}
+            aria-pressed={saved}
+            title={saved ? 'Remove from saved' : 'Save session'}
+            onClick={onToggleSave}
             disabled={!session}
             data-active={saved ? 'true' : undefined}
           >

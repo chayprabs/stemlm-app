@@ -216,6 +216,12 @@ describe('saved-sessions', () => {
       seedStorage([sessionToSnapshot(makeSession({ id: 'saved' }))]);
       expect(await isSessionSaved('saved')).toBe(true);
     });
+
+    it('returns false after deleteSavedSession', async () => {
+      seedStorage([sessionToSnapshot(makeSession({ id: 'saved' }))]);
+      await deleteSavedSession('saved');
+      expect(await isSessionSaved('saved')).toBe(false);
+    });
   });
 
   describe('downloadSavedSessionPdf', () => {

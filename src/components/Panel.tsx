@@ -10,7 +10,7 @@ import { EmptyState } from './EmptyState';
 import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
 import { IconChevronLeft, IconChevronRight } from './icons';
-import { saveSession, isSessionSaved } from '@/src/lib/saved-sessions';
+import { saveSession, deleteSavedSession, isSessionSaved } from '@/src/lib/saved-sessions';
 import { StorageQuotaError } from '@/src/lib/storage-errors';
 import { setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
@@ -87,18 +87,26 @@ export function Panel() {
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
   const reviewedCount = session?.reviewedStepIds.length ?? 0;
-  async function onSave() {
+  async function onToggleSave() {
     if (!session) return;
     try {
+      if (saved) {
+        await deleteSavedSession(session.id);
+        setSaved(false);
+        void trackEvent('session_unsaved', { platform: session.platform });
+        return;
+      }
       await saveSession(session);
       setSaved(true);
       void trackEvent('session_saved', { platform: session.platform });
     } catch (err) {
-      setSaved(false);
+      if (!saved) setSaved(false);
       const msg =
         err instanceof StorageQuotaError
           ? err.message
-          : 'Could not save session. Try again.';
+          : saved
+            ? 'Could not remove saved session. Try again.'
+            : 'Could not save session. Try again.';
       useStore.getState().setStatus('error', msg);
     }
   }
@@ -167,7 +175,7 @@ export function Panel() {
         saved={saved}
         onSetView={setView}
         onToggleTheme={onToggleTheme}
-        onSave={onSave}
+        onToggleSave={onToggleSave}
         onExportPdf={onExportPdf}
         onClose={closePanel}
       />
