@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Report, collectDiagrams, diagramKey } from './Report';
-import { buildReportDocument, printStyles, reportFilename } from '@/src/lib/pdf';
+import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
 import { parse } from '@/src/protocol/parser';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
@@ -41,6 +41,8 @@ describe('Report renderToStaticMarkup', () => {
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
     expect(html).toContain('stemLM');
+    expect(html).toContain('slm-report-mark');
+    expect(html).not.toMatch(/Jun \d+, \d{4}/);
     expect(html).toContain('slm-report-label">Q'); // question label
     expect(html).toContain('What is the current?'); // the full question
     expect(html).toContain('slm-report-label">Answer'); // answer label
@@ -77,13 +79,24 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(doc).not.toContain('html2canvas');
   });
 
-  it('print styles target A4 and textbook typography', () => {
+  it('print styles target A4 and extension brand tokens', () => {
     expect(printStyles()).toContain('@page');
     expect(printStyles()).toContain('A4');
+    expect(printStyles()).toContain('#0ea5a0');
+    expect(printStyles()).toContain('Inter');
+    expect(printStyles()).toContain('JetBrains Mono');
   });
 
-  it('builds a sensible filename', () => {
+  it('builds a sensible filename for save', () => {
     const session = buildSession();
     expect(reportFilename(session)).toMatch(/^stemLM-[a-z0-9-]+-\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('uses a short print title without dates', () => {
+    const session = buildSession();
+    const doc = buildReportDocument(session, {});
+    expect(reportPrintTitle(session)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(doc).toContain('<title>Series resistor voltage</title>');
+    expect(doc).not.toContain('stemLM-what-is-the-current');
   });
 });
