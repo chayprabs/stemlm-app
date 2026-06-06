@@ -231,7 +231,9 @@ describe('saved-sessions', () => {
       const result = await downloadSavedSessionPdf('lib-1');
       expect(result.ok).toBe(true);
       expect(tabsCreateMock).toHaveBeenCalledOnce();
-      expect(tabsCreateMock.mock.calls[0]?.[0]?.url).toContain('saved-pdf.html?id=lib-1');
+      expect(tabsCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=lib-1') }),
+      );
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
     });
 

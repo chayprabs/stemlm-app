@@ -44,8 +44,6 @@ export const StemMark = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const IconLogo = StemMark;
-
 export const IconChevronDown = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ width: 12, height: 12, ...p })}>
     <path d="m6 9 6 6 6-6" />

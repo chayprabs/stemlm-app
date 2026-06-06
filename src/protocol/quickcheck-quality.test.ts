@@ -27,9 +27,36 @@ describe('isSubstantiveQuickCheck', () => {
     expect(
       isSubstantiveQuickCheck({
         question: 'What is the Thevenin current?',
-        answer: 'I_load = Vth / (Rth + R_load) = (70/11) / (48/11) = 70/48 ≈ 1.46 A.',
+        answer: 'I_load = Vth / (Rth + R_load) = (70/11) / (48/11) = 70/48 ≈ 1.46 A, because that is the load current.',
       }),
     ).toBe(true);
+  });
+
+  it('rejects rationale without step evidence', () => {
+    expect(
+      isSubstantiveQuickCheck({
+        question: 'Is the net reactance inductive or capacitive here?',
+        answer: 'Capacitive because it dominates at this frequency.',
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects math without because or since', () => {
+    expect(
+      isSubstantiveQuickCheck({
+        question: 'What is the Thevenin current?',
+        answer: 'I_load = Vth / (Rth + R_load) = 70/48 ≈ 1.46 A.',
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects padded frequency trivia without numbers', () => {
+    expect(
+      isSubstantiveQuickCheck({
+        question: 'Is reactance higher at low or high frequencies?',
+        answer: 'Reactance is higher at low frequencies for capacitors because of the formula.',
+      }),
+    ).toBe(false);
   });
 });
 

@@ -28,7 +28,10 @@ function formulaShowsNumericWork(formula: string): boolean {
 }
 
 function bodyDefinesSymbols(body: string): boolean {
-  return SYMBOL_CONTEXT.test(body) && /\b(is|are|means|where)\b/i.test(body);
+  return (
+    SYMBOL_CONTEXT.test(body) &&
+    /\b(is|are|means|where|denotes|represents|defined as|equals)\b/i.test(body)
+  );
 }
 
 function formulaIntroducesSymbols(formula: string): boolean {
@@ -52,7 +55,7 @@ export function auditStepQuality(step: Step): ParseWarningCode[] {
   const hasSubstitution = bodyShowsNumericWork(body);
   const hasSymbolContext = bodyDefinesSymbols(body);
 
-  if (!hasSubstitution && !formulaWorked) {
+  if (!hasSubstitution) {
     issues.push('step_missing_substitution');
   }
 

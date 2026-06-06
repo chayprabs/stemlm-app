@@ -28,12 +28,22 @@ describe('auditStepQuality', () => {
     expect(issues).toContain('step_missing_symbol_defs');
   });
 
+  it('flags numeric work only in @formula', () => {
+    const issues = auditStepQuality({
+      id: 's2',
+      index: 2,
+      title: 'Compute RMS current',
+      formula: '$$I = \\frac{120}{214.6} \\approx 0.559\\,\\text{A}$$',
+      body: 'The current depends on the net reactance sign.',
+    });
+    expect(issues).toContain('step_missing_substitution');
+  });
+
   it('passes gold-standard RLC reactance steps', () => {
     const capsule = parse(RLC_AC_IMPEDANCE).capsule!;
-    const xl = capsule.steps[2]!;
-    const xc = capsule.steps[3]!;
-    expect(auditStepQuality(xl)).toEqual([]);
-    expect(auditStepQuality(xc)).toEqual([]);
+    for (const step of capsule.steps) {
+      expect(auditStepQuality(step)).toEqual([]);
+    }
   });
 });
 

@@ -156,7 +156,10 @@ export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResu
   if (!snapshot) return { ok: false, method: 'failed' };
 
   try {
-    const url = new URL(browser.runtime.getURL('/saved-pdf.html'));
+    const runtime = browser.runtime as typeof browser.runtime & {
+      getURL: (path: string) => string;
+    };
+    const url = new URL(runtime.getURL('/saved-pdf.html'));
     url.searchParams.set('id', id);
     await browser.tabs.create({ url: url.href, active: true });
     return { ok: true, method: 'print' };

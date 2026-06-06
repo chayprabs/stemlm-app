@@ -11,8 +11,12 @@ import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
 import { ExtensionLogo } from '@/src/components/ExtensionLogo';
 import { IconClose, IconLayers, IconPdf } from '@/src/components/icons';
-import { deliverStemLmMessage, getActiveTab, isGeminiUrl } from '@/src/lib/tab-bridge';
-import type { StemLmMessage } from '@/src/lib/messages';
+import {
+  deliverStemLmMessage,
+  getActiveTab,
+  isGeminiUrl,
+  type DeliverableStemLmMessage,
+} from '@/src/lib/tab-bridge';
 
 export default function App() {
   const [saved, setSaved] = useState<SavedSessionSnapshot[]>([]);
@@ -31,7 +35,7 @@ export default function App() {
     getActiveTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
 
-  async function send(type: StemLmMessage['type']) {
+  async function send(type: DeliverableStemLmMessage) {
     setSendError(null);
     try {
       const res = await deliverStemLmMessage(type);

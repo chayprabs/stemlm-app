@@ -14,21 +14,16 @@
 }
 
 /* ---------- brand mark + wordmark ---------- */
-.slm-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: var(--radius-sm);
-  background: var(--slm-accent-soft);
-  color: var(--slm-accent);
-}
 .slm-extension-logo {
   display: block;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
+}
+.slm-diagram--step .slm-diagram-svg svg {
+  max-height: 132px;
+}
+.slm-diagram--solution .slm-diagram-svg svg {
+  max-height: 148px;
 }
 .slm-wordmark {
   font-weight: 500;
@@ -923,7 +918,6 @@
   width: 2.25rem;
   height: 2.25rem;
   border-radius: var(--radius-md);
-  background: var(--slm-accent-soft);
   color: var(--slm-accent);
 }
 .slm-loading-title {
@@ -1071,8 +1065,6 @@
   width: 3rem;
   height: 3rem;
   border-radius: var(--radius-lg);
-  color: var(--slm-accent);
-  background: var(--slm-accent-soft);
   margin-bottom: 1rem;
 }
 .slm-empty-title {

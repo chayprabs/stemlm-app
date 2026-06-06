@@ -67,7 +67,7 @@ body{font:11.5pt/1.55 'Inter',ui-sans-serif,system-ui,sans-serif;-webkit-print-c
 .slm-report{max-width:680px;margin:0 auto;}
 .slm-report-head{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;margin-bottom:18px;border-bottom:2px solid ${T.accent};}
 .slm-report-brand-wrap{display:flex;align-items:center;gap:8px;}
-.slm-report-mark{display:inline-flex;color:${T.accent};flex-shrink:0;}
+.slm-report-mark{display:inline-flex;flex-shrink:0;}
 .slm-report-wordmark{font-weight:500;font-size:17px;letter-spacing:-.02em;}
 .slm-report-wordmark .slm-wordmark-stem{color:${T.fg};}
 .slm-report-wordmark .slm-wordmark-lm{color:${T.accent};}

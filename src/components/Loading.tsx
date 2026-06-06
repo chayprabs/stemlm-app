@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { StemMark } from './icons';
+import { ExtensionLogo } from './ExtensionLogo';
 
 export function Loading() {
   return (
@@ -10,7 +10,7 @@ export function Loading() {
           animate={{ opacity: [0.55, 1, 0.55] }}
           transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
         >
-          <StemMark width={16} height={16} />
+          <ExtensionLogo size={16} />
         </motion.span>
         <div>
           <p className="slm-loading-title">Reading response</p>

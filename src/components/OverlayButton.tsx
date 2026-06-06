@@ -6,7 +6,8 @@ import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
-import { IconCheck, StemMark } from './icons';
+import { IconCheck } from './icons';
+import { ExtensionLogo } from './ExtensionLogo';
 
 const BTN_SIZE = 36;
 const SLOT_GAP = _composerSlotGap;
@@ -185,7 +186,7 @@ export function OverlayButton() {
       {injected ? (
         <IconCheck width={14} height={14} />
       ) : (
-        <StemMark width={14} height={14} />
+        <ExtensionLogo size={14} />
       )}
     </motion.button>
   );

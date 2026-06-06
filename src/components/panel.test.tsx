@@ -1,9 +1,29 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Panel } from './Panel';
 import { useStore } from '@/src/state/store';
 import type { Session } from '@/src/protocol/types';
+
+const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock } = vi.hoisted(() => ({
+  saveSessionMock: vi.fn(async () => undefined),
+  deleteSavedSessionMock: vi.fn(async () => undefined),
+  isSessionSavedMock: vi.fn(async () => false),
+}));
+
+vi.mock('@/src/lib/saved-sessions', () => ({
+  saveSession: saveSessionMock,
+  deleteSavedSession: deleteSavedSessionMock,
+  isSessionSaved: isSessionSavedMock,
+}));
+
+vi.mock('wxt/browser', () => ({
+  browser: {
+    runtime: {
+      getURL: (path: string) => `chrome-extension://test/${path}`,
+    },
+  },
+}));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,6 +65,13 @@ function buildTwoDiagramSession(): Session {
     },
   };
 }
+
+beforeEach(() => {
+  saveSessionMock.mockClear();
+  deleteSavedSessionMock.mockClear();
+  isSessionSavedMock.mockReset();
+  isSessionSavedMock.mockResolvedValue(false);
+});
 
 afterEach(() => {
   useStore.getState().resetSessions();
@@ -198,6 +225,56 @@ describe('Panel step diagram', () => {
       );
     });
     expect(useStore.getState().activeStepIndex).toBe(0);
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+});
+
+describe('Panel save toggle', () => {
+  it('saves on first click and unsaves on second click', async () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const saveBtn = container.querySelector(
+      'button[aria-label="Save session"]',
+    ) as HTMLButtonElement;
+    expect(saveBtn).toBeTruthy();
+
+    await act(async () => {
+      saveBtn.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(saveSessionMock).toHaveBeenCalledOnce();
+    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeTruthy();
+
+    isSessionSavedMock.mockResolvedValue(true);
+    const savedBtn = container.querySelector(
+      'button[aria-label="Remove from saved sessions"]',
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      savedBtn.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(deleteSavedSessionMock).toHaveBeenCalledOnce();
 
     act(() => {
       root?.unmount();

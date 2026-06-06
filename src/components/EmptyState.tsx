@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { StemMark, IconLayers } from './icons';
+import { IconLayers } from './icons';
+import { ExtensionLogo } from './ExtensionLogo';
 import { getController } from '@/src/content/controller';
 
 export function EmptyState() {
@@ -13,7 +14,7 @@ export function EmptyState() {
   return (
     <div className="slm-empty">
       <div className="slm-empty-mark">
-        <StemMark width={20} height={20} />
+        <ExtensionLogo size={20} />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">

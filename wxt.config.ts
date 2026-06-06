@@ -62,14 +62,12 @@ export default defineConfig({
   zip: {
     // Extension artifact zips are built from .output/ only; these patterns apply to
     // Firefox source zips and any extra files WXT might bundle alongside the build.
-    exclude: ['**/*.md', 'docs/**', 'scripts/**', 'LICENSE', 'PRIVACY.md', 'TERMS.md'],
+    exclude: ['**/*.md', 'docs/**', 'scripts/**'],
     excludeSources: [
       'docs/**',
       '**/*.md',
       '!src/protocol/*.md',
       'scripts/**',
-      'UI_ALIGNMENT_PROMPT.md',
-      'stemLM-prompt-optimization.md',
       'vitest.config.ts',
       '**/*.test.ts',
       '**/*.test.tsx',

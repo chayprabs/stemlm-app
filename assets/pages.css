@@ -15,17 +15,6 @@ body[data-stemlm-theme] {
 }
 
 /* ---------- shared brand mark + wordmark ---------- */
-.slm-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-md);
-  background: var(--slm-accent-soft);
-  color: var(--slm-accent);
-}
 .slm-extension-logo {
   display: block;
   flex-shrink: 0;

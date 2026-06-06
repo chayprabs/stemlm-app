@@ -9,12 +9,16 @@ const VERDICT_ONLY =
 
 const FREQUENCY_VERDICT = /^(low|high)\s+frequenc(y|ies)\.?$/i;
 
-function hasRationale(text: string): boolean {
-  return /\bbecause\b|\bsince\b|—|–|--/.test(text);
+function hasExplicitRationale(text: string): boolean {
+  return /\bbecause\b|\bsince\b/i.test(text);
 }
 
-function hasMathOrNumbers(text: string): boolean {
-  return /\$|\\\(|\\frac|\\Omega|\\text|≈|~|\\approx/.test(text) || /\d/.test(text);
+function hasStepEvidence(text: string): boolean {
+  return (
+    /\$|\\\(|\\frac|\\Omega|\\text|≈|~|\\approx/.test(text) ||
+    /[=<>]/.test(text) ||
+    /\d/.test(text)
+  );
 }
 
 /** True when the check is worth showing to the student. */
@@ -24,15 +28,12 @@ export function isSubstantiveQuickCheck(qc: QuickCheck): boolean {
   if (!q || !a) return false;
 
   if (VERDICT_ONLY.test(a) || FREQUENCY_VERDICT.test(a)) return false;
+  if (!hasExplicitRationale(a)) return false;
+  if (!hasStepEvidence(a)) return false;
 
-  const words = a.split(/\s+/).filter(Boolean);
-  if (hasRationale(a) || hasMathOrNumbers(a)) return true;
-  if (words.length >= 8) return true;
-  if (words.length >= 5 && /—|–|--/.test(a)) return true;
-  if (words.length <= 3) return false;
-  if (words.length <= 5 && !hasMathOrNumbers(a)) return false;
+  if (/\b(low|high)\s+frequenc/i.test(a) && !/\d/.test(a)) return false;
 
-  return words.length >= 6;
+  return true;
 }
 
 export function auditQuickCheck(qc: QuickCheck, step: Step): ParseWarningCode[] {
@@ -48,7 +49,9 @@ export function auditQuickCheck(qc: QuickCheck, step: Step): ParseWarningCode[] 
     issues.push('quickcheck_thin_answer');
   }
 
-  if (/higher at (low|high) frequenc/i.test(q) && !hasRationale(a) && !hasMathOrNumbers(a)) {
+  const genericFreqQ = /frequenc|low or high|inductive or capacitive/i;
+  const genericFreqA = /\b(low|high)\s+frequenc|\binductive\b|\bcapacitive\b/i;
+  if (genericFreqQ.test(q) && genericFreqA.test(a) && !hasStepEvidence(a)) {
     issues.push('quickcheck_generic_trivia');
   }
 

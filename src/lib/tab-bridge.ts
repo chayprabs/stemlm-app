@@ -71,8 +71,10 @@ async function sendStemLmMessage(
 }
 
 /** Send a stemLM action to the active Gemini tab, reloading once if needed. */
+export type DeliverableStemLmMessage = Exclude<StemLmMessage['type'], 'stemlm:ping'>;
+
 export async function deliverStemLmMessage(
-  type: StemLmMessage['type'],
+  type: DeliverableStemLmMessage,
 ): Promise<StemLmDeliveryResult> {
   const tab = await getActiveTab();
   if (tab?.id == null) throw new Error('no-active-tab');

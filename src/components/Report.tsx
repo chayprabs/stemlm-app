@@ -1,7 +1,7 @@
 import type { Session, Diagram } from '@/src/protocol/types';
 import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark } from './BrandWordmark';
-import { StemMark } from './icons';
+import { ExtensionLogo } from './ExtensionLogo';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 
 export function diagramKey(scope: string, i: number): string {
@@ -29,7 +29,7 @@ export function Report({
       <header className="slm-report-head">
         <div className="slm-report-brand-wrap">
           <span className="slm-report-mark" aria-hidden="true">
-            <StemMark />
+            <ExtensionLogo size={24} />
           </span>
           <BrandWordmark className="slm-report-wordmark" />
         </div>
