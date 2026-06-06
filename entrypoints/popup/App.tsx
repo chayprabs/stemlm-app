@@ -5,7 +5,7 @@ import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme } from '@/src/lib/theme';
 import type { Session } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { IconLayers, IconBook, StemMark } from '@/src/components/icons';
+import { IconClose, IconLayers, IconSave, StemMark } from '@/src/components/icons';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
@@ -32,7 +32,11 @@ export default function App() {
   const [onGemini, setOnGemini] = useState(false);
 
   useEffect(() => {
-    getSettings().then((s) => applyTheme(document.body, resolveTheme(s.theme)));
+    getSettings().then((s) => {
+      const theme = resolveTheme(s.theme);
+      applyTheme(document.documentElement, theme);
+      applyTheme(document.body, theme);
+    });
     getSavedSessions().then(setSaved);
     activeTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
@@ -74,7 +78,7 @@ export default function App() {
     <div className="slm-popup">
       <header className="slm-popup-head">
         <span className="slm-brand-mark" aria-hidden="true">
-          <StemMark width={14} height={14} />
+          <StemMark width={16} height={16} />
         </span>
         <div className="slm-popup-head-text">
           <h1>
@@ -83,80 +87,96 @@ export default function App() {
           <p className="slm-popup-tagline">Structured STEM study overlay</p>
         </div>
       </header>
+
       <p className="slm-popup-sub">
         Structured STEM study overlay for Gemini. Attaches a small protocol file instead of pasting
         long instructions into your prompt.
       </p>
 
-      {onGemini && <p className="slm-popup-status">On Gemini — ready</p>}
+      <section className="slm-popup-card" aria-label="Quick actions">
+        {onGemini && (
+          <p className="slm-popup-status">
+            <span className="slm-status-dot" aria-hidden="true" />
+            On Gemini — ready
+          </p>
+        )}
 
-      <div className="slm-popup-actions">
-        <button
-          type="button"
-          className="slm-popup-btn primary"
-          onClick={() => send('stemlm:open-panel')}
-          disabled={!onGemini}
-          title={onGemini ? '' : 'Open gemini.google.com first'}
-        >
-          Open study panel
-        </button>
-        <button
-          type="button"
-          className="slm-popup-btn"
-          onClick={() => send('stemlm:load-conversation')}
-          disabled={!onGemini}
-        >
-          <IconLayers /> Load conversation from this chat
-        </button>
-      </div>
+        <div className="slm-popup-actions">
+          <button
+            type="button"
+            className="slm-popup-btn primary"
+            onClick={() => send('stemlm:open-panel')}
+            disabled={!onGemini}
+            title={onGemini ? 'Open the study panel' : 'Open gemini.google.com first'}
+          >
+            Open study panel
+          </button>
+          <button
+            type="button"
+            className="slm-popup-btn"
+            onClick={() => send('stemlm:load-conversation')}
+            disabled={!onGemini}
+            title={onGemini ? 'Load this chat into the study panel' : 'Open gemini.google.com first'}
+          >
+            <IconLayers width={15} height={15} />
+            Load conversation from this chat
+          </button>
+        </div>
 
-      {!onGemini && (
-        <p className="slm-popup-empty">
-          Open gemini.google.com, type your question, then click the stemLM button beside send.
-        </p>
-      )}
+        {!onGemini && (
+          <p className="slm-popup-hint">
+            Open gemini.google.com, type your question, then click the stemLM button beside send.
+          </p>
+        )}
+      </section>
 
-      <div className="slm-popup-section-title">Saved sessions</div>
-      {saved.length === 0 ? (
-        <p className="slm-popup-empty">No saved sessions yet. Save one from the panel to revisit it.</p>
-      ) : (
-        <ul className="slm-saved-list">
-          {saved.map((s) => (
-            <li key={s.id} className="slm-saved-item">
-              <button
-                type="button"
-                className="slm-saved-open"
-                onClick={() => openSaved(s.id)}
-                disabled={!onGemini}
-                title={onGemini ? 'Open in study panel' : 'Open gemini.google.com first'}
-              >
-                <span className="slm-saved-meta">
-                  <span className="slm-saved-topic">
-                    <IconBook width={13} height={13} /> {s.capsule.meta.topic}
+      <section className="slm-popup-section" aria-label="Saved sessions">
+        <h2 className="slm-popup-section-title">Saved sessions</h2>
+        {saved.length === 0 ? (
+          <p className="slm-popup-empty">
+            No saved sessions yet. Save one from the panel to revisit it.
+          </p>
+        ) : (
+          <ul className="slm-saved-list">
+            {saved.map((s) => (
+              <li key={s.id} className="slm-saved-item">
+                <button
+                  type="button"
+                  className="slm-saved-open"
+                  onClick={() => openSaved(s.id)}
+                  disabled={!onGemini}
+                  title={onGemini ? 'Open in study panel' : 'Open gemini.google.com first'}
+                >
+                  <span className="slm-saved-meta">
+                    <span className="slm-saved-topic">
+                      <IconSave width={13} height={13} aria-hidden="true" />
+                      {s.capsule.meta.topic}
+                    </span>
+                    <span className="slm-saved-sub">
+                      {s.capsule.meta.subject} · {s.capsule.steps.length} steps
+                    </span>
                   </span>
-                  <span className="slm-saved-sub">
-                    {s.capsule.meta.subject} · {s.capsule.steps.length} steps
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                className="slm-saved-del"
-                title="Delete"
-                onClick={() => remove(s.id)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+                </button>
+                <button
+                  type="button"
+                  className="slm-saved-del"
+                  title="Delete saved session"
+                  aria-label={`Delete ${s.capsule.meta.topic}`}
+                  onClick={() => remove(s.id)}
+                >
+                  <IconClose width={14} height={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
-      <div className="slm-popup-foot">
+      <footer className="slm-popup-foot">
         <button type="button" className="slm-link" onClick={openOptions}>
           Settings →
         </button>
-      </div>
+      </footer>
     </div>
   );
 }

@@ -48,6 +48,7 @@ export default function App() {
 
   useEffect(() => {
     const theme = resolveTheme(settings.theme);
+    applyTheme(document.documentElement, theme);
     applyTheme(document.body, theme);
   }, [settings.theme]);
 
