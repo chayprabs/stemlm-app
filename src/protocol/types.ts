@@ -89,7 +89,11 @@ export type ParseWarningCode =
   | 'missing_topic'
   | 'missing_step_title'
   | 'missing_solution'
-  | 'malformed_diagram';
+  | 'malformed_diagram'
+  | 'missing_step_body'
+  | 'formula_without_body'
+  | 'step_missing_substitution'
+  | 'step_missing_symbol_defs';
 
 export type ParseErrorCode =
   | 'no_capsule'

@@ -697,6 +697,39 @@
   color: var(--slm-fg-subtle);
   margin-bottom: 0.25rem;
 }
+.slm-step-work {
+  margin: 0.5rem 0 0.65rem;
+}
+.slm-step-work-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slm-fg-subtle);
+  margin-bottom: 0.25rem;
+}
+.slm-step-work-body {
+  font-size: 13px;
+  color: var(--slm-fg-muted);
+  line-height: 1.6;
+}
+.slm-step-quality-note {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 0.5px solid var(--slm-amber);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--slm-amber) 8%, var(--slm-bg-elevated));
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--slm-fg-muted);
+}
+.slm-step-quality-note--soft {
+  margin-top: 0.45rem;
+  border-color: var(--slm-border);
+  background: var(--slm-bg-subtle);
+  font-size: 11px;
+}
 .slm-formula .katex,
 .slm-formula {
   font-family: var(--font-mono);

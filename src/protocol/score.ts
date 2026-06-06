@@ -3,6 +3,7 @@ import { extractSvg, sanitizeSvg } from '@/src/lib/sanitize';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import type { Diagram } from './types';
 import { parse } from './parser';
+import { auditStepQuality } from './step-quality';
 
 export interface RawScore {
   parse_ok: 0 | 1;
@@ -10,6 +11,7 @@ export interface RawScore {
   markers: 0 | 1 | 2;
   svg_valid: 0 | 1 | null;
   mermaid_valid: 0 | 1 | null;
+  step_work_ok: 0 | 1;
   step_count: number;
   out_chars: number;
   warnings: string[];
@@ -63,6 +65,12 @@ export async function scoreRaw(raw: string, theme: ResolvedTheme = 'light'): Pro
 
   const stepCount = capsule?.steps.length ?? 0;
   const parseOk = result.status === 'ok' && stepCount >= 3 ? 1 : 0;
+  const stepWorkOk =
+    capsule && capsule.steps.length > 0
+      ? capsule.steps.every((step) => auditStepQuality(step).length === 0)
+        ? 1
+        : 0
+      : 0;
 
   return {
     parse_ok: parseOk,
@@ -70,6 +78,7 @@ export async function scoreRaw(raw: string, theme: ResolvedTheme = 'light'): Pro
     markers: result.warningCodes.length === 0 ? 2 : result.status === 'empty' ? 0 : 1,
     svg_valid: svgValid,
     mermaid_valid: mermaidValid,
+    step_work_ok: stepWorkOk,
     step_count: stepCount,
     out_chars: raw.length,
     warnings: result.warnings,

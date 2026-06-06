@@ -7,10 +7,10 @@ topic: <≤8 words>
 @step
 title: <one line — single move>
 @formula
-<KaTeX $$…$$; skip if none>
+<KaTeX $$…$$ symbols only; skip if none>
 @endformula
 @body
-<1-3 sentences, ONE move, real numbers, inline $x$>
+<REQUIRED. Define new symbols, plug in givens, compute with units — ONE move, real numbers, inline $x$>
 @endbody
 @diagram type=svg
 <state at THIS step; skip if unhelpful>
@@ -30,4 +30,4 @@ a: <one line>
 <full answer, markdown + $math$>
 @endsolution
 __END__
-Rules: one move per @step; no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].
+Rules: one move per @step; @body required (never empty); if @formula has symbols, @body defines them + substitutes numbers; no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].

@@ -64,9 +64,14 @@ export function Report({
                   <MathMarkdown content={step.formula} />
                 </div>
               )}
-              <div className="slm-report-body">
-                <MathMarkdown content={step.body} />
-              </div>
+              {step.body.trim() && (
+                <div className="slm-report-work">
+                  <span className="slm-report-work-label">Work</span>
+                  <div className="slm-report-body">
+                    <MathMarkdown content={step.body} />
+                  </div>
+                </div>
+              )}
               {step.diagram && (
                 <ResolvedDiagram svg={diagramSvg[diagramKey('step', step.index)]} />
               )}

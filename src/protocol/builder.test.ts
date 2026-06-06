@@ -43,7 +43,7 @@ describe('buildInjectionPrompt', () => {
   it('keeps the injected core prompt compact', () => {
     // The core protocol is sent on every question; keep it small so it doesn't
     // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(2600);
+    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(3300);
     // All structural markers the parser relies on must survive compression.
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
@@ -212,7 +212,7 @@ describe('buildRepairPrompt', () => {
   it('asks for a format-only re-emit without raw content', () => {
     const prompt = buildRepairPrompt({ errorCode: 'missing_end' });
     expect(prompt).toContain('missing_end');
-    expect(prompt).toContain('fix only the format');
+    expect(prompt).toContain('fix format and step completeness');
     expect(prompt).toContain('@end');
     expect(prompt).not.toContain('```stemlm');
   });

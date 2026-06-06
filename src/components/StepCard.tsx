@@ -5,6 +5,7 @@ import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
+import { StepWork } from './StepWork';
 import { IconCheck } from './icons';
 import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
 
@@ -60,16 +61,14 @@ export function StepCard({
         </div>
       )}
 
+      <StepWork step={step} className="slm-step-work slm-card-body" />
+
       {step.diagram && (
         <div className="slm-step-diagram">
           <span className="slm-step-diagram-label">Diagram</span>
           <DiagramRenderer diagram={step.diagram} theme={theme} />
         </div>
       )}
-
-      <div className="slm-card-body slm-selectable">
-        <MathMarkdown content={step.body} />
-      </div>
 
       {step.takeaway && (
         <div className="slm-takeaway slm-selectable">

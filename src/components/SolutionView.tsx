@@ -3,6 +3,7 @@ import type { Session, Step } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
+import { StepWork } from './StepWork';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 
@@ -29,16 +30,12 @@ function SolutionStep({
         </div>
       )}
 
+      <StepWork step={step} className="slm-step-work slm-solution-step-body" />
+
       {step.diagram && (
         <div className="slm-step-diagram">
           <span className="slm-step-diagram-label">Diagram</span>
           <DiagramRenderer diagram={step.diagram} theme={theme} />
-        </div>
-      )}
-
-      {step.body.trim() && (
-        <div className="slm-solution-step-body slm-selectable">
-          <MathMarkdown content={step.body} />
         </div>
       )}
 

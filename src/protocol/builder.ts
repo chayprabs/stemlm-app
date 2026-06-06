@@ -81,6 +81,7 @@ export function buildComposerStub(question: string, subject: Subject): string {
     '',
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
+    'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
     'No prose outside the block.',
   ].join('\n');
 }
@@ -159,6 +160,7 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
     guidance,
     'Follow the stemLM protocol below exactly.',
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
+    'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
     'No prose outside the block.',
   ].join('\n');
 }
@@ -208,12 +210,23 @@ export interface RepairPromptOptions {
   errorCode?: string;
 }
 
+const QUALITY_REPAIR_CODES = new Set([
+  'missing_step_body',
+  'formula_without_body',
+  'step_missing_substitution',
+  'step_missing_symbol_defs',
+]);
+
 export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
   const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
+  const qualityFix = opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode)
+    ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone.'
+    : '';
   return [
     `Your previous answer broke the stemLM capsule format.${reason}`,
     'Re-emit the same answer as exactly one fenced block with info string stemlm.',
-    'No prose outside the block. Preserve the math, diagrams, and explanation; fix only the format.',
+    `No prose outside the block. Preserve the math and diagrams; fix format and step completeness.${qualityFix}`,
     `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
+    'Every @step needs a non-empty @body with symbol definitions and worked numbers when a formula is used.',
   ].join('\n');
 }

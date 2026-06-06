@@ -31,6 +31,7 @@ import {
   normalizeCapsuleText,
   stripProtocolMarkers,
 } from './strip-markers';
+import { auditStepQuality, stepQualityMessage } from './step-quality';
 
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
@@ -524,6 +525,11 @@ export function parseCapsule(capsuleText: string): ParseResult {
         'step_body_too_long',
         `Step ${step.index} ("${step.title}") packs multiple moves; split into smaller steps.`,
       );
+    }
+    for (const code of auditStepQuality(step)) {
+      if (!warningCodes.includes(code)) {
+        addWarning(warnings, warningCodes, code, stepQualityMessage(code, step));
+      }
     }
   }
   if (!solution) {

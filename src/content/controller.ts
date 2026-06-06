@@ -20,6 +20,7 @@ import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { auditStepQuality } from '@/src/protocol/step-quality';
 
 /** Quiet period after the last DOM mutation before we inspect the page. */
 const DEBOUNCE_MS = 350;
@@ -378,6 +379,7 @@ export class StemController {
       prompt_variant: useStore.getState().settings.promptVariant,
       parse_status: result.status,
       warnings_count: result.warningCodes.length,
+      step_work_ok: result.capsule.steps.every((s) => auditStepQuality(s).length === 0) ? 1 : 0,
       had_svg: diagrams.some((d) => d.type === 'svg'),
       had_mermaid: diagrams.some((d) => d.type === 'mermaid'),
     });
