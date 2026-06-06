@@ -867,10 +867,6 @@
 .slm-diagram-svg svg text,
 .slm-diagram-svg svg tspan {
   font-family: var(--font-sans);
-  paint-order: stroke fill;
-  stroke: var(--slm-bg-subtle);
-  stroke-width: 3px;
-  stroke-linejoin: round;
 }
 .slm-diagram--solution {
   padding: 0.65rem;

@@ -20,6 +20,7 @@ describe('presentSvg', () => {
     const out = presentSvg(sample, 'dark');
     expect(out).toContain('data-stemlm-theme="dark"');
     expect(out).toContain('stroke="#cbd5e1"');
+    expect(out).toContain('fill="#e2e8f0"');
     expect(out).toContain('R = 10 Ω');
     expect(out).not.toContain('\\Omega');
   });
@@ -28,6 +29,38 @@ describe('presentSvg', () => {
     const out = presentSvg(sample, 'light');
     expect(out).toContain('data-stemlm-theme="light"');
     expect(out).toContain('stroke="#334155"');
+    expect(out).toContain('fill="#1e293b"');
+  });
+
+  it('themes text without an explicit fill attribute', () => {
+    const raw =
+      '<svg viewBox="0 0 200 80"><text x="10" y="20">R = 10 Ω</text></svg>';
+    const dark = presentSvg(raw, 'dark');
+    const light = presentSvg(raw, 'light');
+    expect(dark).toContain('fill="#e2e8f0"');
+    expect(light).toContain('fill="#1e293b"');
+  });
+
+  it('themes black label text and blue accent labels for dark mode', () => {
+    const raw =
+      '<svg viewBox="0 0 240 120">' +
+      '<line x1="10" y1="60" x2="180" y2="60" stroke="black" stroke-width="2"/>' +
+      '<text x="40" y="20" fill="black">R = 10 Ω</text>' +
+      '<text x="120" y="100" fill="blue">|Z| = 12.61 Ω</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).toContain('fill="#e2e8f0"');
+    expect(out).toContain('stroke="#cbd5e1"');
+    expect(out).toContain('fill="#60a5fa"');
+    expect(out).not.toContain('fill="black"');
+  });
+
+  it('darkens light label text in light mode', () => {
+    const raw =
+      '<svg viewBox="0 0 200 40"><text x="10" y="20" fill="#ffffff">R = 10 Ω</text></svg>';
+    const out = presentSvg(raw, 'light');
+    expect(out).toContain('fill="#1e293b"');
+    expect(out).not.toContain('fill="#ffffff"');
   });
 
   it('sets proportional display dimensions from viewBox', () => {
