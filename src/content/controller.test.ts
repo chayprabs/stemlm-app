@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { StemController } from './controller';
 import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
-import type { InjectionPayload } from '@/src/protocol/builder';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
 
@@ -16,10 +15,9 @@ class MockAdapter implements PlatformAdapter {
   layoutRoots = ['main'];
   editorText = '';
   inserted = '';
-  lastPayload: InjectionPayload | null = null;
+  insertOk = true;
   capsules: string[] = [];
   streaming = false;
-  fileInjectOk = true;
 
   matches() {
     return true;
@@ -32,13 +30,10 @@ class MockAdapter implements PlatformAdapter {
   }
   insertPrompt(text: string) {
     this.inserted = text;
-    return true;
+    return this.insertOk;
   }
-  async injectWithProtocolFile(payload: InjectionPayload) {
-    this.lastPayload = payload;
-    if (!this.fileInjectOk) return { ok: false, method: 'file' as const };
-    this.inserted = payload.composerText;
-    return { ok: this.insertPrompt(payload.composerText), method: 'file' as const };
+  async injectWithProtocolFile() {
+    return { ok: false, method: 'text' as const };
   }
   getComposerBox() {
     return document.body;
@@ -87,7 +82,7 @@ function resetStore() {
 describe('StemController.inject', () => {
   beforeEach(resetStore);
 
-  it('attaches protocol file and injects short composer stub only', async () => {
+  it('pastes the full protocol prompt into the composer', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const c = new StemController(adapter);
@@ -95,10 +90,9 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(adapter.inserted).toContain('Solve this circuit');
-    expect(adapter.inserted).toContain('stemlm-protocol.txt');
-    expect(adapter.inserted).not.toContain('OUTPUT:');
-    expect(adapter.lastPayload?.fileContent).toContain('OUTPUT:');
-    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL');
+    expect(adapter.inserted).toContain('OUTPUT:');
+    expect(adapter.inserted).toContain('ELECTRICAL');
+    expect(adapter.inserted).toContain('stemLM instructions');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();
@@ -112,9 +106,7 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
-    expect(adapter.lastPayload?.subject).toBe('Electrical');
-    expect(adapter.lastPayload?.composerText).toContain('exactly (Electrical).');
-    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL');
+    expect(adapter.inserted).toContain('ELECTRICAL');
     c.stopWatching();
   });
 
@@ -127,9 +119,9 @@ describe('StemController.inject', () => {
     c.stopWatching();
   });
 
-  it('surfaces error when file attach fails', async () => {
+  it('surfaces error when composer insert fails', async () => {
     const adapter = new MockAdapter();
-    adapter.fileInjectOk = false;
+    adapter.insertOk = false;
     adapter.editorText = 'question';
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(false);

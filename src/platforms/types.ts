@@ -44,12 +44,12 @@ export interface PlatformAdapter {
   insertPrompt(text: string): boolean;
 
   /**
-   * Attach protocol as a .txt file and write a short composer stub.
-   * Preferred injection path — avoids pasting ~2 KB into the chat box.
+   * Paste the full protocol prompt into the composer (legacy API — prefer
+   * `insertPrompt` with `buildInjectionPrompt` / `buildFollowupPrompt`).
    */
   injectWithProtocolFile(
     payload: InjectionPayload,
-  ): Promise<{ ok: boolean; method: 'file' | 'text-fallback' }>;
+  ): Promise<{ ok: boolean; method: 'text' }>;
 
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;

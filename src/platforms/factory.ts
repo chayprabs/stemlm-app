@@ -134,8 +134,13 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     async injectWithProtocolFile(payload) {
-      const ok = this.insertPrompt(payload.composerText);
-      return { ok, method: 'text-fallback' as const };
+      const intro = payload.composerText.replace(
+        /Follow the attached [^\n]+\./,
+        'Follow the stemLM protocol below exactly.',
+      );
+      const full = `${intro}\n\n--- stemLM instructions (do not remove) ---\n${payload.fileContent}`;
+      const ok = this.insertPrompt(full);
+      return { ok, method: 'text' as const };
     },
 
     getComposerBox() {

@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { StemController } from './controller';
 import { geminiAdapter } from '@/src/platforms/gemini';
 import { useStore } from '@/src/state/store';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
-
-vi.mock('@/src/lib/file-inject', () => ({
-  attachTextFile: vi.fn().mockResolvedValue({ ok: true, method: 'input' }),
-}));
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 
@@ -26,7 +22,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * End-to-end through the REAL Gemini adapter against a simulated page DOM:
- * type a question -> attach protocol file + inject stub -> assistant replies ->
+ * type a question -> paste full protocol -> assistant replies ->
  * MutationObserver captures -> store holds a parsed session.
  */
 describe('integration: Gemini adapter + controller capture', () => {
@@ -41,7 +37,7 @@ describe('integration: Gemini adapter + controller capture', () => {
     `;
   });
 
-  it('attaches protocol file, injects stub, then captures the answer', async () => {
+  it('pastes the full protocol, then captures the answer', async () => {
     const editor = geminiAdapter.findEditor()!;
     editor.textContent =
       'Find the current in this 12V series resistor circuit (Kirchhoff).';
@@ -52,8 +48,8 @@ describe('integration: Gemini adapter + controller capture', () => {
 
     const injected = geminiAdapter.getEditorText();
     expect(injected).toContain('12V series resistor');
-    expect(injected).toContain('stemlm-protocol.txt');
-    expect(injected).not.toContain('OUTPUT:');
+    expect(injected).toContain('OUTPUT:');
+    expect(injected).toContain('stemLM instructions');
     expect(useStore.getState().status).toBe('loading');
 
     const thread = document.getElementById('thread')!;

@@ -110,8 +110,8 @@ export default function App() {
       </header>
 
       <p className="slm-popup-sub">
-        Structured STEM study overlay for Gemini. Attaches a small protocol file instead of pasting
-        long instructions into your prompt.
+        Structured STEM study overlay for Gemini. Injects the stemLM protocol into your chat so
+        answers come back in a step-by-step study panel.
       </p>
 
       <section className="slm-popup-card" aria-label="Quick actions">

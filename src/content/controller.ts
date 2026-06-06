@@ -8,8 +8,7 @@
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 import {
-  buildInjectionPayload,
-  buildFollowupPayload,
+  buildInjectionPrompt,
   buildFollowupPrompt,
   buildRepairPrompt,
   normalizeFollowupSelection,
@@ -72,7 +71,7 @@ export class StemController {
     this.onAnswerStartedCb = cb;
   }
 
-  /** Attach protocol file + short composer stub (no full-text paste). */
+  /** Paste the full protocol prompt into the chat composer. */
   async inject(): Promise<boolean> {
     const store = useStore.getState();
     if (store.buttonInjected) return false;
@@ -81,15 +80,11 @@ export class StemController {
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
-    const payload = buildInjectionPayload(question, { variant });
-    const { ok, method } = await this.adapter.injectWithProtocolFile(payload);
+    const { prompt, subject } = buildInjectionPrompt(question, { variant });
+    const ok = this.adapter.insertPrompt(prompt);
 
     if (!ok) {
-      const msg =
-        method === 'file'
-          ? 'Could not attach stemlm-protocol.txt. Click Gemini’s upload (+) button once, then try stemLM again.'
-          : 'Could not find the chat input. Refresh the page and try again.';
-      store.setStatus('error', msg);
+      store.setStatus('error', 'Could not find the chat input. Refresh the page and try again.');
       store.openPanel();
       return false;
     }
@@ -99,19 +94,16 @@ export class StemController {
     this.armAnswerDetection();
     void trackEvent('question_asked', {
       platform: this.adapter.id,
-      subject: payload.subject,
+      subject,
       prompt_variant: variant,
-      injection_method: method,
+      injection_method: 'text',
     });
 
     this.startWatching();
     return true;
   }
 
-  /**
-   * Inject a quote-reply that drills into selected text and re-arm capture.
-   * Prefers protocol-file attach (Gemini); falls back to full inline paste.
-   */
+  /** Inject a quote-reply that drills into selected text and re-arm capture. */
   async followUp(
     selection: string,
     stepTitle: string | undefined,
@@ -126,21 +118,8 @@ export class StemController {
     }
 
     const variant = useStore.getState().settings.promptVariant;
-    const payload = buildFollowupPayload({
-      selection: normalized,
-      stepTitle,
-      subject,
-      variant,
-    });
-
-    let ok = false;
-    const injected = await this.adapter.injectWithProtocolFile(payload);
-    ok = injected.ok;
-
-    if (!ok) {
-      const full = buildFollowupPrompt({ selection: normalized, stepTitle, subject, variant });
-      ok = this.adapter.insertPrompt(full);
-    }
+    const prompt = buildFollowupPrompt({ selection: normalized, stepTitle, subject, variant });
+    const ok = this.adapter.insertPrompt(prompt);
 
     if (!ok) {
       useStore
