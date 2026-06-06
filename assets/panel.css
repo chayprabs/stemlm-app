@@ -112,12 +112,11 @@
   color: var(--slm-accent);
 }
 
-/* ---------- inject button (composer pill — hero style) ---------- */
+/* ---------- inject button (circle, left of + upload) ---------- */
 .slm-fab-wrap {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
   position: relative;
 }
 .slm-fab-wrap--fixed {
@@ -128,71 +127,56 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
-  min-width: 4.5rem;
-  height: 26px;
-  padding: 0 0.55rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--slm-accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1.5px solid var(--slm-accent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--slm-accent);
   cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 .slm-inject-btn:hover {
-  background: var(--slm-accent-hover);
+  background: rgba(14, 165, 160, 0.08);
 }
 .slm-inject-btn.is-attached {
-  background: var(--slm-accent);
+  border-color: var(--slm-accent);
+  color: var(--slm-accent);
 }
 .slm-inject-btn.is-panel-open {
-  background: var(--slm-success);
+  border-color: var(--slm-success);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--slm-success);
 }
 .slm-fab-wrap--neutral.slm-fab-wrap--dark .slm-inject-btn {
-  background: #212121;
-  color: #ffffff;
-  border: 0.5px solid #2a2a35;
+  background: rgba(33, 33, 33, 0.6);
+  border-color: var(--slm-accent);
+  color: var(--slm-accent);
 }
 .slm-fab-wrap--neutral.slm-fab-wrap--dark .slm-inject-btn:hover {
-  background: #2a2a35;
-  border-color: #3a3a45;
+  background: rgba(42, 42, 53, 0.85);
 }
 .slm-fab-wrap--neutral.slm-fab-wrap--light .slm-inject-btn {
-  background: #f1f5f5;
-  color: #0f1117;
-  border: 0.5px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--slm-accent);
+  color: var(--slm-accent);
 }
 .slm-fab-wrap--neutral.slm-fab-wrap--light .slm-inject-btn:hover {
-  background: #e8ecec;
-  border-color: #cbd5e1;
-}
-.slm-fab-wrap--neutral .slm-inject-btn .slm-inject-btn-mark {
-  color: var(--slm-accent);
-}
-.slm-fab-wrap--neutral .slm-inject-btn.is-attached {
-  border-color: var(--slm-accent);
-}
-.slm-fab-wrap--neutral .slm-inject-btn.is-attached svg {
-  color: var(--slm-accent);
+  background: rgba(241, 245, 245, 0.95);
 }
 .slm-fab-wrap--neutral .slm-inject-btn.is-panel-open {
-  background: var(--slm-success);
-  color: #fff;
   border-color: var(--slm-success);
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--slm-success);
 }
 .slm-inject-status {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  height: 26px;
-  padding: 0 0.35rem;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   color: var(--slm-accent);
-  font-size: 10px;
-  font-weight: 500;
 }
 .slm-inject-status svg {
   animation: slm-spin 0.9s linear infinite;
@@ -206,12 +190,6 @@
   .slm-inject-status svg {
     animation: none;
   }
-}
-.slm-inject-btn-mark {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  line-height: 0;
 }
 /* ---------- panel shell ---------- */
 .slm-panel {

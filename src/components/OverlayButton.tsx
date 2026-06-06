@@ -8,8 +8,7 @@ import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
 import { IconCheck, StemMark } from './icons';
 
-const BTN_W = 76;
-const FAB_STACK_H = 44;
+const BTN_SIZE = 36;
 const SLOT_GAP = _composerSlotGap;
 
 type PosMode =
@@ -38,33 +37,34 @@ function useComposerPosition(): PosMode {
         return;
       }
 
-      const shell = adapter.getComposerShell();
-      const box = adapter.getComposerBox();
-      const anchor = shell ?? box;
       const leading = adapter.getComposerLeadingAnchor();
-
-      if (!anchor) {
-        setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
-        return;
-      }
-
-      const boxR = anchor.getBoundingClientRect();
       const leadingR = leading?.getBoundingClientRect();
+      const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
+      const boxR = shell?.getBoundingClientRect();
 
-      if (boxR.width === 0) {
+      if (!leadingR?.width && !boxR?.width) {
         setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
         return;
       }
 
       const PAD = 8;
-      const alignR = leadingR && leadingR.height > 0 ? leadingR : boxR;
-      const top = alignR.top + (alignR.height - FAB_STACK_H) / 2;
-      const left = boxR.left - BTN_W - SLOT_GAP;
+      let top: number;
+      let left: number;
 
-      const clampedTop = clamp(top, PAD, window.innerHeight - FAB_STACK_H - PAD);
-      const clampedLeft = clamp(left, PAD, window.innerWidth - BTN_W - PAD);
+      if (leadingR && leadingR.width > 0) {
+        top = leadingR.top + (leadingR.height - BTN_SIZE) / 2;
+        left = leadingR.left - BTN_SIZE - SLOT_GAP;
+      } else {
+        top = boxR!.bottom - BTN_SIZE - 10;
+        left = boxR!.left - BTN_SIZE - SLOT_GAP;
+      }
 
-      setPos({ mode: 'fixed', top: clampedTop, left: clampedLeft, visible: true });
+      setPos({
+        mode: 'fixed',
+        top: clamp(top, PAD, window.innerHeight - BTN_SIZE - PAD),
+        left: clamp(left, PAD, window.innerWidth - BTN_SIZE - PAD),
+        visible: true,
+      });
     };
 
     const loop = () => {
@@ -88,7 +88,7 @@ function useComposerPosition(): PosMode {
 
 function InjectSpinner() {
   return (
-    <svg width={12} height={12} viewBox="0 0 24 24" aria-hidden="true">
+    <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
       <circle
         cx="12"
         cy="12"
@@ -115,7 +115,6 @@ export function OverlayButton() {
   const hostScheme = detectHostScheme();
   const neutral = adapter?.brand.neutral ?? false;
 
-  // After a captured answer, unlock inject when the student types a new question.
   useEffect(() => {
     if (!injected || status !== 'ready' || !adapter) return;
     const ctrl = getController();
@@ -156,54 +155,41 @@ export function OverlayButton() {
     .filter(Boolean)
     .join(' ');
 
-  const content = (
-    <>
-      {pasting ? (
-        <span className="slm-inject-status" aria-live="polite">
-          <InjectSpinner />
-          <span>Injecting...</span>
-        </span>
+  const title = pasting
+    ? 'Injecting stemLM protocol'
+    : injected
+      ? panelOpen
+        ? 'stemLM panel open'
+        : 'stemLM attached — open panel'
+      : 'Solve with stemLM';
+
+  const content = pasting ? (
+    <span className="slm-inject-status" aria-live="polite" title={title}>
+      <InjectSpinner />
+    </span>
+  ) : (
+    <motion.button
+      type="button"
+      className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
+      onClick={onMain}
+      whileTap={{ scale: 0.96 }}
+      title={title}
+      aria-label={title}
+    >
+      {injected ? (
+        <IconCheck width={14} height={14} />
       ) : (
-        <motion.button
-          type="button"
-          className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
-          onClick={onMain}
-          whileTap={{ scale: 0.96 }}
-          title={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
-          aria-label={injected ? 'Open stemLM panel' : 'Solve with stemLM'}
-        >
-          {injected ? (
-            <>
-              <IconCheck width={12} height={12} />
-              <span>{panelOpen ? 'stemLM' : 'Attached'}</span>
-            </>
-          ) : (
-            <>
-              <span className="slm-inject-btn-mark" aria-hidden="true">
-                <StemMark width={11} height={11} />
-              </span>
-              <span>stemLM</span>
-            </>
-          )}
-        </motion.button>
+        <StemMark width={14} height={14} />
       )}
-    </>
+    </motion.button>
   );
 
   if (pos.mode === 'docked') {
-    return createPortal(
-      <div className={wrapClass}>
-        {content}
-      </div>,
-      pos.slot,
-    );
+    return createPortal(<div className={wrapClass}>{content}</div>, pos.slot);
   }
 
   return (
-    <div
-      className={wrapClass}
-      style={{ top: pos.top, left: pos.left }}
-    >
+    <div className={wrapClass} style={{ top: pos.top, left: pos.left }}>
       {content}
     </div>
   );
