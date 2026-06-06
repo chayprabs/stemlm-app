@@ -184,6 +184,10 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       return firstMatch(config.composerAnchor) ?? firstMatch(config.editor)?.parentElement ?? null;
     },
 
+    getComposerLeadingAnchor() {
+      return config.composerLeading ? firstMatch(config.composerLeading) : null;
+    },
+
     getComposerShell() {
       const shell = config.composerShell ? firstMatch(config.composerShell) : null;
       if (shell) return shell;

@@ -1,22 +1,24 @@
 /**
- * Light-DOM slot for docking the stemLM inject pill inside Gemini's composer.
+ * Light-DOM slot for docking the stemLM inject pill outside Gemini's composer,
+ * just to the left of the input box (before the + upload button).
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 
 const SLOT_ATTR = 'data-stemlm-composer-slot';
+const PARENT_ATTR = 'data-stemlm-composer-row';
 const STYLE_ID = 'stemlm-composer-slot-styles';
+const SLOT_GAP_PX = 8;
 
 const SLOT_CSS = `
 [data-stemlm-composer-slot] {
   display: inline-flex;
   flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   flex-shrink: 0;
-  align-self: flex-end;
-  margin-right: 6px;
-  margin-bottom: 2px;
+  align-self: center;
+  margin-right: ${SLOT_GAP_PX}px;
   position: relative;
   z-index: 50;
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
@@ -24,7 +26,7 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-fab-wrap {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 4px;
   position: relative;
 }
@@ -43,7 +45,7 @@ const SLOT_CSS = `
   font-size: 10px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 [data-stemlm-composer-slot] .slm-inject-btn:hover {
   background: #0D9490;
@@ -85,7 +87,8 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-fab-menu {
   position: absolute;
   bottom: calc(100% + 6px);
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
   padding: 4px;
   list-style: none;
@@ -117,11 +120,61 @@ const SLOT_CSS = `
   background: #0EA5A015;
   color: #0EA5A0;
 }
+[data-stemlm-composer-slot][data-scheme="light"] {
+  --slm-slot-bg: #ffffff;
+  --slm-slot-border: #e2e8f0;
+  --slm-slot-fg: #64748b;
+  --slm-slot-fg-strong: #0f1117;
+}
 [data-stemlm-composer-slot][data-scheme="dark"] {
-  --slm-slot-bg: #141418;
-  --slm-slot-border: #1E1E24;
-  --slm-slot-fg: #8A8A9A;
-  --slm-slot-fg-strong: #F0F0F2;
+  --slm-slot-bg: #212121;
+  --slm-slot-border: #2a2a35;
+  --slm-slot-fg: #8a8a9a;
+  --slm-slot-fg-strong: #f0f0f2;
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn {
+  background: var(--slm-slot-btn-bg, #212121);
+  color: var(--slm-slot-btn-fg, #ffffff);
+  border: 0.5px solid var(--slm-slot-btn-border, #2a2a35);
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn:hover {
+  background: var(--slm-slot-btn-hover, #2a2a35);
+  border-color: var(--slm-slot-btn-border-hover, #3a3a45);
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn .slm-inject-btn-mark {
+  color: #0ea5a0;
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn.is-attached {
+  background: var(--slm-slot-btn-bg, #212121);
+  color: var(--slm-slot-btn-fg, #ffffff);
+  border-color: #0ea5a0;
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn.is-attached svg {
+  color: #0ea5a0;
+}
+[data-stemlm-composer-slot][data-neutral="true"] .slm-inject-btn.is-panel-open {
+  background: #22c55e;
+  color: #ffffff;
+  border-color: #22c55e;
+}
+[data-stemlm-composer-slot][data-neutral="true"][data-scheme="light"] {
+  --slm-slot-btn-bg: #f1f5f5;
+  --slm-slot-btn-fg: #0f1117;
+  --slm-slot-btn-border: #e2e8f0;
+  --slm-slot-btn-hover: #e8ecec;
+  --slm-slot-btn-border-hover: #cbd5e1;
+}
+[data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] {
+  --slm-slot-btn-bg: #212121;
+  --slm-slot-btn-fg: #ffffff;
+  --slm-slot-btn-border: #2a2a35;
+  --slm-slot-btn-hover: #2a2a35;
+  --slm-slot-btn-border-hover: #3a3a45;
+}
+[data-stemlm-composer-row] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
 }
 `;
 
@@ -133,35 +186,41 @@ function ensureStyles() {
   document.head.appendChild(style);
 }
 
+function ensureFlexRow(parent: HTMLElement) {
+  if (parent.hasAttribute(PARENT_ATTR)) return;
+  const display = getComputedStyle(parent).display;
+  if (display !== 'flex' && display !== 'inline-flex') {
+    parent.setAttribute(PARENT_ATTR, '');
+  }
+}
+
 export function ensureComposerSlot(
   adapter: PlatformAdapter,
   scheme: 'light' | 'dark' = 'light',
 ): HTMLElement | null {
-  const layout = adapter.getComposerLayout?.();
-  if (!layout) return null;
+  const shell = adapter.getComposerShell();
+  if (!shell?.parentElement) return null;
 
-  const { actionRow } = layout;
-  const send = adapter.getComposerAnchor();
+  const parent = shell.parentElement;
+  ensureFlexRow(parent);
+  ensureStyles();
 
-  let slot = actionRow.querySelector<HTMLElement>(`[${SLOT_ATTR}]`);
+  let slot = parent.querySelector<HTMLElement>(`:scope > [${SLOT_ATTR}]`);
   if (!slot) {
-    ensureStyles();
     slot = document.createElement('div');
     slot.setAttribute(SLOT_ATTR, '');
-    slot.dataset.scheme = scheme;
-    if (send && send.parentElement === actionRow) {
-      actionRow.insertBefore(slot, send);
-    } else if (send?.parentElement?.contains(actionRow)) {
-      send.parentElement.insertBefore(slot, send);
-    } else {
-      actionRow.appendChild(slot);
-    }
+    parent.insertBefore(slot, shell);
+  } else if (slot.nextElementSibling !== shell) {
+    parent.insertBefore(slot, shell);
   }
 
   slot.dataset.scheme = scheme;
+  slot.dataset.neutral = adapter.brand.neutral ? 'true' : 'false';
   return slot;
 }
 
 export function removeComposerSlot() {
   document.querySelector(`[${SLOT_ATTR}]`)?.remove();
 }
+
+export const _composerSlotGap = SLOT_GAP_PX;

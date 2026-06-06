@@ -53,6 +53,9 @@ class MockAdapter implements PlatformAdapter {
   getComposerAnchor() {
     return document.body;
   }
+  getComposerLeadingAnchor() {
+    return null;
+  }
   getAssistantBlocks() {
     return [];
   }

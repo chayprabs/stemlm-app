@@ -5,12 +5,13 @@ import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
 import { detectHostScheme } from '@/src/lib/theme';
-import { ensureComposerSlot } from '@/src/lib/composer-slot';
+import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { IconCheck, IconChevronDown } from './icons';
 
 const BTN_W = 76;
-const BTN_H = 26;
+const FAB_STACK_H = 44;
+const SLOT_GAP = _composerSlotGap;
 
 type PosMode =
   | { mode: 'docked'; slot: HTMLElement }
@@ -38,35 +39,31 @@ function useComposerPosition(): PosMode {
         return;
       }
 
+      const shell = adapter.getComposerShell();
       const box = adapter.getComposerBox();
-      const row = adapter.getComposerActionRow();
-      const send = adapter.getComposerAnchor();
+      const anchor = shell ?? box;
+      const leading = adapter.getComposerLeadingAnchor();
 
-      if (!box && !send) {
+      if (!anchor) {
         setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
         return;
       }
 
-      const rowR = (row ?? send)?.getBoundingClientRect();
-      const boxR = box?.getBoundingClientRect();
-      const sendR = send?.getBoundingClientRect();
+      const boxR = anchor.getBoundingClientRect();
+      const leadingR = leading?.getBoundingClientRect();
 
-      if (!rowR || rowR.width === 0) {
+      if (boxR.width === 0) {
         setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
         return;
       }
 
       const PAD = 8;
-      const GAP = 6;
-      const top = rowR.top + (rowR.height - BTN_H) / 2;
-      const left = (sendR?.left ?? rowR.right) - BTN_W - GAP;
+      const alignR = leadingR && leadingR.height > 0 ? leadingR : boxR;
+      const top = alignR.top + (alignR.height - FAB_STACK_H) / 2;
+      const left = boxR.left - BTN_W - SLOT_GAP;
 
-      const clampedTop = boxR
-        ? clamp(top, boxR.top + PAD, boxR.bottom - BTN_H - PAD)
-        : clamp(top, PAD, window.innerHeight - BTN_H - PAD);
-      const clampedLeft = boxR
-        ? clamp(left, boxR.left + PAD, boxR.right - BTN_W - PAD)
-        : clamp(left, PAD, window.innerWidth - BTN_W - PAD);
+      const clampedTop = clamp(top, PAD, window.innerHeight - FAB_STACK_H - PAD);
+      const clampedLeft = clamp(left, PAD, window.innerWidth - BTN_W - PAD);
 
       setPos({ mode: 'fixed', top: clampedTop, left: clampedLeft, visible: true });
     };
@@ -119,6 +116,10 @@ export function OverlayButton() {
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const adapter = detectAdapter();
+  const hostScheme = detectHostScheme();
+  const neutral = adapter?.brand.neutral ?? false;
+
   useEffect(() => {
     setOverride(defaultSubject);
   }, [defaultSubject]);
@@ -149,6 +150,15 @@ export function OverlayButton() {
     setMenuOpen(false);
     void getController()?.inject(s);
   }
+
+  const wrapClass = [
+    'slm-fab-wrap',
+    pos.mode === 'fixed' ? 'slm-fab-wrap--fixed' : '',
+    neutral ? 'slm-fab-wrap--neutral' : '',
+    `slm-fab-wrap--${hostScheme}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const content = (
     <>
@@ -238,7 +248,7 @@ export function OverlayButton() {
 
   if (pos.mode === 'docked') {
     return createPortal(
-      <div ref={ref} className="slm-fab-wrap">
+      <div ref={ref} className={wrapClass}>
         {content}
       </div>,
       pos.slot,
@@ -248,7 +258,7 @@ export function OverlayButton() {
   return (
     <div
       ref={ref}
-      className="slm-fab-wrap slm-fab-wrap--fixed"
+      className={wrapClass}
       style={{ top: pos.top, left: pos.left }}
     >
       {content}

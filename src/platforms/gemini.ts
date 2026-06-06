@@ -36,6 +36,16 @@ const config: AdapterConfig = {
     'div.send-button-container button',
     'div.send-button-container',
   ],
+  composerLeading: [
+    'button[aria-label*="Upload" i]',
+    'button[aria-label*="Add" i]',
+    'button[aria-label*="Attach" i]',
+    'button[aria-label*="Insert" i]',
+    'button[mattooltip*="Upload" i]',
+    '.file-uploader-button',
+    'uploader button',
+    'button[aria-label*="Open upload" i]',
+  ],
   composerShell: [
     'input-area-v2',
     'input-area',
@@ -53,7 +63,7 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     '.stop-icon',
   ],
-  brand: { accent: '#0EA5A0', accentFg: '#ffffff' },
+  brand: { accent: '#0EA5A0', accentFg: '#ffffff', neutral: true },
   layoutRoots: ['main', 'chat-window', '#app-root'],
 };
 

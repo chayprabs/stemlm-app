@@ -63,9 +63,12 @@ export interface PlatformAdapter {
   /** A stable element near the composer to dock the stemLM button beside. */
   getComposerAnchor(): HTMLElement | null;
 
+  /** Leading composer control (upload / + button) for outside-left placement. */
+  getComposerLeadingAnchor(): HTMLElement | null;
+
   /**
-   * The outer composer shell (input box container). The overlay button is
-   * portaled inside this element so it sits within the prompt area.
+   * The outer composer shell (input box container). The overlay button docks
+   * just outside its left edge, before the leading (+) control.
    */
   getComposerShell(): HTMLElement | null;
 
@@ -98,6 +101,8 @@ export interface AdapterConfig {
   composerActionRow: string[];
   /** Send/submit control — tried in order. */
   composerAnchor: string[];
+  /** Leading control (e.g. upload / +) — tried in order. */
+  composerLeading?: string[];
   /** Outer composer container for in-box overlay placement (tried in order). */
   composerShell?: string[];
   /** Assistant message container selectors (tried in order). */

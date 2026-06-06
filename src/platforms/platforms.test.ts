@@ -71,6 +71,20 @@ describe('Gemini adapter', () => {
     expect(geminiAdapter.getComposerLayout()).not.toBeNull();
   });
 
+  it('finds the leading upload control', () => {
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<button aria-label="Upload file">+</button>',
+    );
+    expect(geminiAdapter.getComposerLeadingAnchor()?.getAttribute('aria-label')).toBe(
+      'Upload file',
+    );
+  });
+
+  it('uses neutral brand styling on Gemini', () => {
+    expect(geminiAdapter.brand.neutral).toBe(true);
+  });
+
   it('inserts a prompt into the editor', () => {
     expect(geminiAdapter.insertPrompt('hello\nworld')).toBe(true);
     expect(geminiAdapter.getEditorText()).toContain('hello');
