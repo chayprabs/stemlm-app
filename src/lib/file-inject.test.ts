@@ -1,0 +1,76 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  assignFileToInput,
+  attachTextFile,
+  createTextFile,
+  findFileInput,
+} from './file-inject';
+
+describe('createTextFile', () => {
+  it('builds a plain-text File with the given name', () => {
+    const file = createTextFile('hello', 'stemlm-protocol.txt');
+    expect(file.name).toBe('stemlm-protocol.txt');
+    expect(file.type).toBe('text/plain');
+  });
+});
+
+describe('assignFileToInput', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<input type="file" id="f" />';
+  });
+
+  it('assigns a file via DataTransfer and fires change events', () => {
+    const input = document.getElementById('f') as HTMLInputElement;
+    let changed = false;
+    input.addEventListener('change', () => {
+      changed = true;
+    });
+    const file = createTextFile('protocol body', 'stemlm-protocol.txt');
+    expect(assignFileToInput(input, file)).toBe(true);
+    expect(input.files?.length).toBe(1);
+    expect(input.files?.[0]?.name).toBe('stemlm-protocol.txt');
+    expect(changed).toBe(true);
+  });
+});
+
+describe('findFileInput', () => {
+  it('returns an existing file input without clicking upload', async () => {
+    document.body.innerHTML = '<images-files-uploader><input type="file" id="u" /></images-files-uploader>';
+    const input = await findFileInput({ waitMs: 200 });
+    expect(input?.id).toBe('u');
+  });
+
+  it('clicks the upload button and waits for a dynamically added input', async () => {
+    document.body.innerHTML = '<button aria-label="Upload file">+</button>';
+    const btn = document.querySelector('button')!;
+    btn.addEventListener('click', () => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<images-files-uploader><input type="file" id="late" /></images-files-uploader>',
+      );
+    });
+    const input = await findFileInput({ waitMs: 1000 });
+    expect(input?.id).toBe('late');
+  });
+});
+
+describe('attachTextFile', () => {
+  it('attaches via file input and detects the preview chip', async () => {
+    document.body.innerHTML = `
+      <images-files-uploader>
+        <input type="file" id="f" />
+      </images-files-uploader>
+    `;
+    const input = document.getElementById('f') as HTMLInputElement;
+    input.addEventListener('change', () => {
+      const chip = document.createElement('div');
+      chip.className = 'attachment-chip';
+      chip.textContent = 'stemlm-protocol.txt';
+      document.querySelector('images-files-uploader')!.appendChild(chip);
+    });
+
+    const result = await attachTextFile('OUTPUT:\n@end', { waitMs: 500, timeoutMs: 1500 });
+    expect(result.ok).toBe(true);
+    expect(result.method).toBe('input');
+  });
+});

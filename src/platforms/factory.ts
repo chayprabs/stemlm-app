@@ -133,6 +133,11 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       return setEditorText(editor, text);
     },
 
+    async injectWithProtocolFile(payload) {
+      const ok = this.insertPrompt(payload.composerText);
+      return { ok, method: 'text-fallback' as const };
+    },
+
     getComposerBox() {
       const box = firstMatch(config.composerBox);
       if (box) return box;

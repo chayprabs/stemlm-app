@@ -1,12 +1,7 @@
-/** Platform adapter contract. Each AI site gets one adapter. */
+import type { InjectionPayload } from '@/src/protocol/builder';
 
-export type PlatformId =
-  | 'chatgpt'
-  | 'claude'
-  | 'gemini'
-  | 'perplexity'
-  | 'grok'
-  | 'deepseek';
+/** Platform adapter contract. Gemini-only for now. */
+export type PlatformId = 'gemini';
 
 /**
  * Per-site brand colours used to make the overlay button visually belong on
@@ -47,6 +42,14 @@ export interface PlatformAdapter {
 
   /** Replace the composer content with `text`. Returns success. */
   insertPrompt(text: string): boolean;
+
+  /**
+   * Attach protocol as a .txt file and write a short composer stub.
+   * Preferred injection path — avoids pasting ~2 KB into the chat box.
+   */
+  injectWithProtocolFile(
+    payload: InjectionPayload,
+  ): Promise<{ ok: boolean; method: 'file' | 'text-fallback' }>;
 
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;

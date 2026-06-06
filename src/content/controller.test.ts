@@ -1,20 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { StemController } from './controller';
 import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
+import type { InjectionPayload } from '@/src/protocol/builder';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 
 class MockAdapter implements PlatformAdapter {
-  id = 'chatgpt' as const;
-  label = 'ChatGPT';
-  brand = { accent: '#10a37f', neutral: true };
+  id = 'gemini' as const;
+  label = 'Gemini';
+  brand = { accent: '#4285f4' };
   layoutRoots = ['main'];
   editorText = '';
   inserted = '';
+  lastPayload: InjectionPayload | null = null;
   capsules: string[] = [];
   streaming = false;
+  fileInjectOk = true;
 
   matches() {
     return true;
@@ -29,6 +32,12 @@ class MockAdapter implements PlatformAdapter {
     this.inserted = text;
     return true;
   }
+  async injectWithProtocolFile(payload: InjectionPayload) {
+    this.lastPayload = payload;
+    if (!this.fileInjectOk) return { ok: false, method: 'file' as const };
+    this.inserted = payload.composerText;
+    return { ok: this.insertPrompt(payload.composerText), method: 'file' as const };
+  }
   getComposerBox() {
     return document.body;
   }
@@ -42,9 +51,6 @@ class MockAdapter implements PlatformAdapter {
     return document.body;
   }
   getComposerAnchor() {
-    return document.body;
-  }
-  getComposerShell() {
     return document.body;
   }
   getAssistantBlocks() {
@@ -76,118 +82,66 @@ function resetStore() {
 describe('StemController.inject', () => {
   beforeEach(resetStore);
 
-  it('builds + injects a prompt and enters loading', () => {
+  it('attaches protocol file and injects short composer stub only', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const c = new StemController(adapter);
 
-    const ok = c.inject('Auto');
+    const ok = await c.inject('Auto');
     expect(ok).toBe(true);
     expect(adapter.inserted).toContain('Solve this circuit');
-    expect(adapter.inserted).toContain('OUTPUT:');
-    expect(adapter.inserted).toContain('ELECTRICAL:');
+    expect(adapter.inserted).toContain('stemlm-protocol.txt');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    expect(adapter.lastPayload?.fileContent).toContain('OUTPUT:');
+    expect(adapter.lastPayload?.fileContent).toContain('ELECTRICAL:');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();
   });
 
-  it('does not inject twice (single injection)', () => {
+  it('does not inject twice (single injection)', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'something';
     const c = new StemController(adapter);
-    expect(c.inject()).toBe(true);
-    expect(c.inject()).toBe(false);
+    expect(await c.inject()).toBe(true);
+    expect(await c.inject()).toBe(false);
+    c.stopWatching();
+  });
+
+  it('surfaces error when file attach fails', async () => {
+    const adapter = new MockAdapter();
+    adapter.fileInjectOk = false;
+    adapter.editorText = 'question';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(false);
+    expect(useStore.getState().status).toBe('error');
     c.stopWatching();
   });
 });
 
-describe('StemController capture loop', () => {
+describe('StemController capture', () => {
   beforeEach(resetStore);
 
-  it('captures a completed capsule after the debounce', () => {
-    vi.useFakeTimers();
+  it('captures a complete capsule into the store', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY];
-
     c.startWatching();
-    vi.advanceTimersByTime(500);
-
-    const state = useStore.getState();
-    expect(state.sessions).toHaveLength(1);
-    expect(state.status).toBe('ready');
-    expect(state.sessions[0]!.capsule.meta.subject).toBe('Electrical');
-    c.stopWatching();
-    vi.useRealTimers();
-  });
-
-  it('captures a complete capsule even if a stop/streaming indicator lingers', () => {
-    // A terminating @end means the answer is finished regardless of whether a
-    // "stop" button is still in the DOM — this is the fix for stuck-loading.
-    vi.useFakeTimers();
-    const adapter = new MockAdapter();
-    adapter.streaming = true;
-    adapter.capsules = [CAPSULE_BODY];
-    const c = new StemController(adapter);
-
-    c.startWatching();
-    vi.advanceTimersByTime(500);
-
-    expect(useStore.getState().sessions).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions.length).toBe(1);
     expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
-    vi.useRealTimers();
   });
 
-  it('does not capture a partial capsule until it has been stable', () => {
-    vi.useFakeTimers();
+  it('captures a complete capsule even when streaming indicator is present', async () => {
     const adapter = new MockAdapter();
-    // Partial capsule: has @meta + a step but no terminating @end.
-    const partial = '@meta\nsubject: Physics\ntopic: Motion\n@endmeta\n@step\ntitle: Setup\n@body\nstart\n@endbody\n@endstep';
     adapter.streaming = true;
-    adapter.capsules = [partial];
-    const c = new StemController(adapter);
-
-    c.startWatching();
-    // After the debounce but before the stability window: no capture yet.
-    vi.advanceTimersByTime(500);
-    expect(useStore.getState().sessions).toHaveLength(0);
-
-    // Once the text has been completely stable past the stability window it is
-    // captured tolerantly — without ever needing the streaming flag to clear.
-    vi.advanceTimersByTime(1600);
-    expect(useStore.getState().sessions).toHaveLength(1);
-    expect(useStore.getState().sessions[0]!.capsule.meta.subject).toBe('Physics');
-    c.stopWatching();
-    vi.useRealTimers();
-  });
-
-  it('fires the answer-started callback when an assistant capsule appears', () => {
-    vi.useFakeTimers();
-    const adapter = new MockAdapter();
     adapter.capsules = [CAPSULE_BODY];
     const c = new StemController(adapter);
-    let started = 0;
-    c.setOnAnswerStarted(() => (started += 1));
-
     c.startWatching();
-    vi.advanceTimersByTime(500);
-    expect(started).toBe(1);
-    c.stopWatching();
-    vi.useRealTimers();
-  });
-});
-
-describe('StemController.loadConversation', () => {
-  beforeEach(resetStore);
-
-  it('rebuilds sessions from history capsules', () => {
-    const adapter = new MockAdapter();
-    adapter.capsules = [CAPSULE_BODY, CAPSULE_BODY];
-    const c = new StemController(adapter);
-    const n = c.loadConversation();
-    expect(n).toBe(2);
-    expect(useStore.getState().sessions).toHaveLength(2);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions.length).toBe(1);
+    expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
   });
 });

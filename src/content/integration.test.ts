@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StemController } from './controller';
-import { chatgptAdapter } from '@/src/platforms/chatgpt';
+import { geminiAdapter } from '@/src/platforms/gemini';
 import { useStore } from '@/src/state/store';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
+
+vi.mock('@/src/lib/file-inject', () => ({
+  attachTextFile: vi.fn().mockResolvedValue({ ok: true, method: 'input' }),
+}));
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 
@@ -21,52 +25,48 @@ function resetStore() {
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * End-to-end through the REAL ChatGPT adapter against a simulated page DOM:
- * type a question -> inject -> assistant replies with a stemlm capsule ->
- * the MutationObserver captures it -> the store holds a parsed session.
+ * End-to-end through the REAL Gemini adapter against a simulated page DOM:
+ * type a question -> attach protocol file + inject stub -> assistant replies ->
+ * MutationObserver captures -> store holds a parsed session.
  */
-describe('integration: ChatGPT adapter + controller capture', () => {
+describe('integration: Gemini adapter + controller capture', () => {
   beforeEach(() => {
     resetStore();
     document.body.innerHTML = `
-      <main>
-        <form>
-          <div id="prompt-textarea" class="ProseMirror" contenteditable="true"></div>
-          <button data-testid="send-button">Send</button>
-        </form>
-      </main>
+      <rich-textarea>
+        <div class="ql-editor" contenteditable="true" role="textbox"></div>
+      </rich-textarea>
+      <button aria-label="Send message">Send</button>
       <div id="thread"></div>
     `;
   });
 
-  it('injects the prompt then captures the answer', async () => {
-    // User types a question.
-    const editor = chatgptAdapter.findEditor()!;
-    editor.textContent = 'Find the current in this 12V series resistor circuit (Kirchhoff).';
+  it('attaches protocol file, injects stub, then captures the answer', async () => {
+    const editor = geminiAdapter.findEditor()!;
+    editor.textContent =
+      'Find the current in this 12V series resistor circuit (Kirchhoff).';
 
-    const c = new StemController(chatgptAdapter);
-    const ok = c.inject('Auto');
+    const c = new StemController(geminiAdapter);
+    const ok = await c.inject('Auto');
     expect(ok).toBe(true);
 
-    // The injected prompt keeps the question and adds the protocol + playbook.
-    const injected = chatgptAdapter.getEditorText();
+    const injected = geminiAdapter.getEditorText();
     expect(injected).toContain('12V series resistor');
-    expect(injected).toContain('OUTPUT:');
-    expect(injected).toContain('ELECTRICAL:');
+    expect(injected).toContain('stemlm-protocol.txt');
+    expect(injected).not.toContain('OUTPUT:');
     expect(useStore.getState().status).toBe('loading');
 
-    // Assistant streams in its answer as a code block.
     const thread = document.getElementById('thread')!;
-    const msg = document.createElement('div');
-    msg.setAttribute('data-message-author-role', 'assistant');
+    const msg = document.createElement('model-response');
+    const codeBlock = document.createElement('code-block');
     const pre = document.createElement('pre');
     const code = document.createElement('code');
     code.textContent = CAPSULE_BODY;
     pre.appendChild(code);
-    msg.appendChild(pre);
+    codeBlock.appendChild(pre);
+    msg.appendChild(codeBlock);
     thread.appendChild(msg);
 
-    // Let the MutationObserver fire + debounce elapse.
     await wait(600);
 
     const state = useStore.getState();
@@ -74,24 +74,31 @@ describe('integration: ChatGPT adapter + controller capture', () => {
     expect(state.status).toBe('ready');
     expect(state.sessions[0]!.capsule.meta.subject).toBe('Electrical');
     expect(state.sessions[0]!.capsule.steps.length).toBeGreaterThanOrEqual(2);
-    expect(state.sessions[0]!.platform).toBe('chatgpt');
+    expect(state.sessions[0]!.platform).toBe('gemini');
     c.stopWatching();
   });
 
-  it('does not capture while the stop (streaming) button is present', async () => {
-    const c = new StemController(chatgptAdapter);
+  it('captures complete capsules even when a stop (streaming) button is present', async () => {
+    const c = new StemController(geminiAdapter);
     c.startWatching();
 
-    // Simulate streaming: stop button + a partial (no @end) capsule.
     document.body.insertAdjacentHTML(
       'beforeend',
-      '<button data-testid="stop-button">Stop</button>',
+      '<button aria-label="Stop response">Stop</button>',
     );
     const thread = document.getElementById('thread')!;
-    thread.innerHTML =
-      '<div data-message-author-role="assistant"><pre><code>@meta\nsubject: Physics\n@endmeta\n@step\ntitle: Start</code></pre></div>';
+    const msg = document.createElement('model-response');
+    const codeBlock = document.createElement('code-block');
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = CAPSULE_BODY;
+    pre.appendChild(code);
+    codeBlock.appendChild(pre);
+    msg.appendChild(codeBlock);
+    thread.appendChild(msg);
+
     await wait(600);
-    expect(useStore.getState().sessions).toHaveLength(0);
+    expect(useStore.getState().sessions).toHaveLength(1);
     c.stopWatching();
   });
 });

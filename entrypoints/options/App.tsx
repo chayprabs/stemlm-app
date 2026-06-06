@@ -2,17 +2,7 @@ import { useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS, getSettings, setSettings, type Settings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
-import type { PlatformId } from '@/src/platforms/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
-
-const PLATFORM_LABELS: Record<PlatformId, string> = {
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
-  gemini: 'Gemini',
-  perplexity: 'Perplexity',
-  grok: 'Grok',
-  deepseek: 'DeepSeek',
-};
 
 function Toggle({
   checked,
@@ -133,17 +123,12 @@ export default function App() {
       </section>
 
       <section className="slm-opt-card">
-        <h2 className="slm-opt-title">Where stemLM appears</h2>
-        {(Object.keys(PLATFORM_LABELS) as PlatformId[]).map((id) => (
-          <Toggle
-            key={id}
-            label={PLATFORM_LABELS[id]}
-            checked={settings.enabledPlatforms[id]}
-            onChange={(v) =>
-              update({ enabledPlatforms: { ...settings.enabledPlatforms, [id]: v } })
-            }
-          />
-        ))}
+        <h2 className="slm-opt-title">Platform</h2>
+        <p className="slm-opt-platform-note">
+          stemLM currently runs on <strong>Gemini</strong> (gemini.google.com) only. Protocol
+          instructions are attached as <code>stemlm-protocol.txt</code> — not pasted into your
+          prompt.
+        </p>
       </section>
 
       <section className="slm-opt-card">

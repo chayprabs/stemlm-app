@@ -7,30 +7,7 @@ import type { Session } from '@/src/protocol/types';
 import { BrandWordmark } from '@/src/components/BrandWordmark';
 import { IconLayers, IconBook } from '@/src/components/icons';
 
-const SUPPORTED =
-  /chatgpt\.com|chat\.openai\.com|claude\.ai|gemini\.google\.com|perplexity\.ai|grok\.com|chat\.deepseek\.com/;
-
-const PLATFORM_NAMES: Record<string, string> = {
-  'chatgpt.com': 'ChatGPT',
-  'chat.openai.com': 'ChatGPT',
-  'claude.ai': 'Claude',
-  'gemini.google.com': 'Gemini',
-  'perplexity.ai': 'Perplexity',
-  'grok.com': 'Grok',
-  'chat.deepseek.com': 'DeepSeek',
-};
-
-function platformFromUrl(url: string): string | null {
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, '');
-    for (const [key, name] of Object.entries(PLATFORM_NAMES)) {
-      if (host === key || host.endsWith('.' + key)) return name;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
+const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
 async function activeTab() {
   try {
@@ -41,19 +18,23 @@ async function activeTab() {
   }
 }
 
+function isGeminiUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    return GEMINI_HOST.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const [saved, setSaved] = useState<Session[]>([]);
-  const [onSupported, setOnSupported] = useState(false);
-  const [platform, setPlatform] = useState<string | null>(null);
+  const [onGemini, setOnGemini] = useState(false);
 
   useEffect(() => {
     getSettings().then((s) => applyTheme(document.body, resolveTheme(s.theme)));
     getSavedSessions().then(setSaved);
-    activeTab().then((tab) => {
-      const supported = Boolean(tab?.url && SUPPORTED.test(tab.url));
-      setOnSupported(supported);
-      if (supported && tab?.url) setPlatform(platformFromUrl(tab.url));
-    });
+    activeTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
   }, []);
 
   async function send(type: string) {
@@ -62,7 +43,7 @@ export default function App() {
       try {
         await browser.tabs.sendMessage(tab.id, { type });
       } catch {
-        /* no content script here */
+        /* no content script */
       }
     }
     window.close();
@@ -90,24 +71,19 @@ export default function App() {
         </h1>
       </div>
       <p className="slm-popup-sub">
-        Structured STEM study overlay for ChatGPT, Claude, Gemini, Perplexity, Grok &amp; DeepSeek.
+        Structured STEM study overlay for Gemini. Attaches a small protocol file instead of pasting
+        long instructions into your prompt.
       </p>
 
-      {onSupported && platform && (
-        <p className="slm-popup-status">On {platform} — ready</p>
-      )}
+      {onGemini && <p className="slm-popup-status">On Gemini — ready</p>}
 
       <div className="slm-popup-actions">
         <button
           type="button"
           className="slm-popup-btn primary"
           onClick={() => send('stemlm:open-panel')}
-          disabled={!onSupported}
-          title={
-            onSupported
-              ? ''
-              : 'Open a supported AI chat (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) first'
-          }
+          disabled={!onGemini}
+          title={onGemini ? '' : 'Open gemini.google.com first'}
         >
           Open study panel
         </button>
@@ -115,16 +91,15 @@ export default function App() {
           type="button"
           className="slm-popup-btn"
           onClick={() => send('stemlm:load-conversation')}
-          disabled={!onSupported}
+          disabled={!onGemini}
         >
           <IconLayers /> Load conversation from this chat
         </button>
       </div>
 
-      {!onSupported && (
+      {!onGemini && (
         <p className="slm-popup-empty">
-          Open ChatGPT, Claude, Gemini, Perplexity, Grok, or DeepSeek, then click ✦ stemLM beside
-          the send button.
+          Open gemini.google.com, type your question, then click stemLM beside the send button.
         </p>
       )}
 

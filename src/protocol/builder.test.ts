@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildInjectionPrompt,
+  buildInjectionPayload,
+  buildComposerStub,
+  buildProtocolFileContent,
   buildFollowupPrompt,
   buildRepairPrompt,
   resolveSubject,
+  PROTOCOL_FILENAME,
 } from './builder';
 import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
 
@@ -51,6 +55,37 @@ describe('buildInjectionPrompt', () => {
   it('handles an empty question gracefully', () => {
     const { prompt } = buildInjectionPrompt('   ');
     expect(prompt).toContain('has not typed a question');
+  });
+});
+
+describe('buildInjectionPayload', () => {
+  it('puts protocol in the file and keeps the composer stub short', () => {
+    const payload = buildInjectionPayload(
+      'Solve this circuit with a resistor and 12V voltage source',
+    );
+    expect(payload.subject).toBe('Electrical');
+    expect(payload.composerText).toContain('Solve this circuit');
+    expect(payload.composerText).toContain(PROTOCOL_FILENAME);
+    expect(payload.composerText).not.toContain('OUTPUT:');
+    expect(payload.fileContent).toContain('OUTPUT:');
+    expect(payload.fileContent).toContain('ELECTRICAL:');
+  });
+
+  it('buildComposerStub references the attached filename only', () => {
+    const stub = buildComposerStub('derivative question', 'Math');
+    expect(stub).toContain('derivative question');
+    expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).not.toContain('MATH:');
+  });
+
+  it('buildProtocolFileContent includes one playbook', () => {
+    const { content, subject } = buildProtocolFileContent({
+      question: 'binary search trace',
+      subject: 'CS',
+    });
+    expect(subject).toBe('CS');
+    expect(content).toContain('CS:');
+    expect(content).toContain('OUTPUT:');
   });
 });
 

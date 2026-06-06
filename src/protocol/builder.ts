@@ -31,11 +31,61 @@ export interface BuildResult {
   variant: PromptVariant;
 }
 
+/** Payload for file-attach injection: short composer text + separate protocol file. */
+export interface InjectionPayload {
+  /** Short text shown in the composer (question + brief instruction). */
+  composerText: string;
+  /** Full protocol + playbook — attached as stemlm-protocol.txt, not pasted. */
+  fileContent: string;
+  subject: Subject;
+  variant: PromptVariant;
+}
+
+export const PROTOCOL_FILENAME = 'stemlm-protocol.txt';
+
 export function resolveSubject(question: string, opt?: BuildOptions): Subject {
   if (opt?.subject && opt.subject !== 'Auto') return opt.subject;
   return classifySubject(question);
 }
 
+/** Protocol + one playbook — the contents of the attached .txt file. */
+export function buildProtocolFileContent(opt?: BuildOptions & { question?: string }): {
+  content: string;
+  subject: Subject;
+  variant: PromptVariant;
+} {
+  const subject = resolveSubject(opt?.question ?? '', opt);
+  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
+  const content = `${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  return { content, subject, variant };
+}
+
+/** Short composer stub — user question plus a one-line attach instruction. */
+export function buildComposerStub(question: string, subject: Subject): string {
+  const q = (question || '').trim();
+  const head =
+    q.length > 0 ? q : '(The student has not typed a question yet — ask them to type one.)';
+  return [
+    head,
+    '',
+    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
+    'Reply in one fenced code block with info string stemlm: @meta … @step (3–7) … @solution … @end.',
+    'No prose outside the block.',
+  ].join('\n');
+}
+
+/** File-attach injection payload (preferred on Gemini). */
+export function buildInjectionPayload(question: string, opt?: BuildOptions): InjectionPayload {
+  const { content, subject, variant } = buildProtocolFileContent({ ...opt, question });
+  return {
+    composerText: buildComposerStub(question, subject),
+    fileContent: content,
+    subject,
+    variant,
+  };
+}
+
+/** Legacy: full text paste (fallback when file attach is unavailable). */
 export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;

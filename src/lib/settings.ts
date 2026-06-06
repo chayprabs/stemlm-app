@@ -42,12 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
   enabledPlatforms: {
-    chatgpt: true,
-    claude: true,
     gemini: true,
-    perplexity: true,
-    grok: true,
-    deepseek: true,
   },
   defaultSubject: 'Auto',
   promptVariant: 'balanced',

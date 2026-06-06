@@ -1,21 +1,9 @@
 import type { PlatformAdapter, PlatformId } from './types';
-import { chatgptAdapter } from './chatgpt';
-import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
-import { perplexityAdapter } from './perplexity';
-import { grokAdapter } from './grok';
-import { deepseekAdapter } from './deepseek';
 
-export const ADAPTERS: PlatformAdapter[] = [
-  chatgptAdapter,
-  claudeAdapter,
-  geminiAdapter,
-  perplexityAdapter,
-  grokAdapter,
-  deepseekAdapter,
-];
+/** Gemini-only — other platforms disabled until file-attach injection is ready. */
+export const ADAPTERS: PlatformAdapter[] = [geminiAdapter];
 
-/** Return the adapter for the current host, or null on unsupported sites. */
 export function detectAdapter(host: string = location.hostname): PlatformAdapter | null {
   return ADAPTERS.find((a) => a.matches(host)) ?? null;
 }

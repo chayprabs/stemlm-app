@@ -7,7 +7,7 @@
  * chatbot's own history) and the quote-reply follow-up flow.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
-import { buildInjectionPrompt, buildFollowupPrompt, buildRepairPrompt } from '@/src/protocol/builder';
+import { buildInjectionPayload, buildFollowupPrompt, buildRepairPrompt } from '@/src/protocol/builder';
 import { parse, looksComplete } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import { useStore } from '@/src/state/store';
@@ -65,19 +65,24 @@ export class StemController {
     this.onAnswerStartedCb = cb;
   }
 
-  /** Inject the structured-answer prompt for whatever is currently typed. */
-  inject(subjectOverride?: Subject | 'Auto'): boolean {
+  /** Attach protocol file + short composer stub (no full-text paste). */
+  async inject(subjectOverride?: Subject | 'Auto'): Promise<boolean> {
     const store = useStore.getState();
-    if (store.buttonInjected) return false; // single injection until reset
+    if (store.buttonInjected) return false;
 
     const question = this.adapter.getEditorText().trim();
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
-    const { prompt, subject } = buildInjectionPrompt(question, { subject: subjectOverride, variant });
-    const ok = this.adapter.insertPrompt(prompt);
+    const payload = buildInjectionPayload(question, { subject: subjectOverride, variant });
+    const { ok, method } = await this.adapter.injectWithProtocolFile(payload);
+
     if (!ok) {
-      store.setStatus('error', 'Could not find the chat input to add the stemLM prompt.');
+      const msg =
+        method === 'file'
+          ? 'Could not attach stemlm-protocol.txt. Click Gemini’s upload (+) button once, then try stemLM again.'
+          : 'Could not find the chat input. Refresh the page and try again.';
+      store.setStatus('error', msg);
       store.openPanel();
       return false;
     }
@@ -87,8 +92,9 @@ export class StemController {
     this.armAnswerDetection();
     void trackEvent('question_asked', {
       platform: this.adapter.id,
-      subject,
+      subject: payload.subject,
       prompt_variant: variant,
+      injection_method: method,
     });
 
     this.startWatching();

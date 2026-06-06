@@ -24,16 +24,7 @@ import {
  * overridden in settings. Sessions are per-tab unless "Share across tabs" is on.
  */
 export default defineContentScript({
-  matches: [
-    '*://chatgpt.com/*',
-    '*://chat.openai.com/*',
-    '*://claude.ai/*',
-    '*://gemini.google.com/*',
-    '*://*.perplexity.ai/*',
-    '*://grok.com/*',
-    '*://*.grok.com/*',
-    '*://chat.deepseek.com/*',
-  ],
+  matches: ['*://gemini.google.com/*'],
   cssInjectionMode: 'ui',
   runAt: 'document_idle',
 

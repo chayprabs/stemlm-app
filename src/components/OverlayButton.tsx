@@ -169,13 +169,13 @@ export function OverlayButton() {
       togglePanel();
       return;
     }
-    getController()?.inject(override);
+    void getController()?.inject(override);
   }
 
   function chooseSubject(s: Subject | 'Auto') {
     setOverride(s);
     setMenuOpen(false);
-    getController()?.inject(s);
+    void getController()?.inject(s);
   }
 
   const content = (
