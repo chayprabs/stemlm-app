@@ -44,12 +44,29 @@ function stripRemoteRefs(svg: string): string {
     .replace(/\surl\((?!#)[^)]+\)/gi, '');
 }
 
+/**
+ * Pre-strip dangerous content from raw SVG before DOMPurify processes it.
+ *
+ * 1. <script> tags: happy-dom's SVG parser treats <script> as a raw-text
+ *    element whose content gobbles subsequent sibling elements, causing
+ *    legitimate drawing primitives (polyline, path, etc.) to be lost.
+ * 2. on* event-handler attributes: some DOM implementations remove the
+ *    *entire element* when they encounter on* attributes on SVG primitives.
+ */
+function preStripDangerous(svg: string): string {
+  return svg
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<script\b[^>]*\/?>/gi, '')
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*')/gi, '');
+}
+
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
 export function sanitizeSvg(svg: string): string {
   if (!svg) return '';
   const viewBox = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1] ?? '0 0 100 100';
   ensureConfigured();
-  const clean = DOMPurify.sanitize(svg, {
+  const preClean = preStripDangerous(svg);
+  const clean = DOMPurify.sanitize(preClean, {
     USE_PROFILES: { svg: true, svgFilters: true },
     ADD_TAGS: ['marker'],
     ADD_ATTR: [
@@ -63,7 +80,6 @@ export function sanitizeSvg(svg: string): string {
       'markerHeight',
     ],
     FORBID_TAGS: ['script', 'style', 'foreignObject', 'image'],
-    FORBID_ATTR: ['style', 'onload', 'onclick', 'onmouseover'],
   });
   let result = stripRemoteRefs(clean).trim();
   if (result && !/^<svg[\s>]/i.test(result)) {
