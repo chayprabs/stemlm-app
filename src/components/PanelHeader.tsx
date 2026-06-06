@@ -1,7 +1,6 @@
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
-import { frameworkKey } from '@/src/lib/framework-key';
 import { BrandWordmark } from './BrandWordmark';
 import {
   IconBook,
@@ -90,15 +89,6 @@ export function PanelHeader({
 
       {session && (
         <>
-          <div className="slm-extraction">
-            <div className="slm-extraction-label">EXTRACTION STATUS</div>
-            <div className="slm-extraction-row">
-              <span className="slm-status-dot" aria-hidden="true" />
-              <span>Framework matched in response.</span>
-            </div>
-            <span className="slm-framework-key">{frameworkKey(session)}</span>
-          </div>
-
           <div className="slm-topic-row">
             <h1 className="slm-topic">{heading}</h1>
             <span className="slm-subject-chip">{session.capsule.meta.subject}</span>

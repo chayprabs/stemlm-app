@@ -297,44 +297,6 @@
   gap: 0.1rem;
   flex-shrink: 0;
 }
-.slm-extraction {
-  padding: 0.55rem 1rem 0.7rem;
-  border-bottom: 0.5px solid var(--slm-border);
-  background: var(--slm-bg-subtle);
-}
-.slm-extraction-label {
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #94a3b8;
-  margin-bottom: 0.35rem;
-}
-.slm-extraction-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 10px;
-  color: var(--slm-fg-muted);
-}
-.slm-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--slm-success);
-  flex-shrink: 0;
-}
-.slm-framework-key {
-  display: inline-block;
-  margin-top: 0.35rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: var(--radius-sm);
-  background: var(--slm-accent-soft);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--slm-accent);
-}
 .slm-subject-chip {
   padding: 0.15rem 0.5rem;
   font-size: 10px;
