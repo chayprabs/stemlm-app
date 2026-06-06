@@ -1,41 +1,109 @@
 import { Fragment } from 'react';
-import type { Session } from '@/src/protocol/types';
+import type { Session, Step } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
+import { cleanSessionQuestion } from '@/src/lib/session-question';
+
+function SolutionStep({
+  step,
+  theme,
+}: {
+  step: Step;
+  theme: ResolvedTheme;
+}) {
+  const stepNo = String(step.index).padStart(2, '0');
+
+  return (
+    <article className="slm-solution-step">
+      <header className="slm-solution-step-head">
+        <span className="slm-step-badge">{stepNo}</span>
+        <h3 className="slm-solution-step-title">{step.title}</h3>
+      </header>
+
+      {step.formula && (
+        <div className="slm-formula">
+          <span className="slm-formula-label">Formula</span>
+          <MathMarkdown content={step.formula} />
+        </div>
+      )}
+
+      {step.diagram && (
+        <div className="slm-step-diagram">
+          <span className="slm-step-diagram-label">Diagram</span>
+          <DiagramRenderer diagram={step.diagram} theme={theme} />
+        </div>
+      )}
+
+      {step.body.trim() && (
+        <div className="slm-solution-step-body slm-selectable">
+          <MathMarkdown content={step.body} />
+        </div>
+      )}
+
+      {step.takeaway && (
+        <div className="slm-takeaway slm-selectable">
+          <span className="slm-takeaway-label">Takeaway</span>
+          <MathMarkdown content={step.takeaway} />
+        </div>
+      )}
+    </article>
+  );
+}
 
 /**
- * The plain-language full solution, with inline diagrams re-inserted at their
- * original positions (the parser left {{stemlm-diagram:N}} tokens behind).
+ * Complete study answer: question, every step (with diagrams), then the
+ * condensed @solution narrative. Matches the richness of the PDF export.
  */
 export function SolutionView({ session, theme }: { session: Session; theme: ResolvedTheme }) {
-  const { solution, solutionDiagrams } = session.capsule;
-  const parts = solution.split(solutionDiagramRegexGlobal());
-  // split() with a capturing group interleaves: [text, idx, text, idx, ...]
+  const { steps, solution, solutionDiagrams, meta } = session.capsule;
+  const question = cleanSessionQuestion(session.question) || meta.topic;
+  const solutionParts = solution.split(solutionDiagramRegexGlobal());
+  const hasSteps = steps.length > 0;
+  const hasSolutionText = solution.trim().length > 0;
 
   return (
     <div className="slm-solution">
-      <article className="slm-card">
-        <div className="slm-card-body slm-selectable">
-          {parts.map((part, i) => {
-            const isIndex = i % 2 === 1;
-            if (isIndex) {
-              const diagram = solutionDiagrams[Number(part)];
-              return diagram ? (
-                <div key={`d-${i}`} className="slm-card-diagram">
-                  <DiagramRenderer diagram={diagram} theme={theme} large />
-                </div>
-              ) : null;
-            }
-            return part.trim() ? (
-              <MathMarkdown key={`t-${i}`} content={part} />
-            ) : (
-              <Fragment key={`t-${i}`} />
-            );
-          })}
-        </div>
-      </article>
+      {question && (
+        <section className="slm-solution-q slm-selectable">
+          <span className="slm-solution-section-label">Question</span>
+          <p className="slm-solution-q-text">{question}</p>
+        </section>
+      )}
+
+      {hasSteps && (
+        <section className="slm-solution-steps" aria-label="Step-by-step solution">
+          <h2 className="slm-solution-section-title">Step-by-step</h2>
+          {steps.map((step) => (
+            <SolutionStep key={step.id} step={step} theme={theme} />
+          ))}
+        </section>
+      )}
+
+      {hasSolutionText && (
+        <section className="slm-solution-full slm-selectable" aria-label="Full solution summary">
+          <h2 className="slm-solution-section-title">Full solution</h2>
+          <div className="slm-solution-full-body">
+            {solutionParts.map((part, i) => {
+              if (i % 2 === 1) {
+                const diagram = solutionDiagrams[Number(part)];
+                return diagram ? (
+                  <div key={`d-${i}`} className="slm-step-diagram">
+                    <span className="slm-step-diagram-label">Diagram</span>
+                    <DiagramRenderer diagram={diagram} theme={theme} large />
+                  </div>
+                ) : null;
+              }
+              return part.trim() ? (
+                <MathMarkdown key={`t-${i}`} content={part} />
+              ) : (
+                <Fragment key={`t-${i}`} />
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
