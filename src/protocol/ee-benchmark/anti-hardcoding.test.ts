@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { EEProblemSpec } from './spec-types';
 import { ALL_EE_SPECS } from './specs';
 import { solve } from './solvers';
 import { generateQuestion } from './pipeline';
@@ -87,9 +88,10 @@ describe('Anti-hardcoding — spec integrity', () => {
 describe('Anti-hardcoding — solver sensitivity (mutate params → answers change)', () => {
   it('Q1: doubling Vs doubles loop current', () => {
     const base = ALL_EE_SPECS[0]!.spec;
+    if (base.kind !== 'kvl-series-loop') throw new Error('Q1 must be kvl-series-loop');
     const s1 = solve(base);
-    const mutated = {
-      ...base,
+    const mutated: EEProblemSpec = {
+      kind: 'kvl-series-loop',
       params: { ...base.params, Vs: base.params.Vs * 2 },
     };
     const s2 = solve(mutated);

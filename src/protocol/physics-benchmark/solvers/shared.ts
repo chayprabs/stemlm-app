@@ -92,6 +92,13 @@ function buildContext(input: SolverInput): SolverContext {
   };
 }
 
+/** Read a required numeric from solver output (Record index is optional in strict TS). */
+export function solverVal(values: Record<string, number>, key: string): number {
+  const v = values[key];
+  if (v === undefined) throw new Error(`Missing solver value "${key}"`);
+  return v;
+}
+
 export function expectApprox(
   context: SolverContext,
   label: string,

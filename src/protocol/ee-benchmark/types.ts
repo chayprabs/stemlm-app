@@ -1,6 +1,7 @@
 /** Electrical Engineering 50-question benchmark types. */
 
-export type EEDifficulty = 'Easy' | 'Mid' | 'Tough';
+import type { EEDifficulty } from './spec-types';
+export type { EEDifficulty };
 export type EEYear = 1 | 2 | 3;
 
 export interface EEStepDef {

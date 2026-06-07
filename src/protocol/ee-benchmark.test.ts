@@ -162,7 +162,7 @@ describe('EE Benchmark — solver-driven (not hardcoded)', () => {
 
   it('Q17: PF correction reduces line current', () => {
     const sol = solve(ALL_EE_SPECS[16]!.spec);
-    expect(sol.computed.I2).toBeLessThan(sol.computed.I1);
+    expect(sol.computed.I2!).toBeLessThan(sol.computed.I1!);
   });
 
   it('Q42: closed-loop gain Af = A/(1+T)', () => {

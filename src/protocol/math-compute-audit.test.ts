@@ -151,21 +151,21 @@ describe('independent numeric audit (computed, not pattern-faked)', () => {
 
   it('Q37 Newton divided difference gives P(1.5)=4.75', () => {
     const t = capsuleText(MATH_QUESTIONS[36]!);
-    const pts = [
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = [
       [0, 1],
       [1, 3],
       [2, 7],
       [3, 13],
-    ];
-    const f01 = (pts[1]![1] - pts[0]![1]) / (pts[1]![0] - pts[0]![0]);
-    const f12 = (pts[2]![1] - pts[1]![1]) / (pts[2]![0] - pts[1]![0]);
-    const f23 = (pts[3]![1] - pts[2]![1]) / (pts[3]![0] - pts[2]![0]);
-    const f012 = (f12 - f01) / (pts[2]![0] - pts[0]![0]);
-    const f123 = (f23 - f12) / (pts[3]![0] - pts[1]![0]);
-    const f0123 = (f123 - f012) / (pts[3]![0] - pts[0]![0]);
+    ] as const;
+    const f01 = (y1 - y0) / (x1 - x0);
+    const f12 = (y2 - y1) / (x2 - x1);
+    const f23 = (y3 - y2) / (x3 - x2);
+    const f012 = (f12 - f01) / (x2 - x0);
+    const f123 = (f23 - f12) / (x3 - x1);
+    const f0123 = (f123 - f012) / (x3 - x0);
     const x = 1.5;
     const p =
-      pts[0]![1] +
+      y0 +
       f01 * (x - 0) +
       f012 * (x - 0) * (x - 1) +
       f0123 * (x - 0) * (x - 1) * (x - 2);
