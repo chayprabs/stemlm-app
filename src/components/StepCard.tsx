@@ -58,7 +58,7 @@ export function StepCard({
       {shouldShowFormulaBlock(step) && step.formula && (
         <div className="slm-formula">
           <span className="slm-formula-label">Formula</span>
-          <MathMarkdown content={step.formula} />
+          <MathMarkdown content={step.formula} mathMode="display" />
         </div>
       )}
 

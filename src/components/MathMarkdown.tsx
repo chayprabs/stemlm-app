@@ -5,18 +5,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 // Registers \ce{} (chemistry) on the shared KaTeX instance used by rehype-katex.
 import 'katex/contrib/mhchem';
-import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
-
-/**
- * Renders markdown with embedded LaTeX (KaTeX) and GitHub-flavoured markdown.
- * Normalizes \(..\) / \[..\] delimiters to $..$ / $$..$$ so capsules using
- * either convention render correctly.
- */
-function normalizeMathDelimiters(src: string): string {
-  return src
-    .replace(/\\\[(.+?)\\\]/gs, (_m, e) => `$$${e}$$`)
-    .replace(/\\\((.+?)\\\)/gs, (_m, e) => `$${e}$`);
-}
+import { prepareMathForRender, type MathRenderMode } from '@/src/lib/math-content';
 
 function safeUrl(url: string): string {
   const trimmed = url.trim();
@@ -28,9 +17,15 @@ function safeUrl(url: string): string {
 export interface MathMarkdownProps {
   content: string;
   className?: string;
+  /** Use for @formula blocks — always display-size KaTeX. */
+  mathMode?: MathRenderMode;
 }
 
-export const MathMarkdown = memo(function MathMarkdown({ content, className }: MathMarkdownProps) {
+export const MathMarkdown = memo(function MathMarkdown({
+  content,
+  className,
+  mathMode = 'auto',
+}: MathMarkdownProps) {
   return (
     <div className={`slm-prose ${className ?? ''}`}>
       <Markdown
@@ -38,7 +33,7 @@ export const MathMarkdown = memo(function MathMarkdown({ content, className }: M
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         urlTransform={safeUrl}
       >
-        {normalizeMathDelimiters(stripProtocolMarkers(content))}
+        {prepareMathForRender(content, mathMode)}
       </Markdown>
     </div>
   );

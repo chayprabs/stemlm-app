@@ -72,7 +72,7 @@ export function Report({
               {shouldShowFormulaBlock(step) && step.formula && (
                 <div className="slm-report-formula">
                   <span className="slm-report-formula-label">Formula</span>
-                  <MathMarkdown content={step.formula} />
+                  <MathMarkdown content={step.formula} mathMode="display" />
                 </div>
               )}
               {work && (

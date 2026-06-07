@@ -691,11 +691,12 @@
 }
 .slm-formula {
   margin: 0.5rem 0 0.65rem;
-  padding: 0.55rem 0.65rem;
+  padding: 0.65rem 0.75rem;
   background: var(--slm-formula-bg);
   border: 0.5px solid var(--slm-formula-border);
   border-radius: var(--radius-sm);
   overflow-x: auto;
+  text-align: center;
 }
 .slm-formula-label {
   display: block;
@@ -723,10 +724,17 @@
   color: var(--slm-fg-muted);
   line-height: 1.6;
 }
-.slm-formula .katex,
-.slm-formula {
-  font-family: var(--font-mono);
-  font-size: 11px;
+.slm-formula .slm-prose {
+  text-align: center;
+}
+.slm-formula .katex-display {
+  margin: 0.2rem 0;
+}
+.slm-formula .katex {
+  font-size: 1.12em;
+  color: var(--slm-formula-fg);
+}
+.slm-formula .katex .katex-html {
   color: var(--slm-formula-fg);
 }
 .slm-card-body {
