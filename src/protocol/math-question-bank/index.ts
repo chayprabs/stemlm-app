@@ -5,9 +5,14 @@ import { Q03 } from './q03';
 import { Q04 } from './q04';
 import { Q05 } from './q05';
 import { Q06 } from './q06';
+import { Q07 } from './q07';
+import { Q08 } from './q08';
+import { Q09 } from './q09';
+import { Q10 } from './q10';
+import { Q11 } from './q11';
 
 /** All verified mathematics benchmark questions (Q1–Q50). */
-export const MATH_QUESTIONS: MathQuestionDef[] = [Q01, Q02, Q03, Q04, Q05, Q06];
+export const MATH_QUESTIONS: MathQuestionDef[] = [Q01, Q02, Q03, Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11];
 
 export function getMathQuestion(id: string): MathQuestionDef | undefined {
   return MATH_QUESTIONS.find((q) => q.id === id);
@@ -17,4 +22,4 @@ export function getMathQuestionByNumber(n: number): MathQuestionDef | undefined 
   return MATH_QUESTIONS.find((q) => q.number === n);
 }
 
-export { Q01, Q02, Q03, Q04, Q05, Q06 };
+export { Q01, Q02, Q03, Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 };
