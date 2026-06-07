@@ -26,7 +26,7 @@ const RULES: Rule[] = [
   {
     subject: 'Electrical',
     patterns: [
-      { re: /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm'?s? law|ohm|kirchhoff|kvl|kcl|impedance|reactance|transistor|diode|op-?amp|operational amplifier|thevenin|norton|superposition|dependent source|current source|nodal analysis|mesh (analysis|current)|series and parallel|rc circuit|rl circuit|rlc|logic gate|boolean logic|truth table|flip-?flop|mosfet|bjt\b|amplifier|rectifier|capacitance|inductance|emf\b|label all nodes)\b/i, w: 3 },
+      { re: /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm'?s? law|ohm|kirchhoff|kvl|kcl|impedance|reactance|transistor|diode|op-?amp|operational amplifier|thevenin|norton|superposition|dependent source|current source|nodal analysis|mesh (analysis|current)|series and parallel|rc circuit|rl circuit|rlc|logic gate|boolean logic|truth table|flip-?flop|mosfet|bjt\b|amplifier|rectifier|capacitance|inductance|emf\b|label all nodes|hybrid[- ]?π|hybrid[- ]?pi|small[- ]signal|common[- ]emitter|emitter degeneration|voltage gain|bandwidth)\b/i, w: 3 },
       { re: /\b(electrical|electronics|ampere|amps?\b|watt|signal|frequency|waveform)\b/i, w: 1 },
     ],
   },

@@ -33,12 +33,13 @@ export const STEP_BODY_REQUIREMENT = [
 
 /** Repeated on every inject so models cannot skip circuit / spatial diagrams. */
 export const STEP_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — visual/spatial problems MUST include @diagram type=svg (never skip for laziness).',
-  'EE CIRCUITS: Step 1 MUST show the FULL original circuit — every R, source, node label (A,B,C,D…), ground, dependent source, and bridge connections.',
-  'REQUIRED @diagram on: node labeling, ground, KCL/KVL, branch reduction, superposition sub-circuits, Thevenin/Norton, source killing — any step where topology or labels change.',
-  'Each @diagram needs real SVG primitives (line, path, polyline, rect, circle) — NOT text-only labels. Use zigzag resistors, source symbols, current arrows.',
-  'Redraw circuit state AT THIS STEP (highlight what changed). Pure simultaneous-equation algebra with no topology change may omit @diagram.',
-  'Minimum on multi-node circuits: at least one diagram per 2–3 steps; never fewer than 3 diagrams total.',
+  'CRITICAL — electrical/visual problems MUST include @diagram type=svg on nearly EVERY @step (never skip for laziness).',
+  'COMPLETENESS: each @diagram must show EVERY component you name in @body for that step — if you write R_C, R_E, r_π, g_m, v_in, collector, load, they MUST all appear labeled in the SVG. Partial fragments are invalid.',
+  'Step 1: FULL original circuit or full small-signal/hybrid-π model (BJT: base B, collector C, emitter E, r_π, g_m v_be source, R_E, R_C to supply, ground, v_in).',
+  'BJT/OP-AMP/SMALL-SIGNAL: draw the complete hybrid-π or op-amp schematic — transistor triangle/circle, all resistors (zigzag), controlled current source (diamond/circle+arrow), every node wired. Never show only r_π+RE without R_C and collector.',
+  'REQUIRED @diagram on: model drawing, R_in/R_out/gain derivations, KCL/KVL, superposition, Thevenin, source killing, bandwidth/stability — any step mentioning circuit elements.',
+  'Each SVG: ≥8 primitives on model steps, ≥5 on other EE steps, ≥3 text labels; use line/path/polyline/rect/circle — NOT text-only. Highlight what changed this step.',
+  'Minimum: ≥55% of steps have diagrams; never fewer than 3; complex multi-part problems need a diagram on most steps.',
 ].join('\n');
 
 /** Blank lines after this label are where the student types their follow-up question. */
@@ -256,6 +257,7 @@ const QUALITY_REPAIR_CODES = new Set([
   'missing_circuit_diagram',
   'insufficient_diagrams',
   'diagram_lacks_graphics',
+  'diagram_incomplete',
 ]);
 
 const DIAGRAM_REPAIR_CODES = new Set([
@@ -263,6 +265,7 @@ const DIAGRAM_REPAIR_CODES = new Set([
   'missing_circuit_diagram',
   'insufficient_diagrams',
   'diagram_lacks_graphics',
+  'diagram_incomplete',
 ]);
 
 export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
@@ -271,7 +274,7 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
     ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
     : '';
   const diagramFix = opt.errorCode && DIAGRAM_REPAIR_CODES.has(opt.errorCode)
-    ? ' ADD the missing @diagram type=svg blocks: Step 1 must show the FULL original circuit with every component and node label. Every topology step (nodes, KCL/KVL, superposition, Thevenin, source killing) needs a real SVG with line/path/rect/circle primitives — not text-only placeholders.'
+    ? ' ADD or REDRAW every @diagram type=svg to be COMPLETE: Step 1 = full circuit or full hybrid-π (BJT: B,C,E nodes, r_π, g_m source, R_E, R_C, v_in, ground). Every component named in @body MUST appear labeled in that step\'s SVG. No partial fragments. ≥8 SVG primitives on model steps. Diagram on nearly every electrical step.'
     : '';
   return [
     `Your previous stemLM capsule was incomplete or malformed.${reason}`,

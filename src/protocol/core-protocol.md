@@ -43,10 +43,10 @@ RULES:
 - Prefer more small steps over fewer large ones; split algebra one line per step; show every substitution with units.
 - @body is REQUIRED on every @step (non-empty). If @formula introduces a law or symbol, @body MUST define the symbol and show the numeric plug-in — a bare formula line alone is never enough.
 - @formula = the relation (symbols). @body = definitions + substitution + arithmetic + result. Do not put the only calculation in @formula with a one-line interpretation in @body.
-- title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @body mandatory; @formula/@takeaway/@quickcheck/@followup optional; max one @diagram per @step. @diagram REQUIRED on: step-1 full circuit, nodes/ground, KCL/KVL, branch reduction, superposition/Thevenin, source killing — any topology change; pure algebra may omit. Close @body before @diagram. Split circuit+waveform/phasor/triangle across steps.
+- title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @body mandatory; max one @diagram per @step. EE: @diagram on nearly every step; step-1 = full circuit/model; each SVG must include EVERY component named in @body (R_C,R_E,r_π,g_m,B,C,E,v_in,ground…); no partial fragments; ≥55% of steps have diagrams. Close @body before @diagram.
 - @quickcheck optional (2–4 per capsule on hardest moves). Skip on pure diagram/label steps. Never one-word answers — explain why with a formula or number from this step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
-- Each @diagram = state at this step (reduced circuit, ray after surface, etc.) — never text-only SVG; draw wires/shapes. Multi-node circuits: ≥1 diagram per 2–3 steps, min 3 total.
+- Each @diagram = complete state at this step — every named component labeled; never text-only or partial SVG; ≥8 primitives on model steps, ≥5 on other EE steps.
 - svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; arrowheads via <defs><marker>…<polygon/></marker></defs> + marker-end; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/EE/chem/bio/geometry. Keep <text> labels ≥14px off wires (nodes above/below wires).
 - mermaid: CS flow/sequence/state only; valid `graph TD`/`sequenceDiagram`; quote every node label — A["v = u+at"] — no ( ) { } ` in labels.
 

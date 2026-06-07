@@ -103,7 +103,8 @@ export type ParseWarningCode =
   | 'missing_initial_circuit'
   | 'missing_circuit_diagram'
   | 'insufficient_diagrams'
-  | 'diagram_lacks_graphics';
+  | 'diagram_lacks_graphics'
+  | 'diagram_incomplete';
 
 export type ParseErrorCode =
   | 'no_capsule'
