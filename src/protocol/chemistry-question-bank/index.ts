@@ -27,6 +27,7 @@ import { Q25 } from './q25';
 import { Q26 } from './q26';
 import { Q27 } from './q27';
 import { Q28 } from './q28';
+import { Q29 } from './q29';
 import { Q31 } from './q31';
 import { Q32 } from './q32';
 import { Q33 } from './q33';
@@ -68,6 +69,7 @@ export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
   Q26,
   Q27,
   Q28,
+  Q29,
   Q31,
   Q32,
   Q33,
