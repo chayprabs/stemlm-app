@@ -5,6 +5,7 @@
 import type { PlatformAdapter } from '@/src/platforms/types';
 
 const SLOT_ATTR = 'data-stemlm-composer-slot';
+export const COMPOSER_SLOT_SELECTOR = `[${SLOT_ATTR}]`;
 const PARENT_ATTR = 'data-stemlm-composer-row';
 const STYLE_ID = 'stemlm-composer-slot-styles';
 const SLOT_GAP_PX = 8;
@@ -104,14 +105,30 @@ function getSharedSlot(): HTMLElement {
   return sharedSlot;
 }
 
+function isInsideComposerSlot(el: Element | null): boolean {
+  return !!el?.closest(COMPOSER_SLOT_SELECTOR);
+}
+
 function mountSlotBefore(anchor: HTMLElement): HTMLElement | null {
   if (!anchor.isConnected) return null;
+  // After docking, broad selectors like "input-area-v2 button:first-of-type" can
+  // match our inject control — never remount relative to our own subtree.
+  if (isInsideComposerSlot(anchor)) {
+    const slot = getSharedSlot();
+    return slot.isConnected ? slot : null;
+  }
+
   const parent = anchor.parentElement;
   if (!parent) return null;
+
+  const slot = getSharedSlot();
+  if (slot === anchor || slot.contains(anchor) || slot.contains(parent) || parent === slot) {
+    return slot.isConnected ? slot : null;
+  }
+
   ensureFlexRow(parent);
   ensureStyles();
 
-  const slot = getSharedSlot();
   if (slot.parentElement !== parent || slot.nextElementSibling !== anchor) {
     parent.insertBefore(slot, anchor);
   }

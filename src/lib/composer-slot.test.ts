@@ -66,4 +66,17 @@ describe('ensureComposerSlot', () => {
     const b = ensureComposerSlot(geminiAdapter, 'dark');
     expect(a).toBe(b);
   });
+
+  it('does not throw when the inject button becomes the first button in input-area-v2', () => {
+    const slot = ensureComposerSlot(geminiAdapter, 'dark');
+    slot!.innerHTML =
+      '<div class="slm-fab-wrap"><button type="button" class="slm-inject-btn">+</button></div>';
+
+    expect(() => ensureComposerSlot(geminiAdapter, 'dark')).not.toThrow();
+    expect(slot!.isConnected).toBe(true);
+
+    const upload = document.querySelector('button[aria-label="Open upload file menu"]');
+    expect(geminiAdapter.getComposerLeadingAnchor()).toBe(upload);
+    expect(slot!.nextElementSibling).toBe(upload);
+  });
 });

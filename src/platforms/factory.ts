@@ -7,6 +7,7 @@
  * for easy maintenance.
  */
 import type { AdapterConfig, PlatformAdapter } from './types';
+import { COMPOSER_SLOT_SELECTOR } from '@/src/lib/composer-slot';
 import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
 
 const STEMLM_CODE_SELECTORS = [
@@ -54,6 +55,32 @@ function allMatches(selectors: string[], root: ParentNode = document): HTMLEleme
 /** Keep only the innermost elements (drop any that contain another match). */
 function innermost(elements: HTMLElement[]): HTMLElement[] {
   return elements.filter((el) => !elements.some((other) => other !== el && el.contains(other)));
+}
+
+function outsideComposerSlot(el: HTMLElement | null): HTMLElement | null {
+  if (!el?.isConnected) return null;
+  if (el.closest(COMPOSER_SLOT_SELECTOR)) return null;
+  return el;
+}
+
+/** First match that is not inside the stemLM inject slot (avoids our own button). */
+function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document): HTMLElement | null {
+  for (const sel of selectors) {
+    try {
+      if (root instanceof HTMLElement && root.matches(sel)) {
+        const hit = outsideComposerSlot(root);
+        if (hit) return hit;
+      }
+      const list = root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`);
+      for (const el of list) {
+        const hit = outsideComposerSlot(el);
+        if (hit) return hit;
+      }
+    } catch {
+      /* invalid selector — skip */
+    }
+  }
+  return null;
 }
 
 function selectAllContents(el: HTMLElement): void {
@@ -385,7 +412,9 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
 
     getComposerLeadingAnchor() {
       const root = this.getComposerShell() ?? document;
-      return config.composerLeading ? firstMatch(config.composerLeading, root) : null;
+      return config.composerLeading
+        ? firstMatchOutsideSlot(config.composerLeading, root)
+        : null;
     },
 
     getComposerShell() {
