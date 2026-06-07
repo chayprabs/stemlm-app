@@ -120,12 +120,12 @@ export const Q02: MathQuestionDef = {
       title: 'Show f\' does not approach a single value at 0',
       formula:
         '$$x_n=\\frac{1}{2\\pi n} \\Rightarrow f\'(x_n)\\to -1, \\qquad y_n=\\frac{1}{(2n+1)\\pi} \\Rightarrow f\'(y_n)\\to 1$$',
-      body: 'Along x_n, cos(1/x_n) = cos(2pi n) = 1, so f\'(x_n) = 2x_n sin(2pi n) - 1 = 0 - 1 = -1. Along y_n, cos(1/y_n) = cos((2n+1)pi) = -1, so f\'(y_n) = 0 - (-1) = 1. Two different limit values mean f\' is not continuous at 0, so f is not C^1.',
+      body: '$x_n$ is the sequence $1/(2\\pi n)$ and $y_n = 1/((2n+1)\\pi)$. Along $x_n$: $\\cos(1/x_n)=1$, so $f\'(x_n)=2x_n\\sin(2\\pi n)-1=0-1=-1$. Along $y_n$: $\\cos(1/y_n)=-1$, so $f\'(y_n)=0-(-1)=1$. Two different limits $\\Rightarrow$ $f\'$ is not continuous at $0$.',
       takeaway: 'A vanishing prefactor x^2 is enough for continuity and for f\'(0), but not enough to make the derivative itself continuous.',
     },
   ],
   solution:
     'For continuity, |f(x)| = |x^2 sin(1/x)| <= x^2, so f is continuous at 0. For the derivative at 0, f\'(0) = lim_{h->0} h sin(1/h) = 0 by the same squeeze idea. For x != 0, f\'(x) = 2x\\sin(1/x)-\\cos(1/x). Along x_n = 1/(2pi n), f\'(x_n) -> -1, while along y_n = 1/((2n+1)pi), f\'(y_n) -> 1, so f\' is not continuous at 0 and f is not C^1.',
-  verifiedPatterns: ['continuous at 0', "f'(0) = 0", '2x\\sin(1/x)-\\cos(1/x)', 'not continuous at 0', 'not C^1'],
+  verifiedPatterns: ['continuous at 0', "f'(0)", '= 0', '2x\\sin(1/x)-\\cos(1/x)', 'not continuous at 0', 'not C^1'],
   minDiagramSteps: 4,
 };

@@ -11,7 +11,7 @@ export const Q04: MathQuestionDef = {
     {
       title: 'Place x = 0.2 inside the convergence interval',
       formula: '$$\\ln(1+x)=\\sum_{n=1}^{\\infty}(-1)^{n+1}\\frac{x^n}{n}, \\qquad |x|<1$$',
-      body: 'We evaluate at x = 0.2, and 0.2 < 1, so the Maclaurin series converges. Numerically, 1 + x = 1.2 and the target value is ln(1.2).',
+      body: 'We evaluate at $x = 0.2$, and $0.2 < 1$, so the series converges. With $x=0.2$: $1+x = 1.2$ and the target is $\\ln(1.2) \\approx 0.1823$.',
       diagram: numberLine(
         [
           { pos: -1, label: '-1', color: '#333' },
@@ -97,7 +97,7 @@ export const Q04: MathQuestionDef = {
       title: 'Conclude the approximation and tolerance claim',
       formula:
         '$$|R_5(0.2)| \\le 1.07\\times 10^{-5} < 10^{-4}$$',
-      body: 'The five-term truncation through x^5 is accurate enough because 0.000010667 is smaller than 0.0001 by almost a factor of 10. Thus the approximation 0.182331 is safely within the requested tolerance.',
+      body: 'The five-term truncation is accurate because $|R_5(0.2)| = 0.000010667 < 0.0001 = 10^{-4}$. The ratio $0.000010667/0.0001 \\approx 0.107 < 1$ confirms the tolerance is met with $P_5(0.2) = 0.182331$.',
       takeaway: 'For alternating Taylor series at a small x, the polynomial gives both a good approximation and a clean error estimate.',
     },
   ],
