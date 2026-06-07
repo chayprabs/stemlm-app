@@ -776,7 +776,7 @@ describe('independent verification Q01-Q50', () => {
   it.each(ALL_STUB_BUILDERS.map((buildStub, index) => [index + 1, buildStub] as const))(
     'Q%02i numeric stub passes verification',
     (number, buildStub) => {
-      const verify = PHYSICS_BENCHMARK_SOLVERS[number - 1];
+      const verify = PHYSICS_BENCHMARK_SOLVERS[number - 1]!;
       const result = verify(buildStub());
       expect(result.ok, result.errors.join('; ')).toBe(true);
     },
