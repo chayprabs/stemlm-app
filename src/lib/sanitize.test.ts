@@ -124,6 +124,27 @@ describe('sanitizeSvg — EE circuit primitives', () => {
   });
 });
 
+describe('sanitizeSvg preserveInlineStyles', () => {
+  it('keeps safe inline fill/stroke styles for mermaid output', () => {
+    const out = sanitizeSvg(
+      '<svg viewBox="0 0 10 10"><rect width="5" height="5" style="fill:#edf2ff;stroke:#333"/></svg>',
+      { preserveInlineStyles: true },
+    );
+    expect(out).toContain('style=');
+    expect(out).toContain('fill:#edf2ff');
+    expect(out).not.toContain('https://');
+  });
+
+  it('still strips dangerous inline styles when preserving mermaid styles', () => {
+    const out = sanitizeSvg(
+      '<svg viewBox="0 0 10 10"><rect width="5" height="5" style="fill:url(https://evil.example/x)"/></svg>',
+      { preserveInlineStyles: true },
+    );
+    expect(out).not.toContain('https://');
+    expect(out).not.toMatch(/style\s*=\s*["'][^"']*url\(/i);
+  });
+});
+
 describe('extractSvg', () => {
   it('pulls the svg element out of surrounding text', () => {
     expect(extractSvg('noise <svg><circle r="1"/></svg> more')).toBe('<svg><circle r="1"/></svg>');

@@ -19,7 +19,7 @@ const DEFAULT_UPLOAD_BUTTON_SELECTORS = [
   'button.upload-button',
 ];
 
-const DEFAULT_ATTACHMENT_SELECTORS = [
+export const COMPOSER_ATTACHMENT_SELECTORS = [
   'images-files-uploader [class*="preview"]',
   'images-files-uploader [class*="chip"]',
   'images-files-uploader [class*="file"]',
@@ -143,7 +143,7 @@ export interface WaitAttachmentOptions {
 
 /** Wait until the UI shows an uploaded file chip/preview. */
 export async function waitForAttachment(opt: WaitAttachmentOptions = {}): Promise<boolean> {
-  const sels = opt.attachmentSelectors ?? DEFAULT_ATTACHMENT_SELECTORS;
+  const sels = opt.attachmentSelectors ?? COMPOSER_ATTACHMENT_SELECTORS;
   const timeoutMs = opt.timeoutMs ?? 4000;
   const deadline = Date.now() + timeoutMs;
 

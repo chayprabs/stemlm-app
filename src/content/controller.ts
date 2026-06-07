@@ -397,6 +397,7 @@ export class StemController {
       last.platform === this.adapter.id &&
       (cleanSessionQuestion(last.question) === cleanedQuestion || last.capsule.meta.topic === topic);
 
+    const newStepIds = new Set(result.capsule.steps.map((s) => s.id));
     const session: Session = {
       id: shouldReplace ? last.id : makeId(),
       createdAt: shouldReplace ? last.createdAt : Date.now(),
@@ -404,7 +405,9 @@ export class StemController {
       platform: this.adapter.id,
       question: cleanedQuestion,
       capsule: result.capsule,
-      reviewedStepIds: shouldReplace ? last.reviewedStepIds : [],
+      reviewedStepIds: shouldReplace
+        ? last.reviewedStepIds.filter((id) => newStepIds.has(id))
+        : [],
       raw: result.raw,
     };
 

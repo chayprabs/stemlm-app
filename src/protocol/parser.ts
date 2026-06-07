@@ -31,7 +31,7 @@ import {
   normalizeCapsuleText,
   stripProtocolMarkers,
 } from './strip-markers';
-import { auditStepQuality, enrichStepBody, stepQualityMessage } from './step-quality';
+import { auditStepQuality, enrichStepBody, isDiagnosticBodyText, stepQualityMessage } from './step-quality';
 import {
   auditQuickCheck,
   isSubstantiveQuickCheck,
@@ -228,13 +228,15 @@ function normalizeSubject(value: string | undefined): { subject: Subject; recove
   if (!value) return { subject: 'General', recovered: false };
   const found = SUBJECTS.find((s) => s.toLowerCase() === value.trim().toLowerCase());
   if (found) return { subject: found, recovered: false };
-  // Common aliases.
+  // Common aliases — check compound names before broad prefixes.
   const v = value.trim().toLowerCase();
   if (/comp|cs|algorithm|program|coding/.test(v)) return { subject: 'CS', recovered: false };
   if (/elec|circuit/.test(v)) return { subject: 'Electrical', recovered: false };
   if (/mech(?!.*chem)/.test(v)) return { subject: 'Mechanical', recovered: false };
   if (/civil|structur/.test(v)) return { subject: 'Civil', recovered: false };
   if (/chem.*eng|process eng/.test(v)) return { subject: 'Chemical', recovered: false };
+  if (/physical chem|physicochem|phys\s*chem/.test(v)) return { subject: 'Chemistry', recovered: false };
+  if (/biochem/.test(v)) return { subject: 'Chemistry', recovered: false };
   if (/phys/.test(v)) return { subject: 'Physics', recovered: false };
   if (/chem/.test(v)) return { subject: 'Chemistry', recovered: false };
   if (/bio/.test(v)) return { subject: 'Biology', recovered: false };
@@ -280,8 +282,14 @@ function sanitizeStepFields(step: Step): void {
   step.title = stripProtocolMarkers(step.title);
   step.body = stripProtocolMarkers(step.body);
   if (step.formula) step.formula = stripProtocolMarkers(step.formula);
-  if (step.takeaway) step.takeaway = stripProtocolMarkers(step.takeaway);
-  if (step.followup) step.followup = stripProtocolMarkers(step.followup);
+  if (step.takeaway) {
+    step.takeaway = stripProtocolMarkers(step.takeaway);
+    if (isDiagnosticBodyText(step.takeaway)) step.takeaway = undefined;
+  }
+  if (step.followup) {
+    step.followup = stripProtocolMarkers(step.followup);
+    if (isDiagnosticBodyText(step.followup)) step.followup = undefined;
+  }
   if (step.quickCheck) {
     step.quickCheck = {
       question: stripProtocolMarkers(step.quickCheck.question),
@@ -295,7 +303,9 @@ function isMalformedDiagram(diagram: Diagram): boolean {
     return !/<svg\b/i.test(diagram.content);
   }
   const src = diagram.content.trim();
-  return !/^(graph\s+(TD|LR)\b|sequenceDiagram\b|stateDiagram(?:-v2)?\b)/i.test(src);
+  return !/^(?:graph\s+(?:TB|BT|TD|DT|RL|LR)\b|flowchart\s+(?:TB|BT|TD|DT|RL|LR)\b|sequenceDiagram\b|stateDiagram(?:-v2)?\b|classDiagram\b|erDiagram\b)/i.test(
+    src,
+  );
 }
 
 function parseStep(
@@ -386,7 +396,16 @@ function parseStep(
         }
         c.i++;
       }
-      if (q || a) step.quickCheck = { question: q, answer: a };
+      if (q || a) {
+        step.quickCheck = { question: q, answer: a };
+      } else {
+        addWarning(
+          warnings,
+          warningCodes,
+          'quickcheck_missing_question',
+          `Step ${index} had an empty @quickcheck block.`,
+        );
+      }
       continue;
     }
     if (t === '@followup') {
@@ -535,24 +554,33 @@ export function parseCapsule(capsuleText: string): ParseResult {
       `Capsule had ${steps.length} step(s); expected ${STEP_COUNT_MIN}-${STEP_COUNT_MAX}.`,
     );
   }
+  const warnedQuality = new Set<string>();
   for (const step of steps) {
     const sentences = step.body.split(/[.!?]+/).filter((s) => s.trim().length > 0);
     if (step.body.length > 420 || sentences.length > 4) {
-      addWarning(
-        warnings,
-        warningCodes,
-        'step_body_too_long',
-        `Step ${step.index} ("${step.title}") packs multiple moves; split into smaller steps.`,
-      );
+      const key = `step_body_too_long:${step.index}`;
+      if (!warnedQuality.has(key)) {
+        warnedQuality.add(key);
+        addWarning(
+          warnings,
+          warningCodes,
+          'step_body_too_long',
+          `Step ${step.index} ("${step.title}") packs multiple moves; split into smaller steps.`,
+        );
+      }
     }
     for (const code of auditStepQuality(step)) {
-      if (!warningCodes.includes(code)) {
+      const key = `${code}:${step.index}`;
+      if (!warnedQuality.has(key)) {
+        warnedQuality.add(key);
         addWarning(warnings, warningCodes, code, stepQualityMessage(code, step));
       }
     }
     if (step.quickCheck) {
       for (const code of auditQuickCheck(step.quickCheck, step)) {
-        if (!warningCodes.includes(code)) {
+        const key = `${code}:${step.index}`;
+        if (!warnedQuality.has(key)) {
+          warnedQuality.add(key);
           addWarning(warnings, warningCodes, code, quickCheckQualityMessage(code, step));
         }
       }

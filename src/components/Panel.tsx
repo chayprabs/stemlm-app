@@ -59,8 +59,18 @@ export function Panel() {
   const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (session) isSessionSaved(session.id).then(setSaved);
-    else setSaved(false);
+    if (!session) {
+      setSaved(false);
+      return;
+    }
+    const id = session.id;
+    let cancelled = false;
+    void isSessionSaved(id).then((value) => {
+      if (!cancelled) setSaved(value);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [session?.id]);
 
   // Focus the panel when it opens so keyboard nav works immediately.

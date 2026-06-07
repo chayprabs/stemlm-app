@@ -7,6 +7,7 @@
  * for easy maintenance.
  */
 import type { AdapterConfig, PlatformAdapter } from './types';
+import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
 
 const STEMLM_CODE_SELECTORS = [
   'pre code.language-stemlm',
@@ -22,7 +23,8 @@ function hasEndToken(text: string): boolean {
 function firstMatch(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     try {
-      const el = root.querySelector<HTMLElement>(sel);
+      if (root instanceof HTMLElement && root.matches(sel)) return root;
+      const el = root.querySelector<HTMLElement>(`:scope ${sel}, ${sel}`);
       if (el) return el;
     } catch {
       /* invalid selector — skip */
@@ -120,19 +122,65 @@ function moveCursorToEnd(el: HTMLElement): void {
   sel.addRange(range);
 }
 
-const ATTACHMENT_SELECTOR =
-  'img, video, [class*="upload" i], [class*="attachment" i], [class*="file-preview" i], [data-test-id*="upload" i], uploader';
+function moveCursorToTextOffset(root: HTMLElement, targetOffset: number): void {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  let offset = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const len = node.textContent?.length ?? 0;
+    if (offset + len >= targetOffset) {
+      range.setStart(node, Math.max(0, targetOffset - offset));
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    offset += len;
+  }
+  moveCursorToEnd(root);
+}
+
+function composerAttachmentRoots(editor: HTMLElement): Set<ParentNode> {
+  const roots = new Set<ParentNode>([editor]);
+  const closest = editor.closest(
+    'input-area-v2, input-area, rich-textarea, .input-area, [class*="input-area"]',
+  );
+  if (closest) roots.add(closest);
+  let node: HTMLElement | null = editor.parentElement;
+  for (let i = 0; i < 6 && node; i++) {
+    const tag = node.tagName;
+    if (
+      tag === 'INPUT-AREA-V2' ||
+      tag === 'INPUT-AREA' ||
+      tag === 'RICH-TEXTAREA' ||
+      node.classList.contains('input-area') ||
+      node.querySelector('images-files-uploader, rich-textarea')
+    ) {
+      roots.add(node);
+    }
+    node = node.parentElement;
+  }
+  return roots;
+}
 
 /** True when the composer area contains uploads (e.g. a pasted problem photo). */
 export function composerHasAttachments(editor: HTMLElement | null): boolean {
   if (!editor) return false;
-  const roots = new Set<ParentNode>([editor]);
-  const shell = editor.closest(
-    'input-area-v2, input-area, rich-textarea, .input-area, [class*="input-area"]',
-  );
-  if (shell) roots.add(shell);
+  const roots = composerAttachmentRoots(editor);
+  if (editor.querySelector('img, video')) return true;
   for (const root of roots) {
-    if (root.querySelector(ATTACHMENT_SELECTOR)) return true;
+    for (const sel of COMPOSER_ATTACHMENT_SELECTORS) {
+      try {
+        if (root.querySelector(sel)) return true;
+      } catch {
+        /* invalid selector */
+      }
+    }
+    const uploader = root.querySelector('images-files-uploader');
+    if (uploader && uploader.childElementCount > 1) return true;
   }
   return false;
 }
@@ -237,9 +285,8 @@ export function focusComposerQuestionSlot(editor: HTMLElement | null): void {
     return;
   }
   let offset = idx + FOLLOWUP_QUESTION_MARKER.length;
-  while (offset < text.length && text[offset] === '\n') offset++;
-  // Best-effort: focus start of editor so the blank lines under the label are reachable.
-  moveCursorToStart(editor);
+  while (offset < text.length && (text[offset] === '\n' || text[offset] === '\r')) offset++;
+  moveCursorToTextOffset(editor, offset);
 }
 
 export function getEditorTextOf(el: HTMLElement | null): string {
@@ -287,12 +334,14 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerBox() {
-      const box = firstMatch(config.composerBox);
+      const shell = this.getComposerShell();
+      const root = shell ?? document;
+      const box = firstMatch(config.composerBox, root);
       if (box) return box;
 
-      const editor = firstMatch(config.editor);
+      const editor = firstMatch(config.editor, root);
       const row =
-        firstMatch(config.composerActionRow) ?? firstMatch(config.composerAnchor);
+        firstMatch(config.composerActionRow, root) ?? firstMatch(config.composerAnchor, root);
 
       if (editor && row) {
         let node: HTMLElement | null = editor.parentElement;
@@ -310,9 +359,10 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerActionRow() {
-      const row = firstMatch(config.composerActionRow);
+      const root = this.getComposerShell() ?? document;
+      const row = firstMatch(config.composerActionRow, root);
       if (row) return row;
-      const anchor = firstMatch(config.composerAnchor);
+      const anchor = firstMatch(config.composerAnchor, root);
       return anchor?.parentElement ?? null;
     },
 
@@ -329,11 +379,13 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerAnchor() {
-      return firstMatch(config.composerAnchor) ?? firstMatch(config.editor)?.parentElement ?? null;
+      const root = this.getComposerShell() ?? document;
+      return firstMatch(config.composerAnchor, root) ?? firstMatch(config.editor, root)?.parentElement ?? null;
     },
 
     getComposerLeadingAnchor() {
-      return config.composerLeading ? firstMatch(config.composerLeading) : null;
+      const root = this.getComposerShell() ?? document;
+      return config.composerLeading ? firstMatch(config.composerLeading, root) : null;
     },
 
     getComposerShell() {

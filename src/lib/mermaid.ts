@@ -38,10 +38,19 @@ async function loadMermaid(theme: ResolvedTheme): Promise<MermaidApi> {
   return mermaid;
 }
 
+function removeMermaidRenderNode(id: string): void {
+  document.getElementById(id)?.remove();
+  document.getElementById(`d${id}`)?.remove();
+}
+
 /** Render mermaid source to an SVG string. Throws on invalid syntax. */
 export async function renderMermaid(source: string, theme: ResolvedTheme): Promise<string> {
   const mermaid = await loadMermaid(theme);
   const id = `stemlm-mmd-${counter++}`;
-  const { svg } = await mermaid.render(id, source.trim());
-  return svg;
+  try {
+    const { svg } = await mermaid.render(id, source.trim());
+    return svg;
+  } finally {
+    removeMermaidRenderNode(id);
+  }
 }

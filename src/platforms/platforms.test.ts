@@ -82,8 +82,8 @@ describe('Gemini adapter', () => {
     expect(geminiAdapter.getComposerLayout()).not.toBeNull();
   });
 
-  it('finds the leading upload control', () => {
-    document.body.insertAdjacentHTML(
+  it('finds the leading upload control inside the composer shell', () => {
+    document.body.querySelector('input-area-v2')?.insertAdjacentHTML(
       'afterbegin',
       '<button aria-label="Upload file">+</button>',
     );
@@ -140,6 +140,34 @@ describe('Gemini adapter', () => {
     expect(got).toContain('Find the range of a projectile launched at 60 degrees');
     expect(got).toContain('stemLM instructions');
     expect(got).toContain('OUTPUT:');
+  });
+
+  it('does not treat the upload control as an attachment', () => {
+    setBody(`
+      <input-area-v2>
+        <images-files-uploader><button aria-label="Open upload file menu">+</button></images-files-uploader>
+        <rich-textarea>
+          <div class="ql-editor" contenteditable="true" role="textbox"></div>
+        </rich-textarea>
+      </input-area-v2>
+    `);
+    const editor = geminiAdapter.findEditor()!;
+    expect(composerHasAttachments(editor)).toBe(false);
+  });
+
+  it('detects file preview chips as attachments', () => {
+    setBody(`
+      <input-area-v2>
+        <images-files-uploader>
+          <button>+</button>
+          <div class="attachment-chip">photo.png</div>
+        </images-files-uploader>
+        <rich-textarea>
+          <div class="ql-editor" contenteditable="true" role="textbox"></div>
+        </rich-textarea>
+      </input-area-v2>
+    `);
+    expect(composerHasAttachments(geminiAdapter.findEditor())).toBe(true);
   });
 
   it('keeps image attachments when appending the protocol', () => {
@@ -238,6 +266,21 @@ describe('setEditorText on textarea', () => {
     focusComposerQuestionSlot(ta);
     expect(ta.selectionStart).toBeGreaterThan(0);
     expect(ta.selectionStart).toBeLessThan(ta.value.indexOf('stemLM follow-up context'));
+  });
+
+  it('places the caret after the follow-up label in contenteditable editors', () => {
+    setBody('<div id="ed" contenteditable="true"></div>');
+    const el = document.getElementById('ed')!;
+    const prompt = buildFollowupAskInChatPrompt({
+      selection: 'Why is X_L positive?',
+      subject: 'Electrical',
+    });
+    setEditorText(el, prompt);
+    focusComposerQuestionSlot(el);
+    const sel = window.getSelection();
+    expect(sel?.anchorOffset).toBeGreaterThan(0);
+    const markerPos = getEditorTextOf(el).indexOf('Ask your question here:');
+    expect(sel?.anchorOffset).toBeGreaterThan(markerPos);
   });
 });
 

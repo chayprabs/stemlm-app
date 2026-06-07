@@ -1,23 +1,24 @@
 /**
- * Persistence for explicitly-saved study sessions. Each save stores only the
- * question + full solution (matching the PDF export) in storage.local — not
- * the step cards. Clicking a saved item in the popup downloads/prints the PDF.
+ * Persistence for explicitly-saved study sessions. Each save stores a compact
+ * snapshot (question, steps, solution) for PDF export. Clicking a saved item
+ * in the popup downloads/prints the PDF.
  */
 import { browser } from 'wxt/browser';
-import type { CapsuleMeta, Diagram, Session } from '@/src/protocol/types';
+import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { exportSessionPdf, type PdfExportResult } from './pdf';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
 export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
 
-/** Compact record kept in browser storage — question + solution only. */
+/** Compact record kept in browser storage — question, steps, and solution for PDF export. */
 export interface SavedSessionSnapshot {
   id: string;
   question: string;
   savedAt: number;
   platform: 'gemini';
   meta: CapsuleMeta;
+  steps: Step[];
   solution: string;
   solutionDiagrams: Diagram[];
 }
@@ -34,12 +35,13 @@ export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
     savedAt: Date.now(),
     platform: 'gemini',
     meta: session.capsule.meta,
+    steps: session.capsule.steps,
     solution: session.capsule.solution,
     solutionDiagrams: session.capsule.solutionDiagrams,
   };
 }
 
-/** Rebuild a minimal Session for PDF rendering (no steps). */
+/** Rebuild a minimal Session for PDF rendering. */
 export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
   return {
     id: snapshot.id,
@@ -51,7 +53,7 @@ export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
     reviewedStepIds: [],
     capsule: {
       meta: snapshot.meta,
-      steps: [],
+      steps: snapshot.steps ?? [],
       solution: snapshot.solution,
       solutionDiagrams: snapshot.solutionDiagrams,
     },
@@ -68,6 +70,17 @@ function isDiagram(value: unknown): value is Diagram {
   if (!value || typeof value !== 'object') return false;
   const d = value as Diagram;
   return (d.type === 'svg' || d.type === 'mermaid') && typeof d.content === 'string';
+}
+
+function isStep(value: unknown): value is Step {
+  if (!value || typeof value !== 'object') return false;
+  const s = value as Step;
+  return (
+    typeof s.id === 'string' &&
+    typeof s.index === 'number' &&
+    typeof s.title === 'string' &&
+    typeof s.body === 'string'
+  );
 }
 
 /** Accept new snapshots and legacy full Session objects from older builds. */
@@ -87,6 +100,7 @@ export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | nul
       savedAt: typeof o.savedAt === 'number' ? o.savedAt : typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
       platform: 'gemini',
       meta: o.meta,
+      steps: Array.isArray(o.steps) ? o.steps.filter(isStep) : [],
       solution: o.solution,
       solutionDiagrams: Array.isArray(o.solutionDiagrams)
         ? o.solutionDiagrams.filter(isDiagram)

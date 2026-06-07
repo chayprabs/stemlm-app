@@ -10,9 +10,16 @@ export function diagramKey(scope: string, i: number): string {
   return `${scope}-${i}`;
 }
 
-function ResolvedDiagram({ svg }: { svg?: string }) {
-  if (!svg) return null;
-  return <div className="slm-report-diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
+function ResolvedDiagram({ svg, fallback }: { svg?: string; fallback?: string }) {
+  if (svg) {
+    return <div className="slm-report-diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
+  }
+  if (fallback?.trim()) {
+    return (
+      <pre className="slm-report-diagram slm-report-diagram-fallback">{fallback.trim()}</pre>
+    );
+  }
+  return null;
 }
 
 export function Report({
@@ -77,7 +84,10 @@ export function Report({
                 </div>
               )}
               {step.diagram && (
-                <ResolvedDiagram svg={diagramSvg[diagramKey('step', step.index)]} />
+                <ResolvedDiagram
+                  svg={diagramSvg[diagramKey('step', step.index)]}
+                  fallback={step.diagram.content}
+                />
               )}
               {step.takeaway && (
                 <div className="slm-report-takeaway">
@@ -96,8 +106,13 @@ export function Report({
                 if (i % 2 === 1) {
                   const idx = Number(part);
                   if (!Number.isFinite(idx)) return <Fragment key={`d-${i}`} />;
+                  const solDiagram = solutionDiagrams[idx];
                   return (
-                    <ResolvedDiagram key={`d-${i}`} svg={diagramSvg[diagramKey('sol', idx)]} />
+                    <ResolvedDiagram
+                      key={`d-${i}`}
+                      svg={diagramSvg[diagramKey('sol', idx)]}
+                      fallback={solDiagram?.content}
+                    />
                   );
                 }
                 return part.trim() ? (

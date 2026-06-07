@@ -97,21 +97,22 @@ describe('saved-sessions', () => {
   });
 
   describe('sessionToSnapshot', () => {
-    it('keeps question and solution only', () => {
+    it('keeps question, steps, and solution for PDF export', () => {
       const snapshot = sessionToSnapshot(makeSession({ id: 'a', question: 'What is x?' }));
       expect(snapshot.question).toBe('What is x?');
       expect(snapshot.solution).toBe('x = 1');
       expect(snapshot.meta.topic).toBe('Algebra');
-      expect(snapshot).not.toHaveProperty('steps');
+      expect(snapshot.steps).toHaveLength(1);
+      expect(snapshot.steps[0]?.title).toBe('First step');
       expect(snapshot).not.toHaveProperty('capsule');
     });
   });
 
   describe('snapshotToSession', () => {
-    it('builds a step-free session for PDF export', () => {
+    it('rebuilds a session with steps for PDF export', () => {
       const snapshot = sessionToSnapshot(makeSession({ id: 'pdf' }));
       const session = snapshotToSession(snapshot);
-      expect(session.capsule.steps).toEqual([]);
+      expect(session.capsule.steps).toHaveLength(1);
       expect(session.question).toBe('Question for pdf');
       expect(session.capsule.solution).toBe('x = 1');
     });
@@ -157,7 +158,7 @@ describe('saved-sessions', () => {
   });
 
   describe('saveSession', () => {
-    it('stores a compact snapshot without steps', async () => {
+    it('stores a compact snapshot with steps', async () => {
       await saveSession(makeSession({ id: 'new', question: 'Integrate x' }));
 
       const stored = storedSnapshots()[0] as Record<string, unknown>;
@@ -165,7 +166,8 @@ describe('saved-sessions', () => {
       expect(stored.question).toBe('Integrate x');
       expect(stored.solution).toBe('x = 1');
       expect(stored).not.toHaveProperty('capsule');
-      expect(stored).not.toHaveProperty('steps');
+      expect(Array.isArray(stored.steps)).toBe(true);
+      expect((stored.steps as unknown[]).length).toBe(1);
     });
 
     it('updates an existing snapshot instead of duplicating it', async () => {

@@ -44,8 +44,9 @@ function finalizeSvg(
   svg: string,
   theme: ResolvedTheme,
   profile: DiagramSizeProfile,
+  fromMermaid = false,
 ): string {
-  const clean = sanitizeSvg(extractSvg(svg));
+  const clean = sanitizeSvg(extractSvg(svg), { preserveInlineStyles: fromMermaid });
   return clean ? presentSvg(clean, theme, profile) : '';
 }
 
@@ -60,7 +61,7 @@ export async function resolveDiagramSvg(
       return finalizeSvg(normalizeDiagramSource(diagram.content), theme, profile);
     }
     const rendered = await withTimeout(renderMermaid(diagram.content, theme), MERMAID_TIMEOUT_MS);
-    return finalizeSvg(rendered, theme, profile);
+    return finalizeSvg(rendered, theme, profile, true);
   } catch {
     return '';
   }

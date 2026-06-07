@@ -157,6 +157,17 @@ describe('parseCapsule subject normalization', () => {
     const r = parseCapsule('@meta\nsubject: computer science\ntopic: x\n@endmeta\n@step\ntitle: a\n@body\nb\n@endstep\n@end');
     expect(r.capsule?.meta.subject).toBe('CS');
   });
+
+  it('maps physical chemistry and biochemistry to Chemistry', () => {
+    const physChem = parseCapsule(
+      '@meta\nsubject: physical chemistry\ntopic: x\n@endmeta\n@step\ntitle: a\n@body\nb\n@endstep\n@end',
+    );
+    const biochem = parseCapsule(
+      '@meta\nsubject: biochemistry\ntopic: x\n@endmeta\n@step\ntitle: a\n@body\nb\n@endstep\n@end',
+    );
+    expect(physChem.capsule?.meta.subject).toBe('Chemistry');
+    expect(biochem.capsule?.meta.subject).toBe('Chemistry');
+  });
 });
 
 describe('parse (op-amp non-inverting capsule)', () => {

@@ -51,8 +51,19 @@ export function FollowupBar({
   }
 
   async function ask() {
-    const ok = await getController()?.followUp(followup, stepTitle, subject, { intent });
-    if (ok === false) return;
+    const ctrl = getController();
+    if (!ctrl) {
+      useStore
+        .getState()
+        .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
+      return;
+    }
+    const ok = await ctrl.followUp(followup, stepTitle, subject, { intent });
+    if (ok === false) {
+      useStore
+        .getState()
+        .setStatus('error', 'Could not send the follow-up to Gemini. Click in the chat box and try again.');
+    }
   }
 
   return (

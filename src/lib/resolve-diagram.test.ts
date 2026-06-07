@@ -52,6 +52,15 @@ describe('resolveDiagramSvg', () => {
     expect(svg).toContain('fill="#16a34a"');
   });
 
+  it('preserves mermaid inline styles through the resolve path', async () => {
+    const svg = await resolveDiagramSvg(
+      { type: 'mermaid', content: 'graph TD\n  A["Start"] --> B["End"]' },
+      'light',
+    );
+    expect(svg).toContain('<svg');
+    expect(svg).toMatch(/style=|fill=|stroke=/i);
+  });
+
   it('uses print profile bounds for PDF export', async () => {
     const svg = await resolveDiagramSvg(
       {

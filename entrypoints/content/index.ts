@@ -135,15 +135,23 @@ export default defineContentScript({
     });
 
     const stopMirrorWatch = onMirroredSessionsChanged((shared) => {
-      if (useStore.getState().settings.shareAcrossTabs) {
-        const current = useStore.getState();
-        if (JSON.stringify(current.sessions) !== JSON.stringify(shared)) {
-          useStore.setState({
-            sessions: shared,
-            activeSessionId: shared[shared.length - 1]?.id ?? current.activeSessionId,
-          });
-        }
-      }
+      if (!useStore.getState().settings.shareAcrossTabs) return;
+      const current = useStore.getState();
+      if (JSON.stringify(current.sessions) === JSON.stringify(shared)) return;
+
+      const activeSessionId =
+        shared.find((s) => s.id === current.activeSessionId)?.id ??
+        shared[shared.length - 1]?.id ??
+        current.activeSessionId;
+      const activeSession = shared.find((s) => s.id === activeSessionId);
+      const maxStep = Math.max(0, (activeSession?.capsule?.steps?.length ?? 1) - 1);
+      const activeStepIndex = Math.max(0, Math.min(current.activeStepIndex, maxStep));
+
+      useStore.setState({
+        sessions: shared,
+        activeSessionId,
+        activeStepIndex,
+      });
     });
 
     const stopSystemWatch = watchSystemTheme((theme) => {

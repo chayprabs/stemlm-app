@@ -10,14 +10,31 @@
 import DOMPurify from 'dompurify';
 
 let configured = false;
+let preserveInlineStyles = false;
+
+function isDangerousInlineStyle(style: string): boolean {
+  return (
+    /url\s*\(\s*['"]?(?!#)[^'")]+/i.test(style) ||
+    /javascript:/i.test(style) ||
+    /expression\s*\(/i.test(style)
+  );
+}
 
 function ensureConfigured() {
   if (configured) return;
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     const el = node as Element;
     for (const attr of Array.from(el.attributes ?? [])) {
-      if (/^on/i.test(attr.name) || attr.name.toLowerCase() === 'style') {
+      if (/^on/i.test(attr.name)) {
         el.removeAttribute(attr.name);
+        continue;
+      }
+      if (attr.name.toLowerCase() === 'style') {
+        if (preserveInlineStyles) {
+          if (isDangerousInlineStyle(attr.value)) el.removeAttribute(attr.name);
+        } else {
+          el.removeAttribute(attr.name);
+        }
       }
     }
     if (el.tagName.toLowerCase() === 'svg') {
@@ -35,13 +52,21 @@ function ensureConfigured() {
 }
 
 /** Remove any remaining remote href/xlink:href (defense in depth). */
-function stripRemoteRefs(svg: string): string {
-  return svg
+function stripRemoteRefs(svg: string, keepSafeStyles = false): string {
+  let out = svg
     .replace(/<\s*(?:foreignObject|image)\b[\s\S]*?<\s*\/\s*(?:foreignObject|image)\s*>/gi, '')
     .replace(/<\s*(?:foreignObject|image)\b[^>]*\/?>/gi, '')
     .replace(/\s(?:xlink:)?href\s*=\s*(["'])(?!#)[^"']*\1/gi, '')
-    .replace(/\s(?:style|on[a-z]+)\s*=\s*(["'])[\s\S]*?\1/gi, '')
     .replace(/\surl\((?!#)[^)]+\)/gi, '');
+  if (keepSafeStyles) {
+    out = out.replace(/\s+on[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, '');
+    out = out.replace(/\sstyle\s*=\s*(["'])([\s\S]*?)\1/gi, (match, _q, style: string) =>
+      isDangerousInlineStyle(style) ? '' : match,
+    );
+  } else {
+    out = out.replace(/\s(?:style|on[a-z]+)\s*=\s*(["'])[\s\S]*?\1/gi, '');
+  }
+  return out;
 }
 
 /**
@@ -66,10 +91,16 @@ function safeViewBox(raw: string | undefined): string {
   return /^[\d.\s+-]+$/.test(trimmed) ? trimmed : '0 0 100 100';
 }
 
+export type SanitizeSvgOptions = {
+  /** Keep safe inline `style` attributes (mermaid output). */
+  preserveInlineStyles?: boolean;
+};
+
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
-export function sanitizeSvg(svg: string): string {
+export function sanitizeSvg(svg: string, options: SanitizeSvgOptions = {}): string {
   if (!svg) return '';
   const viewBox = safeViewBox(/viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1]);
+  preserveInlineStyles = options.preserveInlineStyles ?? false;
   ensureConfigured();
   const preClean = preStripDangerous(svg);
   const clean = DOMPurify.sanitize(preClean, {
@@ -85,10 +116,14 @@ export function sanitizeSvg(svg: string): string {
       'markerWidth',
       'markerHeight',
       'markerUnits',
+      'style',
+      'class',
     ],
-    FORBID_TAGS: ['script', 'style', 'foreignObject', 'image'],
+    FORBID_TAGS: preserveInlineStyles
+      ? ['script', 'foreignObject', 'image']
+      : ['script', 'style', 'foreignObject', 'image'],
   });
-  let result = stripRemoteRefs(clean).trim();
+  let result = stripRemoteRefs(clean, preserveInlineStyles).trim();
   if (result && !/^<svg[\s>]/i.test(result)) {
     result = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${result}</svg>`;
   }
