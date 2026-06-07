@@ -1,22 +1,13 @@
-import { extensionAssetUrl } from '@/src/lib/extension-context';
+import { StemMark } from './icons';
 
-function iconPathForSize(size: number): string {
-  if (size <= 18) return 'icon/16.png';
-  if (size <= 28) return 'icon/32.png';
-  return 'icon/48.png';
-}
-
-/** Same raster as the Chrome toolbar / extensions-menu icon (`public/icon/*.png`). */
+/** Inline stem mark — works in shadow DOM without extension PNG URLs. */
 export function ExtensionLogo({ size = 32 }: { size?: number }) {
   return (
-    <img
+    <StemMark
       className="slm-extension-logo"
-      src={extensionAssetUrl(iconPathForSize(size))}
-      alt=""
       width={size}
       height={size}
       aria-hidden="true"
-      draggable={false}
     />
   );
 }

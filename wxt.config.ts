@@ -99,6 +99,7 @@ export default defineConfig({
       {
         resources: ['icon/*.png'],
         matches: ['*://gemini.google.com/*'],
+        use_dynamic_url: true,
       },
     ],
   },

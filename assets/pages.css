@@ -19,6 +19,7 @@ body[data-stemlm-theme] {
   display: block;
   flex-shrink: 0;
   border-radius: var(--radius-md);
+  color: var(--slm-accent);
 }
 .slm-wordmark {
   font-weight: 500;
