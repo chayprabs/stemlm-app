@@ -47,8 +47,8 @@ export const Q45: BiologyQuestionDef = {
     {
       title: 'Compute cascade amplification magnitude',
       formula:
-        '$$1\\,\\text{receptor}\\times50\\,G\\text{-proteins}\\times100\\,\\text{cAMP s}^{-1}\\times10\\,\\text{s}=50{,}000\\,\\text{cAMP}$$',
-      body: 'Amplification is multiplicative: receptor count = 1, activated G proteins per receptor = 50, cAMP molecules per second per cyclase = 100, and duration = 10 s. Total output = 50,000 cAMP molecules (50000), showing how weak extracellular signals become strong intracellular responses.',
+        '$$1\\,\\text{receptor}\\times100\\,G\\text{-proteins}\\times10\\,\\text{cAMP/G-protein}=1{,}000\\,\\text{cAMP}$$\n$$1{,}000\\,\\text{cAMP}\\times10\\,\\text{kinases/cAMP}=10{,}000\\,\\text{kinases}$$',
+      body: 'One ligand activates one receptor, which activates 100 G proteins. Each G protein stimulates adenylyl cyclase to produce about 10 cAMP molecules, giving 100 x 10 = 1,000 cAMP. Each cAMP activates 10 kinase molecules, so total kinases = 1,000 x 10 = 10000 per ligand (10,000-fold amplification).',
     },
     {
       title: 'Include signal termination and adaptation',
@@ -64,7 +64,7 @@ export const Q45: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Cell signalling proceeds through reception, transduction, and response. RTK pathways activate through ligand-induced dimerization and phosphorylation, then propagate signals via RAS and MAPK modules to alter gene expression. cAMP and Ca2+ are major second messengers with distinct enzymes and effectors. Signalling cascades amplify strongly; for example, 1 receptor x 50 G proteins x 100 cAMP per second x 10 seconds yields 50,000 cAMP molecules. Termination systems such as phosphodiesterases and phosphatases restore baseline and prevent prolonged signaling.',
-  verifiedPatterns: ['reception', 'transduction', 'response', 'RTK', 'RAS', 'cAMP', 'Ca2+', '50000', '12.5%'],
+    'Cell signalling proceeds through reception, transduction, and response. RTK pathways activate through ligand-induced dimerization and phosphorylation, then propagate signals via RAS and MAPK modules to alter gene expression. cAMP and Ca2+ are major second messengers with distinct enzymes and effectors. Signalling cascades amplify strongly: 1 receptor → 100 G proteins → 1,000 cAMP → 10000 activated kinases. Termination systems such as phosphodiesterases and phosphatases restore baseline and prevent prolonged signaling.',
+  verifiedPatterns: ['reception', 'transduction', 'response', 'RTK', 'RAS', 'cAMP', 'Ca2+', '10000', '10,000', '12.5%'],
   minDiagramSteps: 3,
 };

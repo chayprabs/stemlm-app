@@ -42,7 +42,7 @@ export const Q10: BiologyQuestionDef = {
       title: 'Use a test cross to infer unknown genotype',
       formula:
         '$$R\\_Y\\_\\times rryy\\Rightarrow \\text{if unknown is }RrYy,\\;\\text{offspring ratio }1:1:1:1$$',
-      body: 'Test cross: R_Y_ × rryy. If unknown is RrYy, offspring ratio = 1:1:1:1 (each class P = 1/4). If unknown is RRYY, all progeny show dominant phenotypes (P = 1). Intermediate patterns indicate heterozygosity at one locus only.',
+      body: 'R_Y_ is the unknown round-yellow parent crossed with rryy tester. Offspring: 51 round yellow, 48 round green, 50 wrinkled yellow, 49 wrinkled green. Total n = 51+48+50+49 = 198. Class frequency = 51/198 = 0.258 ≈ 0.25, matching 1:1:1:1 for RrYy × rryy, so unknown genotype = RrYy.',
       diagram: testCrossDiagram(),
     },
     {
@@ -53,7 +53,7 @@ export const Q10: BiologyQuestionDef = {
     },
   ],
   solution:
-    'With RRYY x rryy parents, F1 are all RrYy. Selfing F1 (RrYy x RrYy) gives F2 phenotypes in the Mendelian 9:3:3:1 ratio under independent assortment. The double recessive class probability is 1/16. In a test cross with rryy, a true dihybrid (RrYy) yields a 1:1:1:1 offspring phenotype ratio, while uniform dominant progeny indicates homozygous dominance in the tested parent.',
-  verifiedPatterns: ['RrYy', '9:3:3:1', '1/16', 'segregation', 'independent assortment', '1:1:1:1'],
+    'With RRYY x rryy parents, F1 are all RrYy. Selfing F1 (RrYy x RrYy) gives F2 phenotypes in the Mendelian 9:3:3:1 ratio under independent assortment. The double recessive class probability is 1/16. A test cross on an unknown round yellow plant gave ~51:48:50:49 (≈1:1:1:1), confirming genotype RrYy.',
+  verifiedPatterns: ['RrYy', '9:3:3:1', '1/16', 'segregation', 'independent assortment', '1:1:1:1', '51'],
   minDiagramSteps: 3,
 };

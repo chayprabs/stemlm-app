@@ -27,14 +27,14 @@ export const Q32: BiologyQuestionDef = {
     {
       title: 'Compute percent identity for ATGCATGCAATG alignment',
       formula:
-        '$$\\text{Seq1}=\\text{ATGCATGCAATG}$$\n$$\\text{Seq2}=\\text{ATGCATGGAATG}$$\n$$\\%\\text{identity}=\\frac{11}{12}\\times100=91.7\\%$$',
-      body: 'Using the aligned strings above, matches = 11 and length = 12, so identity = 91.7%. This is sequence similarity, while homology is still a binary statement (homologous = yes/no, not 91.7% homologous).',
+        '$$\\text{Seq1}=\\text{ATGCATGCAATG}$$\n$$\\text{Seq2}=\\text{ATGC--GCAATG}$$\n$$\\%\\text{identity}=\\frac{10}{10}\\times100=100\\%$$',
+      body: 'Seq2 has a 2-bp deletion (indel) at positions 5-6 relative to Seq1. Ignoring gap columns, 10 comparable bases all match, so identity = 10/10 = 100%. The indel is a deletion in Seq2 (or insertion in Seq1 depending on reference).',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">pairwise alignment example</text>' +
           '<text x="24" y="56" font-size="12">ATGCATGCAATG</text>' +
-          '<text x="24" y="82" font-size="12">||||||| ||||</text>' +
-          '<text x="24" y="108" font-size="12">ATGCATGGAATG</text>' +
-          '<text x="24" y="142" font-size="10">11 matches / 12 positions = 91.7%</text>',
+          '<text x="24" y="82" font-size="12">||||--||||||</text>' +
+          '<text x="24" y="108" font-size="12">ATGC--GCAATG</text>' +
+          '<text x="24" y="142" font-size="10">10/10 = 100% (ignoring gaps); 2-bp deletion</text>',
       ),
     },
     {
@@ -54,7 +54,7 @@ export const Q32: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Global alignment compares complete sequences, while local alignment detects best conserved subsections. BLAST E-value follows E = Kmn e^(-lambdaS), and smaller E indicates more statistically significant matches. For ATGCATGCAATG aligned with ATGCATGGAATG, identity is 11/12 x 100 = 91.7%. Identity/similarity are quantitative, but homology is a qualitative ancestry statement. Orthologs result from speciation, whereas paralogs result from gene duplication.',
-  verifiedPatterns: ['global alignment', 'local alignment', 'E-value', 'ATGCATGCAATG', '91.7%', 'ortholog', 'paralog'],
+    'Global alignment compares complete sequences, while local alignment detects best conserved subsections. BLAST E-value follows E = Kmn e^(-lambdaS), and smaller E indicates more statistically significant matches. For Seq1 ATGCATGCAATG vs Seq2 ATGC--GCAATG, identity ignoring gaps is 10/10 = 100% with a 2-bp deletion indel in Seq2. Identity/similarity are quantitative, but homology is a qualitative ancestry statement. Orthologs result from speciation, whereas paralogs result from gene duplication.',
+  verifiedPatterns: ['global alignment', 'local alignment', 'E-value', 'ATGCATGCAATG', '100%', 'deletion', 'ortholog', 'paralog'],
   minDiagramSteps: 3,
 };
