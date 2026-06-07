@@ -1,6 +1,8 @@
 /**
- * End-to-end verification for chemistry question capsules:
- * parse, answer patterns, SVG pipeline, label layout, sizing, PDF profile.
+ * Structural verification for AI-generated stemLM capsules:
+ * parse, SVG pipeline, label layout, sizing, step work, PDF profile.
+ *
+ * Does NOT check hardcoded answer patterns — Gemini produces solutions at runtime.
  */
 import React from 'react';
 import { extractSvg, sanitizeSvg } from '@/src/lib/sanitize';
@@ -12,33 +14,39 @@ import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { buildReportDocument } from '@/src/lib/pdf';
 import { parse } from './parser';
 import { scoreRaw } from './score';
-import { buildChemistryCapsule } from './chemistry-question-bank/build-capsule';
-import type { ChemistryQuestionDef } from './chemistry-question-bank/types';
-import type { Session } from './types';
+import { auditCapsuleDiagrams } from './diagram-quality';
+import type { Session, Subject } from './types';
 
-export interface ChemistryVerifyResult {
-  id: string;
-  number: number;
+export interface CapsuleVerifyOptions {
+  /** Question text for session metadata (defaults to capsule meta question). */
+  question?: string;
+  /** Session id (defaults to capsule topic slug). */
+  id?: string;
+  /** Minimum fraction of steps that should carry diagrams for visual subjects. */
+  minDiagramRatio?: number;
+  /** Minimum absolute diagram count. */
+  minDiagrams?: number;
+}
+
+export interface CapsuleVerifyResult {
   ok: boolean;
   errors: string[];
   warnings: string[];
   stepCount: number;
   diagramCount: number;
+  subject: Subject;
 }
 
-function normalizeVerifiedText(text: string): string {
-  return text
-    .replace(/\\([a-zA-Z]+)/g, '$1')
-    .replace(/ν/g, 'nu')
-    .replace(/Δ/g, 'delta')
-    .replace(/β/g, 'beta')
-    .replace(/α/g, 'alpha')
-    .replace(/°/g, ' deg ')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const VISUAL_DIAGRAM_SUBJECTS = new Set<Subject>([
+  'Chemistry',
+  'Physics',
+  'Biology',
+  'Math',
+  'Electrical',
+  'Mechanical',
+  'Civil',
+  'Chemical',
+]);
 
 function svgParses(svg: string): boolean {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
@@ -83,41 +91,48 @@ function checkDiagramSizing(svg: string, profile: 'step' | 'print'): string[] {
   return issues;
 }
 
-export async function verifyChemistryQuestion(
-  def: ChemistryQuestionDef,
-): Promise<ChemistryVerifyResult> {
+function minDiagramCount(stepCount: number, subject: Subject, opt?: CapsuleVerifyOptions): number {
+  if (opt?.minDiagrams != null) return opt.minDiagrams;
+  const ratio = opt?.minDiagramRatio ?? (subject === 'Electrical' ? 0.55 : 0.4);
+  return Math.max(subject === 'Electrical' ? 3 : 2, Math.ceil(stepCount * ratio));
+}
+
+/** Verify a raw stemLM capsule string (typically from Gemini capture). */
+export async function verifyCapsule(
+  raw: string,
+  opt: CapsuleVerifyOptions = {},
+): Promise<CapsuleVerifyResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const raw = buildChemistryCapsule(def);
   const result = parse(raw);
 
   if (result.status !== 'ok' || !result.capsule) {
-    errors.push(`Parse failed: ${result.errorCode ?? result.status}`);
-    return { id: def.id, number: def.number, ok: false, errors, warnings, stepCount: 0, diagramCount: 0 };
+    return {
+      ok: false,
+      errors: [`Parse failed: ${result.errorCode ?? result.status}`],
+      warnings,
+      stepCount: 0,
+      diagramCount: 0,
+      subject: 'General',
+    };
   }
 
   const capsule = result.capsule;
+  const subject = capsule.meta.subject;
   const stepCount = capsule.steps.length;
   if (stepCount < 3) errors.push(`Only ${stepCount} steps (need >= 3)`);
 
-  const allText = [
-    ...capsule.steps.map((s) => [s.body, s.formula ?? ''].join(' ')),
-    capsule.solution,
-  ].join(' ');
-
-  const normalizedAllText = normalizeVerifiedText(allText);
-  for (const pat of def.verifiedPatterns) {
-    const found =
-      typeof pat === 'string'
-        ? allText.includes(pat) || normalizedAllText.includes(normalizeVerifiedText(pat))
-        : pat.test(allText);
-    if (!found) errors.push(`Missing verified answer pattern: ${String(pat)}`);
-  }
-
   const diagrams = capsule.steps.flatMap((s) => (s.diagram?.type === 'svg' ? [s.diagram] : []));
-  const minDiagrams = def.minDiagramSteps ?? Math.max(2, Math.ceil(stepCount * 0.4));
-  if (diagrams.length < minDiagrams) {
-    errors.push(`Only ${diagrams.length} diagram steps (need >= ${minDiagrams})`);
+  const diagramCount = diagrams.length;
+
+  if (VISUAL_DIAGRAM_SUBJECTS.has(subject)) {
+    const need = minDiagramCount(stepCount, subject, opt);
+    if (diagramCount < need) {
+      errors.push(`Only ${diagramCount} diagram steps (need >= ${need} for ${subject})`);
+    }
+    for (const code of auditCapsuleDiagrams(capsule)) {
+      errors.push(`Diagram audit: ${code}`);
+    }
   }
 
   for (const [i, diagram] of diagrams.entries()) {
@@ -143,11 +158,11 @@ export async function verifyChemistryQuestion(
 
   try {
     const session: Session = {
-      id: def.id,
+      id: opt.id ?? (capsule.meta.topic.replace(/\s+/g, '-').slice(0, 40) || 'capsule'),
       createdAt: 0,
       updatedAt: 0,
       platform: 'gemini',
-      question: def.question,
+      question: opt.question ?? capsule.meta.question ?? '',
       capsule,
       reviewedStepIds: [],
       raw,
@@ -170,12 +185,11 @@ export async function verifyChemistryQuestion(
   }
 
   return {
-    id: def.id,
-    number: def.number,
     ok: errors.length === 0,
     errors,
     warnings,
     stepCount,
-    diagramCount: diagrams.length,
+    diagramCount,
+    subject,
   };
 }

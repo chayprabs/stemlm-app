@@ -181,4 +181,35 @@ describe('auditCapsuleDiagrams', () => {
     ]);
     expect(auditCapsuleDiagrams(capsule)).toContain('diagram_lacks_graphics');
   });
+
+  it('flags chemistry draw/sketch problems as visual-dense', () => {
+    const capsule: Capsule = {
+      meta: {
+        version: 1,
+        subject: 'Chemistry',
+        topic: 'MO theory',
+        question: 'Draw MO energy diagrams for N2 and O2 with bond orders.',
+      },
+      steps: [
+        makeStep({
+          index: 1,
+          title: 'Draw N2 MO diagram',
+          body: 'Label sigma and pi orbitals.',
+          diagram: { type: 'svg', content: RICH_EE_SVG },
+        }),
+        makeStep({
+          index: 2,
+          title: 'Compute bond order',
+          body: 'Bond order is 3 for N2.',
+          diagram: { type: 'svg', content: RICH_EE_SVG },
+        }),
+        makeStep({ index: 3, title: 'Compare magnetic properties', body: 'N2 is diamagnetic.' }),
+      ],
+      solution: 'done',
+      solutionDiagrams: [],
+    };
+    expect(isVisualDenseProblem(capsule)).toBe(true);
+    const stripped = { ...capsule, steps: capsule.steps.map((s) => ({ ...s, diagram: undefined })) };
+    expect(auditCapsuleDiagrams(stripped).length).toBeGreaterThan(0);
+  });
 });
