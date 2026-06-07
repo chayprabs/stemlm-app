@@ -3,7 +3,6 @@ import type {
   PhysicsBenchmarkSpec,
   PhysicsBenchmarkVerifyResult,
 } from '../types';
-import { PHYSICS_BENCHMARK_SOLVERS } from '../solvers';
 
 const NUMERIC_TOKEN_RE = /[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi;
 
@@ -64,19 +63,12 @@ function createNumericVerifier(question: string): (capsuleText: string) => Physi
   };
 }
 
-function getIndependentVerifier(number: number): ((capsuleText: string) => PhysicsBenchmarkVerifyResult) | null {
-  const solver = PHYSICS_BENCHMARK_SOLVERS[number - 1];
-  if (!solver) return null;
-  return (capsuleText: string) => solver(capsuleText);
-}
-
 function makeSpec(base: Pick<PhysicsBenchmarkSpec, 'id' | 'number' | 'topic' | 'question'>): PhysicsBenchmarkSpec {
-  const verify = getIndependentVerifier(base.number) ?? createNumericVerifier(base.question);
   return {
     ...base,
     year: inferYear(base.number),
     difficulty: inferDifficulty(base.number),
-    verify,
+    verify: createNumericVerifier(base.question),
   };
 }
 
