@@ -430,7 +430,7 @@ export const verifyQ25: PhysicsVerificationSolver = (input) =>
     expectApprox(ctx, 'heat capacity in J/K', heatCapacityJ, { rel: 0.08, abs: 5e-25 });
   });
 
-function computeQ26Values(): Record<string, number> {
+function computeQ26Values() {
   const kB = 8.617e-5;
   const epsilon = 0.2;
   const mu = 0.1;
@@ -443,7 +443,7 @@ function computeQ26Values(): Record<string, number> {
   return { x, fFD, fBE, fMB, delta };
 }
 
-function computeQ27Values(): Record<string, number> {
+function computeQ27Values() {
   const q = 1.602e-19;
   const eps0 = 8.854e-12;
   const c = 3e8;
@@ -457,7 +457,7 @@ function computeQ27Values(): Record<string, number> {
   return { omega, a, power, dE, pGamma };
 }
 
-function computeQ28Values(): Record<string, number> {
+function computeQ28Values() {
   const eps0 = 8.854e-12;
   const mu0 = 1.257e-6;
   const c = 3e8;
@@ -473,7 +473,7 @@ function computeQ28Values(): Record<string, number> {
   return { tDelay, k, e0, b0, sAvg };
 }
 
-function computeQ29Values(): Record<string, number> {
+function computeQ29Values() {
   const beta = 0.8;
   const gamma = 1 / Math.sqrt(1 - beta * beta);
   const mc2 = 0.511;
@@ -486,7 +486,7 @@ function computeQ29Values(): Record<string, number> {
   return { gamma, energy, pc, invariant, ePrime };
 }
 
-function computeQ30Values(): Record<string, number> {
+function computeQ30Values() {
   const cgA = Math.sqrt(2 / 3);
   const cgB = Math.sqrt(1 / 3);
   const pA = cgA * cgA;
@@ -495,7 +495,7 @@ function computeQ30Values(): Record<string, number> {
   return { cgA, cgB, pA, pB, orth };
 }
 
-function computeQ31Values(): Record<string, number> {
+function computeQ31Values() {
   const hbar = 1.055e-34;
   const me = 9.11e-31;
   const e = 1.602e-19;
@@ -514,7 +514,7 @@ function computeQ31Values(): Record<string, number> {
   return { alphaStar, eTrialEv, eMinJ, eMinEv, gainEv };
 }
 
-function computeQ32Values(): Record<string, number> {
+function computeQ32Values() {
   const hbar = 1.055e-34;
   const me = 9.11e-31;
   const e = 1.602e-19;
@@ -528,7 +528,7 @@ function computeQ32Values(): Record<string, number> {
   return { e1Ev, e2Ev, eBoson, eFermion, deltaEv };
 }
 
-function computeQ33Values(): Record<string, number> {
+function computeQ33Values() {
   const hbar = 1.055e-34;
   const e = 1.602e-19;
   const c = 3e8;
@@ -543,7 +543,7 @@ function computeQ33Values(): Record<string, number> {
   return { vfi, rate, tau, pGamma };
 }
 
-function computeQ34Values(): Record<string, number> {
+function computeQ34Values() {
   const kB = 1.38e-23;
   const z = 4;
   const j = 1.2e-21;
@@ -558,7 +558,7 @@ function computeQ34Values(): Record<string, number> {
   return { tc, a, h, m, fieldEnergy };
 }
 
-function computeQ35Values(): Record<string, number> {
+function computeQ35Values() {
   const kB = 1.38e-23;
   const n = 2e23;
   const t = 350;
@@ -573,7 +573,7 @@ function computeQ35Values(): Record<string, number> {
   return { u, uPerParticle, vRms, pRms, vAvg, eTotal };
 }
 
-function computeQ36Values(): Record<string, number> {
+function computeQ36Values() {
   const a = 0.361e-9;
   const twoPiOverA = (2 * Math.PI) / a;
   const g111 = twoPiOverA * Math.sqrt(3);
@@ -584,7 +584,7 @@ function computeQ36Values(): Record<string, number> {
   return { aStar, g111, g200, d111Nm, d200Nm };
 }
 
-function computeQ37Values(): Record<string, number> {
+function computeQ37Values() {
   const hbar = 1.055e-34;
   const me = 9.11e-31;
   const e = 1.602e-19;
@@ -601,7 +601,7 @@ function computeQ37Values(): Record<string, number> {
   return { kF, eFEv, vF, gEv, ratio };
 }
 
-function computeQ38Values(): Record<string, number> {
+function computeQ38Values() {
   const hbar = 1.055e-34;
   const me = 9.11e-31;
   const kB = 8.617e-5;
@@ -618,7 +618,7 @@ function computeQ38Values(): Record<string, number> {
   return { kBz, e0Ev, eMinus, ePlus, gap, gapOverKt };
 }
 
-function computeQ39Values(): Record<string, number> {
+function computeQ39Values() {
   const aV = 15.8;
   const aS = 18.3;
   const aC = 0.714;
@@ -638,7 +638,7 @@ function computeQ39Values(): Record<string, number> {
   return { bv, bs, bc, ba, delta, bMeV, bPerA };
 }
 
-function computeQ40Values(): Record<string, number> {
+function computeQ40Values() {
   const nA0 = 1e6;
   const t = 5;
   const lambdaA = Math.log(2) / 2;
@@ -654,7 +654,7 @@ function computeQ40Values(): Record<string, number> {
   return { nA, nB, nC, aA_bq, aB_bq };
 }
 
-function computeQ41Values(): Record<string, number> {
+function computeQ41Values() {
   const c = 3e8;
   const lambda = 632.8e-9;
   const dx = 0.4e-6;
@@ -670,7 +670,7 @@ function computeQ41Values(): Record<string, number> {
   return { fringes, phaseShift, fsr, finesse, linewidth, fringeDisplacement, coherenceTime };
 }
 
-function computeQ42Values(): Record<string, number> {
+function computeQ42Values() {
   const lambda = 500e-9;
   const d = 40e-6;
   const slitA = 20e-6;
@@ -684,7 +684,7 @@ function computeQ42Values(): Record<string, number> {
   return { y1, yMin1, missingSpacing, centralVisibleOrders };
 }
 
-function computeQ43Values(): Record<string, number> {
+function computeQ43Values() {
   const h = 6.626e-34;
   const c = 3e8;
   const lambda = 632.8e-9;
@@ -705,7 +705,7 @@ function computeQ43Values(): Record<string, number> {
   return { photonEnergyEv, fracThree, fracFour, fractionRatio, pOut, photonRate };
 }
 
-function computeQ44Values(): Record<string, number> {
+function computeQ44Values() {
   const eps0 = 8.854e-12;
   const q = 2e-9;
   const length = 0.9;
@@ -719,7 +719,7 @@ function computeQ44Values(): Record<string, number> {
   return { g, phi, eLeft, eRight, jump };
 }
 
-function computeQ45Values(): Record<string, number> {
+function computeQ45Values() {
   const sigmaX = 120;
   const sigmaY = 80;
   const tauXY = 30;
@@ -733,7 +733,7 @@ function computeQ45Values(): Record<string, number> {
   return { i1, i2, lambda1, lambda2, thetaDeg, sigmaEq };
 }
 
-function computeQ46Values(): Record<string, number> {
+function computeQ46Values() {
   const m = 9.11e-31;
   const hbar = 1.055e-34;
   const dx = 1e-9;
@@ -747,7 +747,7 @@ function computeQ46Values(): Record<string, number> {
   return { kMag, phi, sClassical, vClassical, eClassicalEv };
 }
 
-function computeQ47Values(): Record<string, number> {
+function computeQ47Values() {
   const rho = 1000;
   const mu = 1e-3;
   const g = 9.81;
@@ -765,7 +765,7 @@ function computeQ47Values(): Record<string, number> {
   return { v, reynolds, hLoss, deltaP, tauW, pumpPower };
 }
 
-function computeQ48Values(): Record<string, number> {
+function computeQ48Values() {
   const sigma = 10;
   const rho = 28;
   const beta = 8 / 3;
@@ -783,7 +783,7 @@ function computeQ48Values(): Record<string, number> {
   return { dxdt, dydt, dzdt, eq, divergence, tDouble, tTenX };
 }
 
-function computeQ49Values(): Record<string, number> {
+function computeQ49Values() {
   const c = 3e8;
   const massSolar = 10;
   const bKm = 200;
@@ -799,7 +799,7 @@ function computeQ49Values(): Record<string, number> {
   return { rsKm, rIscoKm, rPhotonKm, vFracC, vIsco, z, freqFactor, alphaRad, alphaDeg };
 }
 
-function computeQ50Values(): Record<string, number> {
+function computeQ50Values() {
   const h = 6.626e-34;
   const c = 3e8;
   const kB = 1.38e-23;
