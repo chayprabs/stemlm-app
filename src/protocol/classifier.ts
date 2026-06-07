@@ -41,7 +41,8 @@ const RULES: Rule[] = [
     subject: 'Biology',
     patterns: [
       { re: /\b(cell|cellular|dna|rna|mrna|trna|protein|amino acid|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|gene|genetic|allele|genotype|phenotype|chromosome|organism|ecosystem|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit|dominant|recessive|evolution|natural selection|neuron|synapse|hormone|homeostasis|bacteria|virus|antibody|immune|tissue|organ|nucleus|ribosome|mitochondri|chloroplast|endosymbios|replication fork|telomerase|calvin cycle|mendelian|genetics|crassulacean)\b/i, w: 3 },
-      { re: /\benzyme\b.*\bactivation energy\b|\bactivation energy\b.*\benzyme\b/i, w: 4 },
+      { re: /\b(michaelis[- ]menten|vmax|\bkm\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
+      { re: /\benzyme\b.*\b(activation energy|\bea\b|Δg|delta g)\b|\b(activation energy|\bea\b)\b.*\benzyme\b/i, w: 4 },
       { re: /\bactivation energy\b/i, w: 2 },
     ],
   },

@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures:physics": "tsx scripts/generate-physics-fixtures.mjs",
+    "fixtures:biology": "tsx scripts/generate-biology-fixtures.mjs",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
