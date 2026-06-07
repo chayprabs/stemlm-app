@@ -188,6 +188,141 @@ function retintAccentAttributes(svg: string, theme: ResolvedTheme): string {
   return out;
 }
 
+const MARKER_REF_ATTRS = ['marker-end', 'marker-start', 'marker-mid'] as const;
+const DEFAULT_ARROW_POINTS = '0,0 6,3 0,6';
+
+function generateIdPrefix(): string {
+  return `slm${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/** Namespace SVG ids so multiple diagrams on one page never share marker/gradient refs. */
+function prefixSvgIds(root: Element): void {
+  const prefix = generateIdPrefix();
+  const idMap = new Map<string, string>();
+
+  for (const el of root.querySelectorAll('[id]')) {
+    const id = el.getAttribute('id');
+    if (id) idMap.set(id, `${prefix}-${id}`);
+  }
+  if (idMap.size === 0) return;
+
+  for (const el of root.querySelectorAll('[id]')) {
+    const id = el.getAttribute('id');
+    if (id && idMap.has(id)) el.setAttribute('id', idMap.get(id)!);
+  }
+
+  for (const el of root.querySelectorAll('*')) {
+    for (const attr of Array.from(el.attributes)) {
+      let val = attr.value;
+      if (/url\(#/.test(val)) {
+        val = val.replace(/url\(#([^)]+)\)/g, (_, id: string) => {
+          const mapped = idMap.get(id);
+          return mapped ? `url(#${mapped})` : `url(#${id})`;
+        });
+        el.setAttribute(attr.name, val);
+        continue;
+      }
+      if ((attr.name === 'href' || attr.name.endsWith(':href')) && val.startsWith('#')) {
+        const mapped = idMap.get(val.slice(1));
+        if (mapped) el.setAttribute(attr.name, `#${mapped}`);
+      }
+    }
+  }
+}
+
+function extractMarkerId(value: string | null): string | null {
+  if (!value) return null;
+  const m = /url\(#([^)]+)\)/i.exec(value);
+  return m ? m[1] : null;
+}
+
+function findById(root: Element, id: string): Element | null {
+  return root.querySelector(`[id="${CSS.escape(id)}"]`);
+}
+
+function normalizeMarkerShape(marker: Element): void {
+  let shape = marker.querySelector('polygon, path');
+  if (shape?.tagName.toLowerCase() === 'polygon') {
+    const pts = shape.getAttribute('points')?.trim() ?? '';
+    const pointPairs = pts.split(/\s+/).filter(Boolean);
+    if (pointPairs.length !== 3) shape.setAttribute('points', DEFAULT_ARROW_POINTS);
+  } else if (!shape) {
+    shape = marker.ownerDocument!.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    shape.setAttribute('points', DEFAULT_ARROW_POINTS);
+    marker.appendChild(shape);
+  }
+  if (!marker.getAttribute('markerUnits')) marker.setAttribute('markerUnits', 'strokeWidth');
+  if (!marker.getAttribute('orient')) marker.setAttribute('orient', 'auto');
+  if (!marker.getAttribute('refX')) marker.setAttribute('refX', '6');
+  if (!marker.getAttribute('refY')) marker.setAttribute('refY', '3');
+}
+
+/** Match arrowhead fills to line strokes; clone markers when one id serves multiple colors. */
+function syncMarkerFills(root: Element): void {
+  type MarkerRef = { el: Element; attr: (typeof MARKER_REF_ATTRS)[number] };
+  const refsByMarker = new Map<string, MarkerRef[]>();
+
+  for (const el of root.querySelectorAll('line, path, polyline')) {
+    const stroke = el.getAttribute('stroke');
+    if (!stroke || stroke === 'none') continue;
+    for (const attr of MARKER_REF_ATTRS) {
+      const markerId = extractMarkerId(el.getAttribute(attr));
+      if (!markerId) continue;
+      const list = refsByMarker.get(markerId) ?? [];
+      list.push({ el, attr });
+      refsByMarker.set(markerId, list);
+    }
+  }
+
+  for (const [markerId, refs] of refsByMarker) {
+    const marker = findById(root, markerId);
+    if (!marker || marker.tagName.toLowerCase() !== 'marker') continue;
+
+    normalizeMarkerShape(marker);
+
+    const strokes = [
+      ...new Set(
+        refs.map((r) => r.el.getAttribute('stroke')).filter((s): s is string => Boolean(s)),
+      ),
+    ];
+    if (strokes.length === 0) continue;
+
+    const applyFill = (target: Element, stroke: string) => {
+      normalizeMarkerShape(target);
+      const shape = target.querySelector('polygon, path');
+      if (shape) shape.setAttribute('fill', stroke);
+    };
+
+    if (strokes.length === 1) {
+      applyFill(marker, strokes[0]!);
+      continue;
+    }
+
+    const parent = marker.parentElement;
+    if (!parent) continue;
+
+    for (let i = 0; i < strokes.length; i++) {
+      const stroke = strokes[i]!;
+      const newId = i === 0 ? markerId : `${markerId}-c${i}`;
+      const targetMarker =
+        i === 0 ? marker : (() => {
+          const clone = marker.cloneNode(true) as Element;
+          clone.setAttribute('id', newId);
+          parent.appendChild(clone);
+          return clone;
+        })();
+
+      applyFill(targetMarker, stroke);
+
+      for (const ref of refs) {
+        if (ref.el.getAttribute('stroke') === stroke) {
+          ref.el.setAttribute(ref.attr, `url(#${newId})`);
+        }
+      }
+    }
+  }
+}
+
 function themeSvgTree(root: Element, theme: ResolvedTheme): void {
   const textTags = new Set(['text', 'tspan']);
 
@@ -264,7 +399,9 @@ export function presentSvg(
     root.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   }
 
+  prefixSvgIds(root);
   themeSvgTree(root, theme);
+  syncMarkerFills(root);
 
   let out = new XMLSerializer().serializeToString(root);
   out = retintAccentAttributes(out, theme);

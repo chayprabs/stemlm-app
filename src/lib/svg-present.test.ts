@@ -80,4 +80,66 @@ describe('presentSvg', () => {
     expect(out).toContain('height="100"');
     expect(out).toContain('style="display:block;width:200px;height:100px;max-width:100%;"');
   });
+
+  it('syncs marker fills to themed line strokes in dark mode', () => {
+    const raw =
+      '<svg viewBox="0 0 240 120">' +
+      '<defs><marker id="ah" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">' +
+      '<polygon points="0,0 6,3 0,6" fill="white"/></marker></defs>' +
+      '<line x1="20" y1="60" x2="180" y2="60" stroke="#3b82f6" stroke-width="2" marker-end="url(#ah)"/>' +
+      '<text x="70" y="30" fill="#3b82f6">G = 0.05</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).toContain('fill="#60a5fa"');
+    expect(out).not.toContain('fill="white"');
+    expect(out).toMatch(/marker-end="url\(#slm[^"]+-ah\)"/);
+  });
+
+  it('clones markers when one id is shared by differently colored vectors', () => {
+    const raw =
+      '<svg viewBox="0 0 340 260">' +
+      '<defs><marker id="tri" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">' +
+      '<polygon points="0,0 6,3 0,6" fill="#333"/></marker></defs>' +
+      '<line x1="50" y1="40" x2="170" y2="40" stroke="#d32f2f" stroke-width="2" marker-end="url(#tri)"/>' +
+      '<line x1="170" y1="40" x2="170" y2="220" stroke="#2e7d32" stroke-width="2" marker-end="url(#tri)"/>' +
+      '<line x1="50" y1="40" x2="170" y2="220" stroke="#7b1fa2" stroke-width="2.5" marker-end="url(#tri)"/>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    const markerEnds = [...out.matchAll(/marker-end="url\(#([^)]+)\)"/g)].map((m) => m[1]);
+    expect(new Set(markerEnds).size).toBe(3);
+    expect(out).toContain('fill="#f87171"');
+    expect(out).toContain('fill="#4ade80"');
+    expect(out).toContain('fill="#c084fc"');
+  });
+
+  it('prefixes ids so two diagrams on the same page cannot cross-reference markers', () => {
+    const raw =
+      '<svg viewBox="0 0 120 60">' +
+      '<defs><marker id="arw" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">' +
+      '<polygon points="0,0 6,3 0,6" fill="black"/></marker></defs>' +
+      '<line x1="10" y1="30" x2="100" y2="30" stroke="#333" stroke-width="2" marker-end="url(#arw)"/>' +
+      '</svg>';
+    const a = presentSvg(raw, 'dark');
+    const b = presentSvg(raw, 'dark');
+    const idA = a.match(/id="(slm[^"]+-arw)"/)?.[1];
+    const idB = b.match(/id="(slm[^"]+-arw)"/)?.[1];
+    expect(idA).toBeTruthy();
+    expect(idB).toBeTruthy();
+    expect(idA).not.toBe(idB);
+    expect(a).toContain(`marker-end="url(#${idA})"`);
+    expect(b).toContain(`marker-end="url(#${idB})"`);
+  });
+
+  it('normalizes star-like marker polygons to a triangle arrowhead', () => {
+    const raw =
+      '<svg viewBox="0 0 120 60">' +
+      '<defs><marker id="bad" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">' +
+      '<polygon points="5,0 6,4 10,5 6,6 5,10 4,6 0,5 4,4" fill="white"/></marker></defs>' +
+      '<line x1="10" y1="30" x2="100" y2="30" stroke="#16a34a" stroke-width="2" marker-end="url(#bad)"/>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).toContain('points="0,0 6,3 0,6"');
+    expect(out).toContain('fill="#4ade80"');
+    expect(out).not.toContain('points="5,0 6,4');
+  });
 });
