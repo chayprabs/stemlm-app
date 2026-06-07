@@ -93,11 +93,19 @@ function ensureFlexRow(parent: HTMLElement) {
   }
 }
 
+function purgeOrphanedSlots() {
+  document.querySelectorAll<HTMLElement>(`[${SLOT_ATTR}]`).forEach((slot) => {
+    if (!slot.isConnected) slot.remove();
+  });
+}
+
 function mountSlotBefore(anchor: HTMLElement): HTMLElement | null {
+  if (!anchor.isConnected) return null;
   const parent = anchor.parentElement;
   if (!parent) return null;
   ensureFlexRow(parent);
   ensureStyles();
+  purgeOrphanedSlots();
 
   let slot = parent.querySelector<HTMLElement>(`:scope > [${SLOT_ATTR}]`);
   if (!slot) {
@@ -107,7 +115,7 @@ function mountSlotBefore(anchor: HTMLElement): HTMLElement | null {
   if (slot.parentElement !== parent || slot.nextElementSibling !== anchor) {
     parent.insertBefore(slot, anchor);
   }
-  return slot;
+  return slot.isConnected ? slot : null;
 }
 
 export function ensureComposerSlot(
@@ -127,7 +135,7 @@ export function ensureComposerSlot(
     slot = mountSlotBefore(shell);
   }
 
-  if (!slot) return null;
+  if (!slot?.isConnected) return null;
   slot.dataset.scheme = scheme;
   slot.dataset.neutral = adapter.brand.neutral ? 'true' : 'false';
   return slot;

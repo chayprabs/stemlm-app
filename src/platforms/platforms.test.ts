@@ -92,6 +92,22 @@ describe('Gemini adapter', () => {
     );
   });
 
+  it('finds the upload menu button inside leading-actions', () => {
+    setBody(`
+      <input-area-v2>
+        <div class="leading-actions">
+          <button aria-label="Open upload file menu">+</button>
+        </div>
+        <rich-textarea>
+          <div class="ql-editor" contenteditable="true" role="textbox"></div>
+        </rich-textarea>
+      </input-area-v2>
+    `);
+    expect(geminiAdapter.getComposerLeadingAnchor()?.getAttribute('aria-label')).toBe(
+      'Open upload file menu',
+    );
+  });
+
   it('uses neutral brand styling on Gemini', () => {
     expect(geminiAdapter.brand.neutral).toBe(true);
   });

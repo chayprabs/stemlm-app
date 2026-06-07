@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useStore } from '@/src/state/store';
@@ -13,14 +13,46 @@ const SLOT_GAP = _composerSlotGap;
 
 type PosMode =
   | { mode: 'docked'; slot: HTMLElement }
-  | { mode: 'fixed'; top: number; left: number; visible: boolean };
+  | { mode: 'fixed'; top: number; left: number };
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));
 }
 
+function fallbackFixedPosition(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
+  top: number;
+  left: number;
+} {
+  const PAD = 8;
+  const editor = adapter.findEditor();
+  const editorR = editor?.getBoundingClientRect();
+  if (editorR && editorR.width > 0) {
+    return {
+      top: clamp(editorR.bottom - BTN_SIZE - 10, PAD, window.innerHeight - BTN_SIZE - PAD),
+      left: clamp(editorR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
+    };
+  }
+  return {
+    top: clamp(window.innerHeight - BTN_SIZE - 72, PAD, window.innerHeight - BTN_SIZE - PAD),
+    left: clamp(24, PAD, window.innerWidth - BTN_SIZE - PAD),
+  };
+}
+
+function initialFixedPosition(): { top: number; left: number } {
+  const adapter = detectAdapter();
+  if (adapter) return fallbackFixedPosition(adapter);
+  return {
+    top: clamp(window.innerHeight - BTN_SIZE - 72, 8, window.innerHeight - BTN_SIZE - 8),
+    left: 24,
+  };
+}
+
 function useComposerPosition(): PosMode {
-  const [pos, setPos] = useState<PosMode>({ mode: 'fixed', top: 0, left: 0, visible: false });
+  const [pos, setPos] = useState<PosMode>(() => ({
+    mode: 'fixed',
+    ...initialFixedPosition(),
+  }));
+  const lastFixed = useRef<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     const adapter = detectAdapter();
@@ -29,8 +61,9 @@ function useComposerPosition(): PosMode {
     let raf = 0;
 
     const update = () => {
-      const slot = ensureComposerSlot(adapter, detectHostScheme());
-      if (slot) {
+      const scheme = detectHostScheme();
+      const slot = ensureComposerSlot(adapter, scheme);
+      if (slot?.isConnected) {
         setPos((p) =>
           p.mode === 'docked' && p.slot === slot ? p : { mode: 'docked', slot },
         );
@@ -38,14 +71,9 @@ function useComposerPosition(): PosMode {
       }
 
       const leading = adapter.getComposerLeadingAnchor();
-      const leadingR = leading?.getBoundingClientRect();
+      const leadingR = leading?.isConnected ? leading.getBoundingClientRect() : undefined;
       const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
-      const boxR = shell?.getBoundingClientRect();
-
-      if (!leadingR?.width && !boxR?.width) {
-        setPos((p) => (p.mode === 'fixed' && !p.visible ? p : { mode: 'fixed', top: 0, left: 0, visible: false }));
-        return;
-      }
+      const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
 
       const PAD = 8;
       let top: number;
@@ -54,17 +82,24 @@ function useComposerPosition(): PosMode {
       if (leadingR && leadingR.width > 0) {
         top = leadingR.top + (leadingR.height - BTN_SIZE) / 2;
         left = leadingR.left - BTN_SIZE - SLOT_GAP;
+      } else if (boxR && boxR.width > 0) {
+        top = boxR.bottom - BTN_SIZE - 10;
+        left = boxR.left - BTN_SIZE - SLOT_GAP;
       } else {
-        top = boxR!.bottom - BTN_SIZE - 10;
-        left = boxR!.left - BTN_SIZE - SLOT_GAP;
+        const fb = lastFixed.current ?? fallbackFixedPosition(adapter);
+        top = fb.top;
+        left = fb.left;
       }
 
-      setPos({
-        mode: 'fixed',
+      const next = {
+        mode: 'fixed' as const,
         top: clamp(top, PAD, window.innerHeight - BTN_SIZE - PAD),
         left: clamp(left, PAD, window.innerWidth - BTN_SIZE - PAD),
-        visible: true,
-      });
+      };
+      lastFixed.current = { top: next.top, left: next.left };
+      setPos((p) =>
+        p.mode === 'fixed' && p.top === next.top && p.left === next.left ? p : next,
+      );
     };
 
     const loop = () => {
@@ -138,7 +173,9 @@ export function OverlayButton() {
     return () => clearInterval(id);
   }, [injected, adapter]);
 
-  if (pos.mode === 'fixed' && !pos.visible) return null;
+  const docked =
+    pos.mode === 'docked' && pos.slot.isConnected ? pos : null;
+  const fixed = pos.mode === 'fixed' ? pos : { mode: 'fixed' as const, ...initialFixedPosition() };
 
   function onMain() {
     if (pasting) return;
@@ -154,7 +191,7 @@ export function OverlayButton() {
 
   const wrapClass = [
     'slm-fab-wrap',
-    pos.mode === 'fixed' ? 'slm-fab-wrap--fixed' : '',
+    !docked ? 'slm-fab-wrap--fixed' : '',
     neutral ? 'slm-fab-wrap--neutral' : '',
     `slm-fab-wrap--${hostScheme}`,
   ]
@@ -190,12 +227,12 @@ export function OverlayButton() {
     </motion.button>
   );
 
-  if (pos.mode === 'docked') {
-    return createPortal(<div className={wrapClass}>{content}</div>, pos.slot);
+  if (docked) {
+    return createPortal(<div className={wrapClass}>{content}</div>, docked.slot);
   }
 
   return (
-    <div className={wrapClass} style={{ top: pos.top, left: pos.left }}>
+    <div className={wrapClass} style={{ top: fixed.top, left: fixed.left }}>
       {content}
     </div>
   );
