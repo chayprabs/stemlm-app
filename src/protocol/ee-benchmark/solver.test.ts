@@ -7,7 +7,7 @@ import { solve } from './solvers';
 import { renderDiagram } from './render-diagram';
 import { auditSvgDiagram, countSvgPrimitives, countSvgLabels } from './svg-utils';
 
-describe('EE solvers — all 50 kinds', () => {
+describe('EE solvers — all 100 questions', () => {
   it('solves every spec without throwing', () => {
     for (const entry of ALL_EE_SPECS) {
       const sol = solve(entry.spec);

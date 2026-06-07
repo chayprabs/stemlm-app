@@ -1,5 +1,6 @@
 import type { EEBenchmarkEntry } from '../spec-types';
 import { buildYbusN } from '../solvers/math-utils';
+import { EE_SPECS_Q51_Q100 } from './q51-q100';
 
 // Shared 3-bus line data for Q46–Q49 — Ybus/Zbus computed at load time, never hand-entered.
 const SHARED_3BUS_LINES = [
@@ -1117,4 +1118,6 @@ export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
       },
     },
   },
+
+  ...EE_SPECS_Q51_Q100,
 ];

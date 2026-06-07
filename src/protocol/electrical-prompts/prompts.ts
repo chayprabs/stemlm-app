@@ -1,7 +1,8 @@
 /** Electrical exam prompts — questions only; solutions/diagrams come from Gemini at runtime. */
 import type { ElectricalPromptDef } from './types';
+import { ELECTRICAL_PROMPTS_Q51_100 } from './prompts-q51-100';
 
-export const ELECTRICAL_PROMPTS: ElectricalPromptDef[] = [
+const ELECTRICAL_PROMPTS_Q01_50: ElectricalPromptDef[] = [
   {
     "id": "q01-kvl-single-loop",
     "number": 1,
@@ -302,7 +303,12 @@ export const ELECTRICAL_PROMPTS: ElectricalPromptDef[] = [
     "topic": "Op-amp integrator oscillator",
     "question": "Sinusoidal oscillator at $f_0=1\\,\\text{kHz}$ using two ideal op-amp integrators."
   }
-] as ElectricalPromptDef[];
+];
+
+export const ELECTRICAL_PROMPTS: ElectricalPromptDef[] = [
+  ...ELECTRICAL_PROMPTS_Q01_50,
+  ...ELECTRICAL_PROMPTS_Q51_100,
+];
 
 export function getElectricalPromptByNumber(n: number): ElectricalPromptDef | undefined {
   return ELECTRICAL_PROMPTS.find((q) => q.number === n);

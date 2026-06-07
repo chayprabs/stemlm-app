@@ -15,7 +15,7 @@ export function generateQuestion(entry: EEBenchmarkEntry): EEQuestionDef {
   return synthesizeQuestion(entry, solution);
 }
 
-/** All 50 questions generated dynamically from specs + solvers. */
+/** All 100 questions generated dynamically from specs + solvers. */
 export const ALL_EE_QUESTIONS: EEQuestionDef[] = ALL_EE_SPECS.map(generateQuestion);
 
 export function getQuestionById(id: number): EEQuestionDef | undefined {

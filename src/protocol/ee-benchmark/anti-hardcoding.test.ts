@@ -99,14 +99,16 @@ describe('Anti-hardcoding — solver sensitivity (mutate params → answers chan
   });
 
   it('Q31/Q32: Miller Av is derived from BJT params, not a separate hardcoded gain', () => {
-    const q31 = solve(ALL_EE_SPECS[30]!.spec);
-    const q32 = solve(ALL_EE_SPECS[31]!.spec);
-    expect(q32.computed.Av).toBeCloseTo(q31.computed.Av!, 4);
-    expect(q32.computed.Av).not.toBeCloseTo(-196, 0); // stale hardcoded value removed
+    const q31 = ALL_EE_SPECS.find((e) => e.id === 31)!;
+    const q32 = ALL_EE_SPECS.find((e) => e.id === 32)!;
+    const s31 = solve(q31.spec);
+    const s32 = solve(q32.spec);
+    expect(s32.computed.Av).toBeCloseTo(s31.computed.Av!, 4);
+    expect(s32.computed.Av).not.toBeCloseTo(-196, 0); // stale hardcoded value removed
   });
 
   it('Q32: changing BJT IC changes Miller bandwidth', () => {
-    const entry = ALL_EE_SPECS[31]!;
+    const entry = ALL_EE_SPECS.find((e) => e.id === 32)!;
     const base = solve(entry.spec);
     const spec = entry.spec;
     if (spec.kind !== 'miller-bandwidth') throw new Error('expected miller-bandwidth');
@@ -123,7 +125,7 @@ describe('Anti-hardcoding — solver sensitivity (mutate params → answers chan
   });
 
   it('Q48: fault solver derives Zbus from line data at runtime (not stored in spec)', () => {
-    const q48 = ALL_EE_SPECS[47]!;
+    const q48 = ALL_EE_SPECS.find((e) => e.id === 48)!;
     if (q48.spec.kind !== 'symmetrical-fault') throw new Error('Q48 kind');
     expect('Zbus' in q48.spec.params).toBe(false);
     const Z = zbusFromLines(q48.spec.params.nBuses, q48.spec.params.lines);
@@ -150,8 +152,22 @@ describe('Anti-hardcoding — diagram labels track solver output', () => {
     expect(svgGood).toContain('8V');
   });
 
+  it('Q51–Q100: second bank solves with distinct params from Q1–Q50', () => {
+    const bank1 = ALL_EE_SPECS.filter((e) => e.id <= 50);
+    const bank2 = ALL_EE_SPECS.filter((e) => e.id >= 51);
+    expect(bank2).toHaveLength(50);
+    for (let i = 0; i < 50; i++) {
+      expect(bank2[i]!.spec.kind).toBe(bank1[i]!.spec.kind);
+      expect(JSON.stringify(bank2[i]!.spec.params)).not.toBe(
+        JSON.stringify(bank1[i]!.spec.params),
+      );
+      const sol = solve(bank2[i]!.spec);
+      expect(Object.keys(sol.computed).length).toBeGreaterThan(0);
+    }
+  });
+
   it('generateQuestion verified field equals solve() output, not spec params', () => {
-    const entry = ALL_EE_SPECS[34]!; // MOSFET CS
+    const entry = ALL_EE_SPECS.find((e) => e.id === 35)!; // MOSFET CS
     const q = generateQuestion(entry);
     const sol = solve(entry.spec);
     for (const [k, v] of Object.entries(sol.computed)) {

@@ -27,16 +27,16 @@ function assertDiagramSurvivesPipeline(svg: string): void {
   expect(svgParses(clean)).toBe(true);
 }
 
-describe('EE Benchmark — all 50 questions exist', () => {
-  it('has exactly 50 questions with unique IDs 1–50', () => {
-    expect(ALL_EE_QUESTIONS).toHaveLength(50);
+describe('EE Benchmark — all 100 questions exist', () => {
+  it('has exactly 100 questions with unique IDs 1–100', () => {
+    expect(ALL_EE_QUESTIONS).toHaveLength(100);
     const ids = ALL_EE_QUESTIONS.map((q) => q.id).sort((a, b) => a - b);
-    expect(ids).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+    expect(ids).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
   });
 
   it('each question has unique slug', () => {
     const slugs = ALL_EE_QUESTIONS.map((q) => q.slug);
-    expect(new Set(slugs).size).toBe(50);
+    expect(new Set(slugs).size).toBe(100);
   });
 });
 
