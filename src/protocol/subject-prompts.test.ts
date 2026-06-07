@@ -9,7 +9,7 @@ import { buildInjectionPrompt } from './builder';
 
 const SUBJECT_BANKS = [
   { name: 'Chemistry', prompts: CHEMISTRY_PROMPTS, subject: 'Chemistry' as const, expected: 50 },
-  { name: 'Physics', prompts: PHYSICS_PROMPTS, subject: 'Physics' as const, expected: 50 },
+  { name: 'Physics', prompts: PHYSICS_PROMPTS, subject: 'Physics' as const, expected: 100 },
   { name: 'Math', prompts: MATH_PROMPTS, subject: 'Math' as const, expected: 61 },
   { name: 'Biology', prompts: BIOLOGY_PROMPTS, subject: 'Biology' as const, expected: 100 },
   { name: 'Electrical', prompts: ELECTRICAL_PROMPTS, subject: 'Electrical' as const, expected: 50 },

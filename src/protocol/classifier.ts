@@ -48,7 +48,7 @@ const RULES: Rule[] = [
         re: /\b(histology|epithelial|connective tissue|cartilage|osteoblast|osteoclast|sarcomere|myelin|nephron|renal|kidney|glomerulus|dialysis|gfr\b|raas|angiotensin|aldosterone|adh\b|aquaporin|cardiac|ecg|respiratory|spirometry|fev1|fvc|hemoglobin|anemia|asthma|hemostasis|coagulation|lymphatic|placenta|menstrual|spermatogenesis|oogenesis|fertilisation|fertilization|embryogenesis|blastocyst|gastrulation|phylogen\w*|gel electrophoresis|western blot|elisa\b|flow cytometry|pcr\b|rt-pcr|sanger sequencing|sequence alignment|blast\b|hardy-?weinberg|lac operon|hpa axis|dicot|apoplast|symplast|xylem|phloem|stomatal|transpiration|photoperiodism|germination|kranz|cam plant|eutrophication|wetland|coral|zooxanthellae|microbiome|biofilm|quorum sensing|prion|epigenet\w*|histone|methylation|ipsc|gene therapy|pharmacogenomics|cyp450|oncogenes?|tumor suppressor|biomes?|biodiversity|shannon|inbreeding|effective population|mycology|hyphae|protist|plasmodium|malaria|histolog\w*|integumentary|immunolog\w*|virolog\w*|ecolog\w+|physiolog\w+)\b/i,
         w: 3,
       },
-      { re: /\b(michaelis[- ]menten|vmax|\bkm\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
+      { re: /\b(michaelis[- ]menten|vmax|\bK_m\b|\bKm\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
       { re: /\benzyme\b.*\b(activation energy|\bea\b|Δg|delta g)\b|\b(activation energy|\bea\b)\b.*\benzyme\b/i, w: 4 },
       { re: /\bactivation energy\b/i, w: 2 },
     ],
@@ -74,7 +74,7 @@ const RULES: Rule[] = [
   {
     subject: 'Physics',
     patterns: [
-      { re: /\b(free[- ]body|projectile|kinematics?|newton'?s (first|second|third)? ?law|electric field|magnetic field|coulomb|gauss'?s? law|momentum|impulse|kinetic energy|potential energy|conservation of energy|refraction|reflection|snell'?s? law|lens|mirror|diffraction|interference|relativity|quantum|photon|wavelength|frequency|terminal velocity|incline(d plane)?|tension|normal force|centripetal|angular velocity|simple harmonic|pendulum|bethe|weizsaecker|weizsacker|binding energy per nucleon|nuclear physics|radioactive decay|blackbody|planck|stefan[- ]boltzmann|maxwell[- ]boltzmann)\b/i, w: 3 },
+      { re: /\b(free[- ]body|projectile|kinematics?|newton'?s (first|second|third)? ?law|electric field|magnetic field|coulomb|gauss'?s? law|momentum|impulse|kinetic energy|potential energy|conservation of energy|refraction|reflection|snell'?s? law|lens|mirror|diffraction|interference|relativity|quantum|photon|wavelength|frequency|terminal velocity|incline(d plane)?|tension|normal force|centripetal|angular velocity|simple harmonic|pendulum|bethe|weizsaecker|weizsacker|binding energy per nucleon|nuclear physics|radioactive decay|blackbody|planck|stefan[- ]boltzmann|maxwell[- ]boltzmann|poiseuille|bernoulli|reynolds number|mach number|hubble|kepler|gravitational wave|compton|de broglie|bohr radius|rydberg|hall (effect|voltage)|cyclotron|synchrotron|larmor|bragg law|fabry[- ]perot|rayleigh criterion|uncertainty principle|carbon dating|mean free path|van der waals|heat conduction|capillary rise|banked curve|physical pendulum|waveguide|green function|path integral|reciprocal lattice|adiabatic (expansion|process)|otto cycle|carnot refrigerator|venturi|young modulus|torsion pendulum|cosmic microwave|neutrino oscillation|hubble (law|time|constant))\b/i, w: 3 },
       { re: /\b(force|velocity|acceleration|energy|work|power|gravity|gravitational|mass\b|wave|optics?|joule|newton|friction|displacement|speed|distance|motion)\b/i, w: 1 },
     ],
   },
@@ -118,6 +118,14 @@ export function classifySubject(question: string): Subject {
     )
   ) {
     return 'Chemistry';
+  }
+  if (
+    /\bphysics\b/i.test(text) &&
+    !/\b(chemical engineering|mass balance on|distillation column|control volume balance|mixer stream|kg\/h|wt%)\b/i.test(
+      text,
+    )
+  ) {
+    return 'Physics';
   }
 
   const CHEMISTRY_EXAM_OVERRIDE =

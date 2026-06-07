@@ -301,6 +301,306 @@ export const PHYSICS_PROMPTS: PhysicsPromptDef[] = [
     "number": 50,
     "topic": "Blackbody Radiation: Planck and Stefan-Boltzmann",
     "question": "Physics photon wave and energy radiation: for a blackbody at T=5800 K, compute Wien peak wavelength, Planck spectral radiance near 500 nm, total flux from Stefan-Boltzmann law, and luminosity for radius R=6.96e8 m."
+  },
+  {
+    "id": "q51",
+    "number": 51,
+    "topic": "Banked Curve No Friction",
+    "question": "Physics: A car travels on a frictionless banked circular track of radius r=120 m with banking angle θ=28°. (a) Derive the ideal speed v=√(rg tanθ) for no lateral friction. (b) Compute v in m/s. (c) Find the required centripetal acceleration. (d) If speed is 30 m/s, find the normal force per unit mass needed from the bank."
+  },
+  {
+    "id": "q52",
+    "number": 52,
+    "topic": "Physical Pendulum",
+    "question": "Physics: A uniform rod of length L=0.80 m and mass m=2.0 kg pivots without friction about one end. (a) Write the moment of inertia I=(1/3)mL² about the pivot. (b) Locate the center-of-mass distance h=L/2. (c) Find the small-angle period T=2π√(I/(mgh)). (d) Compute the angular frequency ω=2π/T."
+  },
+  {
+    "id": "q53",
+    "number": 53,
+    "topic": "Buoyancy and Archimedes Principle",
+    "question": "Physics: A wooden block has density ρ_wood=600 kg/m³ and volume V=0.050 m³ in water (ρ_water=1000 kg/m³, g=9.8 m/s²). (a) Find block weight. (b) Find fully submerged buoyant force. (c) Find equilibrium submerged fraction f=ρ_wood/ρ_water. (d) Find the upward force needed to hold the block fully submerged."
+  },
+  {
+    "id": "q54",
+    "number": 54,
+    "topic": "Capillary Rise",
+    "question": "Physics: Water (surface tension γ=0.072 N/m, contact angle θ=0°, density ρ=1000 kg/m³) rises in a glass capillary of radius r=0.50 mm. (a) Use Jurin height h=2γ cosθ/(ρgr). (b) Compute h in mm. (c) Find the gauge pressure jump ΔP=2γ/r across the meniscus. (d) Estimate the mass of the raised column in the tube."
+  },
+  {
+    "id": "q55",
+    "number": 55,
+    "topic": "Parallel Plate Poiseuille Flow",
+    "question": "Physics: Viscous fluid (μ=0.80 Pa·s) flows steadily between parallel plates separated by h=2.0 mm with pressure gradient dP/dx=-4.0×10³ Pa/m. (a) Use Poiseuille parabolic profile v_max=-(h²/8μ)(dP/dx). (b) Find v_max. (c) Find average speed v̄=v_max/2. (d) Compute volume flow rate per unit width Q=∫v dy over the gap."
+  },
+  {
+    "id": "q56",
+    "number": 56,
+    "topic": "Heat Conduction Flux",
+    "question": "Physics: A copper slab (thermal conductivity k=400 W/(m·K)) has thickness L=5.0 mm with faces at T_hot=360 K and T_cold=300 K. (a) Find temperature gradient dT/dx. (b) Compute Fourier heat flux q=-k dT/dx. (c) Find heat current through area A=0.020 m². (d) Estimate steady heat energy transferred in Δt=60 s."
+  },
+  {
+    "id": "q57",
+    "number": 57,
+    "topic": "Carnot Refrigerator COP",
+    "question": "Physics: A Carnot refrigerator operates between a cold reservoir T_c=250 K and a hot reservoir T_h=350 K, removing Q_c=8.0×10³ J per cycle. (a) Find Carnot coefficient of performance COP_R=T_c/(T_h-T_c). (b) Compute required work W per cycle. (c) Find heat rejected Q_h=Q_c+W. (d) Compare to a real refrigerator with COP_R=3.5 and find its work input."
+  },
+  {
+    "id": "q58",
+    "number": 58,
+    "topic": "Van der Waals Gas Pressure",
+    "question": "Physics: One mole of CO₂ is described by van der Waals equation (P+a/V²)(V-b)=RT with a=3.64 L²·bar/mol², b=4.27×10⁻² L/mol, T=400 K, V=0.50 L, R=0.08314 L·bar/(mol·K). (a) Convert constants to consistent units. (b) Compute pressure P. (c) Compute ideal-gas pressure P_ideal=RT/V. (d) Find the correction fraction (P-P_ideal)/P_ideal."
+  },
+  {
+    "id": "q59",
+    "number": 59,
+    "topic": "Mean Free Path",
+    "question": "Physics: Nitrogen gas at T=300 K and P=1.0×10⁵ Pa has molecular diameter d=3.7×10⁻¹⁰ m. Use n=P/(k_B T), σ=πd², and ℓ=1/(√2 n σ). (a) Compute number density n. (b) Find collision cross section σ. (c) Calculate mean free path ℓ in meters. (d) Estimate average collision frequency ν=v̄/ℓ using v̄=√(8k_B T/(πm)) with m=4.65×10⁻²⁶ kg."
+  },
+  {
+    "id": "q60",
+    "number": 60,
+    "topic": "Dielectric Sphere Depolarization",
+    "question": "Physics: A uniform dielectric sphere (radius a=0.10 m, relative permittivity ε_r=5) is placed in a uniform external field E₀=2.0×10⁵ V/m. (a) Find depolarization factor N=1/3 for a sphere. (b) Compute internal field E_in=E₀/(1+(ε_r-1)N). (c) Find induced dipole moment per unit volume P=ε₀(ε_r-1)E_in. (d) Compute surface-bound charge density at the equator σ_b=P/3."
+  },
+  {
+    "id": "q61",
+    "number": 61,
+    "topic": "Magnetic Dipole on Axis",
+    "question": "Physics: A magnetic dipole moment m=0.40 A·m² points along +z. (a) Write on-axis field B(z)=(μ₀/4π)·2m/z³ for z≫source size. (b) Find B at z=0.20 m. (c) Find the axial field gradient dB/dz at that point. (d) Compute the axial force on a distant dipole m₂=0.10 A·m² aligned with m at the same location (F=(μ₀/4π)·6m m₂/z⁴)."
+  },
+  {
+    "id": "q62",
+    "number": 62,
+    "topic": "RL Circuit Time Constant",
+    "question": "Physics: An RL series circuit has R=120 Ω, L=0.60 H, and DC source V_s=12 V. Initially the switch is open and current is zero. (a) Find time constant τ=L/R. (b) Write i(t)=(V_s/R)(1-e^{-t/τ}). (c) Compute steady current I_∞. (d) Find current after t=τ and the stored energy U=½LI² at that instant."
+  },
+  {
+    "id": "q63",
+    "number": 63,
+    "topic": "LC Resonance",
+    "question": "Physics: An ideal LC tank has L=2.5 mH and C=40 nF. (a) Find resonant angular frequency ω₀=1/√(LC). (b) Compute resonant frequency f₀. (c) Find characteristic impedance Z₀=√(L/C). (d) If initial capacitor voltage is V₀=5.0 V and q_max=CV₀, compute peak current I_max=ω₀q_max."
+  },
+  {
+    "id": "q64",
+    "number": 64,
+    "topic": "Rectangular Waveguide TE10 Cutoff",
+    "question": "Physics: A rectangular waveguide has width a=2.30 cm, height b=1.00 cm, filled with air. For TE₁₀ mode: (a) derive cutoff k_c=π/a and f_c=c k_c/(2π). (b) Compute f_c in GHz. (c) At operating frequency f=12.0 GHz, find guide wavelength λ_g=λ₀/√(1-(f_c/f)²) with λ₀=c/f. (d) Compute the phase velocity v_p=c/√(1-(f_c/f)²)."
+  },
+  {
+    "id": "q65",
+    "number": 65,
+    "topic": "Compton Shift",
+    "question": "Physics: X-rays of wavelength λ₀=0.120 nm scatter at θ=60° from a free electron initially at rest. (a) Use Δλ=(h/(m_e c))(1-cosθ). (b) Compute Δλ in pm. (c) Find scattered wavelength λ=λ₀+Δλ. (d) Compute the recoil electron kinetic energy K_e=hc(1/λ₀-1/λ)."
+  },
+  {
+    "id": "q66",
+    "number": 66,
+    "topic": "de Broglie Wavelength",
+    "question": "Physics: An electron is accelerated through a potential difference V=150 V. (a) Find nonrelativistic speed v=√(2eV/m_e). (b) Compute de Broglie wavelength λ=h/(m_e v). (c) Compare to Bohr radius a₀ and give ratio λ/a₀. (d) Repeat λ using the shortcut λ=h/√(2m_e eV) and verify consistency."
+  },
+  {
+    "id": "q67",
+    "number": 67,
+    "topic": "Photoelectric Stopping Potential",
+    "question": "Physics: Light of wavelength λ=250 nm illuminates a metal with work function φ=4.20 eV. (a) Compute photon energy E_ph=hc/λ in eV. (b) Find maximum photoelectron kinetic energy K_max. (c) Determine stopping potential V_stop=K_max/e. (d) If photocurrent is 2.0 μA, estimate electron emission rate."
+  },
+  {
+    "id": "q68",
+    "number": 68,
+    "topic": "Bohr Radius Hydrogen",
+    "question": "Physics: For hydrogen in the Bohr model use a₀=4πε₀ħ²/(m_e e²). (a) Compute a₀ in meters and nm. (b) Find ground-state velocity v₁=e²/(4πε₀ħ). (c) Compute ground-state energy E₁=-m_e e⁴/(32π²ε₀²ħ²) in eV. (d) Find the orbital frequency f₁=v₁/(2πa₀)."
+  },
+  {
+    "id": "q69",
+    "number": 69,
+    "topic": "Rydberg Energy",
+    "question": "Physics: Hydrogen energy levels are E_n=-13.6 eV/n². (a) Compute E₂ and E₃. (b) Find transition energy ΔE for n=3→2 (Hα). (c) Convert ΔE to photon wavelength λ=hc/ΔE. (d) Compute the Rydberg constant R∞=m_e e⁴/(8ε₀²h³c) and verify λ from 1/λ=R∞(1/2²-1/3²)."
+  },
+  {
+    "id": "q70",
+    "number": 70,
+    "topic": "Zeeman Splitting Scale",
+    "question": "Physics: A hydrogen atom in a weak magnetic field B=1.5 T shows normal Zeeman splitting. Use μ_B=eħ/(2m_e). (a) Compute Bohr magneton μ_B in J/T. (b) Find energy shift ΔE=μ_B B for m_J=±1 (Landé g≈1). (c) Convert ΔE to eV. (d) Estimate corresponding photon wavelength shift Δλ≈(λ²/hc)ΔE for λ=656 nm."
+  },
+  {
+    "id": "q71",
+    "number": 71,
+    "topic": "Debye Frequency Estimate",
+    "question": "Physics: Copper has Debye temperature Θ_D=343 K and N atoms in a solid. (a) Use ω_D≈k_B Θ_D/ħ. (b) Compute ω_D in rad/s. (c) Find Debye frequency f_D=ω_D/(2π) in THz. (d) At T=300 K, estimate average phonon energy scale ⟨E⟩≈3k_B T and compare to ħω_D."
+  },
+  {
+    "id": "q72",
+    "number": 72,
+    "topic": "Hall Voltage",
+    "question": "Physics: A copper strip (thickness t=0.20 mm, carrier density n=8.5×10²⁸ m⁻³) carries current I=3.0 A in a transverse magnetic field B=0.50 T. (a) Find current density j=I/(wt) with w=5.0 mm. (b) Compute Hall field E_H=Bj/(ne). (c) Find Hall voltage V_H=E_H w. (d) Determine Hall coefficient R_H=1/(ne)."
+  },
+  {
+    "id": "q73",
+    "number": 73,
+    "topic": "Cyclotron Frequency",
+    "question": "Physics: A proton (m_p=1.673×10⁻²⁷ kg, q=1.602×10⁻¹⁹ C) moves in a uniform magnetic field B=0.80 T. (a) Derive cyclotron angular frequency ω_c=qB/m. (b) Compute f_c=ω_c/(2π). (c) Find cyclotron radius for kinetic energy K=2.0 MeV. (d) Estimate the period T_c=1/f_c."
+  },
+  {
+    "id": "q74",
+    "number": 74,
+    "topic": "Synchrotron Radiation Larmor Power",
+    "question": "Physics: An electron (γ=40) travels in a bending magnet with radius ρ=25 m. (a) Use Larmor formula P=(e²a²)/(6πε₀c³) with a=v²/ρ and v≈c. (b) Compute P in watts. (c) Find total energy loss per turn U=P·(2πρ/c). (d) Express U in keV and compare to electron rest energy m_e c²."
+  },
+  {
+    "id": "q75",
+    "number": 75,
+    "topic": "Gravitational Wave Strain Estimate",
+    "question": "Physics: A binary neutron-star merger at distance D=40 Mpc radiates gravitational-wave energy E_GW≈10⁻² M_⊙c² over duration τ=0.10 s. Use h≈√(4G E_GW/(D² c⁴ τ²)) as an order-of-magnitude strain. Take M_⊙=2.0×10³⁰ kg, G=6.67×10⁻¹¹ N·m²/kg², 1 Mpc=3.09×10²² m. (a) Convert D to meters. (b) Compute E_GW in joules. (c) Estimate strain h. (d) Give h in units of 10⁻²¹."
+  },
+  {
+    "id": "q76",
+    "number": 76,
+    "topic": "Adiabatic Gas Expansion",
+    "question": "Physics: One mole of diatomic ideal gas (γ=1.40) with initial state P₁=3.0×10⁵ Pa, V₁=0.020 m³, T₁=400 K expands adiabatically and reversibly to V₂=3V₁. (a) Use T₂/T₁=(V₁/V₂)^(γ−1) and P₂/P₁=(V₁/V₂)^γ. (b) Compute T₂ and P₂. (c) Find expansion work W=(P₁V₁−P₂V₂)/(γ−1). (d) Verify ΔU=−W for an adiabatic process."
+  },
+  {
+    "id": "q77",
+    "number": 77,
+    "topic": "Otto Engine Efficiency",
+    "question": "Physics: An Otto-cycle engine operates on air (γ=1.40) with compression ratio r=V_max/V_min=9.0. (a) Derive thermal efficiency η=1−1/r^(γ−1). (b) Compute η numerically. (c) If each cycle absorbs Q_h=2.50×10³ J, find work output W=ηQ_h. (d) Find heat rejected Q_c=Q_h−W."
+  },
+  {
+    "id": "q78",
+    "number": 78,
+    "topic": "Maxwell Speed Distribution Width",
+    "question": "Physics: Nitrogen molecules (m=4.65×10⁻²⁶ kg) at T=350 K obey Maxwell-Boltzmann statistics. (a) Compute most probable speed v_p=√(2k_B T/m) and rms speed v_rms=√(3k_B T/m). (b) Find speed standard deviation σ=√(k_B T/m·(3−8/π)). (c) Evaluate the ratio v_rms/v_p. (d) Estimate the fraction of molecules within one σ of v_p using a Gaussian approximation."
+  },
+  {
+    "id": "q79",
+    "number": 79,
+    "topic": "Stefan Problem Scaling",
+    "question": "Physics: A semi-infinite slab (thermal diffusivity α=k/(ρc)=0.80/(920×2100) m²/s) initially at T₀=20°C has its surface held at 0°C for t>0. The thermal penetration depth scales as x∝√(αt). (a) Compute x₁ at t₁=100 s. (b) Compute x₂ at t₂=400 s. (c) Verify the scaling ratio x₂/x₁. (d) Predict x₃ at t₃=900 s using the same scaling law."
+  },
+  {
+    "id": "q80",
+    "number": 80,
+    "topic": "Bragg Law Diffraction",
+    "question": "Physics: Cu Kα X-rays (λ=1.54 Å) diffract from an FCC copper crystal (lattice constant a=0.361 nm) from (111) planes. (a) Find d-spacing d=a/√(h²+k²+l²). (b) Apply Bragg law nλ=2d sinθ for n=1. (c) Compute Bragg angle θ in degrees. (d) Report the corresponding 2θ diffraction angle."
+  },
+  {
+    "id": "q81",
+    "number": 81,
+    "topic": "X-ray Wavelength from Crystal",
+    "question": "Physics: Powder diffraction from copper (111) planes with d=0.2084 nm shows a first-order peak at 2θ=38.5°. (a) Use λ=2d sinθ with θ=2θ/2. (b) Compute wavelength λ in angstroms. (c) Identify whether the peak is consistent with Cu Kα (λ≈1.54 Å). (d) Compute the glancing angle θ in degrees."
+  },
+  {
+    "id": "q82",
+    "number": 82,
+    "topic": "Fabry-Perot Finesse Variant",
+    "question": "Physics: A Fabry-Perot cavity has length L=8.0 mm and mirror reflectivity R=0.92 at λ=633 nm. (a) Find free spectral range FSR=c/(2L). (b) Compute finesse F=π√R/(1−R). (c) Determine linewidth δν=FSR/F. (d) Estimate the resolving power R_res≈F at order m=1."
+  },
+  {
+    "id": "q83",
+    "number": 83,
+    "topic": "Thin Lens Maker Equation",
+    "question": "Physics: A thin converging lens in air is made of glass with n=1.52, R₁=+15 cm (convex toward object), and R₂=−30 cm. (a) Use 1/f=(n−1)(1/R₁−1/R₂) to find focal length f. (b) An object is placed at u=40 cm; solve 1/f=1/u+1/v for image distance v. (c) Compute magnification m=−v/u. (d) State whether the image is real or virtual."
+  },
+  {
+    "id": "q84",
+    "number": 84,
+    "topic": "Microscope Angular Resolution",
+    "question": "Physics: An oil-immersion microscope objective has numerical aperture NA=1.25 and uses light of wavelength λ=550 nm. (a) Apply the Rayleigh criterion θ_min=0.61λ/NA (radians). (b) Convert θ_min to arcseconds. (c) Find the minimum resolvable separation d_min=0.61λ/NA in nanometers. (d) Compare d_min to the wavelength λ."
+  },
+  {
+    "id": "q85",
+    "number": 85,
+    "topic": "Uncertainty Principle Product",
+    "question": "Physics: An electron is confined in a one-dimensional region of width L=0.10 nm. Take position uncertainty Δx≈L/2. (a) Use Δx Δp≥ħ/2 to find minimum momentum uncertainty Δp. (b) Estimate minimum kinetic energy ΔE≈(Δp)²/(2m_e). (c) Express ΔE in eV. (d) Compare ΔE to the ground-state energy of a 0.10 nm infinite square well."
+  },
+  {
+    "id": "q86",
+    "number": 86,
+    "topic": "Neutron Diffraction Wavelength",
+    "question": "Physics: Thermal neutrons (m_n=1.675×10⁻²⁷ kg) have kinetic energy E=0.025 eV. (a) Compute momentum p=√(2m_n E). (b) Find de Broglie wavelength λ=h/p. (c) Express λ in nanometers and angstroms. (d) State whether λ is suitable for resolving atomic spacings d≈0.2 nm."
+  },
+  {
+    "id": "q87",
+    "number": 87,
+    "topic": "Nuclear Q-value Alpha Decay",
+    "question": "Physics: ²³⁸U undergoes alpha decay: ²³⁸U→²³⁴Th+⁴He. Atomic masses are m(²³⁸U)=238.050788 u, m(²³⁴Th)=234.043601 u, m(⁴He)=4.002603 u. (a) Compute mass defect Δm. (b) Convert Q-value Q=Δm c² using 1 u c²=931.5 MeV. (c) Find the alpha kinetic energy in the rest frame of ²³⁸U (nonrelativistic approximation). (d) Compute recoil kinetic energy of ²³⁴Th."
+  },
+  {
+    "id": "q88",
+    "number": 88,
+    "topic": "Binding Energy per Nucleon Curve Peak",
+    "question": "Physics: Use the semi-empirical mass formula with a_V=15.8 MeV, a_S=18.3 MeV, a_C=0.714 MeV, a_A=23.2 MeV, a_P=12 MeV for nuclei ¹²C (A=12,Z=6), ⁵⁶Fe (A=56,Z=26), and ²³⁸U (A=238,Z=92). (a) Compute binding energy per nucleon B/A for each. (b) Identify which nucleus lies nearest the maximum of the curve. (c) Find the binding energy difference per nucleon between ⁵⁶Fe and ¹²C. (d) Explain why iron-region nuclei maximize B/A."
+  },
+  {
+    "id": "q89",
+    "number": 89,
+    "topic": "Half-life Carbon Dating",
+    "question": "Physics: A wooden artifact has ¹⁴C activity ratio N/N₀=0.30 relative to modern wood. The ¹⁴C half-life is t₁/₂=5730 yr. (a) Use t=t₁/₂ ln(N₀/N)/ln2. (b) Compute sample age in years. (c) Find the fraction of original ¹⁴C nuclei remaining. (d) Estimate the uncertainty if N/N₀=0.30±0.03 (linear propagation only)."
+  },
+  {
+    "id": "q90",
+    "number": 90,
+    "topic": "Doppler Effect Sound",
+    "question": "Physics: A stationary ambulance siren emits f₀=440 Hz. A listener moves toward the source at v_o=25 m/s in still air with sound speed v_s=343 m/s. (a) Use f′=f₀(v_s+v_o)/v_s for a moving observer. (b) Compute observed frequency f′. (c) Find the beat frequency if the listener also hears a reflected echo from a wall behind them (qualitative estimate using round-trip Doppler shift). (d) Compute wavelength λ′=v_s/f′."
+  },
+  {
+    "id": "q91",
+    "number": 91,
+    "topic": "Mach Number Shock",
+    "question": "Physics: A jet flies at v=340 m/s where the local sound speed is c_s=295 m/s. (a) Compute Mach number M=v/c_s. (b) Determine whether the flow is supersonic. (c) Find the Mach cone half-angle μ=arcsin(1/M) in degrees. (d) Estimate the overpressure jump across a weak normal shock using the Rankine-Hugoniot relation ΔP/P≈(2γ/(γ+1))(M²−1) with γ=1.4."
+  },
+  {
+    "id": "q92",
+    "number": 92,
+    "topic": "Reynolds Pipe Transition",
+    "question": "Physics: Water (ρ=998 kg/m³, μ=1.0×10⁻³ Pa·s) flows in a pipe of diameter D=0.025 m at average speed v=1.2 m/s. (a) Compute Reynolds number Re=ρvD/μ. (b) Classify the flow relative to the transition threshold Re≈2300. (c) Find the critical speed v_c for Re=2300 at the same D. (d) Compute the pressure-drop scaling ratio if speed is reduced to v_c (ΔP∝v²)."
+  },
+  {
+    "id": "q93",
+    "number": 93,
+    "topic": "Bernoulli Venturi",
+    "question": "Physics: A horizontal venturi meter carries water (ρ=1000 kg/m³) with inlet diameter D₁=0.12 m, throat diameter D₂=0.06 m, inlet speed v₁=1.5 m/s, and inlet pressure P₁=180 kPa. (a) Use continuity to find throat speed v₂. (b) Apply Bernoulli P₁+½ρv₁²=P₂+½ρv₂². (c) Compute throat pressure P₂. (d) Find the pressure difference ΔP=P₁−P₂."
+  },
+  {
+    "id": "q94",
+    "number": 94,
+    "topic": "Young Modulus Stress Strain",
+    "question": "Physics: A steel wire of length L=2.0 m and diameter d=1.2 mm is loaded with F=60 N, producing extension ΔL=1.5 mm. (a) Compute cross-sectional area A=π(d/2)². (b) Find stress σ=F/A and strain ε=ΔL/L. (c) Determine Young modulus E=σ/ε. (d) Compare E to typical steel (≈2.0×10¹¹ Pa)."
+  },
+  {
+    "id": "q95",
+    "number": 95,
+    "topic": "Torsion Pendulum",
+    "question": "Physics: A torsion pendulum uses a solid disk (M=1.20 kg, radius R=0.075 m) on a steel fiber of length L=0.60 m and diameter d=0.45 mm (shear modulus G=8.0×10¹⁰ Pa). (a) Find disk moment of inertia I=½MR². (b) Compute fiber polar moment J=πd⁴/32. (c) Use T=2π√(IL/(GJ)) for the period. (d) Find the angular frequency ω=2π/T."
+  },
+  {
+    "id": "q96",
+    "number": 96,
+    "topic": "Kepler Third Law Exoplanet",
+    "question": "Physics: An exoplanet orbits a star of mass M=0.85 M_⊙ with observed period P=267 days. (a) Convert P to years. (b) Use Kepler third law in solar units a³=(P_yr)²M/M_⊙ with a in AU. (c) Compute semimajor axis a. (d) Compare a to Earth-Sun distance (1 AU)."
+  },
+  {
+    "id": "q97",
+    "number": 97,
+    "topic": "Hubble Law Distance",
+    "question": "Physics: A galaxy shows recession velocity v=2500 km/s. Use Hubble law v=H₀d with H₀=72 km/s/Mpc. (a) Compute distance d in Mpc. (b) Convert d to light-years using 1 Mpc≈3.26×10⁶ ly. (c) Estimate lookback time t≈d/c in Gyr (use d in Mpc and H₀). (d) Discuss whether this is a luminosity distance or comoving distance at low redshift."
+  },
+  {
+    "id": "q98",
+    "number": 98,
+    "topic": "Cosmic Microwave Background Temperature",
+    "question": "Physics: The cosmic microwave background (CMB) has blackbody temperature T=2.725 K. (a) Use Wien law λ_max=2.898×10⁻³/T m to find peak wavelength. (b) Convert λ_max to mm. (c) Estimate peak photon energy E_ph=hc/λ_max in meV. (d) Compute the CMB photon number density n_γ≈2.03×10⁷ T³ m⁻³ and evaluate at T=2.725 K."
+  },
+  {
+    "id": "q99",
+    "number": 99,
+    "topic": "Neutrino Oscillation Scale",
+    "question": "Physics: Atmospheric neutrino oscillations are characterized by mass-squared splitting Δm²≈2.5×10⁻³ eV². For neutrino energy E=500 MeV, (a) use the order-of-magnitude oscillation length L_osc≈2.48 E(GeV)/Δm²(eV²) meters. (b) Compute L_osc in meters and kilometers. (c) State whether kilometer-scale baselines are sensitive to this splitting. (d) Compare to solar Δm²≈7.5×10⁻⁵ eV² oscillation length at E=10 MeV."
+  },
+  {
+    "id": "q100",
+    "number": 100,
+    "topic": "Integrated Cosmology H0 and Critical Density",
+    "question": "Physics: For a flat universe with H₀=70 km/s/Mpc (h=0.70), Ω_m=0.30, and Ω_Λ=0.70: (a) Convert H₀ to SI units s⁻¹. (b) Compute critical density ρ_c=3H₀²/(8πG). (c) Find matter density ρ_m=Ω_m ρ_c. (d) Estimate Hubble time t_H=1/H₀ in Gyr and compare to the ΛCDM age t₀≈13.8 Gyr."
   }
 ] as PhysicsPromptDef[];
 
