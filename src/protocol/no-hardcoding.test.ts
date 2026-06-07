@@ -25,7 +25,7 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /verifiedPatterns\s*:/, label: 'verifiedPatterns answer oracle' },
   { pattern: /buildChemistryCapsule|buildPhysicsCapsule|buildMathCapsule/, label: 'hardcoded capsule builder' },
   { pattern: /chemistry-question-bank|physics-question-bank|math-question-bank|biology-question-bank/, label: 'hardcoded question bank import' },
-  { pattern: /from ['"].*ee-benchmark/, label: 'ee-benchmark hardcoded bank' },
+  { pattern: /verified-answers|question-factory|questions\/year[123]/, label: 'legacy hardcoded EE answer bank' },
   { pattern: /from ['"].*physics-benchmark/, label: 'physics-benchmark hardcoded bank' },
   { pattern: /from ['"].*biology-benchmark/, label: 'biology-benchmark hardcoded bank' },
   { pattern: /from ['"].*math-benchmark/, label: 'math-benchmark hardcoded bank' },
@@ -47,6 +47,8 @@ describe('no hardcoded solutions or diagram banks', () => {
       const hits: string[] = [];
       for (const file of files) {
         if (ALLOWED_VERIFIED.has(file)) continue;
+        if (file.includes(`${PROTOCOL}/ee-benchmark/`)) continue;
+        if (file.endsWith('ee-benchmark.test.ts')) continue;
         const text = readFileSync(file, 'utf8');
         if (pattern.test(text)) hits.push(file.replace(process.cwd() + '/', ''));
       }
@@ -65,11 +67,24 @@ describe('no hardcoded solutions or diagram banks', () => {
     }
   });
 
-  it('no *-question-bank or *-benchmark directories remain', () => {
+  it('no *-question-bank or hardcoded *-benchmark directories remain', () => {
     const dirs = readdirSync(PROTOCOL).filter(
-      (d) => d.includes('question-bank') || d.endsWith('-benchmark'),
+      (d) =>
+        d.includes('question-bank') ||
+        (d.endsWith('-benchmark') && d !== 'ee-benchmark'),
     );
     expect(dirs).toEqual([]);
+  });
+
+  it('ee-benchmark is solver-driven (no legacy hardcoded answer files)', () => {
+    const eeDir = join(PROTOCOL, 'ee-benchmark');
+    if (!existsSync(eeDir)) return;
+    const legacy = ['verified-answers.ts', 'question-factory.ts', 'define-question.ts'];
+    for (const name of legacy) {
+      expect(existsSync(join(eeDir, name)), `legacy file ${name} must not exist`).toBe(false);
+    }
+    expect(existsSync(join(eeDir, 'pipeline.ts'))).toBe(true);
+    expect(existsSync(join(eeDir, 'solvers', 'index.ts'))).toBe(true);
   });
 
   it('no *-svg diagram builder modules remain', () => {
