@@ -397,6 +397,122 @@ function normalizeAllMarkers(root: Element): void {
   }
 }
 
+interface ViewBoxRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function parseViewBox(value: string | null): ViewBoxRect {
+  if (!value) return { x: 0, y: 0, width: 100, height: 100 };
+  const parts = value.trim().split(/[\s,]+/).map(Number);
+  if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+    return { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! };
+  }
+  return { x: 0, y: 0, width: 100, height: 100 };
+}
+
+interface WireSegment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+function collectWireSegments(root: Element): WireSegment[] {
+  const segments: WireSegment[] = [];
+  for (const line of root.querySelectorAll('line')) {
+    if (line.closest('marker')) continue;
+    segments.push({
+      x1: Number(line.getAttribute('x1') ?? 0),
+      y1: Number(line.getAttribute('y1') ?? 0),
+      x2: Number(line.getAttribute('x2') ?? 0),
+      y2: Number(line.getAttribute('y2') ?? 0),
+    });
+  }
+  return segments;
+}
+
+function textFontSize(el: Element): number {
+  const raw = el.getAttribute('font-size') ?? el.parentElement?.getAttribute('font-size');
+  const size = Number(raw);
+  return Number.isFinite(size) && size > 0 ? size : 11;
+}
+
+function textPosition(el: Element): { x: number; y: number } | null {
+  const x = Number(el.getAttribute('x'));
+  const y = Number(el.getAttribute('y'));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function pointNearHorizontalWire(
+  x: number,
+  y: number,
+  wire: WireSegment,
+  fontSize: number,
+): boolean {
+  if (Math.abs(wire.y1 - wire.y2) > 2) return false;
+  const lineY = (wire.y1 + wire.y2) / 2;
+  const minX = Math.min(wire.x1, wire.x2) - fontSize;
+  const maxX = Math.max(wire.x1, wire.x2) + fontSize;
+  const onWire = Math.abs(y - lineY) <= Math.max(8, fontSize * 0.75);
+  return onWire && x >= minX && x <= maxX;
+}
+
+function pointNearVerticalWire(
+  x: number,
+  y: number,
+  wire: WireSegment,
+  fontSize: number,
+): boolean {
+  if (Math.abs(wire.x1 - wire.x2) > 2) return false;
+  const lineX = (wire.x1 + wire.x2) / 2;
+  const minY = Math.min(wire.y1, wire.y2) - fontSize;
+  const maxY = Math.max(wire.y1, wire.y2) + fontSize;
+  const onWire = Math.abs(x - lineX) <= Math.max(8, fontSize * 0.75);
+  return onWire && y >= minY && y <= maxY;
+}
+
+/**
+ * Models often place node labels on the same y as a conductor. Nudge text off
+ * wires so labels stay readable in the panel and PDF export.
+ */
+function nudgeLabelsAwayFromWires(root: Element): void {
+  const viewBox = parseViewBox(root.getAttribute('viewBox'));
+  const midY = viewBox.y + viewBox.height / 2;
+  const midX = viewBox.x + viewBox.width / 2;
+  const wires = collectWireSegments(root);
+
+  for (const text of root.querySelectorAll('text')) {
+    if (text.closest('marker')) continue;
+    const pos = textPosition(text);
+    if (!pos) continue;
+
+    const fontSize = textFontSize(text);
+    const gap = 4;
+    let { x, y } = pos;
+
+    for (const wire of wires) {
+      if (pointNearHorizontalWire(x, y, wire, fontSize)) {
+        const lineY = (wire.y1 + wire.y2) / 2;
+        y = lineY < midY ? lineY - fontSize - gap : lineY + fontSize + gap + 2;
+        if (!text.getAttribute('text-anchor')) text.setAttribute('text-anchor', 'middle');
+      } else if (pointNearVerticalWire(x, y, wire, fontSize)) {
+        const lineX = (wire.x1 + wire.x2) / 2;
+        x = lineX < midX ? lineX - fontSize - gap : lineX + fontSize + gap;
+        if (!text.getAttribute('text-anchor')) {
+          text.setAttribute('text-anchor', lineX < midX ? 'end' : 'start');
+        }
+      }
+    }
+
+    text.setAttribute('x', String(x));
+    text.setAttribute('y', String(y));
+  }
+}
+
 function decodeTextNodes(svg: string): string {
   return svg.replace(
     /<(text|tspan)([^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -452,6 +568,7 @@ export function presentSvg(
   normalizeAllMarkers(root);
   themeSvgTree(root, theme);
   syncMarkerFills(root);
+  nudgeLabelsAwayFromWires(root);
 
   let out = new XMLSerializer().serializeToString(root);
   return decodeTextNodes(out);

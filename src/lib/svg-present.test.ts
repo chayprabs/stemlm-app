@@ -223,6 +223,38 @@ describe('presentSvg', () => {
     expect(out).not.toContain('<path d="M0,0 L20,10');
   });
 
+  it('nudges node labels off horizontal wires when placed on the conductor', () => {
+    const raw =
+      '<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">' +
+      '<line x1="80" y1="30" x2="120" y2="30" stroke="#333" stroke-width="2"/>' +
+      '<text x="100" y="30" text-anchor="middle" font-size="12">Node A (V_A)</text>' +
+      '<rect x="92" y="40" width="16" height="40" stroke="#333" fill="none"/>' +
+      '<line x1="80" y1="80" x2="120" y2="80" stroke="#333" stroke-width="2"/>' +
+      '<text x="100" y="80" text-anchor="middle" font-size="12">Node B (0V)</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    const labels = [...doc.querySelectorAll('text')].map((el) => ({
+      text: el.textContent ?? '',
+      y: Number(el.getAttribute('y')),
+    }));
+    const nodeA = labels.find((l) => l.text.includes('Node A'));
+    const nodeB = labels.find((l) => l.text.includes('Node B'));
+    expect(nodeA?.y).toBeLessThan(30);
+    expect(nodeB?.y).toBeGreaterThan(80);
+  });
+
+  it('leaves labels that are already offset from wires unchanged', () => {
+    const raw =
+      '<svg viewBox="0 0 200 80">' +
+      '<line x1="10" y1="40" x2="180" y2="40" stroke="#333" stroke-width="2"/>' +
+      '<text x="90" y="20" fill="#333">R = 10 Ω</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'light');
+    expect(out).toContain('y="20"');
+    expect(out).toContain('R = 10 Ω');
+  });
+
   it('normalizes star-like marker polygons to a triangle arrowhead', () => {
     const raw =
       '<svg viewBox="0 0 120 60">' +
