@@ -1,10 +1,5 @@
-import type {
-  PhysicsBenchmarkDifficulty,
-  PhysicsBenchmarkSpec,
-  PhysicsBenchmarkVerifyResult,
-} from '../types';
-
-const NUMERIC_TOKEN_RE = /[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi;
+import { PHYSICS_BENCHMARK_SOLVERS } from '../solvers';
+import type { PhysicsBenchmarkDifficulty, PhysicsBenchmarkSpec } from '../types';
 
 function inferYear(number: number): 1 | 2 | 3 {
   if (number <= 17) return 1;
@@ -18,57 +13,16 @@ function inferDifficulty(number: number): PhysicsBenchmarkDifficulty {
   return 'Tough';
 }
 
-function normalizeNumericToken(token: string): string {
-  const numeric = Number(token);
-  if (Number.isFinite(numeric)) return String(numeric);
-  return token.toLowerCase();
-}
-
-function extractNumericTokens(text: string): string[] {
-  const seen = new Set<string>();
-  const matches = text.match(NUMERIC_TOKEN_RE) ?? [];
-  for (const raw of matches) {
-    const normalized = normalizeNumericToken(raw);
-    if (normalized.length > 0) seen.add(normalized);
-  }
-  return [...seen];
-}
-
-function createNumericVerifier(question: string): (capsuleText: string) => PhysicsBenchmarkVerifyResult {
-  const expectedTokens = extractNumericTokens(question);
-  const expectedRequiredHits = Math.min(3, expectedTokens.length);
-
-  return (capsuleText: string): PhysicsBenchmarkVerifyResult => {
-    if (!capsuleText.trim()) {
-      return { ok: false, errors: ['Capsule text is empty.'] };
-    }
-
-    if (expectedTokens.length === 0) {
-      return { ok: true, errors: [] };
-    }
-
-    const answerTokens = new Set(extractNumericTokens(capsuleText));
-    const matched = expectedTokens.filter((token) => answerTokens.has(token));
-
-    if (matched.length >= expectedRequiredHits) {
-      return { ok: true, errors: [] };
-    }
-
-    return {
-      ok: false,
-      errors: [
-        `Numeric grounding too weak: matched ${matched.length}/${expectedTokens.length} expected numeric tokens from question.`,
-      ],
-    };
-  };
-}
-
 function makeSpec(base: Pick<PhysicsBenchmarkSpec, 'id' | 'number' | 'topic' | 'question'>): PhysicsBenchmarkSpec {
+  const solver = PHYSICS_BENCHMARK_SOLVERS[base.number - 1];
+  if (!solver) {
+    throw new Error(`Missing physics benchmark solver for ${base.id}`);
+  }
   return {
     ...base,
     year: inferYear(base.number),
     difficulty: inferDifficulty(base.number),
-    verify: createNumericVerifier(base.question),
+    verify: solver,
   };
 }
 

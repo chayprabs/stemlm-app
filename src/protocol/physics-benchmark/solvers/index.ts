@@ -1196,8 +1196,10 @@ export function solveQ41(): PhysicsSolverResult {
     capsule: capsule('Q41 interferometry', [
       `fringes=${fixed(fringes, 2)}`,
       `phaseShift=${fixed(phaseShift, 2)}`,
+      `FSR=${exp(fsr, 2)}`,
       `FSR_GHz=${fixed(fsr / 1e9, 1)}`,
       `finesse=${fixed(finesse, 1)}`,
+      `linewidth=${exp(linewidth, 2)}`,
       `linewidth_GHz=${fixed(linewidth / 1e9, 2)}`,
       `fringeScale_nm=${fixed(fringeDisplacement * 1e9, 1)}`,
     ]),
@@ -1372,6 +1374,7 @@ export function solveQ47(): PhysicsSolverResult {
       `v=${fixed(v, 2)}`,
       `Re=${exp(reynolds, 2)}`,
       `hLoss=${fixed(hLoss, 3)}`,
+      `deltaP=${fixed(deltaP, 2)}`,
       `deltaP_kPa=${fixed(deltaP / 1000, 2)}`,
       `tauW=${fixed(tauW, 2)}`,
       `pumpPower=${fixed(pumpPower, 2)}`,
