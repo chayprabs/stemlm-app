@@ -19,21 +19,21 @@ export interface DiagramRendererProps {
 export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRendererProps) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const mounted = useRef(true);
+  const requestId = useRef(0);
 
   useEffect(() => {
-    mounted.current = true;
+    const id = ++requestId.current;
     setSvg(null);
     setFailed(false);
 
     void resolveDiagramSvg(diagram, theme, size).then((clean) => {
-      if (!mounted.current) return;
+      if (requestId.current !== id) return;
       if (clean && svgMarkupHasGraphicShapes(clean)) setSvg(clean);
       else setFailed(true);
     });
 
     return () => {
-      mounted.current = false;
+      /* bump id so in-flight renders from a prior step are ignored */
     };
   }, [diagram.content, diagram.type, theme, size]);
 
