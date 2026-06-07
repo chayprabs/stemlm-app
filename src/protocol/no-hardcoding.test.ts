@@ -3,7 +3,7 @@
  * or answer oracles. Gemini generates capsules at runtime.
  */
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PROTOCOL = join(process.cwd(), 'src/protocol');
@@ -75,5 +75,28 @@ describe('no hardcoded solutions or diagram banks', () => {
   it('no *-svg diagram builder modules remain', () => {
     const svgBuilders = readdirSync(PROTOCOL).filter((f) => f.endsWith('-svg.ts'));
     expect(svgBuilders).toEqual([]);
+  });
+
+  it('built extension bundle does not ship question banks or capsule builders', () => {
+    const outputRoot = join(process.cwd(), '.output');
+    if (!existsSync(outputRoot)) return;
+    const bundleFiles = walk(outputRoot).filter((f) => /\.(js|css|html)$/.test(f));
+    if (bundleFiles.length === 0) return;
+    const forbidden = [
+      /biology-question-bank/,
+      /chemistry-question-bank/,
+      /physics-question-bank/,
+      /math-question-bank/,
+      /buildBiologyCapsule/,
+      /buildChemistryCapsule/,
+      /buildPhysicsCapsule/,
+      /buildMathCapsule/,
+    ];
+    for (const file of bundleFiles) {
+      const text = readFileSync(file, 'utf8');
+      for (const pattern of forbidden) {
+        expect(text, `${file} matched ${pattern}`).not.toMatch(pattern);
+      }
+    }
   });
 });
