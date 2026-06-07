@@ -32,7 +32,22 @@ export default function App() {
       applyTheme(document.body, theme);
     });
     getSavedSessions().then(setSaved);
-    getActiveTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
+
+    const refreshTab = () => {
+      void getActiveTab().then((tab) => setOnGemini(isGeminiUrl(tab?.url)));
+    };
+    refreshTab();
+
+    const onActivated = () => refreshTab();
+    const onUpdated = (_id: number, info: { url?: string }) => {
+      if (info.url) refreshTab();
+    };
+    browser.tabs.onActivated.addListener(onActivated);
+    browser.tabs.onUpdated.addListener(onUpdated);
+    return () => {
+      browser.tabs.onActivated.removeListener(onActivated);
+      browser.tabs.onUpdated.removeListener(onUpdated);
+    };
   }, []);
 
   async function send(type: DeliverableStemLmMessage) {
@@ -74,16 +89,18 @@ export default function App() {
   }
 
   async function remove(id: string) {
-    await deleteSavedSession(id);
-    setSaved(await getSavedSessions());
+    try {
+      await deleteSavedSession(id);
+      setSaved(await getSavedSessions());
+    } catch {
+      setDownloadError('Could not delete saved session. Try again.');
+    }
   }
 
   function openOptions() {
-    try {
-      browser.runtime.openOptionsPage();
-    } catch {
-      /* ignore */
-    }
+    void browser.runtime.openOptionsPage().catch(() => {
+      /* options page unavailable */
+    });
   }
 
   return (
