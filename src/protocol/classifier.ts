@@ -101,7 +101,7 @@ export function classifySubject(question: string): Subject {
   const text = question || '';
   // Chemistry-bank phrasing: "… chemistry:" topic lines and named chem subfields.
   if (
-    (/\b([a-z][\w -]{0,48}chemistry|chem\w+)\b/i.test(text) ||
+    (/\b([a-z][\w -]{0,48}chemistry)\b/i.test(text) ||
       /\b(physical chemistry|quantum chemistry|statistical thermodynamics|chemical kinetics|reaction engineering|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|schottky|hammett|bronsted|lipinski|ferrocene|born[- ]haber|grignard|titration|stoichiometr)\b/i.test(
         text,
       )) &&
