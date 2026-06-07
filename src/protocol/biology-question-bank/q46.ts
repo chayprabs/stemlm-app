@@ -22,7 +22,7 @@ export const Q46: BiologyQuestionDef = {
       title: 'Compare stem cell potency classes',
       formula:
         '$$\\text{potency breadth: totipotent} > \\text{pluripotent} > \\text{multipotent} > \\text{unipotent}$$',
-      body: 'Totipotent cells can generate embryo + extraembryonic tissue. Pluripotent cells can generate three germ layers but not full placenta. Multipotent cells are lineage-restricted, and unipotent cells generate one mature type. Breadth ranking = totipotent > pluripotent > multipotent > unipotent.',
+      body: 'Totipotent cells can generate embryo + extraembryonic tissue. Pluripotent cells can generate three germ layers but not full placenta. Multipotent cells are lineage-restricted, and unipotent cells generate one mature type. In a simple scale where totipotent breadth = 4 and unipotent breadth = 1, ranking is 4 > 3 > 2 > 1 = totipotent > pluripotent > multipotent > unipotent.',
       diagram: wrapBioSvg(
         '<rect x="18" y="28" width="264" height="122" fill="#f8fafc" stroke="#334155"/>' +
           '<line x1="98" y1="28" x2="98" y2="150" stroke="#334155"/><line x1="196" y1="28" x2="196" y2="150" stroke="#334155"/><line x1="18" y1="52" x2="282" y2="52" stroke="#334155"/>' +
@@ -36,7 +36,7 @@ export const Q46: BiologyQuestionDef = {
       title: 'Interpret Hox positional identity and Antennapedia phenotype',
       formula:
         '$$\\text{ectopic Antennapedia expression in head}\\Rightarrow \\text{leg identity program in antenna segment}$$',
-      body: 'Hox genes assign anterior-posterior segment identity. In Drosophila, Antennapedia misexpression in antennal primordia causes homeotic transformation where antenna fate = leg-like fate. Colinearity means Hox genomic order often correlates with expression domains.',
+      body: 'Hox genes assign anterior-posterior segment identity. In Drosophila, Antennapedia misexpression in antennal primordia causes homeotic transformation where antenna fate = leg-like fate. If ectopic expression score = 1 in head segments and baseline = 0, transformed appendage identity score rises from 0 to 1. Colinearity means Hox genomic order often correlates with expression domains.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Hox patterning and Antennapedia</text>' +
           '<rect x="24" y="42" width="252" height="28" fill="#dbeafe" stroke="#1e3a8a"/><text x="150" y="60" font-size="9" text-anchor="middle">anterior -------------------------------- posterior</text>' +

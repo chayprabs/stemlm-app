@@ -6,7 +6,7 @@ export const Q48: BiologyQuestionDef = {
   number: 48,
   topic: 'Reflex Arc, Somatic vs Autonomic Systems, Neurotransmitters, and Blood-Brain Barrier',
   question:
-    'In neurobiology, diagram a reflex arc, compare somatic and autonomic pathways (including sympathetic and parasympathetic divisions), identify major neurotransmitters, and explain blood-brain barrier selectivity.',
+    'In neurobiology, diagram a reflex arc, compare somatic and autonomic neuron pathways (including sympathetic and parasympathetic divisions), identify major neurotransmitters at synapse sites, and explain blood-brain barrier selectivity in brain tissue homeostasis.',
   steps: [
     {
       title: 'Trace the reflex arc from receptor to effector',

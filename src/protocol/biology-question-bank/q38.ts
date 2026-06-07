@@ -6,11 +6,11 @@ export const Q38: BiologyQuestionDef = {
   number: 38,
   topic: 'Nervous vs Endocrine Signaling, HPA Axis, and Diabetes',
   question:
-    'Compare nervous and endocrine communication, contrast steroid and peptide hormones, interpret the HPA axis diagram, and distinguish type 1 from type 2 diabetes.',
+    'Compare nervous and endocrine communication in neuron and hormone biology, contrast steroid and peptide hormones, interpret the HPA axis diagram, and distinguish type 1 from type 2 diabetes in glucose homeostasis.',
   steps: [
     {
       title: 'Compare nervous and endocrine control systems',
-      body: 'Nervous signaling is rapid and targeted via action potentials and synapses, while endocrine signaling is slower and systemic via circulating hormones. Response profile = milliseconds in neural pathways versus minutes to hours in many endocrine pathways.',
+      body: 'nervous signaling is rapid and targeted via action potentials and synapses, while endocrine signaling is slower and systemic via circulating hormones. Response profile = milliseconds in neural pathways versus minutes to hours in many endocrine pathways.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Nervous vs endocrine</text>' +
           '<rect x="24" y="34" width="116" height="118" fill="#dbeafe" stroke="#1e3a8a"/><text x="34" y="54" font-size="10">nervous</text><text x="34" y="74" font-size="9">electrical spikes</text><text x="34" y="92" font-size="9">synaptic neurotransmitter</text><text x="34" y="110" font-size="9">fast, precise</text>' +
@@ -19,13 +19,13 @@ export const Q38: BiologyQuestionDef = {
     },
     {
       title: 'Differentiate steroid and peptide hormones',
-      body: 'Steroid hormones are lipid-soluble and often bind intracellular receptors to regulate transcription, whereas peptide hormones are water-soluble and bind membrane receptors with second-messenger cascades. Signaling mode = genomic for many steroids and rapid phospho-signaling for many peptides.',
+      body: 'A steroid hormone is lipid-soluble and often binds intracellular receptors to regulate transcription, whereas peptide hormones are water-soluble and bind membrane receptors with second-messenger cascades. Signaling mode = genomic for many steroids and rapid phospho-signaling for many peptides.',
     },
     {
       title: 'Interpret HPA axis negative feedback',
       formula:
         '$$\\text{Hypothalamus (CRH)} \\rightarrow \\text{Pituitary (ACTH)} \\rightarrow \\text{Adrenal cortex (cortisol)}$$',
-      body: 'Stress elevates CRH then ACTH then cortisol, while cortisol feeds back to suppress CRH/ACTH release. If cortisol output = persistently high, upstream drive is normally reduced by negative feedback.',
+      body: 'Stress elevates CRH then ACTH then cortisol, while cortisol feeds back to suppress CRH/ACTH release. For example, if baseline cortisol = 10 units and stress peak = 24 units, negative feedback can reduce ACTH from 12 units to 7 units over time. If cortisol output = persistently high, upstream drive is normally reduced by negative feedback.',
       diagram: hpaAxis(),
     },
     {
@@ -37,7 +37,7 @@ export const Q38: BiologyQuestionDef = {
       title: 'Distinguish diabetes type 1 and type 2',
       formula:
         '$$\\text{mmol/L} = \\frac{\\text{mg/dL}}{18}$$\n$$126\\,\\text{mg/dL} = 7.0\\,\\text{mmol/L}$$',
-      body: 'Type 1 diabetes is autoimmune beta-cell destruction causing absolute insulin deficiency, while type 2 diabetes features insulin resistance with relative secretory failure over time. Diagnostic conversion = 126 mg/dL fasting glucose equivalent to 7.0 mmol/L.',
+      body: 'type 1 diabetes is autoimmune beta-cell destruction causing absolute insulin deficiency, while type 2 diabetes features insulin resistance with relative secretory failure over time. Diagnostic conversion = 126 mg/dL fasting glucose equivalent to 7.0 mmol/L.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Type 1 vs Type 2 diabetes</text>' +
           '<rect x="24" y="36" width="114" height="114" fill="#fee2e2" stroke="#991b1b"/><text x="34" y="56" font-size="10">Type 1</text><text x="34" y="76" font-size="9">autoimmune</text><text x="34" y="94" font-size="9">low insulin</text><text x="34" y="112" font-size="9">often early onset</text>' +

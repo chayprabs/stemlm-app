@@ -6,7 +6,7 @@ export const Q49: BiologyQuestionDef = {
   number: 49,
   topic: 'Sexual vs Asexual Reproduction, Fertilisation, Early Embryogenesis, and hCG Testing',
   question:
-    'In reproductive biology, compare sexual versus asexual reproduction, outline human fertilisation steps, track cleavage-blastulation-gastrulation and germ-layer formation, and explain how hCG-based pregnancy tests work.',
+    'In reproductive biology, compare sexual versus asexual reproduction, outline human fertilisation steps in cell development, track cleavage-blastulation-gastrulation and germ-layer tissue formation, and explain how hCG-based pregnancy tests work.',
   steps: [
     {
       title: 'Compare sexual and asexual reproduction outcomes',
@@ -50,7 +50,7 @@ export const Q49: BiologyQuestionDef = {
       title: 'Relate germ layers to organ derivatives',
       formula:
         '$$\\text{ectoderm}\\to\\text{epidermis + nervous system}$$\n$$\\text{mesoderm}\\to\\text{muscle + blood + kidney}$$\n$$\\text{endoderm}\\to\\text{gut + liver + pancreas}$$',
-      body: 'Layer-to-organ mapping is deterministic at broad level: ectoderm derivatives include epidermis and CNS/PNS, mesoderm derivatives include muscle and circulatory tissues, and endoderm derivatives include gastrointestinal and respiratory epithelia.',
+      body: 'Layer-to-organ mapping is deterministic at broad level: ectoderm derivatives include epidermis and CNS/PNS, mesoderm derivatives include muscle and circulatory tissues, and endoderm derivatives include gastrointestinal and respiratory epithelia. A simple tally example = ectoderm 2 major systems, mesoderm 3 major systems, endoderm 3 major systems in this summary.',
     },
     {
       title: 'Explain hCG pregnancy test detection logic',

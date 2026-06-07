@@ -6,11 +6,11 @@ export const Q42: BiologyQuestionDef = {
   number: 42,
   topic: 'Proto-oncogenes, Tumor Suppressors, p53, and Cancer Progression',
   question:
-    'In cancer biology, distinguish proto-oncogenes from oncogenes and tumor suppressors (including p53), compare benign and malignant tumors with metastasis behavior, and evaluate major cancer risk factors quantitatively.',
+    'In cancer biology, distinguish proto-oncogenes from oncogenes and tumor suppressors (including p53), compare benign and malignant tumor cell behavior with metastasis, and evaluate major DNA-mutation cancer risk factors quantitatively.',
   steps: [
     {
       title: 'Classify proto-oncogene, oncogene, and tumor suppressor roles',
-      body: 'Proto-oncogene function = regulated growth signaling. Oncogene function = constitutively active growth signaling (gain-of-function). Tumor suppressor function = growth restraint and genome protection (loss-of-function in cancer).',
+      body: 'proto-oncogene function = regulated growth signaling. Oncogene function = constitutively active growth signaling (gain-of-function). Tumor suppressor function = growth restraint and genome protection (loss-of-function in cancer).',
       diagram: wrapBioSvg(
         '<rect x="16" y="26" width="268" height="116" fill="#f8fafc" stroke="#334155"/>' +
           '<line x1="94" y1="26" x2="94" y2="142" stroke="#334155"/><line x1="190" y1="26" x2="190" y2="142" stroke="#334155"/><line x1="16" y1="50" x2="284" y2="50" stroke="#334155"/>' +
@@ -28,7 +28,7 @@ export const Q42: BiologyQuestionDef = {
     },
     {
       title: 'Compare benign and malignant tumor behavior',
-      body: 'Benign tumor growth = localized and non-invasive. Malignant tumor growth = invasive, angiogenic, and metastatic. Metastasis rate = near 0 for benign lesions but rate > 0 for malignant tumors that intravasate, survive circulation, extravasate, and colonize distant tissue.',
+      body: 'Benign tumor growth = localized and non-invasive. Malignant tumor growth = invasive, angiogenic, and metastatic. metastasis rate = near 0 for benign lesions but rate > 0 for malignant tumors that intravasate, survive circulation, extravasate, and colonize distant tissue.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Benign vs malignant spread</text>' +
           '<circle cx="84" cy="88" r="34" fill="#dcfce7" stroke="#166534" stroke-width="2"/><text x="84" y="92" font-size="10" text-anchor="middle">benign</text>' +

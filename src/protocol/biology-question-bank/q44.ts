@@ -6,7 +6,7 @@ export const Q44: BiologyQuestionDef = {
   number: 44,
   topic: 'CRISPR Editing: NHEJ vs HDR, Applications, Ethics, and Next-Generation Editors',
   question:
-    'In genome engineering, explain CRISPR-Cas target recognition, compare non-homologous end joining (NHEJ) versus homology-directed repair (HDR), evaluate medical/agricultural/research applications, discuss germline ethics, and distinguish base editing from prime editing.',
+    'In genome engineering biology, explain CRISPR-Cas DNA target recognition in cells, compare non-homologous end joining (NHEJ) versus homology-directed repair (HDR), evaluate medical/agricultural/research gene applications, discuss germline ethics, and distinguish base editing from prime editing.',
   steps: [
     {
       title: 'Map CRISPR-Cas target recognition and cleavage',
@@ -52,7 +52,7 @@ export const Q44: BiologyQuestionDef = {
       title: 'Distinguish base editing and prime editing outcomes',
       formula:
         '$$\\text{base-edit efficiency}=\\frac{48}{60}=0.80=80\\%$$\n$$\\text{prime-edit efficiency}=\\frac{21}{60}=0.35=35\\%$$',
-      body: 'Base editing performs direct nucleotide transitions without double-strand breaks (for example C to T or A to G depending on editor). Prime editing uses reverse transcriptase plus pegRNA to write short edits; if precise edits = 21/60, efficiency = 35%, and if indels = 2/60, indel rate = 3.3%.',
+      body: 'base editing performs direct nucleotide transitions without double-strand breaks (for example C to T or A to G depending on editor). Prime editing uses reverse transcriptase plus pegRNA to write short edits; if precise edits = 21/60, efficiency = 35%, and if indels = 2/60, indel rate = 3.3%.',
       diagram: wrapBioSvg(
         '<text x="14" y="18" font-size="12">Base editing vs prime editing</text>' +
           '<rect x="24" y="44" width="118" height="90" fill="#fef3c7" stroke="#a16207"/><text x="83" y="62" font-size="10" text-anchor="middle">base editor</text><text x="83" y="80" font-size="9" text-anchor="middle">C -> T</text><text x="83" y="98" font-size="9" text-anchor="middle">A -> G</text><text x="83" y="116" font-size="8" text-anchor="middle">no DSB</text>' +

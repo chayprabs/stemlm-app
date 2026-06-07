@@ -13,6 +13,12 @@ export const Q35: BiologyQuestionDef = {
       formula:
         '$$\\text{expected cut frequency for 6-bp site} = \\left(\\frac{1}{4}\\right)^6 = \\frac{1}{4096}$$',
       body: 'Type II restriction endonucleases (for example EcoRI) recognize specific palindromic sites and cut DNA reproducibly. For a random sequence, expected EcoRI-site frequency = 1/4096 bp, which guides fragment planning.',
+      diagram: wrapBioSvg(
+        '<text x="14" y="20" font-size="12">Restriction site and sticky ends</text>' +
+          '<text x="20" y="64" font-size="11">5\'-GAATTC-3\'</text><text x="20" y="90" font-size="11">3\'-CTTAAG-5\'</text>' +
+          '<line x1="58" y1="50" x2="58" y2="72" stroke="#dc2626" stroke-width="2"/><line x1="122" y1="78" x2="122" y2="102" stroke="#dc2626" stroke-width="2"/>' +
+          '<text x="150" y="78" font-size="10">sticky end = AATT</text>',
+      ),
     },
     {
       title: 'Map human insulin gene insertion into plasmid',

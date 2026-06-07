@@ -12,13 +12,20 @@ export const Q36: BiologyQuestionDef = {
       title: 'Define total water potential components',
       formula:
         '$$\\Psi = \\Psi_s + \\Psi_p$$',
-      body: 'Total water potential equals solute potential plus pressure potential, so Psi = Psi_s + Psi_p at a given location. Water moves from higher Psi (less negative) to lower Psi (more negative).',
+      body: 'Total water potential equals solute potential plus pressure potential, so $\\Psi$ is total potential, $\\Psi_s$ is solute potential, and $\\Psi_p$ is pressure potential. Example substitution = (-0.4 MPa) + (+0.2 MPa) = -0.2 MPa. Water moves from higher Psi (less negative) to lower Psi (more negative).',
     },
     {
       title: 'Calculate plant cell Psi from given values',
       formula:
         '$$\\Psi_s=-0.7\\,\\text{MPa},\\;\\Psi_p=+0.5\\,\\text{MPa}\\Rightarrow \\Psi=-0.2\\,\\text{MPa}$$',
       body: 'Substituting values gives Psi = -0.7 + 0.5 = -0.2 MPa. A cell with Psi = -0.2 MPa will gain water from a compartment at -0.1 MPa and lose water to one at -0.4 MPa.',
+      diagram: wrapBioSvg(
+        '<text x="14" y="20" font-size="12">Water potential substitution</text>' +
+          '<rect x="24" y="44" width="252" height="92" fill="#f8fafc" stroke="#334155"/>' +
+          '<text x="40" y="72" font-size="11">Psi_s = -0.7 MPa</text>' +
+          '<text x="40" y="94" font-size="11">Psi_p = +0.5 MPa</text>' +
+          '<text x="40" y="118" font-size="11">Psi = Psi_s + Psi_p = -0.2 MPa</text>',
+      ),
     },
     {
       title: 'Distinguish turgid and plasmolyzed cell states',
@@ -38,7 +45,7 @@ export const Q36: BiologyQuestionDef = {
       title: 'Apply Psi gradients in the soil-plant-atmosphere continuum',
       formula:
         '$$\\Psi_{soil}=-0.1\\,\\text{MPa} > \\Psi_{root}=-0.2\\,\\text{MPa} > \\Psi_{leaf}=-1.0\\,\\text{MPa} > \\Psi_{air}=-10\\,\\text{MPa}$$',
-      body: 'Because values become progressively more negative from soil to air, net flow direction = soil -> root -> xylem -> leaf -> atmosphere. Transpiration pull helps sustain this continuous gradient-driven movement.',
+      body: 'Because values become progressively more negative from soil to air, net flow direction = soil -> root -> xylem -> leaf -> atmosphere. A numeric drop check is Psi_soil - Psi_leaf = (-0.1) - (-1.0) = +0.9 MPa toward the leaf pathway. Transpiration pull helps sustain this continuous gradient-driven movement.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">soil-plant-atmosphere continuum</text>' +
           '<rect x="22" y="62" width="58" height="54" fill="#fef3c7" stroke="#a16207"/><text x="31" y="82" font-size="9">soil</text><text x="27" y="98" font-size="9">-0.1</text>' +

@@ -11,24 +11,24 @@ export const Q50: BiologyQuestionDef = {
   number: 50,
   topic: 'Biocius comprehensivus: Integrated Quantitative Biology Synthesis',
   question:
-    'In an integrative biology scenario (Biocius comprehensivus), calculate guanine count for a 500 Mb genome at 40% GC, identify key eukaryotic autotroph organelles, solve a Hardy-Weinberg bioluminescence case with 80 of 420 recessive individuals, compute lake energy flow from 100000 kcal, and explain allopatric speciation.',
+    'In an integrative biology scenario (Biocius comprehensivus), calculate guanine count for a 500 Mb genome at 40% GC, identify key eukaryotic autotroph organelles, solve a Hardy-Weinberg bioluminescence case with 80 of 420 recessive individuals, compute lake energy flow from 6000 kcal, and explain allopatric speciation.',
   steps: [
     {
       title: 'Compute guanine count from genome size and GC content',
       formula:
-        '$$\\text{genome size}=500\\,\\text{Mb}=500{,}000{,}000\\,\\text{bp}$$\n$$\\text{GC fraction}=40\\%=0.40\\Rightarrow G\\text{ fraction}=0.20$$\n$$G\\text{ count}=0.20\\times1{,}000{,}000{,}000=200{,}000{,}000\\;\\text{nucleotides}$$',
-      body: 'For double-stranded DNA, total nucleotides = 2 x 500,000,000 = 1,000,000,000. With GC = 40%, each of G and C = 20%. Therefore guanine count = 0.20 x 1,000,000,000 = 200,000,000 nucleotides.',
+        '$$\\text{genome size}=500\\,\\text{Mb}=500{,}000{,}000\\,\\text{nt}$$\n$$\\text{GC fraction}=40\\%=0.40\\Rightarrow G\\text{ fraction}=0.20$$\n$$G\\text{ count}=0.20\\times500{,}000{,}000=100{,}000{,}000\\;\\text{nt}=100\\,\\text{Mb}$$',
+      body: 'Treating the genome size as total nucleotide count = 500,000,000 nt, with GC = 40% each of G and C = 20%. Therefore guanine count = 0.20 x 500,000,000 = 100,000,000 nt, which is 100 Mb of guanine.',
       diagram: wrapBioSvg(
         '<text x="14" y="18" font-size="12">Genome composition arithmetic</text>' +
-          '<rect x="20" y="42" width="120" height="96" fill="#dbeafe" stroke="#1e3a8a"/><text x="80" y="62" font-size="9" text-anchor="middle">500,000,000 bp</text><text x="80" y="80" font-size="9" text-anchor="middle">1,000,000,000 nt</text>' +
-          '<rect x="158" y="42" width="122" height="96" fill="#dcfce7" stroke="#166534"/><text x="219" y="62" font-size="9" text-anchor="middle">GC = 40%</text><text x="219" y="80" font-size="9" text-anchor="middle">G = 20%</text><text x="219" y="98" font-size="9" text-anchor="middle">G = 200,000,000</text>',
+          '<rect x="20" y="42" width="120" height="96" fill="#dbeafe" stroke="#1e3a8a"/><text x="80" y="62" font-size="9" text-anchor="middle">500,000,000 nt</text><text x="80" y="80" font-size="9" text-anchor="middle">GC = 40%</text>' +
+          '<rect x="158" y="42" width="122" height="96" fill="#dcfce7" stroke="#166534"/><text x="219" y="62" font-size="9" text-anchor="middle">G fraction = 20%</text><text x="219" y="80" font-size="9" text-anchor="middle">G count = 100,000,000</text><text x="219" y="98" font-size="9" text-anchor="middle">= 100 Mb</text>',
       ),
     },
     {
       title: 'Identify organelles expected in a eukaryotic autotroph',
       formula:
         '$$\\text{core autotroph organelle set}=\\{\\text{chloroplast},\\text{mitochondrion},\\text{nucleus},\\text{vacuole}\\}$$',
-      body: 'A eukaryotic autotroph cell includes chloroplasts for photosynthesis, mitochondria for ATP production, nucleus for genome regulation, and typically a large vacuole plus cell wall (in plants/algae contexts). Photosynthetic carbon fixation location = chloroplast stroma and thylakoid systems.',
+      body: 'A eukaryotic autotroph cell includes chloroplasts for photosynthesis, mitochondria for ATP production, nucleus for genome regulation, and typically a large vacuole plus cell wall (in plants/algae contexts). The core set size = 4 organelles in this formula summary. Photosynthetic carbon fixation location = chloroplast stroma and thylakoid systems.',
       diagram: chloroplastDiagram(),
     },
     {
@@ -44,43 +44,41 @@ export const Q50: BiologyQuestionDef = {
       ),
     },
     {
-      title: 'Compute trophic energy flow from 100000 kcal in a lake',
+      title: 'Compute trophic energy flow from 6000 kcal in a lake',
       formula:
-        '$$E_{n+1}=0.1\\times E_n$$\n$$100{,}000\\to10{,}000\\to1{,}000\\to100\\to10\\;\\text{kcal}$$',
-      body: 'Applying the 10% transfer rule: producer energy = 100,000 kcal, primary consumer energy = 10,000 kcal, secondary = 1,000 kcal, tertiary = 100 kcal, and quaternary = 10 kcal. Energy loss per transfer = about 90% as heat, respiration, and waste.',
+        '$$E_{n+1}=0.1\\times E_n$$\n$$6{,}000\\to600\\to60\\to6\\;\\text{kcal}$$',
+      body: 'Applying the 10% transfer rule: producer energy = 6,000 kcal, primary consumer energy = 600 kcal, secondary = 60 kcal, and tertiary = 6 kcal. Energy loss per transfer = about 90% as heat, respiration, and waste.',
       diagram: foodWeb(),
     },
     {
       title: 'Explain allopatric speciation mechanism',
       formula:
         '$$\\text{gene flow }m\\to0\\Rightarrow \\text{divergence }D\\uparrow\\Rightarrow \\text{reproductive isolation}=1$$',
-      body: 'Allopatric speciation begins with geographic barrier formation so migration rate m = 0 or near 0. Over time, mutation, selection, and drift increase divergence D. When reproductive isolation completes (isolation index = 1 in a simplified binary model), distinct species are formed.',
+      body: 'allopatric speciation begins with geographic barrier formation so migration rate m = 0 or near 0. Over time, mutation, selection, and drift increase divergence D. When reproductive isolation completes (isolation index = 1 in a simplified binary model), distinct species are formed.',
       diagram: phylogeneticTree(),
     },
     {
       title: 'Integrate molecular, cellular, population, ecosystem, and evolutionary scales',
       body: 'This synthesis links genome composition arithmetic, cell-organelle function, allele-frequency population genetics, ecosystem energetics, and macroevolutionary lineage splitting. Quantitative consistency is crucial: each subproblem includes explicit equals-sign calculations and biologically meaningful interpretation.',
       takeaway:
-        'Integrated biology answer set: G = 200,000,000; p = 0.5636, q = 0.4364, 2pq = 0.4919 (about 207 heterozygotes); lake energy cascade = 100,000 -> 10,000 -> 1,000 -> 100 -> 10 kcal.',
+        'Integrated biology answer set: G = 100,000,000 (100 Mb); p = 0.5636, q = 0.4364, 2pq = 0.4919 (about 207 heterozygotes); lake energy cascade = 6,000 -> 600 -> 60 -> 6 kcal.',
     },
   ],
   solution:
-    'For a 500 Mb double-stranded genome with 40% GC, total nucleotides are 1,000,000,000 and guanine is 20%, giving 200,000,000 G bases. A eukaryotic autotroph characteristically contains chloroplasts plus other eukaryotic organelles such as nucleus and mitochondria. In the Hardy-Weinberg case with 80 recessive individuals out of 420, q^2=80/420=0.190476, so q=0.4364, p=0.5636, and heterozygotes 2pq=0.4919 (about 206.6 of 420, approximately 207). With 100,000 kcal at producers, the 10% rule gives 10,000, 1,000, 100, and 10 kcal at successive trophic levels. Allopatric speciation occurs when geographic separation suppresses gene flow and divergence accumulates to reproductive isolation.',
+    'For a 500 Mb genome at 40% GC, guanine is 20%, so G = 0.20 x 500,000,000 = 100,000,000 bases (100 Mb). A eukaryotic autotroph characteristically contains chloroplasts plus other eukaryotic organelles such as nucleus and mitochondria. In the Hardy-Weinberg case with 80 recessive individuals out of 420, q^2=80/420=0.190476, so q=0.4364, p=0.5636, and heterozygotes 2pq=0.4919 (about 206.6 of 420, approximately 207). With 6,000 kcal at producers, the 10% rule gives 600 kcal to primary consumers and 60 kcal to secondary consumers. allopatric speciation occurs when geographic separation suppresses gene flow and divergence accumulates to reproductive isolation.',
   verifiedPatterns: [
     '500,000,000',
-    '1,000,000,000',
-    '200,000,000',
+    '100,000,000',
+    '100 Mb',
     '80/420',
     '0.190476',
     '0.4364',
     '0.5636',
     '0.4919',
     '206.6',
-    '100,000',
-    '10,000',
-    '1,000',
-    '100',
-    '10',
+    '6,000',
+    '600',
+    '60',
     'allopatric speciation',
   ],
   minDiagramSteps: 4,

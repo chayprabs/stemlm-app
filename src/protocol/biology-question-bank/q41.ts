@@ -12,7 +12,7 @@ export const Q41: BiologyQuestionDef = {
   number: 41,
   topic: 'Restriction Sites, PCR with Taq Polymerase, Reverse Transcriptase, and Ribozymes',
   question:
-    'In molecular biology, explain restriction endonuclease recognition and sticky ends, apply Taq polymerase PCR cycle math, distinguish reverse transcriptase from DNA-dependent polymerases, and describe catalytic ribozyme function.',
+    'In molecular biology, explain DNA restriction endonuclease recognition and sticky ends, apply Taq polymerase PCR cycle math for gene amplification, distinguish reverse transcriptase from DNA-dependent polymerases in RNA-to-cDNA conversion, and describe catalytic ribozyme function.',
   steps: [
     {
       title: 'Identify restriction sites and sticky-end generation',
@@ -35,14 +35,14 @@ export const Q41: BiologyQuestionDef = {
       title: 'Apply PCR amplification math with Taq polymerase',
       formula:
         '$$N=N_0\\times 2^n$$\n$$N_0=10,\\;n=30\\Rightarrow N=10\\times 2^{30}=10{,}737{,}418{,}240\\approx1.07\\times10^{10}$$',
-      body: 'In ideal PCR, copy number doubles each cycle, so N = N0 x 2^n. With N0 = 10 templates and n = 30 cycles, N = 10,737,418,240 copies. Taq polymerase extension optimum = 72 C, denaturation = 95 C, and annealing = about 50-65 C.',
+      body: 'In ideal PCR, copy number doubles each cycle, so N = N0 x 2^n. The core doubling term is 2^30 = 1,073,741,824, and with N0 = 10 templates and n = 30 cycles, N = 10,737,418,240 copies. Taq polymerase extension optimum = 72 C, denaturation = 95 C, and annealing = about 50-65 C.',
       diagram: pcrCycle('extension'),
     },
     {
       title: 'Differentiate reverse transcriptase from Taq polymerase',
       formula:
         '$$\\text{mRNA length}=1{,}200\\,\\text{nt}\\Rightarrow \\text{cDNA length}\\approx1{,}200\\,\\text{nt}$$',
-      body: 'Reverse transcriptase template = RNA, product = complementary DNA (cDNA). Taq polymerase template = DNA, product = DNA. If mRNA length = 1,200 nt, first-strand cDNA length = about 1,200 nt before second-strand synthesis and PCR amplification.',
+      body: 'reverse transcriptase template = RNA, product = complementary DNA (cDNA). Taq polymerase template = DNA, product = DNA. If mRNA length = 1,200 nt, first-strand cDNA length = about 1,200 nt before second-strand synthesis and PCR amplification.',
       diagram: centralDogmaDiagram(),
     },
     {

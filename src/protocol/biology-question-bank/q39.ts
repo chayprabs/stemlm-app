@@ -6,7 +6,7 @@ export const Q39: BiologyQuestionDef = {
   number: 39,
   topic: 'Dicot Root Anatomy, Transport Pathways, and Plant Reproduction',
   question:
-    'Interpret a dicot root cross-section, compare apoplast and symplast movement, explain phloem translocation, and differentiate pollination from double fertilisation.',
+    'Interpret a dicot root transverse section in plant tissue, compare apoplast and symplast movement between plant cells, explain phloem translocation through vascular tissue, and differentiate pollination from double fertilisation in flowering species.',
   steps: [
     {
       title: 'Identify tissues in a dicot root cross-section',
@@ -26,7 +26,7 @@ export const Q39: BiologyQuestionDef = {
       title: 'Apply pressure-flow model to phloem translocation',
       formula:
         '$$\\Delta P = P_{source} - P_{sink}$$\n$$J = k\\Delta P$$',
-      body: 'Sucrose loading raises osmotic influx and turgor pressure in source phloem, while unloading lowers pressure at sinks. If P_source = 1.2 MPa and P_sink = 0.6 MPa, Delta P = 0.6 MPa driving mass flow from source to sink.',
+      body: 'phloem translocation follows pressure-flow logic: sucrose loading raises osmotic influx and turgor pressure in source phloem, while unloading lowers pressure at sinks. If P_source = 1.2 MPa and P_sink = 0.6 MPa, Delta P = 0.6 MPa driving mass flow from source to sink.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">phloem pressure-flow</text>' +
           '<rect x="24" y="60" width="80" height="38" fill="#dcfce7" stroke="#166534"/><text x="64" y="82" font-size="10" text-anchor="middle">source leaf</text>' +

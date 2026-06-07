@@ -6,7 +6,7 @@ export const Q33: BiologyQuestionDef = {
   number: 33,
   topic: 'PCR Amplification, Gel Electrophoresis, and RT-PCR',
   question:
-    'Describe PCR cycle stages, calculate expected copy number after 30 cycles, interpret gel electrophoresis output, and explain RT-PCR workflow and interpretation.',
+    'Describe PCR cycle stages for DNA amplification, calculate expected copy number after 30 cycles, interpret gel electrophoresis output, and explain RT-PCR workflow from RNA to cDNA and interpretation.',
   steps: [
     {
       title: 'State the three core PCR thermal phases',
@@ -26,14 +26,14 @@ export const Q33: BiologyQuestionDef = {
     },
     {
       title: 'Interpret DNA band patterns on agarose gels',
-      body: 'DNA migrates toward the positive electrode and smaller fragments run farther than larger fragments. Amplicon size = band position relative to ladder bands of known base-pair length.',
+      body: 'In gel electrophoresis, DNA migrates toward the positive electrode and smaller fragments run farther than larger fragments. Amplicon size = band position relative to ladder bands of known base-pair length.',
       diagram: gelElectrophoresis(),
     },
     {
       title: 'Explain RT-PCR from RNA to amplifiable cDNA',
       formula:
         '$$\\text{RNA} \\xrightarrow{\\text{reverse transcriptase}} \\text{cDNA} \\xrightarrow{\\text{PCR}} \\text{amplicon}$$',
-      body: 'Reverse transcription converts RNA into cDNA first, then standard PCR amplifies that cDNA. In expression studies, starting template = RNA abundance, so higher mRNA generally yields earlier detection in quantitative setups.',
+      body: 'Reverse transcription converts RNA into cDNA first, then standard PCR amplifies that cDNA. For example, if starting RNA copies = 2,000 and reverse-transcription efficiency = 80%, cDNA copies = 1,600 before PCR cycling. In expression studies, starting template = RNA abundance, so higher mRNA generally yields earlier detection in quantitative setups.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">RT-PCR workflow</text>' +
           '<rect x="24" y="62" width="62" height="24" fill="#fee2e2" stroke="#991b1b"/><text x="55" y="78" font-size="10" text-anchor="middle">RNA</text>' +

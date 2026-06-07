@@ -25,7 +25,7 @@ export const Q47: BiologyQuestionDef = {
       title: 'Explain extremophile bioenergetic adaptation',
       formula:
         '$$\\text{enzyme activity ratio}=\\frac{v_{80^{\\circ}\\text{C}}}{v_{37^{\\circ}\\text{C}}}=\\frac{120}{40}=3$$',
-      body: 'Extremophiles persist in high temperature, salinity, acidity, or pressure by stabilizing proteins and membranes. In one thermophile example, activity ratio = 120/40 = 3 at 80 C relative to 37 C, showing biochemical specialization to extreme conditions.',
+      body: 'An extremophile persists in high temperature, salinity, acidity, or pressure by stabilizing proteins and membranes. In one thermophile example, activity ratio = 120/40 = 3 at 80 C relative to 37 C, showing biochemical specialization to extreme conditions.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Extremophile niches</text>' +
           '<rect x="20" y="40" width="78" height="34" fill="#fee2e2" stroke="#991b1b"/><text x="59" y="60" font-size="9" text-anchor="middle">thermophile</text>' +

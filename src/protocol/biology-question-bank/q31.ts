@@ -25,7 +25,7 @@ export const Q31: BiologyQuestionDef = {
       title: 'Connect fragment lengths to sequence readout',
       formula:
         '$$\\text{read order} = \\text{smallest fragment} \\rightarrow \\text{largest fragment}$$',
-      body: 'After capillary electrophoresis, migration distance is inversely related to fragment size, so shortest fragment arrives first. Base order = detector color order from shortest to longest fragments.',
+      body: 'After capillary electrophoresis, migration distance is inversely related to fragment size, so shortest fragment arrives first. Example ladder sizes = 80 bp, 120 bp, 170 bp, and 220 bp, so read order = 80 -> 120 -> 170 -> 220, and base order = detector color order from shortest to longest fragments.',
       diagram: wrapBioSvg(
         '<rect x="40" y="24" width="220" height="130" fill="#e0f2fe" stroke="#0369a1"/>' +
           '<line x1="70" y1="38" x2="70" y2="148" stroke="#0f172a"/><line x1="120" y1="54" x2="120" y2="148" stroke="#0f172a"/><line x1="170" y1="78" x2="170" y2="148" stroke="#0f172a"/><line x1="220" y1="104" x2="220" y2="148" stroke="#0f172a"/>' +
@@ -59,7 +59,7 @@ export const Q31: BiologyQuestionDef = {
       title: 'Compare WGS and WES with coverage arithmetic',
       formula:
         '$$\\text{WGS data} = 3.2\\,\\text{Gb} \\times 30 = 96\\,\\text{Gb}$$\n$$\\text{WES data} = 50\\,\\text{Mb} \\times 100 = 5\\,\\text{Gb}$$',
-      body: 'For the same sample, data volume = target size x depth. WGS gives 96 Gb at 30x across the genome, while WES gives 5 Gb at 100x across exons, so WES is cheaper for coding-variant detection but misses most noncoding variants.',
+      body: 'For the same sample, data volume = target size x depth, and coverage depth = reads mapped per base. WGS gives 96 Gb at 30x coverage across the genome, while WES gives 5 Gb at 100x coverage across exons, so WES is cheaper for coding-variant detection but misses most noncoding variants.',
     },
     {
       title: 'Choose technology based on the biological question',
@@ -69,7 +69,7 @@ export const Q31: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Sanger sequencing relies on ddNTP incorporation to terminate DNA extension at specific bases, producing size-separated fragments for sequence calling. NGS provides major advantages in parallelization, throughput, and cost per base. In humans, protein-coding DNA is about 1.5% of the 3.2 Gb genome. WGS surveys nearly all genomic regions (for example 3.2 Gb x 30 = 96 Gb data), while WES targets exons only (for example 50 Mb x 100 = 5 Gb), making WES efficient for coding variants but less comprehensive for noncoding and structural variation.',
+    'Sanger sequencing relies on ddNTP incorporation to terminate DNA extension at specific bases, producing size-separated fragments for sequence calling. NGS provides major advantages in parallelization, throughput, and cost per base. In humans, protein-coding DNA is about 1.5% of the 3.2 Gb genome. WGS surveys nearly all genomic regions (for example 3.2 Gb x 30 = 96 Gb data), while WES targets exons only (for example 50 Mb x 100 = 5 Gb), and coverage choices determine sensitivity for rare variants. This makes WES efficient for coding variants but less comprehensive for noncoding and structural variation.',
   verifiedPatterns: ['ddNTP', 'Sanger', 'NGS', '1.5%', 'WGS', 'WES', 'coverage'],
   minDiagramSteps: 4,
 };

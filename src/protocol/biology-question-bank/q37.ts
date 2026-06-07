@@ -37,6 +37,13 @@ export const Q37: BiologyQuestionDef = {
       formula:
         '$$2n=6\\Rightarrow n=3$$\n$$\\text{gamete combinations}=2^n=2^3=8$$',
       body: 'With n = 3 homologous pairs, independent assortment alone gives combinations = 8 genetically distinct chromosomal assortments per parent (before considering crossing over).',
+      diagram: wrapBioSvg(
+        '<text x="14" y="20" font-size="12">Independent assortment count</text>' +
+          '<rect x="24" y="40" width="252" height="100" fill="#f8fafc" stroke="#334155"/>' +
+          '<text x="40" y="70" font-size="11">n = 3 homologous pairs</text>' +
+          '<text x="40" y="92" font-size="11">gamete combinations = 2^n</text>' +
+          '<text x="40" y="116" font-size="11">2^3 = 8 unique chromosome sets</text>',
+      ),
     },
     {
       title: 'Explain crossing over and recombination',

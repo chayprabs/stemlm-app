@@ -6,7 +6,7 @@ export const Q43: BiologyQuestionDef = {
   number: 43,
   topic: 'Terrestrial Biomes, Latitude-Altitude Patterns, Greenhouse Effect, and Shannon Biodiversity',
   question:
-    'In ecology and biogeography, summarize six terrestrial biomes in a comparison table, interpret latitude-altitude biome shifts, explain the greenhouse effect energy balance, and compute biodiversity using the Shannon index.',
+    'In ecology and biogeography, summarize six terrestrial biomes for species and ecosystem patterns in a comparison table, interpret latitude-altitude biome shifts, explain the greenhouse effect radiation budget, and compute biodiversity using the Shannon index.',
   steps: [
     {
       title: 'Construct a six-biome comparison table',

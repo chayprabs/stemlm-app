@@ -10,7 +10,7 @@ export const Q40: BiologyQuestionDef = {
   steps: [
     {
       title: 'Classify major vaccine types with examples',
-      body: 'MMR is a live attenuated vaccine, many seasonal flu products are inactivated or subunit formulations, mRNA COVID platforms deliver genetic instructions, and hepatitis B vaccine is recombinant HBsAg protein. Platform choice = trade-off among immunogenicity, safety profile, and manufacturing speed.',
+      body: 'MMR is a live attenuated vaccine, many seasonal flu products are inactivated or subunit formulations, mRNA COVID platforms deliver genetic instructions, and HepB vaccine is recombinant HBsAg protein. Platform choice = trade-off among immunogenicity, safety profile, and manufacturing speed.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">Vaccine type examples</text>' +
           '<rect x="20" y="34" width="260" height="118" fill="#f8fafc" stroke="#334155"/><line x1="84" y1="34" x2="84" y2="152" stroke="#334155"/><line x1="166" y1="34" x2="166" y2="152" stroke="#334155"/><line x1="20" y1="58" x2="280" y2="58" stroke="#334155"/><line x1="20" y1="84" x2="280" y2="84" stroke="#cbd5e1"/><line x1="20" y1="110" x2="280" y2="110" stroke="#cbd5e1"/><line x1="20" y1="136" x2="280" y2="136" stroke="#cbd5e1"/>' +
@@ -25,7 +25,7 @@ export const Q40: BiologyQuestionDef = {
       title: 'Explain mRNA vaccine cellular mechanism',
       formula:
         '$$\\text{mRNA} \\rightarrow \\text{antigen protein} \\rightarrow \\text{B/T cell activation}$$',
-      body: 'Lipid nanoparticles deliver mRNA into host cells, ribosomes translate antigen, and antigen presentation triggers adaptive immunity. Antigen expression = transient because mRNA is degraded after translation and does not integrate into genomic DNA.',
+      body: 'Lipid nanoparticles deliver mRNA into host cells, ribosomes translate antigen, and antigen presentation triggers adaptive immunity. For example, if 1,000 translated antigen units trigger 300 activated lymphocytes, activation ratio = 300/1000 = 0.30. Antigen expression = transient because mRNA is degraded after translation and does not integrate into genomic DNA.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">mRNA vaccine mechanism</text>' +
           '<rect x="24" y="64" width="64" height="24" fill="#dbeafe" stroke="#1e3a8a"/><text x="56" y="80" font-size="9" text-anchor="middle">LNP-mRNA</text>' +
@@ -40,6 +40,13 @@ export const Q40: BiologyQuestionDef = {
       formula:
         '$$HIT = 1 - \\frac{1}{R_0}$$\n$$R_0=5\\Rightarrow HIT=1-0.2=0.8=80\\%$$',
       body: 'In the simple homogeneous model, critical immune fraction = 1 - 1/R0. With R0 = 5, threshold immunity = 80%, though real-world targets can be higher due to heterogeneity and waning protection.',
+      diagram: wrapBioSvg(
+        '<text x="14" y="20" font-size="12">Herd-immunity threshold math</text>' +
+          '<rect x="24" y="44" width="252" height="92" fill="#f8fafc" stroke="#334155"/>' +
+          '<text x="40" y="72" font-size="11">R0 = 5</text>' +
+          '<text x="40" y="96" font-size="11">HIT = 1 - (1/5) = 0.8</text>' +
+          '<text x="40" y="120" font-size="11">Required immune share = 80%</text>',
+      ),
     },
     {
       title: 'Relate vaccine protection to population risk reduction',
@@ -65,7 +72,7 @@ export const Q40: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Vaccine platforms include live attenuated (for example MMR), inactivated/subunit (many influenza formulations), nucleic-acid vaccines (mRNA), and recombinant protein vaccines (for example hepatitis B HBsAg). mRNA vaccines deliver transient instructions for antigen production, leading to B- and T-cell memory. Herd immunity threshold in a simple model is HIT = 1 - 1/R0, so R0 = 5 gives 80%. Autoimmune disease involves self-reactive immunity and differs from intended vaccine-induced protective immune memory.',
+    'Vaccine platforms include live attenuated (for example MMR), inactivated/subunit (many influenza formulations), nucleic-acid vaccines (mRNA), and recombinant protein vaccines (for example HepB HBsAg). mRNA vaccines deliver transient instructions for antigen production, leading to B- and T-cell memory. Herd immunity threshold in a simple model is HIT = 1 - 1/R0, so R0 = 5 gives 80%. Autoimmune disease involves self-reactive immunity and differs from intended vaccine-induced protective immune memory.',
   verifiedPatterns: ['MMR', 'flu', 'mRNA', 'HepB', 'HIT = 1 - 1/R0', 'R0', 'immune memory', 'autoimmune'],
   minDiagramSteps: 5,
 };

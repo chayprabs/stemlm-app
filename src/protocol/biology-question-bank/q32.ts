@@ -6,11 +6,11 @@ export const Q32: BiologyQuestionDef = {
   number: 32,
   topic: 'Sequence Alignment, BLAST Statistics, and Homology Terms',
   question:
-    'Differentiate global and local alignment, interpret BLAST E-values, compute percent identity for an ATGCATGCAATG alignment, and distinguish homology from ortholog/paralog relationships.',
+    'Differentiate global and local alignment for DNA sequences from genes in different species, interpret BLAST E-values, compute percent identity for an ATGCATGCAATG alignment, and distinguish homology from ortholog/paralog relationships.',
   steps: [
     {
       title: 'Contrast global and local alignment goals',
-      body: 'Global alignment compares full-length sequences end-to-end (Needleman-Wunsch), while local alignment finds the best matching subsections (Smith-Waterman). Alignment choice = function of whether full gene length similarity or conserved motif detection is needed.',
+      body: 'In global alignment, full-length sequences are compared end-to-end (Needleman-Wunsch), while local alignment finds the best matching subsections (Smith-Waterman). Alignment choice = function of whether full gene length similarity or conserved motif detection is needed.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">global vs local alignment</text>' +
           '<rect x="20" y="36" width="118" height="50" fill="#dbeafe" stroke="#1e3a8a"/><text x="30" y="52" font-size="9">global</text><line x1="34" y1="66" x2="124" y2="66" stroke="#1e3a8a" stroke-width="2"/><line x1="34" y1="78" x2="124" y2="78" stroke="#1e3a8a" stroke-width="2"/>' +
@@ -43,7 +43,7 @@ export const Q32: BiologyQuestionDef = {
     },
     {
       title: 'Differentiate orthologs and paralogs',
-      body: 'Orthologs diverge after speciation and often retain related function, whereas paralogs arise by gene duplication within a lineage and can diverge functionally. Gene relationship labels = evolutionary event labels, not expression-level labels.',
+      body: 'An ortholog relationship diverges after speciation and often retains related function, whereas paralogs arise by gene duplication within a lineage and can diverge functionally. Gene relationship labels = evolutionary event labels, not expression-level labels.',
       diagram: phylogeneticTree(),
     },
     {

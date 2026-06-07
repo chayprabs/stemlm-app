@@ -6,11 +6,11 @@ export const Q34: BiologyQuestionDef = {
   number: 34,
   topic: 'Phylogenetic Trees, Molecular Clock, and Homology Concepts',
   question:
-    'Construct a five-species phylogenetic interpretation, apply molecular clock reasoning, use cytochrome c comparisons, and distinguish homologous from analogous traits.',
+    'Construct a five-species phylogenetic interpretation for DNA/protein evolution, apply molecular clock reasoning, use cytochrome c comparisons, and distinguish homologous from analogous traits across species.',
   steps: [
     {
       title: 'Read topology from a five-species tree',
-      body: 'Tree topology represents branching order, not ladder-like progression. Sister taxa = pairs sharing the most recent common ancestor before joining deeper nodes.',
+      body: 'A phylogenetic tree topology represents branching order, not ladder-like progression. Sister taxa = pairs sharing the most recent common ancestor before joining deeper nodes.',
       diagram: wrapBioSvg(
         '<text x="14" y="18" font-size="12">Five-species phylogenetic tree</text>' +
           '<line x1="34" y1="150" x2="34" y2="34" stroke="#334155" stroke-width="3"/>' +
@@ -25,6 +25,15 @@ export const Q34: BiologyQuestionDef = {
       formula:
         '$$t = \\frac{d}{2r}$$\n$$d=0.12\\;\\text{substitutions/site},\\;r=0.01\\;\\text{site}^{-1}\\text{Myr}^{-1}\\Rightarrow t=\\frac{0.12}{0.02}=6\\;\\text{Myr}$$',
       body: 'With a roughly constant substitution rate, divergence time = distance divided by twice the lineage rate. Using d = 0.12 and r = 0.01 per Myr, time estimate = 6 Myr.',
+      diagram: wrapBioSvg(
+        '<text x="14" y="20" font-size="12">Molecular clock calculation</text>' +
+          '<line x1="40" y1="84" x2="260" y2="84" stroke="#334155" stroke-width="2"/>' +
+          '<circle cx="86" cy="84" r="8" fill="#dbeafe" stroke="#1e3a8a"/><text x="86" y="88" font-size="8" text-anchor="middle">A</text>' +
+          '<circle cx="214" cy="84" r="8" fill="#dcfce7" stroke="#166534"/><text x="214" y="88" font-size="8" text-anchor="middle">B</text>' +
+          '<text x="96" y="64" font-size="10">d = 0.12 substitutions/site</text>' +
+          '<text x="96" y="112" font-size="10">r = 0.01 per lineage per Myr</text>' +
+          '<text x="96" y="136" font-size="10">t = d/(2r) = 6 Myr</text>',
+      ),
     },
     {
       title: 'Use cytochrome c as a comparative molecular marker',
@@ -42,7 +51,7 @@ export const Q34: BiologyQuestionDef = {
     },
     {
       title: 'Separate homologous from analogous traits',
-      body: 'Homologous structures share ancestry (for example vertebrate forelimbs), while analogous structures share function through convergent evolution (for example bird wing and insect wing). Trait similarity = not always evidence of close ancestry.',
+      body: 'homologous structures share ancestry (for example vertebrate forelimbs), while analogous structures share function through convergent evolution (for example bird wing and insect wing). Trait similarity = not always evidence of close ancestry.',
       diagram: wrapBioSvg(
         '<text x="14" y="20" font-size="12">homology vs analogy</text>' +
           '<rect x="22" y="34" width="120" height="112" fill="#dbeafe" stroke="#1e3a8a"/><text x="32" y="52" font-size="10">homologous</text><text x="32" y="72" font-size="9">same origin</text><text x="32" y="92" font-size="9">different functions possible</text>' +

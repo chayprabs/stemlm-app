@@ -23,7 +23,7 @@ export const Q45: BiologyQuestionDef = {
       title: 'Trace RTK activation through MAPK cascade',
       formula:
         '$$\\text{ligand}+2\\,\\text{RTK}\\Rightarrow \\text{dimer}$$\n$$\\text{RTK-P}\\Rightarrow \\text{RAS-GTP}\\Rightarrow \\text{RAF}\\Rightarrow \\text{MEK}\\Rightarrow \\text{ERK}$$',
-      body: 'RTK signaling starts when ligand concentration is sufficient for receptor dimerization = active autophosphorylation. Phosphotyrosine docking recruits adaptor proteins, leading to RAS activation and MAPK cascade. Nuclear ERK activity = altered transcription factor phosphorylation and gene expression.',
+      body: 'RTK signaling starts when ligand concentration is sufficient for receptor dimerization = active autophosphorylation. For example, if ligand-bound dimers = 40 and 75% autophosphorylate, active RTK-P dimers = 30 before downstream RAS recruitment. Phosphotyrosine docking recruits adaptor proteins, leading to RAS activation and MAPK cascade. Nuclear ERK activity = altered transcription factor phosphorylation and gene expression.',
       diagram: wrapBioSvg(
         '<text x="14" y="18" font-size="12">RTK-MAPK pathway</text>' +
           '<line x1="150" y1="34" x2="150" y2="152" stroke="#334155" stroke-width="3"/>' +
@@ -48,7 +48,7 @@ export const Q45: BiologyQuestionDef = {
       title: 'Compute cascade amplification magnitude',
       formula:
         '$$1\\,\\text{receptor}\\times50\\,G\\text{-proteins}\\times100\\,\\text{cAMP s}^{-1}\\times10\\,\\text{s}=50{,}000\\,\\text{cAMP}$$',
-      body: 'Amplification is multiplicative: receptor count = 1, activated G proteins per receptor = 50, cAMP molecules per second per cyclase = 100, and duration = 10 s. Total output = 50,000 cAMP molecules, showing how weak extracellular signals become strong intracellular responses.',
+      body: 'Amplification is multiplicative: receptor count = 1, activated G proteins per receptor = 50, cAMP molecules per second per cyclase = 100, and duration = 10 s. Total output = 50,000 cAMP molecules (50000), showing how weak extracellular signals become strong intracellular responses.',
     },
     {
       title: 'Include signal termination and adaptation',
