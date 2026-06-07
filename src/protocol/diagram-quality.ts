@@ -183,9 +183,20 @@ export function auditStepDiagramCompleteness(step: Step, capsule: Capsule): Pars
   const issues: ParseWarningCode[] = [];
 
   const kind = diagramStepKind(step);
+  const modelMinPrimitives = isElectrical(capsule) ? 8 : 4;
+  const modelMinLabels = isElectrical(capsule) ? 4 : 2;
   const minPrimitives =
-    kind === 'model' ? 8 : kind === 'equation' ? 1 : kind === 'table' ? 2 : isElectrical(capsule) ? 4 : 4;
-  const minLabels = kind === 'model' ? 4 : kind === 'equation' ? 1 : kind === 'table' ? 3 : 2;
+    kind === 'model'
+      ? modelMinPrimitives
+      : kind === 'equation'
+        ? 1
+        : kind === 'table'
+          ? 2
+          : isElectrical(capsule)
+            ? 4
+            : 4;
+  const minLabels =
+    kind === 'model' ? modelMinLabels : kind === 'equation' ? 1 : kind === 'table' ? 3 : 2;
   const isModel = kind === 'model';
 
   if (primitives < minPrimitives || labels < minLabels) {

@@ -39,6 +39,18 @@ import {
   quickCheckQualityMessage,
 } from './quickcheck-quality';
 
+/**
+ * Count prose sentences in a step body without treating math decimals as boundaries.
+ * Protects $...$ / $$...$$ blocks and numeric literals like 9.8 from `.` splits.
+ */
+export function countBodySentences(body: string): number {
+  let masked = body
+    .replace(/\$\$[\s\S]*?\$\$/g, (m) => m.replace(/\./g, '\u0000'))
+    .replace(/\$[^$\n]*?\$/g, (m) => m.replace(/\./g, '\u0000'));
+  masked = masked.replace(/\d+\.\d+/g, (m) => m.replace(/\./g, '\u0000'));
+  return masked.split(/[.!?]+/).filter((s) => s.trim().length > 0).length;
+}
+
 const STRUCTURAL_MARKERS = new Set([
   '@meta',
   '@endmeta',
@@ -560,8 +572,8 @@ export function parseCapsule(capsuleText: string): ParseResult {
   }
   const warnedQuality = new Set<string>();
   for (const step of steps) {
-    const sentences = step.body.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-    if (step.body.length > 420 || sentences.length > 4) {
+    const sentences = countBodySentences(step.body);
+    if (step.body.length > 420 || sentences > 4) {
       const key = `step_body_too_long:${step.index}`;
       if (!warnedQuality.has(key)) {
         warnedQuality.add(key);

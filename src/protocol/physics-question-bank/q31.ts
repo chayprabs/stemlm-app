@@ -16,8 +16,10 @@ export const Q31: PhysicsQuestionDef = {
       diagram: wrapPhysicsSvg(
         '<line x1="40" y1="140" x2="270" y2="140" stroke="#333" stroke-width="2"/>' +
           '<line x1="40" y1="140" x2="40" y2="25" stroke="#333" stroke-width="2"/>' +
+          '<circle cx="55" cy="130" r="5" fill="#dc2626"/>' +
           '<path d="M 50 65 Q 95 95 140 110 Q 190 122 255 135" fill="none" stroke="#1d4ed8" stroke-width="2.5"/>' +
-          '<text x="58" y="58" font-size="11">|\u03c8(r)|^2</text>' +
+          '<line x1="55" y1="130" x2="90" y2="105" stroke="#64748b" stroke-width="1" stroke-dasharray="3 2"/>' +
+          '<text x="58" y="58" font-size="11">|psi(r)|^2</text>' +
           '<text x="16" y="30" font-size="11">amp</text><text x="262" y="156" font-size="11">r</text>',
       ),
     },

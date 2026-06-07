@@ -71,7 +71,9 @@ export function fbdHangingMass(opts: { label?: string }): string {
   const label = opts.label ?? 'm2';
   return wrapPhysicsSvg(
     ARROW_RED +
+      `<line x1="80" y1="145" x2="220" y2="145" stroke="#333" stroke-width="2"/>` +
       `<rect x="125" y="55" width="50" height="40" fill="#fef3c7" stroke="#333" stroke-width="2"/>` +
+      `<line x1="150" y1="55" x2="150" y2="30" stroke="#64748b" stroke-width="1" stroke-dasharray="3 2"/>` +
       `<text x="142" y="80" font-size="12">${label}</text>` +
       `<line x1="150" y1="55" x2="150" y2="25" stroke="#16a34a" stroke-width="2" marker-end="url(#arr)"/><text x="158" y="30" font-size="11" fill="#16a34a">T</text>` +
       `<line x1="150" y1="95" x2="150" y2="145" stroke="#b91c1c" stroke-width="2" marker-end="url(#arr)"/><text x="158" y="155" font-size="11" fill="#b91c1c">m2g</text>`,

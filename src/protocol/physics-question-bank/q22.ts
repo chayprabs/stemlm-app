@@ -13,7 +13,9 @@ export const Q22: PhysicsQuestionDef = {
       formula: '$$E_1^{(0)}=\frac{\pi^2\hbar^2}{2mL^2}$$',
       body: 'For an electron with $L=1.0\times10^{-9}\,\text{m}$, $E_1^{(0)}=\pi^2(1.055\times10^{-34})^2/[2(9.11\times10^{-31})(1.0\times10^{-9})^2]=6.02\times10^{-20}\,\text{J}=0.376\,\text{eV}$.',
       diagram: wrapPhysicsSvg(
-        '<rect x="55" y="45" width="170" height="95" fill="none" stroke="#333" stroke-width="2"/>' +
+        '<line x1="55" y1="140" x2="55" y2="45" stroke="#333" stroke-width="3"/>' +
+          '<line x1="225" y1="140" x2="225" y2="45" stroke="#333" stroke-width="3"/>' +
+          '<line x1="55" y1="140" x2="225" y2="140" stroke="#333" stroke-width="2"/>' +
           '<line x1="55" y1="140" x2="225" y2="45" stroke="#dc2626" stroke-width="2"/>' +
           '<text x="230" y="50" font-size="11" fill="#dc2626">V1(x)=V0 x/L</text>' +
           '<text x="95" y="34" font-size="11">infinite well 0..L</text>' +

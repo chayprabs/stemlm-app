@@ -41,7 +41,7 @@ export const Q20: PhysicsQuestionDef = {
       title: 'Position and momentum uncertainties in |n=2>',
       formula:
         '$$\\Delta x=\\sqrt{\\frac{(n+1/2)\\hbar}{m\\omega}},\\quad \\Delta p=\\sqrt{(n+1/2)m\\hbar\\omega},\\quad \\Delta x\\Delta p=(n+1/2)\\hbar$$',
-      body: 'With $n=2$, $m=1.0\\times10^{-26}\\,\\text{kg}$, $\\omega=2.0\\times10^{13}\\,\\text{s}^{-1}$: $\\Delta x=\\sqrt{\\frac{2.5(1.054\\times10^{-34})}{(1.0\\times10^{-26})(2.0\\times10^{13})}}=3.63\\times10^{-11}\\,\\text{m}$, $\\Delta p=\\sqrt{2.5(1.0\\times10^{-26})(1.054\\times10^{-34})(2.0\\times10^{13})}=7.26\\times10^{-24}\\,\\text{kg·m/s}$, so $\\Delta x\\Delta p=(3.63\\times10^{-11})(7.26\\times10^{-24})=2.64\\times10^{-34}\\,\\text{J·s}=2.5\\hbar$.',
+      body: 'With $n=2$, $m=1.0\\times10^{-26}\\,\\text{kg}$, $\\omega=2.0\\times10^{13}\\,\\text{s}^{-1}$: $\\Delta x=3.63\\times10^{-11}\\,\\text{m}$ and $\\Delta p=7.26\\times10^{-24}\\,\\text{kg·m/s}$. Product $\\Delta x\\Delta p=2.5\\hbar$ as expected for $|n=2\\rangle$.',
     },
     {
       title: 'Coherent state statistics and mean energy',

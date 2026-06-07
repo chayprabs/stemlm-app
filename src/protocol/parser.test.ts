@@ -347,6 +347,13 @@ describe('parse (12 V half-wave diode hard benchmark)', () => {
 });
 
 describe('atomic step guidance', () => {
+  it('does not warn step_body_too_long for decimals inside math', () => {
+    const r = parseCapsule(
+      '@meta\nsubject: Physics\ntopic: test\n@endmeta\n@step\ntitle: Numeric work\n@body\nWith $m=0.5\\,\\text{kg}$ and $a=0.613\\,\\text{m/s}^2$, tension is $T=27.6\\,\\text{N}$.\n@endbody\n@endstep\n@step\ntitle: b\n@body\nok\n@endbody\n@endstep\n@step\ntitle: c\n@body\nok\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end',
+    );
+    expect(r.warningCodes).not.toContain('step_body_too_long');
+  });
+
   it('warns when a step body packs multiple moves', () => {
     const body = [
       'First we substitute $x=2$.',
