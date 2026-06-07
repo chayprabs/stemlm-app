@@ -391,7 +391,7 @@ export class StemController {
       useStore
         .getState()
         .setStatus(
-          'error',
+          'ready',
           `${weakSteps.length} steps are missing worked math. A repair prompt was added to the chat — send it for a complete answer.`,
         );
     }
@@ -476,6 +476,7 @@ export class StemController {
       useStore.setState((s) => ({
         sessions: s.sessions.map((sess) => (sess.id === last.id ? session : sess)),
         status: 'ready',
+        errorMessage: undefined,
       }));
     } else {
       store.addSession(session);
@@ -513,10 +514,12 @@ export class StemController {
     }
 
     const store = useStore.getState();
-    store.setStatus(
-      'error',
-      'No stemLM answers found in this chat. Solve a question with stemLM first.',
-    );
+    if (store.sessions.length === 0) {
+      store.setStatus(
+        'error',
+        'No stemLM answers found in this chat. Solve a question with stemLM first.',
+      );
+    }
     this.startWatching();
     return 0;
   }

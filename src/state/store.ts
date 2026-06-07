@@ -87,6 +87,7 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: session.id,
       activeStepIndex: 0,
       status: 'ready',
+      errorMessage: undefined,
       view: 'steps',
     })),
 
@@ -96,6 +97,7 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: sessions[sessions.length - 1]?.id,
       activeStepIndex: 0,
       status: sessions.length ? 'ready' : 'idle',
+      errorMessage: undefined,
     })),
 
   setActiveSession: (id) => set({ activeSessionId: id, activeStepIndex: 0, view: 'steps' }),
