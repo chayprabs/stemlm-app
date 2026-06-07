@@ -13,6 +13,56 @@ import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 const TEN_STEP_BODY = TEN_STEP_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
+const WEAK_DIAGRAM_BODY = [
+  '@meta',
+  'version: 1',
+  'subject: Electrical',
+  'topic: Simple circuit',
+  'question: Consider the circuit with a 12 V source and two series resistors.',
+  '@endmeta',
+  '@step',
+  'title: Find total resistance',
+  '@formula',
+  '$$R_T=R_1+R_2$$',
+  '@endformula',
+  '@body',
+  '$R_T$ is total series resistance. With $R_1=2\\,\\Omega$ and $R_2=4\\,\\Omega$: $R_T=2+4=6\\,\\Omega$.',
+  '@endbody',
+  '@endstep',
+  '@step',
+  'title: Compute source current',
+  '@formula',
+  '$$I=\\frac{V}{R_T}$$',
+  '@endformula',
+  '@body',
+  '$I$ is source current. With $V=12\\,\\text{V}$ and $R_T=6\\,\\Omega$: $I=12/6=2\\,\\text{A}$.',
+  '@endbody',
+  '@endstep',
+  '@step',
+  'title: Compute resistor voltage',
+  '@formula',
+  '$$V_1=IR_1$$',
+  '@endformula',
+  '@body',
+  '$V_1$ is the voltage across $R_1$. With $I=2\\,\\text{A}$ and $R_1=2\\,\\Omega$: $V_1=2\\times2=4\\,\\text{V}$.',
+  '@endbody',
+  '@endstep',
+  '@solution',
+  'The total current is $2\\,\\text{A}$ and $V_1=4\\,\\text{V}$.',
+  '@endsolution',
+  '@end',
+].join('\n');
+const MALFORMED_NO_STEPS_BODY = [
+  '@meta',
+  'version: 1',
+  'subject: Electrical',
+  'topic: Broken capsule',
+  '@endmeta',
+  '@solution',
+  'This response has no steps.',
+  '@endsolution',
+  '@end',
+].join('\n');
 
 class MockAdapter implements PlatformAdapter {
   id = 'gemini' as const;
@@ -321,6 +371,38 @@ describe('StemController capture', () => {
     expect(session?.capsule.steps[9]?.index).toBe(10);
     expect(useStore.getState().activeStepIndex).toBe(0);
     expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+  });
+
+  it('does not append a repair prompt after a usable answer with diagram warnings', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [WEAK_DIAGRAM_BODY];
+    const c = new StemController(adapter);
+
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(useStore.getState().sessions.length).toBe(1);
+    expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().errorMessage).toBeUndefined();
+    expect(adapter.editorText).not.toContain('Your previous stemLM capsule');
+    expect(adapter.editorText).not.toContain('Re-emit the FULL answer');
+    c.stopWatching();
+  });
+
+  it('does not append a repair prompt when a malformed response cannot be used', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [MALFORMED_NO_STEPS_BODY];
+    const c = new StemController(adapter);
+
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(useStore.getState().sessions.length).toBe(0);
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toContain('Parser code:');
+    expect(adapter.editorText).not.toContain('Your previous stemLM capsule');
+    expect(adapter.editorText).not.toContain('Re-emit the FULL answer');
     c.stopWatching();
   });
 });

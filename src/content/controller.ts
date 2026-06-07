@@ -12,7 +12,6 @@ import {
   buildInjectionPayload,
   buildInjectionPrompt,
   buildFollowupAskInChatPrompt,
-  buildRepairPrompt,
   normalizeFollowupSelection,
   PROTOCOL_FILENAME,
 } from '@/src/protocol/builder';
@@ -24,11 +23,7 @@ import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { auditCapsuleDiagrams } from '@/src/protocol/diagram-quality';
-import {
-  auditStepQuality,
-  capsuleNeedsStepQualityRepair,
-  stepHasHardQualityIssue,
-} from '@/src/protocol/step-quality';
+import { auditStepQuality } from '@/src/protocol/step-quality';
 
 /** Fallback key when mirrored/workspace sessions strip bulky raw text. */
 function sessionDedupKey(
@@ -69,7 +64,6 @@ export class StemController {
   private static readonly CAPTURED_RAW_MAX = 100;
   private lastQuestion = '';
   private watching = false;
-  private repairPromptInserted = false;
 
   // Answer-started detection (used to open the panel only once the assistant
   // actually begins responding, rather than the moment we inject).
@@ -273,7 +267,6 @@ export class StemController {
     this.answerStarted = false;
     this.stableText = '';
     this.stableSince = 0;
-    this.repairPromptInserted = false;
     try {
       this.baselineBlocks = this.adapter.getAssistantBlocks().length;
     } catch {
@@ -303,7 +296,6 @@ export class StemController {
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
     this.stableText = '';
     this.stableSince = 0;
-    this.repairPromptInserted = false;
   }
 
   private scheduleCheck(): void {
@@ -396,56 +388,12 @@ export class StemController {
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
-  /** When steps lack worked @body or circuit diagrams, queue a repair prompt. */
-  private offerQualityRepair(result: ParseResult): void {
-    if (this.repairPromptInserted || !result.capsule) return;
-
-    const weakSteps = result.capsule.steps.filter((s) => auditStepQuality(s).length > 0);
-    if (weakSteps.length && capsuleNeedsStepQualityRepair(result.capsule.steps)) {
-      const firstHard = weakSteps.find(stepHasHardQualityIssue);
-      const code = firstHard
-        ? auditStepQuality(firstHard)[0]
-        : auditStepQuality(weakSteps[0]!)[0];
-      if (!code) return;
-      const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
-      this.repairPromptInserted = inserted || this.repairPromptInserted;
-      if (inserted && weakSteps.length >= result.capsule.steps.length / 2) {
-        useStore
-          .getState()
-          .setStatus(
-            'ready',
-            `${weakSteps.length} steps are missing worked math. A repair prompt was added to the chat — send it for a complete answer.`,
-          );
-      }
-      return;
-    }
-
-    const diagramIssues = auditCapsuleDiagrams(result.capsule);
-    if (!diagramIssues.length) return;
-    const code = diagramIssues[0];
-    if (!code) return;
-    const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
-    this.repairPromptInserted = inserted || this.repairPromptInserted;
-    if (inserted) {
-      useStore
-        .getState()
-        .setStatus(
-          'ready',
-          'Circuit diagrams are missing or too sparse. A repair prompt was added to the chat — send it for diagrams on every topology step.',
-        );
-    }
-  }
-
+  /** Surface malformed responses without mutating the user's chat composer. */
   private offerRepairPrompt(result: ParseResult): void {
     const code = result.errorCode ?? result.warningCodes[0] ?? 'no_usable_content';
-    const inserted =
-      !this.repairPromptInserted &&
-      this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
-    this.repairPromptInserted = inserted || this.repairPromptInserted;
-    const suffix = inserted ? ' A repair prompt has been added to the chatbox; send it to retry.' : '';
     useStore
       .getState()
-      .setStatus('error', `stemLM couldn't read a structured answer from this response.${suffix}`);
+      .setStatus('error', `stemLM couldn't read a structured answer from this response. Parser code: ${code}.`);
     this.resetInjection();
     void trackEvent('extension_error', {
       platform: this.adapter.id,
@@ -453,7 +401,7 @@ export class StemController {
       parse_status: result.status,
       parse_error_code: code,
       warnings_count: result.warningCodes.length,
-      repair_used: inserted,
+      repair_used: false,
       prompt_variant: useStore.getState().settings.promptVariant,
     });
   }
@@ -487,6 +435,8 @@ export class StemController {
       return;
     }
     const diagrams = allDiagrams(result.capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])), result.capsule.solutionDiagrams);
+    const stepQualityIssues = result.capsule.steps.flatMap((s) => auditStepQuality(s));
+    const diagramIssues = auditCapsuleDiagrams(result.capsule);
     const store = useStore.getState();
     const topic = result.capsule.meta.topic;
     const cleanedQuestion =
@@ -523,7 +473,6 @@ export class StemController {
     } else {
       store.addSession(session);
     }
-    this.offerQualityRepair(result);
     this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,
@@ -532,7 +481,9 @@ export class StemController {
       prompt_variant: useStore.getState().settings.promptVariant,
       parse_status: result.status,
       warnings_count: result.warningCodes.length,
-      step_work_ok: result.capsule.steps.every((s) => auditStepQuality(s).length === 0) ? 1 : 0,
+      step_quality_warnings_count: stepQualityIssues.length,
+      diagram_warnings_count: diagramIssues.length,
+      step_work_ok: stepQualityIssues.length === 0 ? 1 : 0,
       had_svg: diagrams.some((d) => d.type === 'svg'),
       had_mermaid: diagrams.some((d) => d.type === 'mermaid'),
     });

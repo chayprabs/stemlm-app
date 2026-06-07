@@ -22,7 +22,10 @@ export function isExtensionContextValid(): boolean {
 export function extensionAssetUrl(path: string): string {
   if (!isExtensionContextValid()) return path;
   try {
-    return browser.runtime.getURL(path);
+    const runtime = browser.runtime as typeof browser.runtime & {
+      getURL: (path: string) => string;
+    };
+    return runtime.getURL(path);
   } catch {
     return path;
   }

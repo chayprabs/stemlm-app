@@ -78,6 +78,7 @@ describe('buildInjectionAppendix', () => {
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
     expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
     expect(prompt).toContain('CRITICAL — electrical/visual problems MUST include @diagram type=svg');
+    expect(prompt).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
   });
@@ -97,6 +98,7 @@ describe('buildInjectionPayload', () => {
     expect(payload.subject).toBe('Electrical');
     expect(payload.composerText).toContain('Solve this circuit');
     expect(payload.composerText).toContain(PROTOCOL_FILENAME);
+    expect(payload.composerText).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
     expect(payload.composerText).not.toContain('OUTPUT:');
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');

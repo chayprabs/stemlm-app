@@ -51,6 +51,12 @@ export const STEP_DIAGRAM_REQUIREMENT = [
   'PHASOR: Re/Im at axis ends; real/imag values (18/97, j8/97) at projection foot on dashed line; I1/I2 beside arrowhead not on stroke.',
 ].join('\n');
 
+/** Keeps the first model response complete so the app never needs to patch the chat afterward. */
+export const FIRST_PASS_COMPLETION_REQUIREMENT = [
+  'FIRST PASS ONLY: produce the complete corrected capsule now; do not rely on a later repair/retry prompt.',
+  'Before sending, self-check that the output is exactly one fenced stemlm block ending in @end, every @step has non-empty @body work, and every required SVG is complete and labeled.',
+].join('\n');
+
 /** Blank lines after this label are where the student types their follow-up question. */
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
 
@@ -116,6 +122,7 @@ export function buildComposerStub(question: string, subject: Subject, opt?: Pick
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     STEP_BODY_REQUIREMENT,
     STEP_DIAGRAM_REQUIREMENT,
+    FIRST_PASS_COMPLETION_REQUIREMENT,
     'No prose outside the block.',
   ].join('\n');
 }
@@ -143,7 +150,7 @@ export function buildInjectionAppendix(question: string, opt?: BuildOptions): Bu
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${STEP_DIAGRAM_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${STEP_DIAGRAM_REQUIREMENT}\n\n${FIRST_PASS_COMPLETION_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
   return { prompt, subject, variant };
 }
 
@@ -204,6 +211,7 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
     STEP_DIAGRAM_REQUIREMENT,
+    FIRST_PASS_COMPLETION_REQUIREMENT,
     'No prose outside the block.',
   ].join('\n');
 }
