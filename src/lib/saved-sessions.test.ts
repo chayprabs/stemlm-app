@@ -48,6 +48,9 @@ import {
   sessionToSnapshot,
   snapshotToSession,
   normalizeStoredSession,
+  estimateSnapshotBytes,
+  trimSavedSessionsToBudget,
+  MAX_SAVED_BYTES,
 } from './saved-sessions';
 
 function makeSession(overrides: Partial<Session> & { id: string }): Session {
@@ -157,9 +160,49 @@ describe('saved-sessions', () => {
     });
   });
 
+  describe('trimSavedSessionsToBudget', () => {
+    it('drops oldest snapshots when the byte budget is exceeded', () => {
+      const heavy = sessionToSnapshot(
+        makeSession({
+          id: 'heavy',
+          capsule: {
+            meta: { version: 1, subject: 'Math', topic: 'Big' },
+            steps: [
+              {
+                id: 'step-1',
+                index: 1,
+                title: 'Diagram',
+                body: 'x',
+                diagram: { type: 'svg', content: `<svg>${'x'.repeat(5_000)}</svg>` },
+              },
+            ],
+            solution: 'done',
+            solutionDiagrams: [],
+          },
+        }),
+      );
+      const older = sessionToSnapshot(makeSession({ id: 'older' }));
+      const newest = sessionToSnapshot(makeSession({ id: 'newest' }));
+      const budget = estimateSnapshotBytes([newest, heavy]) + 128;
+      expect(estimateSnapshotBytes([newest, heavy, older])).toBeGreaterThan(budget);
+      const { sessions, prunedCount } = trimSavedSessionsToBudget(
+        [
+          { ...older, savedAt: 1 },
+          { ...heavy, savedAt: 2 },
+          { ...newest, savedAt: 3 },
+        ],
+        budget,
+      );
+      expect(prunedCount).toBeGreaterThan(0);
+      expect(sessions.map((s) => s.id)).toEqual(['newest', 'heavy']);
+      expect(estimateSnapshotBytes(sessions)).toBeLessThanOrEqual(budget);
+    });
+  });
+
   describe('saveSession', () => {
     it('stores a compact snapshot with steps', async () => {
-      await saveSession(makeSession({ id: 'new', question: 'Integrate x' }));
+      const result = await saveSession(makeSession({ id: 'new', question: 'Integrate x' }));
+      expect(result.prunedCount).toBe(0);
 
       const stored = storedSnapshots()[0] as Record<string, unknown>;
       expect(stored.id).toBe('new');

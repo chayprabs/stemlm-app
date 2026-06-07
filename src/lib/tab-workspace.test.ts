@@ -77,9 +77,14 @@ describe('tab-workspace', () => {
     expect(loaded?.sessions[0]?.raw).toBe('');
   });
 
-  it('ignores backup from a different tab', async () => {
+  it('keeps independent backups per tab id', async () => {
     await saveTabWorkspace(workspaceFromStore(99, { sessions: [sampleSession('x')], activeStepIndex: 0 }));
-    expect(await loadTabWorkspace(42)).toBeNull();
+    await saveTabWorkspace(workspaceFromStore(42, { sessions: [sampleSession('y')], activeStepIndex: 1 }));
+
+    expect(await loadTabWorkspace(42)).toMatchObject({ activeStepIndex: 1 });
+    expect(await loadTabWorkspace(99)).toMatchObject({ activeStepIndex: 0 });
+    expect((await loadTabWorkspace(42))?.sessions[0]?.id).toBe('y');
+    expect((await loadTabWorkspace(99))?.sessions[0]?.id).toBe('x');
   });
 
   it('consumes a pending panel action once', async () => {

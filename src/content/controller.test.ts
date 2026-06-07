@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StemController } from './controller';
+import { attachTextFile } from '@/src/lib/file-inject';
+import { PROTOCOL_FILENAME } from '@/src/protocol/builder';
+
+vi.mock('@/src/lib/file-inject', () => ({
+  attachTextFile: vi.fn(async () => ({ ok: false, method: 'none' as const })),
+}));
 import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
@@ -88,7 +94,24 @@ function resetStore() {
 }
 
 describe('StemController.inject', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+  });
+
+  it('uses file attach on an empty composer when upload succeeds', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+    const adapter = new MockAdapter();
+    adapter.editorText = '';
+    const c = new StemController(adapter);
+
+    const ok = await c.inject();
+    expect(ok).toBe(true);
+    expect(attachTextFile).toHaveBeenCalled();
+    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).not.toContain('OUTPUT:');
+    c.stopWatching();
+  });
 
   it('pastes the full protocol prompt into the composer', async () => {
     const adapter = new MockAdapter();

@@ -19,6 +19,22 @@ export function sessionsForMirror(sessions: Session[]): Session[] {
   }));
 }
 
+/** Merge by session id — keep the copy with the latest updatedAt. */
+export function mergeMirroredSessions(local: Session[], incoming: Session[]): Session[] {
+  const byId = new Map<string, Session>();
+  for (const session of [...local, ...incoming]) {
+    const existing = byId.get(session.id);
+    if (!existing || session.updatedAt >= existing.updatedAt) {
+      byId.set(session.id, session);
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function sessionsMirrorFingerprint(sessions: Session[]): string {
+  return sessions.map((s) => `${s.id}:${s.updatedAt}:${s.reviewedStepIds.length}`).join('|');
+}
+
 export async function mirrorActiveSessions(sessions: Session[]): Promise<void> {
   try {
     await browser.storage.session.set({ [KEY]: sessionsForMirror(sessions) });

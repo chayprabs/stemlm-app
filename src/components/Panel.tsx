@@ -106,9 +106,17 @@ export function Panel() {
         void trackEvent('session_unsaved', { platform: session.platform });
         return;
       }
-      await saveSession(session);
+      const { prunedCount } = await saveSession(session);
       setSaved(true);
       void trackEvent('session_saved', { platform: session.platform });
+      if (prunedCount > 0) {
+        useStore
+          .getState()
+          .setStatus(
+            'ready',
+            `Saved. Removed ${prunedCount} older save${prunedCount === 1 ? '' : 's'} to free storage.`,
+          );
+      }
     } catch (err) {
       if (!saved) setSaved(false);
       const msg =
@@ -206,8 +214,11 @@ export function Panel() {
         </div>
       )}
 
-      {errorMessage && status === 'error' && (
-        <div className="slm-banner slm-banner-error" role="alert">
+      {errorMessage && (
+        <div
+          className={`slm-banner ${status === 'error' ? 'slm-banner-error' : 'slm-banner-info'}`}
+          role={status === 'error' ? 'alert' : 'status'}
+        >
           {errorMessage}
         </div>
       )}

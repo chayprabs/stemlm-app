@@ -9,11 +9,14 @@
 import type { PlatformAdapter } from '@/src/platforms/types';
 import {
   buildInjectionAppendix,
+  buildInjectionPayload,
   buildInjectionPrompt,
   buildFollowupAskInChatPrompt,
   buildRepairPrompt,
   normalizeFollowupSelection,
+  PROTOCOL_FILENAME,
 } from '@/src/protocol/builder';
+import { attachTextFile } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
@@ -94,10 +97,31 @@ export class StemController {
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
-    const { prompt, subject } = hasUserContent
-      ? buildInjectionAppendix(question, { variant })
-      : buildInjectionPrompt(question, { variant });
-    const ok = await this.insertVerifiedPrompt(prompt, hasUserContent ? 'append' : 'replace');
+    let subject: Subject;
+    let ok: boolean;
+    let injectionMethod: 'text' | 'file' = 'text';
+
+    if (hasUserContent) {
+      const built = buildInjectionAppendix(question, { variant });
+      subject = built.subject;
+      ok = await this.insertVerifiedPrompt(built.prompt, 'append');
+    } else {
+      const payload = buildInjectionPayload(question, { variant });
+      subject = payload.subject;
+      const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
+      if (attached.ok) {
+        ok = await this.insertVerifiedPrompt(payload.composerText, 'replace', { fileAttach: true });
+        if (ok) injectionMethod = 'file';
+      } else {
+        ok = false;
+      }
+      if (!ok) {
+        const built = buildInjectionPrompt(question, { variant });
+        subject = built.subject;
+        ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
+        injectionMethod = 'text';
+      }
+    }
 
     if (!ok) {
       store.setStatus(
@@ -115,7 +139,7 @@ export class StemController {
       platform: this.adapter.id,
       subject,
       prompt_variant: variant,
-      injection_method: 'text',
+      injection_method: injectionMethod,
     });
 
     this.startWatching();
@@ -174,10 +198,18 @@ export class StemController {
   private async insertVerifiedPrompt(
     prompt: string,
     mode: 'replace' | 'append' = 'replace',
+    opt?: { fileAttach?: boolean },
   ): Promise<boolean> {
-    const marker = 'stemLM instructions';
-    const looksComplete = (text: string) =>
-      text.includes(marker) && text.includes('OUTPUT:') && !text.includes('stemlm-protocol.txt');
+    const looksComplete = (text: string) => {
+      if (opt?.fileAttach) {
+        return text.includes(PROTOCOL_FILENAME) || text.includes('Follow the attached');
+      }
+      return (
+        text.includes('stemLM instructions') &&
+        text.includes('OUTPUT:') &&
+        !text.includes(PROTOCOL_FILENAME)
+      );
+    };
 
     const tryOnce = () => {
       if (!this.adapter.insertPrompt(prompt, mode)) return false;
@@ -187,6 +219,35 @@ export class StemController {
     if (tryOnce()) return true;
     await new Promise((r) => setTimeout(r, 120));
     return tryOnce();
+  }
+
+  /** Prefer the chat conversation root over all of document.body. */
+  private watchRoot(): ParentNode {
+    for (const sel of this.adapter.layoutRoots) {
+      try {
+        const el = document.querySelector(sel);
+        if (el) return el;
+      } catch {
+        /* invalid selector */
+      }
+    }
+    const blocks = this.adapter.getAssistantBlocks();
+    if (blocks.length > 0) {
+      let node: HTMLElement | null = blocks[blocks.length - 1] ?? null;
+      for (let i = 0; i < 8 && node; i++) {
+        if (
+          node.matches?.(
+            'infinite-scroller, chat-window, .conversation-container, main, [class*="conversation"]',
+          )
+        ) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+      const parent = blocks[blocks.length - 1]?.parentElement;
+      if (parent) return parent;
+    }
+    return document.body;
   }
 
   /** Reset answer-started detection and snapshot the current message count. */
@@ -207,7 +268,7 @@ export class StemController {
     if (this.watching) return;
     this.watching = true;
     this.observer = new MutationObserver(() => this.scheduleCheck());
-    this.observer.observe(document.body, {
+    this.observer.observe(this.watchRoot(), {
       childList: true,
       subtree: true,
       characterData: true,
@@ -466,6 +527,11 @@ export class StemController {
     const capsules = this.adapter.extractCapsules();
     const sessions: Session[] = [];
     const seen = new Set<string>();
+    const existingByRaw = new Map<string, Session>();
+    for (const s of store.sessions) {
+      const k = (findCapsuleRaw(s.raw) ?? s.raw).trim();
+      if (k) existingByRaw.set(k, s);
+    }
 
     for (const candidate of capsules) {
       const text = findCapsuleRaw(candidate) ?? candidate;
@@ -479,14 +545,15 @@ export class StemController {
 
       seen.add(key);
       this.rememberCaptured(key);
+      const prev = existingByRaw.get(key);
       sessions.push({
-        id: makeId(),
-        createdAt: Date.now(),
+        id: prev?.id ?? makeId(),
+        createdAt: prev?.createdAt ?? Date.now(),
         updatedAt: Date.now(),
         platform: this.adapter.id,
-        question: result.capsule!.meta.topic,
+        question: prev?.question ?? result.capsule!.meta.topic,
         capsule: result.capsule!,
-        reviewedStepIds: [],
+        reviewedStepIds: prev?.reviewedStepIds ?? [],
         raw: result.raw,
       });
     }

@@ -13,8 +13,10 @@ import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
 import { trackEvent } from '@/src/lib/analytics';
 import {
   loadMirroredSessions,
+  mergeMirroredSessions,
   mirrorActiveSessions,
   onMirroredSessionsChanged,
+  sessionsMirrorFingerprint,
 } from '@/src/lib/session-sync';
 import { removeSplit } from '@/src/lib/split-screen';
 import { removeComposerSlot } from '@/src/lib/composer-slot';
@@ -137,18 +139,19 @@ export default defineContentScript({
     const stopMirrorWatch = onMirroredSessionsChanged((shared) => {
       if (!useStore.getState().settings.shareAcrossTabs) return;
       const current = useStore.getState();
-      if (JSON.stringify(current.sessions) === JSON.stringify(shared)) return;
+      const merged = mergeMirroredSessions(current.sessions, shared);
+      if (sessionsMirrorFingerprint(merged) === sessionsMirrorFingerprint(current.sessions)) return;
 
       const activeSessionId =
-        shared.find((s) => s.id === current.activeSessionId)?.id ??
-        shared[shared.length - 1]?.id ??
+        merged.find((s) => s.id === current.activeSessionId)?.id ??
+        merged[merged.length - 1]?.id ??
         current.activeSessionId;
-      const activeSession = shared.find((s) => s.id === activeSessionId);
+      const activeSession = merged.find((s) => s.id === activeSessionId);
       const maxStep = Math.max(0, (activeSession?.capsule?.steps?.length ?? 1) - 1);
       const activeStepIndex = Math.max(0, Math.min(current.activeStepIndex, maxStep));
 
       useStore.setState({
-        sessions: shared,
+        sessions: merged,
         activeSessionId,
         activeStepIndex,
       });

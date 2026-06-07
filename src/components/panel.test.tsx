@@ -6,7 +6,7 @@ import { useStore } from '@/src/state/store';
 import type { Session } from '@/src/protocol/types';
 
 const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock } = vi.hoisted(() => ({
-  saveSessionMock: vi.fn(async () => undefined),
+  saveSessionMock: vi.fn(async () => ({ prunedCount: 0 })),
   deleteSavedSessionMock: vi.fn(async () => undefined),
   isSessionSavedMock: vi.fn(async () => false),
 }));

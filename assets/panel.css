@@ -370,6 +370,11 @@
   color: var(--slm-amber);
   border: 0.5px solid rgba(245, 158, 11, 0.35);
 }
+.slm-banner-info {
+  background: var(--slm-accent-soft);
+  color: var(--slm-fg-muted);
+  border: 0.5px solid var(--slm-border);
+}
 
 /* ---------- body ---------- */
 .slm-body {

@@ -10,6 +10,12 @@ import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
 export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
 const MAX_SAVED = 100;
+/** Conservative cap — chrome.storage.local is typically 5–10 MB total. */
+export const MAX_SAVED_BYTES = 4 * 1024 * 1024;
+
+export interface SaveSessionResult {
+  prunedCount: number;
+}
 
 /** Compact record kept in browser storage — question, steps, and solution for PDF export. */
 export interface SavedSessionSnapshot {
@@ -25,6 +31,44 @@ export interface SavedSessionSnapshot {
 
 function sortByRecent(sessions: SavedSessionSnapshot[]): SavedSessionSnapshot[] {
   return [...sessions].sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export function estimateSnapshotBytes(snapshots: SavedSessionSnapshot[]): number {
+  return new TextEncoder().encode(JSON.stringify(snapshots)).length;
+}
+
+/** Drop oldest entries until the serialized list fits the byte budget. */
+export function trimSavedSessionsToBudget(
+  sessions: SavedSessionSnapshot[],
+  maxBytes = MAX_SAVED_BYTES,
+): { sessions: SavedSessionSnapshot[]; prunedCount: number } {
+  let next = sortByRecent(sessions).slice(0, MAX_SAVED);
+  let prunedCount = Math.max(0, sessions.length - next.length);
+  while (next.length > 1 && estimateSnapshotBytes(next) > maxBytes) {
+    next = next.slice(0, -1);
+    prunedCount += 1;
+  }
+  return { sessions: next, prunedCount };
+}
+
+async function writeSavedSessions(sessions: SavedSessionSnapshot[]): Promise<SaveSessionResult> {
+  let { sessions: next, prunedCount } = trimSavedSessionsToBudget(sessions);
+  try {
+    await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: next });
+    return { prunedCount };
+  } catch (err) {
+    if (!isStorageQuotaError(err)) throw err;
+    const drop = Math.max(1, Math.floor(next.length * 0.25));
+    next = next.slice(0, Math.max(0, next.length - drop));
+    prunedCount += drop;
+    try {
+      await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: next });
+      return { prunedCount };
+    } catch (retryErr) {
+      if (isStorageQuotaError(retryErr)) throw new StorageQuotaError();
+      throw retryErr;
+    }
+  }
 }
 
 export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
@@ -139,21 +183,14 @@ export async function getSavedSession(id: string): Promise<SavedSessionSnapshot 
   return (await getSavedSessions()).find((s) => s.id === id);
 }
 
-export async function saveSession(session: Session): Promise<void> {
+export async function saveSession(session: Session): Promise<SaveSessionResult> {
   const list = await readSavedSessions();
   const snapshot = sessionToSnapshot(session);
   const idx = list.findIndex((s) => s.id === snapshot.id);
   const next = [...list];
   if (idx >= 0) next[idx] = snapshot;
   else next.unshift(snapshot);
-  try {
-    await browser.storage.local.set({
-      [SAVED_SESSIONS_KEY]: sortByRecent(next).slice(0, MAX_SAVED),
-    });
-  } catch (err) {
-    if (isStorageQuotaError(err)) throw new StorageQuotaError();
-    throw err;
-  }
+  return writeSavedSessions(next);
 }
 
 export async function deleteSavedSession(id: string): Promise<void> {
