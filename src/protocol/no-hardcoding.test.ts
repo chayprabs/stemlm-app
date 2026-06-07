@@ -28,6 +28,7 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /from ['"].*ee-benchmark/, label: 'ee-benchmark hardcoded bank' },
   { pattern: /from ['"].*physics-benchmark/, label: 'physics-benchmark hardcoded bank' },
   { pattern: /from ['"].*biology-benchmark/, label: 'biology-benchmark hardcoded bank' },
+  { pattern: /from ['"].*math-benchmark/, label: 'math-benchmark hardcoded bank' },
   { pattern: /from ['"].*\/chem-svg/, label: 'chem-svg hardcoded diagrams' },
   { pattern: /from ['"].*\/physics-svg/, label: 'physics-svg hardcoded diagrams' },
   { pattern: /from ['"].*\/math-svg/, label: 'math-svg hardcoded diagrams' },
