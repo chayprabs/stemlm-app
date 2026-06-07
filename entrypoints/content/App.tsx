@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { OverlayButton } from '@/src/components/OverlayButton';
 import { Panel } from '@/src/components/Panel';
+import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { applySplit, removeSplit } from '@/src/lib/split-screen';
 
 /**
@@ -23,7 +24,7 @@ export default function App() {
   useEffect(() => () => removeSplit(), []);
 
   return (
-    <>
+    <ErrorBoundary>
       <OverlayButton />
       <AnimatePresence
         onExitComplete={() => {
@@ -32,6 +33,6 @@ export default function App() {
       >
         {panelOpen && <Panel key="stemlm-panel" />}
       </AnimatePresence>
-    </>
+    </ErrorBoundary>
   );
 }
