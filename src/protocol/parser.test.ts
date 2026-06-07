@@ -411,4 +411,27 @@ describe('atomic step guidance', () => {
     expect(step.formula).not.toContain('@');
     expect(step.body).not.toContain('@');
   });
+
+  it('salvages prose lines that omit the @body wrapper', () => {
+    const raw = [
+      '@meta',
+      'subject: Electrical',
+      'topic: Admittance',
+      '@endmeta',
+      '@step',
+      'title: Calculate the conductive component of admittance',
+      '@formula',
+      '$$G = \\frac{1}{R}$$',
+      '@endformula',
+      '$G$ is conductance in siemens. With $R=20\\,\\Omega$: $G=1/20=0.05\\,\\text{S}$.',
+      '@endstep',
+      '@solution',
+      '$G=0.05\\,\\text{S}$',
+      '@endsolution',
+      '@end',
+    ].join('\n');
+    const step = parseCapsule(raw).capsule!.steps[0]!;
+    expect(step.body).toContain('conductance');
+    expect(step.body).toContain('0.05');
+  });
 });

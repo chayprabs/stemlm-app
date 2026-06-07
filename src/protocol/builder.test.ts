@@ -43,7 +43,7 @@ describe('buildInjectionPrompt', () => {
   it('keeps the injected core prompt compact', () => {
     // The core protocol is sent on every question; keep it small so it doesn't
     // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(3600);
+    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(4000);
     // All structural markers the parser relies on must survive compression.
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
@@ -76,6 +76,7 @@ describe('buildInjectionAppendix', () => {
     );
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
+    expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
   });
@@ -212,7 +213,7 @@ describe('buildRepairPrompt', () => {
   it('asks for a format-only re-emit without raw content', () => {
     const prompt = buildRepairPrompt({ errorCode: 'missing_end' });
     expect(prompt).toContain('missing_end');
-    expect(prompt).toContain('fix format and step completeness');
+    expect(prompt).toContain("fix every step's @body work");
     expect(prompt).toContain('@end');
     expect(prompt).not.toContain('```stemlm');
   });

@@ -24,6 +24,13 @@ export { normalizeFollowupSelection };
 export const STEMLM_INSTRUCTIONS_SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 const SEP = STEMLM_INSTRUCTIONS_SEP;
 
+/** Repeated on every inject so models cannot skip worked @body blocks. */
+export const STEP_BODY_REQUIREMENT = [
+  'CRITICAL — every @step MUST have a non-empty @body block (never omit @body).',
+  'In @body: define each new symbol in words, substitute the problem givens, and show the arithmetic with units.',
+  'A step with @formula but empty @body is invalid. Conceptual steps still need @body prose.',
+].join('\n');
+
 /** Blank lines after this label are where the student types their follow-up question. */
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
 
@@ -81,7 +88,7 @@ export function buildComposerStub(question: string, subject: Subject): string {
     '',
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
-    'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
+    STEP_BODY_REQUIREMENT,
     'No prose outside the block.',
   ].join('\n');
 }
@@ -101,7 +108,7 @@ export function buildInjectionPayload(question: string, opt?: BuildOptions): Inj
 export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
-  const prompt = `${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const prompt = `${SEP}${STEP_BODY_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
   return { prompt, subject, variant };
 }
 
@@ -227,11 +234,11 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
     ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
     : '';
   return [
-    `Your previous answer broke the stemLM capsule format.${reason}`,
-    'Re-emit the same answer as exactly one fenced block with info string stemlm.',
-    `No prose outside the block. Preserve the math and diagrams; fix format and step completeness.${qualityFix}`,
+    `Your previous stemLM capsule was incomplete or malformed.${reason}`,
+    'Re-emit the FULL answer as exactly one fenced block with info string stemlm.',
+    `No prose outside the block. Keep the same math and diagrams; fix every step's @body work.${qualityFix}`,
     `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
-    'Every @step needs a non-empty @body with symbol definitions and worked numbers when a formula is used.',
+    STEP_BODY_REQUIREMENT,
     '@quickcheck: test this step\'s result; answer with because + formula/number — not one word.',
   ].join('\n');
 }

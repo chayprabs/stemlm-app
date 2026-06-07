@@ -20,7 +20,7 @@ describe('StepWork', () => {
     expect(html).toContain('capacitive reactance');
   });
 
-  it('shows a quality note when body is missing but formula exists', () => {
+  it('renders nothing when body is missing (no parser error boxes)', () => {
     const html = renderToStaticMarkup(
       <StepWork
         step={{
@@ -32,7 +32,8 @@ describe('StepWork', () => {
         }}
       />,
     );
-    expect(html).toContain('slm-step-quality-note');
-    expect(html).toContain('no @body');
+    expect(html).toBe('');
+    expect(html).not.toContain('@body');
+    expect(html).not.toContain('slm-step-quality-note');
   });
 });

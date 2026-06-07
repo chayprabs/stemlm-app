@@ -389,7 +389,14 @@ function parseStep(
       continue;
     }
 
-    // Unknown line inside a step: skip it.
+    // Prose without @body wrapper — salvage into body (common model mistake).
+    if (t && !t.startsWith('@')) {
+      step.body = step.body ? `${step.body}\n${line.trim()}` : line.trim();
+      c.i++;
+      continue;
+    }
+
+    // Unknown marker line inside a step: skip it.
     c.i++;
   }
 

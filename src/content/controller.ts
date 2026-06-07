@@ -310,6 +310,17 @@ export class StemController {
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
+  /** When a capsule parses but steps lack @body work, queue a one-shot repair prompt. */
+  private offerQualityRepair(result: ParseResult): void {
+    if (this.repairPromptInserted || !result.capsule) return;
+    const weakStep = result.capsule.steps.find((s) => auditStepQuality(s).length > 0);
+    if (!weakStep) return;
+    const code = auditStepQuality(weakStep)[0];
+    if (!code) return;
+    const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
+    this.repairPromptInserted = inserted || this.repairPromptInserted;
+  }
+
   private offerRepairPrompt(result: ParseResult): void {
     const code = result.errorCode ?? result.warningCodes[0] ?? 'no_usable_content';
     const inserted =
@@ -371,6 +382,7 @@ export class StemController {
       raw: result.raw,
     };
     useStore.getState().addSession(session);
+    this.offerQualityRepair(result);
     this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,
