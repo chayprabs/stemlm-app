@@ -107,6 +107,11 @@ function themeNeutralFill(theme: ResolvedTheme): string {
   return theme === 'dark' ? '#e2e8f0' : '#1e293b';
 }
 
+/** Interior fill for schematic symbols (resistor boxes, etc.) on dark backgrounds. */
+function themeSchematicFill(theme: ResolvedTheme): string {
+  return theme === 'dark' ? '#2a2a38' : '#ffffff';
+}
+
 function themeMuted(theme: ResolvedTheme): string {
   return theme === 'dark' ? '#94a3b8' : '#64748b';
 }
@@ -114,6 +119,7 @@ function themeMuted(theme: ResolvedTheme): string {
 function themeAccentMap(theme: ResolvedTheme): Record<string, string> {
   if (theme === 'dark') {
     return {
+      '#ffffff': themeSchematicFill('dark'),
       '#000000': themeNeutralStroke('dark'),
       '#d32f2f': '#f87171',
       '#c62828': '#f87171',
@@ -347,9 +353,7 @@ function themeSvgTree(root: Element, theme: ResolvedTheme): void {
     for (const attr of ['stroke', 'fill'] as const) {
       const raw = normColor(el.getAttribute(attr));
       if (!raw) continue;
-      const kind: 'stroke' | 'fill' =
-        attr === 'stroke' || (!isText && attr === 'fill') ? 'stroke' : 'fill';
-      const mapped = mapColor(raw, theme, kind);
+      const mapped = mapColor(raw, theme, attr);
       if (mapped !== raw) el.setAttribute(attr, mapped);
     }
 

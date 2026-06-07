@@ -8,19 +8,30 @@
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 
 const LATEX_COMMAND =
-  /\\(?:frac|omega|Omega|quad|text|angle|sqrt|sum|int|begin|end|left|right|cdot|times|approx|neq|leq|geq|pm|mp|alpha|beta|gamma|theta|phi|mu|sigma|mathrm|mathbf|vec|overline|underline|hat|bar|tilde|parallel|perp|infty|partial|nabla|ldots|dots|sin|cos|tan|log|ln|exp|det|max|min|lim|sup|inf|operatorname|textbf|textit|ce|le|ge|ne|pm|mp|iff|implies|Leftrightarrow|Rightarrow|Leftrightarrow|therefore|because|boxed|cancel|overbrace|underbrace|binom|choose|atop)\b/;
+  /\\(?:frac|omega|Omega|quad|text|angle|sqrt|sum|int|begin|end|left|right|cdot|times|approx|neq|leq|geq|pm|mp|alpha|beta|gamma|theta|phi|mu|sigma|mathrm|mathbf|vec|overline|underline|hat|bar|tilde|parallel|perp|infty|partial|nabla|ldots|dots|sin|cos|tan|log|ln|exp|det|max|min|lim|sup|inf|operatorname|textbf|textit|ce|le|ge|ne|iff|implies|Leftrightarrow|Rightarrow|therefore|because|boxed|cancel|overbrace|underbrace|binom|choose|atop|dfrac|tfrac|mkern)\b/;
 
 const SUBSCRIPT = /[A-Za-z]_\{[^}]+\}|[A-Za-z]_[A-Za-z0-9]/;
 const SUPERSCRIPT = /\^[^{}\s]|\^\{[^}]+\}/;
 const DISPLAY_HINT = /\\begin\s*\{|\\\\|\\frac|\\sum|\\int|\\prod|\\lim|\\displaystyle/;
+const BARE_SNIPPET_CMD = /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf)\b/g;
 
 export type MathRenderMode = 'auto' | 'display';
+
+type MathSegment = { math: boolean; text: string };
 
 /** Convert \(..\) / \[..\] to $..$ / $$..$$. */
 export function normalizeMathDelimiters(src: string): string {
   return src
     .replace(/\\\[(.+?)\\\]/gs, (_m, inner: string) => `$$${inner}$$`)
     .replace(/\\\((.+?)\\\)/gs, (_m, inner: string) => `$${inner}$`);
+}
+
+/**
+ * KaTeX parses \\par inside \\parallel as a paragraph break. Use \\mathbin{\\|}
+ * instead — equivalent glyph, no fragile brace groups for remark-math.
+ */
+export function protectFragileLatexCommands(src: string): string {
+  return src.replace(/\\parallel\b/g, '\\mathbin{\\|}');
 }
 
 export function hasMathDelimiters(src: string): boolean {
@@ -40,10 +51,48 @@ function isStructuralMarkdownLine(line: string): boolean {
   );
 }
 
+function startsLikeMath(t: string): boolean {
+  return /^[\\$([{A-Za-z0-9_^\-]/.test(t);
+}
+
+function readBracedArg(src: string, openBrace: number): string | null {
+  if (src[openBrace] !== '{') return null;
+  let depth = 0;
+  for (let i = openBrace; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) return src.slice(openBrace, i + 1);
+    }
+  }
+  return null;
+}
+
+function extractLatexSnippet(src: string, start: number): string | null {
+  const cmd = src.slice(start).match(/^\\[A-Za-z]+/)?.[0];
+  if (!cmd) return null;
+  let i = start + cmd.length;
+  const args: string[] = [];
+  while (i < src.length && src[i] === ' ') i++;
+  for (let a = 0; a < 2; a++) {
+    const arg = readBracedArg(src, i);
+    if (!arg) break;
+    args.push(arg);
+    i += arg.length;
+    while (i < src.length && src[i] === ' ') i++;
+  }
+  if (cmd === '\\sqrt' && args.length === 1) return cmd + args[0]!;
+  if (args.length >= 1 && /^\\(?:frac|dfrac|tfrac|text|mathrm|mathbf)$/.test(cmd)) {
+    return cmd + args.join('');
+  }
+  return null;
+}
+
 /** True when a line/paragraph is almost certainly raw LaTeX without $ delimiters. */
 export function looksLikeRawLatex(text: string): boolean {
   const t = text.trim();
   if (!t || hasMathDelimiters(t) || isStructuralMarkdownLine(t)) return false;
+  if (!startsLikeMath(t)) return false;
 
   if (/\\begin\s*\{/.test(t)) return true;
   if (LATEX_COMMAND.test(t)) return true;
@@ -72,20 +121,109 @@ export function prefersDisplayMath(text: string): boolean {
 function wrapAsMath(inner: string, display: boolean): string {
   const trimmed = inner.trim();
   if (!trimmed) return inner;
-  return display ? `$$\n${trimmed}\n$$` : `$${trimmed}$`;
+  // Keep display math on one line so re-processing does not split $$ across lines.
+  return display ? `$$${trimmed}$$` : `$${trimmed}$`;
+}
+
+function isAlreadyDelimitedMath(text: string): boolean {
+  const t = text.trim();
+  if (/^\$\$[\s\S]+\$\$$/.test(t)) return true;
+  return /^\$[^$\n]+\$$/.test(t);
+}
+
+/** Split a line into math-delimited and plain-text runs. */
+export function splitMathSegments(line: string): MathSegment[] {
+  const segments: MathSegment[] = [];
+  let i = 0;
+
+  while (i < line.length) {
+    if (line.startsWith('$$', i)) {
+      const end = line.indexOf('$$', i + 2);
+      if (end !== -1) {
+        segments.push({ math: true, text: line.slice(i, end + 2) });
+        i = end + 2;
+        continue;
+      }
+    }
+
+    if (line[i] === '$' && line[i + 1] !== '$') {
+      const end = line.indexOf('$', i + 1);
+      if (end !== -1) {
+        segments.push({ math: true, text: line.slice(i, end + 1) });
+        i = end + 1;
+        continue;
+      }
+    }
+
+    const next = line.indexOf('$', i);
+    const end = next === -1 ? line.length : next;
+    segments.push({ math: false, text: line.slice(i, end) });
+    i = end;
+  }
+
+  return segments.length ? segments : [{ math: false, text: line }];
+}
+
+function wrapBareLatexSnippets(text: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const slice = text.slice(i);
+    const m = BARE_SNIPPET_CMD.exec(slice);
+    if (!m || m.index === undefined) {
+      out += text.slice(i);
+      break;
+    }
+    const start = i + m.index;
+    out += text.slice(i, start);
+    const snippet = extractLatexSnippet(text, start);
+    if (snippet) {
+      out += `$${snippet}$`;
+      i = start + snippet.length;
+    } else {
+      out += m[0];
+      i = start + m[0].length;
+    }
+  }
+  return out;
+}
+
+function wrapFragmentsInLine(line: string): string {
+  if (isStructuralMarkdownLine(line) || !line.trim()) return line;
+  if (isAlreadyDelimitedMath(line)) return line;
+
+  if (!hasMathDelimiters(line)) {
+    return wrapBareLatexSnippets(line);
+  }
+
+  return splitMathSegments(line)
+    .map((seg) => {
+      if (seg.math) return seg.text;
+      const trimmed = seg.text.trim();
+      if (!trimmed) return seg.text;
+      if (looksLikeRawLatex(trimmed)) {
+        const lead = seg.text.match(/^\s*/)?.[0] ?? '';
+        const trail = seg.text.match(/\s*$/)?.[0] ?? '';
+        return `${lead}${wrapAsMath(trimmed, prefersDisplayMath(trimmed))}${trail}`;
+      }
+      return wrapBareLatexSnippets(seg.text);
+    })
+    .join('');
 }
 
 function wrapRawLatexLine(line: string, forceDisplay: boolean): string {
   const trimmed = line.trim();
-  if (!trimmed || hasMathDelimiters(trimmed) || isStructuralMarkdownLine(line)) return line;
+  if (!trimmed || isStructuralMarkdownLine(line) || isAlreadyDelimitedMath(trimmed)) return line;
+  if (trimmed === '$$') return line;
 
-  if (!looksLikeRawLatex(trimmed)) {
-    return wrapInlineRawLatexSegments(line);
+  let processed = line;
+  if (!hasMathDelimiters(trimmed) && looksLikeRawLatex(trimmed)) {
+    const lead = line.match(/^\s*/)?.[0] ?? '';
+    const display = forceDisplay || prefersDisplayMath(trimmed);
+    processed = `${lead}${wrapAsMath(trimmed, display)}`;
   }
 
-  const lead = line.match(/^\s*/)?.[0] ?? '';
-  const display = forceDisplay || prefersDisplayMath(trimmed);
-  return `${lead}${wrapAsMath(trimmed, display)}`;
+  return wrapFragmentsInLine(processed);
 }
 
 /** Wrap undelimited LaTeX after list markers or colons within a prose line. */
@@ -93,19 +231,18 @@ function wrapInlineRawLatexSegments(line: string): string {
   const listMatch = /^(\s*[-*+]\s+)(.+)$/.exec(line);
   if (listMatch?.[1] && listMatch[2]) {
     const prefix = listMatch[1];
-    const body = listMatch[2];
-    if (hasMathDelimiters(body) || !looksLikeRawLatex(body)) return line;
-    return `${prefix}${wrapAsMath(body, prefersDisplayMath(body))}`;
+    const body = wrapFragmentsInLine(listMatch[2]);
+    if (body === listMatch[2]) return line;
+    return `${prefix}${body}`;
   }
 
   const colonMatch = /^(.+?:\s*)(.+)$/.exec(line.trim());
   if (colonMatch?.[1] && colonMatch[2]) {
     const head = colonMatch[1];
-    const tail = colonMatch[2];
-    if (!hasMathDelimiters(tail) && looksLikeRawLatex(tail)) {
-      const lead = line.match(/^\s*/)?.[0] ?? '';
-      return `${lead}${head}${wrapAsMath(tail, prefersDisplayMath(tail))}`;
-    }
+    const tail = wrapFragmentsInLine(colonMatch[2]);
+    if (tail === colonMatch[2]) return line;
+    const lead = line.match(/^\s*/)?.[0] ?? '';
+    return `${lead}${head}${tail}`;
   }
 
   return line;
@@ -119,18 +256,18 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
   let src = stripProtocolMarkers(content);
   if (!src.trim()) return src;
 
+  src = protectFragileLatexCommands(src);
   src = normalizeMathDelimiters(src);
-  if (hasMathDelimiters(src)) return src;
 
   const forceDisplay = mode === 'display';
+  const trimmed = src.trim();
 
-  if (looksLikeRawLatex(src)) {
-    return wrapAsMath(src, forceDisplay || prefersDisplayMath(src) || !src.includes('\n'));
+  if (forceDisplay && !hasMathDelimiters(trimmed) && looksLikeRawLatex(trimmed) && !trimmed.includes('\n')) {
+    return wrapAsMath(trimmed, true);
   }
 
   const lines = src.split('\n');
-  const wrapped = lines.map((line) => wrapRawLatexLine(line, forceDisplay));
-  if (wrapped.join('\n') !== src) return wrapped.join('\n');
-
-  return src;
+  return lines
+    .map((line) => wrapInlineRawLatexSegments(wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay))))
+    .join('\n');
 }

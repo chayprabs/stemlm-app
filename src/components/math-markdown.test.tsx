@@ -95,5 +95,7 @@ describe('MathMarkdown', () => {
       />,
     );
     expect(thevenin).toContain('katex');
+    expect(thevenin).toContain('∥');
+    expect(thevenin).not.toMatch(/>\s*p\s*a\s*r\s*a\s*l\s*l\s*e\s*l\s*</);
   });
 });

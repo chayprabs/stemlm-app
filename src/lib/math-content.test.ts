@@ -56,4 +56,24 @@ describe('prepareMathForRender', () => {
   it('normalizes \\( \\) delimiters', () => {
     expect(prepareMathForRender('Use \\(x^2\\) inline', 'auto')).toContain('$x^2$');
   });
+
+  it('rewrites \\parallel to \\mathbin{\\|} so KaTeX does not read \\par', () => {
+    const out = prepareMathForRender('Z_{th} = Z_3 + (Z_2 \\parallel (Z_1 + Z_s))', 'display');
+    expect(out).toContain('\\mathbin{\\|}');
+  });
+
+  it('wraps undelimited lines even when other lines use $ math', () => {
+    const body = [
+      'Substitute the values: $Z_1 + Z_s = 10 + j15 \\, \\Omega$.',
+      'Z_{th} = Z_3 + \\frac{Z_2(Z_1+Z_s)}{Z_2+Z_1+Z_s}',
+    ].join('\n');
+    const out = prepareMathForRender(body, 'auto');
+    expect(out).toContain('$$');
+    expect(out).toContain('\\frac{Z_2');
+  });
+
+  it('is idempotent when content is already wrapped', () => {
+    const once = prepareMathForRender('Z_{th} = Z_3 + \\frac{Z_2}{Z_1}', 'display');
+    expect(prepareMathForRender(once, 'display')).toBe(once);
+  });
 });

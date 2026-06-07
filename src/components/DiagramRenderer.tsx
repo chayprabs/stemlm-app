@@ -40,7 +40,8 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
 
   useLayoutEffect(() => {
     if (!svg || !svgHostRef.current) return;
-    mountSvgMarkup(svgHostRef.current, svg);
+    const mounted = mountSvgMarkup(svgHostRef.current, svg);
+    if (!mounted) setFailed(true);
   }, [svg]);
 
   if (failed) {

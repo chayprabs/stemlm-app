@@ -13,9 +13,24 @@ export function mountSvgMarkup(container: HTMLElement, svgMarkup: string): boole
   const parseError = doc.querySelector('parsererror');
   if (!parseError && root?.tagName.toLowerCase() === 'svg') {
     container.append(document.importNode(root, true));
-    return true;
+    return hasDrawableSvgContent(container);
   }
 
-  container.innerHTML = svgMarkup;
-  return container.querySelector('svg') != null;
+  const staging = document.createElement('div');
+  staging.innerHTML = svgMarkup;
+  const svg = staging.querySelector('svg');
+  if (svg) {
+    container.append(document.importNode(svg, true));
+    return hasDrawableSvgContent(container);
+  }
+
+  return false;
+}
+
+function hasDrawableSvgContent(container: HTMLElement): boolean {
+  const svg = container.querySelector('svg');
+  if (!svg) return false;
+  return Boolean(
+    svg.querySelector('line, path, polyline, polygon, rect, circle, ellipse, text, image, use'),
+  );
 }
