@@ -9,14 +9,17 @@
 export type DiagramSizeProfile = 'step' | 'solution' | 'print';
 
 export const DIAGRAM_BOUNDS: Record<DiagramSizeProfile, { maxW: number; maxH: number }> = {
-  step: { maxW: 248, maxH: 132 },
-  solution: { maxW: 272, maxH: 148 },
-  /** ~52×27 mm on A4 — inline figures, not full-width illustrations. */
-  print: { maxW: 200, maxH: 105 },
+  step: { maxW: 480, maxH: 280 },
+  solution: { maxW: 520, maxH: 320 },
+  /** Match panel step size — print must not be smaller than the extension. */
+  print: { maxW: 480, maxH: 280 },
 };
 
 /** Hard print caps (mm) used by PDF CSS as a second line of defense. */
-export const PRINT_DIAGRAM_MM = { maxW: 52, maxH: 28 } as const;
+export const PRINT_DIAGRAM_MM = { maxW: 120, maxH: 70 } as const;
+
+/** Modest upscale for small viewBoxes so diagrams fill the card width. */
+export const MAX_DIAGRAM_UPSCALE = 1.25;
 
 export function parseViewBox(viewBox: string | null | undefined): {
   x: number;
@@ -33,6 +36,17 @@ export function parseViewBox(viewBox: string | null | undefined): {
   return { x: parts[0]!, y: parts[1]!, w, h };
 }
 
+/** Scale factor applied to viewBox user-units when rendering (may upscale modestly). */
+export function getDisplayScale(
+  viewBox: string | null | undefined,
+  profile: DiagramSizeProfile,
+): number {
+  const { maxW, maxH } = DIAGRAM_BOUNDS[profile];
+  const parsed = parseViewBox(viewBox);
+  if (!parsed) return 1;
+  return Math.min(maxW / parsed.w, maxH / parsed.h, MAX_DIAGRAM_UPSCALE);
+}
+
 export function computeDisplaySize(
   viewBox: string | null | undefined,
   profile: DiagramSizeProfile,
@@ -42,7 +56,7 @@ export function computeDisplaySize(
   if (!parsed) {
     return { width: maxW, height: Math.round(maxH * 0.72) };
   }
-  const scale = Math.min(maxW / parsed.w, maxH / parsed.h, 1);
+  const scale = getDisplayScale(viewBox, profile);
   return {
     width: Math.max(1, Math.round(parsed.w * scale)),
     height: Math.max(1, Math.round(parsed.h * scale)),

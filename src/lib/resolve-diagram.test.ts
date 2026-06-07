@@ -33,8 +33,8 @@ describe('resolveDiagramSvg', () => {
     );
     expect(svg).toContain('probe-diagram');
     expect(svg).toContain('<svg');
-    expect(svg).toContain('width="40"');
-    expect(svg).toContain('height="20"');
+    expect(svg).toContain('width="50"');
+    expect(svg).toContain('height="25"');
   });
 
   it('normalizes admittance triangle markers through the full resolve path', async () => {
@@ -78,7 +78,7 @@ describe('resolveDiagramSvg', () => {
       'light',
       'print',
     );
-    expect(svg).toContain('width="200"');
-    expect(svg).toContain('height="100"');
+    expect(svg).toContain('width="480"');
+    expect(svg).toContain('height="240"');
   });
 });

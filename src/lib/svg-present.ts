@@ -6,6 +6,7 @@ import type { ResolvedTheme } from './theme';
 import {
   type DiagramSizeProfile,
   computeDisplaySize,
+  getDisplayScale,
 } from './diagram-bounds';
 
 const LATEX_IN_TEXT: [RegExp, string][] = [
@@ -437,7 +438,7 @@ function collectWireSegments(root: Element): WireSegment[] {
 function textFontSize(el: Element): number {
   const raw = el.getAttribute('font-size') ?? el.parentElement?.getAttribute('font-size');
   const size = Number(raw);
-  return Number.isFinite(size) && size > 0 ? size : 11;
+  return Number.isFinite(size) && size > 0 ? size : 14;
 }
 
 function textPosition(el: Element): { x: number; y: number } | null {
@@ -513,6 +514,22 @@ function nudgeLabelsAwayFromWires(root: Element): void {
   }
 }
 
+/**
+ * When the SVG is scaled down for display, bump label font-size in user units
+ * so rendered text stays ~12–14px on screen and in PDF.
+ */
+function compensateScaledText(root: Element, profile: DiagramSizeProfile): void {
+  const scale = getDisplayScale(root.getAttribute('viewBox'), profile);
+  if (scale >= 1) return;
+  const factor = Math.min(1 / scale, 2.5);
+  for (const el of root.querySelectorAll('text, tspan')) {
+    if (el.closest('marker')) continue;
+    const size = textFontSize(el);
+    const next = Math.round(size * factor * 10) / 10;
+    el.setAttribute('font-size', String(next));
+  }
+}
+
 function decodeTextNodes(svg: string): string {
   return svg.replace(
     /<(text|tspan)([^>]*)>([\s\S]*?)<\/\1>/gi,
@@ -523,7 +540,7 @@ function decodeTextNodes(svg: string): string {
         nextAttrs += ' font-family="Inter, ui-sans-serif, system-ui, sans-serif"';
       }
       if (!/\bfont-size\s*=/i.test(nextAttrs)) {
-        nextAttrs += ' font-size="11"';
+        nextAttrs += ' font-size="14"';
       }
       return decoded === content && nextAttrs === attrs
         ? full
@@ -556,7 +573,7 @@ export function presentSvg(
   root.setAttribute('height', String(height));
   root.setAttribute(
     'style',
-    `display:block;width:${width}px;height:${height}px;max-width:100%;`,
+    'display:block;width:100%;height:auto;max-width:100%;',
   );
   root.setAttribute('data-stemlm-theme', theme);
   root.setAttribute('data-stemlm-size', profile);
@@ -568,6 +585,7 @@ export function presentSvg(
   normalizeAllMarkers(root);
   themeSvgTree(root, theme);
   syncMarkerFills(root);
+  compensateScaledText(root, profile);
   nudgeLabelsAwayFromWires(root);
 
   let out = new XMLSerializer().serializeToString(root);

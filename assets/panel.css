@@ -20,10 +20,10 @@
   border-radius: var(--radius-sm);
 }
 .slm-diagram--step .slm-diagram-svg svg {
-  max-height: 132px;
+  max-height: 280px;
 }
 .slm-diagram--solution .slm-diagram-svg svg {
-  max-height: 148px;
+  max-height: 320px;
 }
 .slm-wordmark {
   font-weight: 500;
@@ -685,11 +685,18 @@
   border: none;
   width: 100%;
 }
+.slm-step-diagram .slm-diagram-svg {
+  width: 100%;
+}
 .slm-step-diagram .slm-diagram-svg svg {
   display: block;
-  width: auto;
+  width: 100%;
   max-width: 100%;
   height: auto;
+  max-height: 280px;
+}
+.slm-step-diagram .slm-diagram--solution .slm-diagram-svg svg {
+  max-height: 320px;
 }
 .slm-formula {
   margin: 0.5rem 0 0.65rem;
@@ -864,18 +871,10 @@
 .slm-diagram-svg svg {
   display: block;
   flex-shrink: 0;
+  width: 100%;
   max-width: 100%;
   height: auto;
   overflow: visible;
-}
-.slm-diagram-svg svg line,
-.slm-diagram-svg svg path,
-.slm-diagram-svg svg polyline,
-.slm-diagram-svg svg polygon,
-.slm-diagram-svg svg rect,
-.slm-diagram-svg svg circle,
-.slm-diagram-svg svg ellipse {
-  vector-effect: non-scaling-stroke;
 }
 .slm-diagram-svg svg text,
 .slm-diagram-svg svg tspan {
