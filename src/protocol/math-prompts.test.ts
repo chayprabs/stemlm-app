@@ -9,8 +9,8 @@ import {
 } from './builder';
 
 describe('math prompts (AI pipeline inputs)', () => {
-  it('has exactly 61 exam prompts without pre-authored solutions', () => {
-    expect(MATH_PROMPTS.length).toBe(61);
+  it('has exactly 100 exam prompts without pre-authored solutions', () => {
+    expect(MATH_PROMPTS.length).toBe(100);
     for (const p of MATH_PROMPTS) {
       expect(p.question.length).toBeGreaterThan(20);
       expect(p).not.toHaveProperty('steps');
@@ -19,7 +19,7 @@ describe('math prompts (AI pipeline inputs)', () => {
     }
   });
 
-  it('questions are numbered uniquely 1–61', () => {
+  it('questions are numbered uniquely 1–100', () => {
     const nums = MATH_PROMPTS.map((q) => q.number).sort((a, b) => a - b);
     for (let i = 0; i < nums.length; i++) {
       expect(nums[i]).toBe(i + 1);

@@ -238,6 +238,283 @@ function probe50(): string {
   return [omega, 1, 1, bAt1, amplitudeAtMidpoint].join(' ');
 }
 
+function eulerTotient(n: number): number {
+  let result = n;
+  let value = n;
+  for (let p = 2; p * p <= value; p += 1) {
+    if (value % p === 0) {
+      while (value % p === 0) value /= p;
+      result -= result / p;
+    }
+  }
+  if (value > 1) result -= result / value;
+  return result;
+}
+
+function combinations(n: number, k: number): number {
+  let out = 1;
+  for (let i = 0; i < k; i += 1) out = (out * (n - i)) / (i + 1);
+  return out;
+}
+
+function probe51(): string {
+  const count =
+    Math.floor(1000 / 2) +
+    Math.floor(1000 / 3) +
+    Math.floor(1000 / 5) -
+    Math.floor(1000 / 6) -
+    Math.floor(1000 / 10) -
+    Math.floor(1000 / 15) +
+    Math.floor(1000 / 30);
+  return [count].join(' ');
+}
+
+function probe52(): string {
+  return [8, 4].join(' ');
+}
+
+function probe53(): string {
+  return [6, 'even permutation sign'].join(' ');
+}
+
+function probe54(): string {
+  return ['prime ideal (7)', 4, 3].join(' ');
+}
+
+function probe55(): string {
+  return ['irreducible over Q'].join(' ');
+}
+
+function probe56(): string {
+  return [8, 'multiplicative inverse'].join(' ');
+}
+
+function probe57(): string {
+  return ['simplified boolean', 1].join(' ');
+}
+
+function probe58(): string {
+  return [(10 * 11 * 21) / 6].join(' ');
+}
+
+function probe59(): string {
+  return ['countable Q', 'uncountable binary sequences'].join(' ');
+}
+
+function probe60(): string {
+  return ['Cauchy sequence in Q', 'not complete'].join(' ');
+}
+
+function probe61(): string {
+  return [1, 'fixed point'].join(' ');
+}
+
+function probe62(): string {
+  return [eulerTotient(360)].join(' ');
+}
+
+function probe63(): string {
+  return [combinations(12, 5)].join(' ');
+}
+
+function probe64(): string {
+  return [22, 20].join(' ');
+}
+
+function probe65(): string {
+  return [6, 12].join(' ');
+}
+
+function probe66(): string {
+  let a0 = 2;
+  let a1 = 3;
+  for (let i = 0; i < 5; i += 1) {
+    const next = a0 + a1;
+    a0 = a1;
+    a1 = next;
+  }
+  return [a1].join(' ');
+}
+
+function probe67(): string {
+  return [8].join(' ');
+}
+
+function probe68(): string {
+  return [Math.sqrt(54)].join(' ');
+}
+
+function probe69(): string {
+  return [0.5, 60].join(' ');
+}
+
+function probe70(): string {
+  return [1, -1].join(' ');
+}
+
+function probe71(): string {
+  return [5, -2, 29].join(' ');
+}
+
+function probe72(): string {
+  return [(combinations(4, 2) * combinations(6, 1)) / combinations(10, 3)].join(' ');
+}
+
+function probe73(): string {
+  const p = 0.25;
+  return [1 / p, (1 - p) / square(p), (1 - p) ** 3].join(' ');
+}
+
+function probe74(): string {
+  return [5, 3, 0.5].join(' ');
+}
+
+function probe75(): string {
+  return [0.25, 0.5].join(' ');
+}
+
+function probe76(): string {
+  const h = 0.1;
+  return [(square(2 + h) - square(2)) / h, 4].join(' ');
+}
+
+function probe77(): string {
+  const h = 0.25;
+  const trap =
+    (h / 2) * (0 + 2 * square(0.25) + 2 * square(0.5) + 2 * square(0.75) + square(1));
+  return [trap, 1 / 3].join(' ');
+}
+
+function probe78(): string {
+  return [1.5, 2.25].join(' ');
+}
+
+function probe79(): string {
+  return [2].join(' ');
+}
+
+function probe80(): string {
+  return [-1].join(' ');
+}
+
+function probe81(): string {
+  return [5, 1].join(' ');
+}
+
+function probe82(): string {
+  return [3, 4, 4 / 3].join(' ');
+}
+
+function probe83(): string {
+  return [100].join(' ');
+}
+
+function probe84(): string {
+  return [2, -1, 2].join(' ');
+}
+
+function probe85(): string {
+  return [2 * Math.sinh(1)].join(' ');
+}
+
+function probe86(): string {
+  return [2].join(' ');
+}
+
+function probe87(): string {
+  return [Math.exp(-1)].join(' ');
+}
+
+function probe88(): string {
+  return [2, 2].join(' ');
+}
+
+function probe89(): string {
+  return [0.5, 0.5, 0.5].join(' ');
+}
+
+function probe90(): string {
+  return [1, 0.4, 1].join(' ');
+}
+
+function probe91(): string {
+  return [-1, 0, -1, 0].join(' ');
+}
+
+function probe92(): string {
+  const dp = Array.from({ length: 9 }, () => 0);
+  dp[0] = 1;
+  for (let part = 1; part <= 8; part += 1) {
+    for (let k = part; k <= 8; k += 1) dp[k] = (dp[k] ?? 0) + (dp[k - part] ?? 0);
+  }
+  return [dp[8]].join(' ');
+}
+
+function probe93(): string {
+  const stirling = (n: number, k: number): number => {
+    if (k === 0) return n === 0 ? 1 : 0;
+    if (n === 0) return 0;
+    return k * stirling(n - 1, k) + stirling(n - 1, k - 1);
+  };
+  return [stirling(5, 3)].join(' ');
+}
+
+function probe94(): string {
+  return [combinations(10, 5) / 6].join(' ');
+}
+
+function probe95(): string {
+  const stirling = (n: number, k: number): number => {
+    if (k === 0) return n === 0 ? 1 : 0;
+    if (n === 0) return 0;
+    return k * stirling(n - 1, k) + stirling(n - 1, k - 1);
+  };
+  let total = 0;
+  for (let k = 0; k <= 5; k += 1) total += stirling(5, k);
+  return [total].join(' ');
+}
+
+function probe96(): string {
+  let a = 0;
+  let b = 1;
+  for (let i = 1; i < 10; i += 1) {
+    const next = a + b;
+    a = b;
+    b = next;
+  }
+  return [b].join(' ');
+}
+
+function probe97(): string {
+  let a = 2;
+  let b = 1;
+  for (let i = 2; i <= 8; i += 1) {
+    const next = a + b;
+    a = b;
+    b = next;
+  }
+  return [b].join(' ');
+}
+
+function probe98(): string {
+  return [17, 12, 17 / 12].join(' ');
+}
+
+function probe99(): string {
+  return [13].join(' ');
+}
+
+function probe100(): string {
+  const r = 3.9;
+  let x = 0.5;
+  const out = [x];
+  for (let i = 0; i < 3; i += 1) {
+    x = r * x * (1 - x);
+    out.push(x);
+  }
+  return out.slice(1).join(' ');
+}
+
 export const MATH_NUMERIC_PROBES: Record<number, () => string> = {
   26: probe26,
   27: probe27,
@@ -264,6 +541,56 @@ export const MATH_NUMERIC_PROBES: Record<number, () => string> = {
   48: probe48,
   49: probe49,
   50: probe50,
+  51: probe51,
+  52: probe52,
+  53: probe53,
+  54: probe54,
+  55: probe55,
+  56: probe56,
+  57: probe57,
+  58: probe58,
+  59: probe59,
+  60: probe60,
+  61: probe61,
+  62: probe62,
+  63: probe63,
+  64: probe64,
+  65: probe65,
+  66: probe66,
+  67: probe67,
+  68: probe68,
+  69: probe69,
+  70: probe70,
+  71: probe71,
+  72: probe72,
+  73: probe73,
+  74: probe74,
+  75: probe75,
+  76: probe76,
+  77: probe77,
+  78: probe78,
+  79: probe79,
+  80: probe80,
+  81: probe81,
+  82: probe82,
+  83: probe83,
+  84: probe84,
+  85: probe85,
+  86: probe86,
+  87: probe87,
+  88: probe88,
+  89: probe89,
+  90: probe90,
+  91: probe91,
+  92: probe92,
+  93: probe93,
+  94: probe94,
+  95: probe95,
+  96: probe96,
+  97: probe97,
+  98: probe98,
+  99: probe99,
+  100: probe100,
 };
 
 export function getMathNumericProbe(questionNumber: number): string | undefined {

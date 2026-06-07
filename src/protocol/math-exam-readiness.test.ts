@@ -1,5 +1,5 @@
 /**
- * End-to-end readiness audit for math exam prompts with numeric oracles (Q1–50).
+ * End-to-end readiness audit for math exam prompts with numeric oracles (Q1–100).
  */
 import { describe, it, expect } from 'vitest';
 import { MATH_PROMPTS } from './math-prompts';
@@ -8,7 +8,7 @@ import { buildInjectionPrompt, buildInjectionPayload } from './builder';
 import { getMathNumericSolver } from './math-numeric-checks';
 import { getMathNumericProbe } from './math-numeric-checks/probes';
 
-const ORACLE_QUESTION_LIMIT = 50;
+const ORACLE_QUESTION_LIMIT = 100;
 
 const SYNTHETIC_ANSWERS: Record<number, string> = {
   1: 'lim (a) = 1/6, lim (b) = -1/2, x^x -> 1, indeterminate 0^0',
@@ -46,8 +46,8 @@ describe('math exam readiness', () => {
   const oraclePrompts = MATH_PROMPTS.filter((p) => p.number <= ORACLE_QUESTION_LIMIT);
   const report: { q: number; ok: boolean; issues: string[] }[] = [];
 
-  it('prompt bank has at least 50 math questions', () => {
-    expect(MATH_PROMPTS.length).toBeGreaterThanOrEqual(ORACLE_QUESTION_LIMIT);
+  it('prompt bank has 100 math questions', () => {
+    expect(MATH_PROMPTS.length).toBe(ORACLE_QUESTION_LIMIT);
   });
 
   for (const prompt of oraclePrompts) {

@@ -367,6 +367,240 @@ export const MATH_PROMPTS: MathPromptDef[] = [
     "number": 61,
     "topic": "Normed spaces and the Banach fixed-point theorem",
     "question": "On the Banach space $(C[0,1],\\|\\cdot\\|_\\infty)$, define $T(f)(x)=\\int_0^x f(t)\\,dt$. Prove $T$ is a contraction with constant 1 (hence not directly applying Banach) and modify the setup to apply the fixed-point theorem to $f(x)=\\frac12\\cos x+\\frac12\\int_0^x f(t)\\,dt$."
+  },
+  {
+    "id": "q62",
+    "number": 62,
+    "topic": "Euler totient function",
+    "question": "Number theory: compute $\\varphi(360)$ using the prime factorization $360=2^3\\cdot3^2\\cdot5$. Count how many integers from $1$ to $360$ are coprime to $360$ and verify with the product formula."
+  },
+  {
+    "id": "q63",
+    "number": 63,
+    "topic": "Combinations and binomial coefficients",
+    "question": "Combinatorics: how many $5$-element subsets can be chosen from a set of $12$ distinct objects? Express the answer as $\\binom{12}{5}$ and evaluate it exactly."
+  },
+  {
+    "id": "q64",
+    "number": 64,
+    "topic": "Chinese Remainder Theorem application",
+    "question": "Solve the system $x\\equiv1\\pmod4$ and $x\\equiv2\\pmod5$ using the Chinese Remainder Theorem. Give the least positive solution and the general solution modulo $20$."
+  },
+  {
+    "id": "q65",
+    "number": 65,
+    "topic": "Graph theory and complete graphs",
+    "question": "Graph theory: for the complete graph $K_4$, find the number of edges and the sum of all vertex degrees. Verify the handshaking lemma $2|E|=\\sum_v\\deg(v)$."
+  },
+  {
+    "id": "q66",
+    "number": 66,
+    "topic": "Linear recurrence sequences",
+    "question": "Solve the recurrence $a_{n+2}=a_{n+1}+a_n$ with $a_0=2$ and $a_1=3$. Compute $a_2,a_3,a_4,a_5,a_6$ explicitly and find a closed form using the characteristic equation."
+  },
+  {
+    "id": "q67",
+    "number": 67,
+    "topic": "Determinants and Cramer rule",
+    "question": "Compute $\\det(A)$ for $$A=\\begin{bmatrix}2&1&0\\\\1&3&1\\\\0&1&2\\end{bmatrix}$$ by cofactor expansion. Use Cramer's rule to solve $A\\mathbf x=(1,0,1)^T$ and verify $\\mathbf x$ by substitution."
+  },
+  {
+    "id": "q68",
+    "number": 68,
+    "topic": "Cross products and vector geometry",
+    "question": "Find $\\mathbf u\\times\\mathbf v$ for $\\mathbf u=(1,2,3)$ and $\\mathbf v=(4,5,6)$. Compute the magnitude $\\lVert\\mathbf u\\times\\mathbf v\\rVert$ and the area of the parallelogram spanned by $\\mathbf u$ and $\\mathbf v$."
+  },
+  {
+    "id": "q69",
+    "number": 69,
+    "topic": "Dot products and angles between vectors",
+    "question": "Find the angle $\\theta$ between $\\mathbf a=(1,0,1)$ and $\\mathbf b=(1,1,0)$ in radians and degrees. Verify $\\cos\\theta=\\dfrac{\\mathbf a\\cdot\\mathbf b}{\\lVert\\mathbf a\\rVert\\,\\lVert\\mathbf b\\rVert}$."
+  },
+  {
+    "id": "q70",
+    "number": 70,
+    "topic": "Eigenvalues of symmetric matrices",
+    "question": "Find all eigenvalues and orthonormal eigenvectors of $$A=\\begin{bmatrix}0&1\\\\1&0\\end{bmatrix}.$$ Diagonalize $A$ as $Q\\Lambda Q^T$ and verify $A=Q\\Lambda Q^T$."
+  },
+  {
+    "id": "q71",
+    "number": 71,
+    "topic": "Matrix trace and Cayley-Hamilton",
+    "question": "For $$B=\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix},$$ compute $\\operatorname{tr}(B)$, $\\det(B)$, and $\\operatorname{tr}(B^2)$. Verify the Cayley-Hamilton relation $B^2-(\\operatorname{tr}B)B+(\\det B)I=0$."
+  },
+  {
+    "id": "q72",
+    "number": 72,
+    "topic": "Hypergeometric distribution",
+    "question": "A urn has $N=10$ balls with $K=4$ red. Draw $n=3$ without replacement. Find $P(X=2)$ where $X$ is the number of red balls drawn, using the hypergeometric formula."
+  },
+  {
+    "id": "q73",
+    "number": 73,
+    "topic": "Geometric distribution moments",
+    "question": "Let $X\\sim\\mathrm{Geom}(p)$ with $p=0.25$ (number of trials until first success). Compute $E[X]$, $\\mathrm{Var}(X)$, and $P(X\\ge4)$."
+  },
+  {
+    "id": "q74",
+    "number": 74,
+    "topic": "Uniform distribution statistics",
+    "question": "If $X\\sim\\mathrm{Uniform}(2,8)$, find the pdf, $E[X]$, $\\mathrm{Var}(X)$, and $P(X\\le5)$."
+  },
+  {
+    "id": "q75",
+    "number": 75,
+    "topic": "Chebyshev inequality",
+    "question": "A random variable has $\\mu=50$ and $\\sigma^2=25$. Use Chebyshev's inequality to bound $P(|X-50|\\ge10)$. Compare with the bound when $\\sigma^2=100$."
+  },
+  {
+    "id": "q76",
+    "number": 76,
+    "topic": "Numerical differentiation",
+    "question": "Approximate $f'(2)$ for $f(x)=x^2$ using the forward difference with $h=0.1$. Compare with the exact derivative and state the $O(h)$ error order."
+  },
+  {
+    "id": "q77",
+    "number": 77,
+    "topic": "Trapezoidal numerical integration",
+    "question": "Approximate $\\int_0^1 x^2\\,dx$ using the trapezoidal rule with $n=4$ subintervals. Compute the exact integral and the absolute error."
+  },
+  {
+    "id": "q78",
+    "number": 78,
+    "topic": "Euler method for ODEs",
+    "question": "Solve $y'=y$ with $y(0)=1$ on $[0,1]$ using Euler's method with step $h=0.5$. Report $y(0.5)$ and $y(1)$ and compare with $e^{0.5}$ and $e$."
+  },
+  {
+    "id": "q79",
+    "number": 79,
+    "topic": "Matrix rank and linear dependence",
+    "question": "Linear algebra: find the rank of $$A=\\begin{bmatrix}1&2&3\\\\2&4&6\\\\1&1&1\\end{bmatrix}$$ by Gaussian elimination to row echelon form. Identify a maximal linearly independent set of columns."
+  },
+  {
+    "id": "q80",
+    "number": 80,
+    "topic": "Permutation matrices",
+    "question": "Write the permutation matrix for $\\sigma=(1\\,3\\,2)$ in $S_3$. Compute its determinant and explain the connection with $\\operatorname{sgn}(\\sigma)$."
+  },
+  {
+    "id": "q81",
+    "number": 81,
+    "topic": "Nilpotent and unipotent matrices",
+    "question": "Compute $N^5$ for the upper triangular matrix $$N=\\begin{bmatrix}1&1\\\\0&1\\end{bmatrix}.$$ Show $N-I$ is nilpotent and find the index of nilpotency."
+  },
+  {
+    "id": "q82",
+    "number": 82,
+    "topic": "Singular values of diagonal matrices",
+    "question": "Find the singular values of $$D=\\begin{bmatrix}3&0\\\\0&-4\\end{bmatrix}.$$ Compute $\\lVert D\\rVert_2$ and the condition number $\\kappa_2(D)$."
+  },
+  {
+    "id": "q83",
+    "number": 83,
+    "topic": "Ill-conditioned linear systems",
+    "question": "For $$A=\\begin{bmatrix}1&0\\\\0&100\\end{bmatrix},$$ compute $\\kappa_2(A)$. If $\\mathbf b=(1,1)^T$ and $\\mathbf b$ is perturbed by $10^{-6}$ in the second component, bound the relative error in $\\mathbf x$."
+  },
+  {
+    "id": "q84",
+    "number": 84,
+    "topic": "Fourier sine coefficients",
+    "question": "For $f(x)=x$ on $(0,\\pi)$ with sine series $f(x)\\sim\\sum_{n=1}^\\infty b_n\\sin(nx)$, compute $b_1$ and $b_2$. Evaluate the partial sum $S_2(x)=b_1\\sin x+b_2\\sin(2x)$ at $x=\\pi/2$."
+  },
+  {
+    "id": "q85",
+    "number": 85,
+    "topic": "Laplace transform table entries",
+    "question": "Use the Laplace transform to solve $y''-y=0$ with $y(0)=0$, $y'(0)=2$. Find $Y(s)$, invert to get $y(t)$, and evaluate $y(1)$."
+  },
+  {
+    "id": "q86",
+    "number": 86,
+    "topic": "Z-transform of sequences",
+    "question": "Find the $Z$-transform of the unit step sequence $u[n]=1$ for $n\\ge0$. Evaluate the transform at $z=2$ and state the region of convergence $|z|>1$."
+  },
+  {
+    "id": "q87",
+    "number": 87,
+    "topic": "Heat equation separation of variables",
+    "question": "Solve $u_t=u_{xx}$ on $(0,\\pi)$ with $u(0,t)=u(\\pi,t)=0$ and $u(x,0)=\\sin x$. Find $u(\\pi/2,1)$ and the decay rate of the first mode."
+  },
+  {
+    "id": "q88",
+    "number": 88,
+    "topic": "Wave equation and propagation speed",
+    "question": "For the wave equation $u_{tt}=4u_{xx}$ on the line, identify the wave speed $c$ and the period of a mode with wavelength $\\lambda=1$. Write the general d'Alembert solution."
+  },
+  {
+    "id": "q89",
+    "number": 89,
+    "topic": "Constrained optimization on a line",
+    "question": "Minimize $f(x,y)=x^2+y^2$ subject to $x+y=1$ using Lagrange multipliers. Report the minimum value and the optimal point $(x^*,y^*)$."
+  },
+  {
+    "id": "q90",
+    "number": 90,
+    "topic": "Spectral radius of a matrix",
+    "question": "Find the eigenvalues and spectral radius of $$M=\\begin{bmatrix}0.6&0.4\\\\0.2&0.8\\end{bmatrix}.$$ Determine whether powers $M^n$ converge as $n\\to\\infty$."
+  },
+  {
+    "id": "q91",
+    "number": 91,
+    "topic": "Mobius function",
+    "question": "Evaluate the Mobius function $\\mu(n)$ for $n=30$, $n=12$, and $n=17$. Compute $\\sum_{d\\mid 30}\\mu(d)$ and relate it to the divisor-counting identity."
+  },
+  {
+    "id": "q92",
+    "number": 92,
+    "topic": "Integer partitions",
+    "question": "List all integer partitions of $8$ and compute $p(8)$, the number of partitions of $8$. Verify your count using a recurrence or generating function."
+  },
+  {
+    "id": "q93",
+    "number": 93,
+    "topic": "Stirling numbers of the second kind",
+    "question": "Compute the Stirling number $S(5,3)$, the number of ways to partition a $5$-element set into $3$ nonempty subsets. List one explicit partition and verify the recurrence for Stirling numbers."
+  },
+  {
+    "id": "q94",
+    "number": 94,
+    "topic": "Catalan numbers",
+    "question": "Compute the Catalan number $C_5=\\dfrac{1}{6}\\binom{10}{5}$ and interpret it as the number of valid parentheses strings of length $10$. Verify $C_5$ by the recurrence $C_{n+1}=\\sum_{k=0}^n C_k C_{n-k}$."
+  },
+  {
+    "id": "q95",
+    "number": 95,
+    "topic": "Bell numbers",
+    "question": "Compute the Bell number $B_5$, the number of equivalence relations on a $5$-element set. Use the Bell triangle or the sum formula $B_n=\\sum_{k=0}^n S(n,k)$."
+  },
+  {
+    "id": "q96",
+    "number": 96,
+    "topic": "Fibonacci numbers and Binet formula",
+    "question": "Compute $F_{10}$ for the Fibonacci sequence with $F_0=0$, $F_1=1$. Verify Binet's formula $F_n=(\\varphi^n-\\psi^n)/\\sqrt5$ at $n=10$ with $\\varphi=(1+\\sqrt5)/2$."
+  },
+  {
+    "id": "q97",
+    "number": 97,
+    "topic": "Lucas numbers and Fibonacci identities",
+    "question": "Number theory sequences: the Lucas numbers satisfy $L_n=F_{n-1}+F_{n+1}$ with $L_0=2$, $L_1=1$. Compute $L_8$ and verify the identity $L_n=\\varphi^n+\\psi^n$ at $n=8$."
+  },
+  {
+    "id": "q98",
+    "number": 98,
+    "topic": "Continued fraction convergents",
+    "question": "Find the simple continued fraction for $\\sqrt2=[1;2,2,2,\\ldots]$ and compute the fourth convergent $p_4/q_4$. Compare $p_4/q_4$ with $\\sqrt2$."
+  },
+  {
+    "id": "q99",
+    "number": 99,
+    "topic": "Pigeonhole principle",
+    "question": "Pigeonhole principle: how many cards must be drawn from a standard $52$-card deck to guarantee at least $4$ cards of the same suit? Justify using $\\lceil n/m\\rceil$ with $n$ objects and $m$ boxes."
+  },
+  {
+    "id": "q100",
+    "number": 100,
+    "topic": "Logistic map and discrete dynamics",
+    "question": "For the logistic map $x_{n+1}=rx_n(1-x_n)$ with $r=3.9$ and $x_0=0.5$, compute $x_1$, $x_2$, and $x_3$. Discuss whether the orbit appears periodic or chaotic for these parameters."
   }
 ] as MathPromptDef[];
 

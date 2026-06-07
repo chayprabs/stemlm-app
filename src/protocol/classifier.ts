@@ -81,7 +81,7 @@ const RULES: Rule[] = [
   {
     subject: 'Math',
     patterns: [
-      { re: /\b(integral|integrate|integration|derivative|differentiate|differential|\blimit\b|matrix|matrices|determinant|eigen(value|vector)|vector space|linear algebra|probability|combinatorics?|permutation|factorial|series|sequence|summation|theorem|proof|prove\b|polynomial|quadratic|trigonometr|\bsine\b|cosine|tangent|logarithm|exponential|inequality|system of equations|complex number|set theory|modular arithmetic|geometry|triangle|circle|angle|fourier|laplace transform|ode\b|pde\b|jacobian|hessian|lagrange multiplier|convex|linear programming|group theory|ring theory|finite field|metric space|banach|hilbert|lebesgue|measure theory|generating function|recurrence relation|number theory|graph theory|numerical (method|analysis)|newton-?raphson|fixed point|interpolation|variance|expected value|stochastic|hypothesis test|confidence interval|regression|bayes|markov|binomial theorem|chinese remainder|gram-schmidt|singular value|orthogonal diagonal|quadratic form|divergence theorem|green'?s theorem|stokes|parseval|implicit (function|differentiation)|conservative field|surface integral|knapsack|inclusion-exclusion|cyclic group|symmetric group|boolean algebra|mathematical induction|countable|uncountable|normed space|vector calculus|prime ideal|quotient ring|discrete mathematics)\b/i, w: 3 },
+      { re: /\b(integral|integrate|integration|derivative|differentiate|differential|\blimit\b|matrix|matrices|determinant|eigen(value|vector)|vector space|linear algebra|matrix rank|row echelon|gaussian elimination|probability|combinatorics?|permutation|factorial|series|sequence|summation|theorem|proof|prove\b|polynomial|quadratic|trigonometr|\bsine\b|cosine|tangent|logarithm|exponential|inequality|system of equations|complex number|set theory|modular arithmetic|geometry|triangle|circle|angle|fourier|laplace transform|ode\b|pde\b|jacobian|hessian|lagrange multiplier|convex|linear programming|group theory|ring theory|finite field|metric space|banach|hilbert|lebesgue|measure theory|generating function|recurrence relation|number theory|graph theory|numerical (method|analysis)|newton-?raphson|fixed point|interpolation|variance|expected value|stochastic|hypothesis test|confidence interval|regression|bayes|markov|binomial theorem|chinese remainder|gram-schmidt|singular value|orthogonal diagonal|quadratic form|divergence theorem|green'?s theorem|stokes|parseval|implicit (function|differentiation)|conservative field|surface integral|knapsack|inclusion-exclusion|cyclic group|symmetric group|boolean algebra|mathematical induction|countable|uncountable|normed space|vector calculus|prime ideal|quotient ring|discrete mathematics|stirling number|catalan number|fibonacci|lucas numbers?|continued fraction|pigeonhole principle|logistic map|bell number|integer partition|euler totient|hypergeometric|chebyshev|mobius function|partition function|cross product|dot product|permutation matrix|nilpotent|trapezoidal rule|euler method|z-transform|d.?alembert)\b/i, w: 3 },
       { re: /\b(equation|solve for|factor|simplify|calculate|evaluate|function|graph|slope|x\b|y\b)\b/i, w: 1 },
     ],
   },
@@ -116,6 +116,12 @@ export function classifySubject(question: string): Subject {
       text,
     );
   if (mathFastPath && !physicsContext) {
+    return 'Math';
+  }
+  if (
+    /\b(matrix|matrices|linear algebra)\b/i.test(text) &&
+    /\b(rank|row echelon|gaussian elimination|linearly independent|null space|column space)\b/i.test(text)
+  ) {
     return 'Math';
   }
   // Chemistry-bank phrasing: "… chemistry:" topic lines and named chem subfields.
