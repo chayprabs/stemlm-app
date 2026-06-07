@@ -89,6 +89,7 @@ export default defineConfig({
     host_permissions: [
       'https://fonts.googleapis.com/*',
       'https://fonts.gstatic.com/*',
+      'https://www.google-analytics.com/*',
       '*://gemini.google.com/*',
     ],
     action: {
