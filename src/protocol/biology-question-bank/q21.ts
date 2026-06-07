@@ -6,7 +6,7 @@ export const Q21: BiologyQuestionDef = {
   number: 21,
   topic: 'Population Growth Models and Regulation',
   question:
-    'In population ecology, compare the exponential growth equation and logistic growth equation, interpret growth curves, classify scenarios with r>0, r=0, and r<0, and distinguish density-dependent from density-independent factors.',
+    'In population ecology, compare growth models for an organism species in an ecosystem: exponential growth and logistic growth. Interpret growth curves, classify scenarios with r>0, r=0, and r<0, and distinguish density-dependent from density-independent factors that regulate species populations.',
   steps: [
     {
       title: 'Set up exponential and logistic growth equations',

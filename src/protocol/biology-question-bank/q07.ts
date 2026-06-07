@@ -55,7 +55,7 @@ export const Q07: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Macromolecule classes are carbohydrates, lipids, proteins, and nucleic acids, each with characteristic building units and bonds. Lipids are the most energy dense (about 9 kcal/g) versus carbohydrates/proteins (about 4 kcal/g). Protein structure is hierarchical (primary -> secondary -> tertiary -> quaternary), and function depends on folding. Lipid classes include triacylglycerols, phospholipids, and steroids. DNA and RNA differ in sugar (deoxyribose vs ribose), base usage (T vs U), and typical strandedness.',
+    'Macromolecule classes are carbohydrates, lipids, proteins, and nucleic acids, each with characteristic building units and bonds (peptide bonds link amino acids; phosphodiester bonds link nucleotides). Lipids are the most energy dense (about 9 kcal/g) versus carbohydrates/proteins (about 4 kcal/g). Protein structure is hierarchical (primary -> secondary -> tertiary -> quaternary), and function depends on folding. Lipid classes include triacylglycerols, phospholipids, and steroids. DNA and RNA differ in sugar (deoxyribose vs ribose), base usage (T vs U), and typical strandedness.',
   verifiedPatterns: ['4 kcal', '9 kcal', 'peptide', 'phosphodiester', 'thymine', 'uracil', 'quaternary'],
   minDiagramSteps: 3,
 };

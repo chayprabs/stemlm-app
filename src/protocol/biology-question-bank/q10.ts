@@ -6,7 +6,7 @@ export const Q10: BiologyQuestionDef = {
   number: 10,
   topic: 'Mendelian Genetics with Dihybrid Pea Crosses',
   question:
-    'For pea traits with alleles R/r and Y/y, derive expected F1 and F2 outcomes from parental crosses, apply Mendel laws, compute key probabilities, and interpret a test cross.',
+    'In Mendelian genetics, for pea plant traits with alleles R/r and Y/y, use Punnett squares to derive expected F1 and F2 outcomes from parental crosses, apply Mendel laws, compute key probabilities, and interpret a test cross.',
   steps: [
     {
       title: 'Define alleles, dominance, and parental setup',
@@ -23,26 +23,26 @@ export const Q10: BiologyQuestionDef = {
       title: 'Generate F1 and F2 framework',
       formula:
         '$$RRYY\\times rryy\\Rightarrow F1\\;100\\%\\;RrYy$$\n$$F1\\times F1: RrYy\\times RrYy$$',
-      body: 'Each F1 parent forms four gamete types (RY, Ry, rY, ry) with equal expected frequency 1/4 under independent assortment.',
+      body: 'Each F1 parent forms four gamete types (RY, Ry, rY, ry) with equal frequency: P(each gamete) = 1/4 = 0.25 under independent assortment.',
       diagram: punnettDihybridDiagram(),
     },
     {
       title: 'Derive F2 phenotypic ratio using independence',
       formula:
         '$$P(R\\_)=\\frac{3}{4},\\;P(Y\\_)=\\frac{3}{4}\\Rightarrow P(R\\_Y\\_)=\\frac{9}{16}$$\n$$\\text{F2 phenotypes}=9:3:3:1$$',
-      body: 'From monohybrid probabilities: round yellow 9/16, round green 3/16, wrinkled yellow 3/16, wrinkled green 1/16. In 160 offspring, expectation is 90:30:30:10.',
+      body: 'P(R_) = 3/4 and P(Y_) = 3/4, so P(R_Y_) = (3/4)×(3/4) = 9/16. F2 phenotypic ratio = 9:3:3:1. In n = 160 offspring, expected counts = 90:30:30:10.',
     },
     {
       title: 'Compute a specific double-recessive probability',
       formula:
         '$$P(rryy)=P(rr)\\times P(yy)=\\frac{1}{4}\\times\\frac{1}{4}=\\frac{1}{16}$$',
-      body: 'Product rule applies because loci assort independently in a standard Mendelian dihybrid cross. So expected rryy frequency is 6.25%, or about 6-7 individuals in a sample of 100.',
+      body: 'P(rryy) = P(rr)×P(yy) = (1/4)×(1/4) = 1/16 = 0.0625. In a sample of n = 100, expected rryy count = 100×(1/16) = 6.25 ≈ 6 individuals.',
     },
     {
       title: 'Use a test cross to infer unknown genotype',
       formula:
         '$$R\\_Y\\_\\times rryy\\Rightarrow \\text{if unknown is }RrYy,\\;\\text{offspring ratio }1:1:1:1$$',
-      body: 'A tester is homozygous recessive. Equal four-class progeny suggests heterozygosity at both loci; all dominant phenotype suggests homozygous dominant at both loci (RRYY). Intermediate patterns indicate heterozygosity at one locus only.',
+      body: 'Test cross: R_Y_ × rryy. If unknown is RrYy, offspring ratio = 1:1:1:1 (each class P = 1/4). If unknown is RRYY, all progeny show dominant phenotypes (P = 1). Intermediate patterns indicate heterozygosity at one locus only.',
       diagram: testCrossDiagram(),
     },
     {

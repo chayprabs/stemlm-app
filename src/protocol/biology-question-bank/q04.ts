@@ -21,7 +21,7 @@ export const Q04: BiologyQuestionDef = {
       title: 'Tabulate reduced cofactor production per glucose',
       formula:
         '$$\\text{Glycolysis: }2\\,\\text{NADH}+2\\,\\text{ATP}\\quad\\text{PDH: }2\\,\\text{NADH}\\quad\\text{TCA: }6\\,\\text{NADH}+2\\,\\text{FADH}_2+2\\,\\text{ATP}$$',
-      body: 'Totals per glucose are 10 NADH, 2 FADH2, and 4 substrate-level ATP equivalents (2 from glycolysis plus 2 GTP/ATP from TCA). These are the standard stoichiometries for one complete oxidation of glucose.',
+      body: 'Totals per glucose are NADH = 2+2+6 = 10, FADH2 = 2, and substrate-level ATP = 2+2 = 4 (2 from glycolysis plus 2 GTP/ATP from TCA). These are the standard stoichiometries for one complete oxidation of glucose.',
     },
     {
       title: 'Compute oxidative ATP equivalents from cofactors',
@@ -40,7 +40,7 @@ export const Q04: BiologyQuestionDef = {
       title: 'Contrast ATP yield under fermentation',
       formula:
         '$$\\text{Fermentation net ATP per glucose}=2$$',
-      body: 'Without a functional ETC, pyruvate is reduced to lactate (animals) or ethanol + CO2 (yeast) to regenerate NAD+ for glycolysis. Because ATP comes only from substrate-level phosphorylation in glycolysis, yield remains 2 ATP per glucose.',
+      body: 'Without a functional ETC, pyruvate is reduced to lactate (animals) or ethanol + CO2 (yeast) to regenerate NAD+ for glycolysis. Because ATP comes only from substrate-level phosphorylation in glycolysis, net yield = 2 ATP per glucose.',
       diagram: fermentationDiagram(),
     },
     {

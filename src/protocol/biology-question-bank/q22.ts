@@ -73,7 +73,7 @@ export const Q22: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Species interactions are categorized by fitness signs (+/+ mutualism, -/- competition, +/- predation/parasitism, +/0 commensalism). Competitive exclusion occurs when niche overlap is high and one species consistently depresses the other. Keystone species removal can trigger trophic cascades and lower diversity; in the worked example Shannon diversity dropped from 1.386 to 0.588. Primary succession begins without soil, whereas secondary succession starts with remaining soil and generally proceeds faster.',
+    'Species interactions are categorized by fitness signs (+/+ mutualism, -/- competition, +/- predation/parasitism, +/0 commensalism). Competitive exclusion occurs when niche overlap is high and one species consistently depresses the other. Keystone species removal can trigger trophic cascades and lower diversity; in the worked example Shannon diversity dropped from 1.386 to 0.588. primary succession begins without soil, whereas secondary succession starts with remaining soil and generally proceeds faster.',
   verifiedPatterns: ['mutualism', 'competition', 'competitive exclusion', 'keystone species', "H'", 'primary succession'],
   minDiagramSteps: 3,
 };

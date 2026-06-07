@@ -62,7 +62,7 @@ export const Q24: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Darwinian evolution follows from heritable variation, competition, and differential reproductive success. Selection can be directional (mean shifts), stabilizing (intermediate favored), or disruptive (extremes favored). Fitness calculations quantify selection strength; in the worked example, Aa had highest fitness and aa had selection coefficient 0.40. Evolution is supported by multiple independent evidence streams including fossils, homologous anatomy, biogeography, and phylogenetic molecular data.',
+    'Darwin postulates explain how heritable variation plus competition causes evolution by natural selection. Selection can include directional selection (mean shifts), stabilizing (intermediate favored), or disruptive (extremes favored). Fitness calculations quantify selection strength through relative fitness; in the worked example, Aa had highest fitness and aa had selection coefficient 0.40. Evolution is supported by multiple independent evidence streams including fossils, homologous anatomy, biogeography, and phylogenetic molecular data.',
   verifiedPatterns: ['Darwin postulates', 'directional selection', 'stabilizing', 'disruptive', 'relative fitness', 'selection coefficient'],
   minDiagramSteps: 4,
 };

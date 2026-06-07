@@ -6,7 +6,7 @@ export const Q29: BiologyQuestionDef = {
   number: 29,
   topic: 'Innate Immunity, Inflammation, Phagocytosis, and Complement',
   question:
-    'In immunology, describe innate immunity barriers, explain the cardinal signs of inflammation, outline phagocytosis, and summarize complement-system antimicrobial actions.',
+    'In immunology and immune system biology, describe innate immunity barriers that protect the organism from pathogen entry, explain the cardinal signs of inflammation, outline phagocytosis by immune cells, and summarize complement-system antimicrobial actions including antibody-supported clearance.',
   steps: [
     {
       title: 'Map first-line innate immune barriers',
@@ -67,7 +67,7 @@ export const Q29: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Innate immunity begins with physical and chemical barriers, then deploys inflammation, phagocytes, and complement after breach. Cardinal inflammation signs are rubor, calor, tumor, dolor, and often functio laesa. Phagocytosis involves recognition, engulfment, and intracellular killing; in the worked example 200,000 bacteria required about 10,000 neutrophils at 20 bacteria per cell. Complement pathways converge on C3 activation, producing opsonization and lytic MAC formation that further reduce pathogen burden.',
+    'innate immunity begins with physical and chemical barriers, then deploys inflammation, phagocytes, and complement after breach. Cardinal inflammation signs are rubor, calor, tumor, dolor, and often functio laesa. phagocytosis involves recognition, engulfment, and intracellular killing; in the worked example 200,000 bacteria required about 10,000 neutrophils at 20 bacteria per cell. Complement pathways converge on C3 activation, producing opsonization and lytic MAC formation that further reduce pathogen burden.',
   verifiedPatterns: ['innate immunity', 'rubor', 'calor', 'phagocytosis', 'complement', 'MAC'],
   minDiagramSteps: 4,
 };

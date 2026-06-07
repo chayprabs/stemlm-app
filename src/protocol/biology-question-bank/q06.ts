@@ -32,7 +32,7 @@ export const Q06: BiologyQuestionDef = {
       title: 'Count chromosomes during anaphase and after cytokinesis',
       formula:
         '$$\\text{Anaphase (single cell): }92\\;\\text{chromosomes transiently counted when chromatids separate}$$\n$$\\text{Each daughter after cytokinesis: }46\\;\\text{chromosomes (2n)}$$',
-      body: 'Once sister chromatids split, each chromatid is a chromosome. So one anaphase cell contains 92 chromosomes in transit, but each completed daughter nucleus returns to 46 chromosomes.',
+      body: 'Once sister chromatids split, each chromatid is a chromosome. Anaphase count = 92 chromosomes in one cell; after cytokinesis each daughter gets 92/2 = 46 chromosomes (2n restored).',
     },
     {
       title: 'Map major checkpoints and their logic',

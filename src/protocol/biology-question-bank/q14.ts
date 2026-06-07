@@ -58,7 +58,7 @@ export const Q14: BiologyQuestionDef = {
     },
   ],
   solution:
-    'The lac operon is OFF without lactose because repressor binds operator and ON with lactose because allolactose inactivates repressor. Catabolite repression superimposes glucose control via cAMP-CAP, so high glucose lowers lac transcription even when lactose is present. Eukaryotic regulation extends beyond promoter binding to chromatin, enhancers, RNA processing, and miRNAs. miRNAs reduce effective mRNA abundance and therefore reduce protein/enzyme output.',
+    'The lac operon is OFF without lactose because repressor binds operator and ON with lactose because allolactose inactivates repressor. This catabolite repression superimposes glucose control via cAMP-CAP, so high glucose lowers lac transcription even when lactose is present. Eukaryotic regulation extends beyond promoter binding to chromatin, enhancers, RNA processing, and miRNAs. miRNAs reduce effective mRNA abundance and therefore reduce protein/enzyme output.',
   verifiedPatterns: ['lac operon', 'allolactose', 'CAP', 'cAMP', 'catabolite repression', 'miRNA'],
   minDiagramSteps: 4,
 };

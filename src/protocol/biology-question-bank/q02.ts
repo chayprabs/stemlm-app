@@ -32,7 +32,7 @@ export const Q02: BiologyQuestionDef = {
       title: 'Apply water potential logic to RBC outcomes',
       formula:
         '$$\\pi=iCRT\\quad (i\\approx 2\\;\\text{for NaCl})$$',
-      body: 'At the same T and R, osmotic pressure is proportional to osmolarity. Since 0.068 Osm < 0.308 Osm, water enters RBCs in 0.2% NaCl causing swelling and possible hemolysis. Since 0.684 Osm > 0.308 Osm, water leaves RBCs in 2% NaCl causing crenation.',
+      body: 'At the same T and R, osmotic pressure π is proportional to osmolarity (iCRT with i≈2 for NaCl). Ratio = 0.068/0.308 ≈ 0.22 < 1, so water enters RBCs in 0.2% NaCl causing swelling and possible hemolysis. Ratio = 0.684/0.308 ≈ 2.2 > 1, so water leaves RBCs in 2% NaCl causing crenation.',
       diagram: rbcOsmosisDiagram(),
     },
     {

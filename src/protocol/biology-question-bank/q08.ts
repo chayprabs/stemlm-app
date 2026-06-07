@@ -10,7 +10,7 @@ export const Q08: BiologyQuestionDef = {
   number: 8,
   topic: 'DNA Replication Fork Dynamics and Telomerase',
   question:
-    'Draw a replication fork, justify 5\'->3\' synthesis and semiconservative replication, distinguish leading/lagging strand synthesis, and explain why telomerase is required in eukaryotes.',
+    'In molecular biology, draw a DNA replication fork, justify 5\'->3\' synthesis and semiconservative DNA replication, distinguish leading/lagging strand synthesis, and explain why telomerase is required in eukaryotes.',
   steps: [
     {
       title: 'Lay out semiconservative replication logic',
@@ -34,7 +34,7 @@ export const Q08: BiologyQuestionDef = {
       title: 'Quantify lagging-strand fragment timing',
       formula:
         '$$\\text{If fragment length}=150\\,\\text{nt and fork polymerase speed}=50\\,\\text{nt/s},\\;t=\\frac{150}{50}=3\\,\\text{s}$$',
-      body: 'In eukaryotes, Okazaki fragments are often about 100-200 nt. Using 150 nt and 50 nt/s gives about 3 s to synthesize one fragment before primer removal and ligation steps.',
+      body: 'In eukaryotes, Okazaki fragments are often about 100-200 nt. Using fragment length = 150 nt and speed = 50 nt/s, synthesis time t = 150/50 = 3 s per fragment before primer removal and ligation.',
     },
     {
       title: 'State replisome components and roles',
@@ -44,7 +44,7 @@ export const Q08: BiologyQuestionDef = {
       title: 'Explain the end-replication problem and telomerase',
       formula:
         '$$\\text{Human telomere repeat}=(\\text{TTAGGG})_n$$',
-      body: 'After removal of the terminal RNA primer on lagging strands, conventional polymerases cannot fully fill the 5\' end, causing progressive shortening. Telomerase extends the 3\' overhang using an internal RNA template that adds TTAGGG repeats.',
+      body: 'n is the number of TTAGGG telomere repeats added by telomerase. After primer removal on lagging strands, DNA shortens each round. Telomerase extends the 3\' overhang using its RNA template; with n = 50 repeats, extension = 50×6 = 300 bp added to the telomere end.',
       diagram: telomeraseDiagram(),
     },
     {

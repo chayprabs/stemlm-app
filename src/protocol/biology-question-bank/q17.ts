@@ -6,7 +6,7 @@ export const Q17: BiologyQuestionDef = {
   number: 17,
   topic: 'Cardiac Anatomy, Blood Flow, Conduction, ECG, and Cardiac Output',
   question:
-    'In cardiovascular biology, label heart chambers and vessels, trace blood pathway through the heart, explain cardiac conduction and ECG waves, and calculate cardiac output from stroke volume and heart rate.',
+    'In cardiovascular biology and organ physiology, label heart chambers and vessels, trace blood pathway through cardiac tissue and systemic tissues in the organism, explain cardiac conduction and ECG waves, and estimate cardiac output from stroke volume and heart rate for circulatory homeostasis.',
   steps: [
     {
       title: 'Label heart anatomy and major chambers',
@@ -53,7 +53,7 @@ export const Q17: BiologyQuestionDef = {
     },
   ],
   solution:
-    'The heart pumps blood in a one-way path through right heart, lungs, left heart, and systemic tissues. Electrical activation runs SA node to AV node to His-Purkinje, producing ECG waves (P, QRS, T). Heart rate can be estimated from RR interval with HR=60/RR. With SV=70 mL and HR=72 bpm, cardiac output is 5040 mL/min or about 5.04 L/min.',
+    'The heart pumps blood in a one-way path through right heart, lungs, left heart, and systemic tissues. Electrical activation runs SA node to AV node to His-Purkinje, producing ECG waves (P, QRS, T). Heart rate can be estimated from RR interval with HR=60/RR. Use CO=SV x HR for cardiac pumping physiology. With SV=70 mL and HR=72 bpm, cardiac output = 5.04 L/min (5040 mL/min).',
   verifiedPatterns: ['RA', 'RV', 'LA', 'LV', 'HR=60/RR', 'CO=SV x HR', '5.04 L/min'],
   minDiagramSteps: 3,
 };

@@ -21,20 +21,20 @@ export const Q09: BiologyQuestionDef = {
       title: 'Transcribe a template sequence into mRNA',
       formula:
         '$$\\text{DNA template }3\'-\\text{TAC GGA TTT}-5\'\\Rightarrow \\text{mRNA }5\'-\\text{AUG CCU AAA}-3\'$$',
-      body: 'RNA polymerase reads template DNA 3\'->5\' and synthesizes RNA 5\'->3\'. In the example, TAC corresponds to AUG (start codon), GGA to CCU, and TTT to AAA.',
+      body: 'RNA polymerase reads template DNA 3\'->5\' and synthesizes RNA 5\'->3\'. Mapping: TAC → AUG (start), GGA → CCU, TTT → AAA, so mRNA = 5\'-AUG CCU AAA-3\'.',
       diagram: transcriptionTranslationDiagram(),
     },
     {
       title: 'Translate codons into peptide sequence',
       formula:
         '$$\\text{AUG}\\to\\text{Met},\\;\\text{CCU}\\to\\text{Pro},\\;\\text{AAA}\\to\\text{Lys}$$',
-      body: 'For the mRNA 5\'-AUG CCU AAA-3\', the peptide is Met-Pro-Lys (N-terminus to C-terminus). Translation terminates when a stop codon (UAA, UAG, or UGA) enters the ribosomal A site.',
+      body: 'For mRNA 5\'-AUG CCU AAA-3\', translation gives peptide = Met-Pro-Lys (N→C). With 3 codons and no stop, length = 3 amino acids. Translation terminates when UAA, UAG, or UGA enters the A site.',
     },
     {
       title: 'Use codon length arithmetic',
       formula:
         '$$\\text{Number of codons}=\\frac{\\text{coding nucleotides}}{3}$$\n$$\\text{Example: }900\\,\\text{nt coding region}\\Rightarrow 300\\,\\text{codons}$$',
-      body: 'If one codon is stop, translated amino acids are typically 299 from a 300-codon ORF. Triplet coding is non-overlapping and read in a fixed frame set by the start codon.',
+      body: 'Codon count = 900 nt / 3 = 300 codons. If one codon is stop, translated amino acids = 300 - 1 = 299. Triplet coding is non-overlapping and read in a fixed frame set by AUG.',
     },
     {
       title: 'Summarize core genetic code properties',

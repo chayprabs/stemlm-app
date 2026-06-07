@@ -11,7 +11,7 @@ export const Q05: BiologyQuestionDef = {
   number: 5,
   topic: 'Chloroplast Function, Light Reactions, and Carbon Fixation',
   question:
-    'Explain chloroplast structure, the light reactions (PSII and PSI), Calvin cycle stoichiometry, and compare C3, C4, and CAM carbon fixation strategies.',
+    'Explain chloroplast structure, the light reactions (PSII and PSI), Calvin cycle stoichiometry, and compare C3, C4, and crassulacean acid metabolism carbon fixation strategies in photosynthesis.',
   steps: [
     {
       title: 'Relate chloroplast anatomy to function',
@@ -27,13 +27,13 @@ export const Q05: BiologyQuestionDef = {
       title: 'Write a representative light-reaction balance',
       formula:
         '$$2\\,\\text{H}_2\\text{O}+2\\,\\text{NADP}^++3\\,\\text{ADP}+3\\,\\text{P}_i+\\text{light}\\rightarrow \\text{O}_2+2\\,\\text{NADPH}+3\\,\\text{ATP}$$',
-      body: 'A useful stoichiometric approximation is that making 2 NADPH is coupled with about 3 ATP and release of 1 O2 from splitting 2 H2O. Exact ATP:NADPH coupling can vary with cyclic electron flow contributions.',
+      body: 'NADPH is the reduced electron carrier and ATP is the phosphorylation product in the light reactions. Balance: 2 H2O + 2 NADP+ + 3 ADP + 3 Pi → O2 + 2 NADPH + 3 ATP. So ATP/NADPH = 3/2 = 1.5 when 2 NADPH are made.',
     },
     {
       title: 'Quantify Calvin cycle requirements for one G3P export',
       formula:
         '$$3\\,\\text{CO}_2+9\\,\\text{ATP}+6\\,\\text{NADPH}\\rightarrow 1\\,\\text{G3P}+9\\,\\text{ADP}+8\\,\\text{P}_i+6\\,\\text{NADP}^+$$',
-      body: 'For one net triose phosphate (G3P), 3 CO2 are fixed. To form one hexose equivalent, the cycle must run twice: 6 CO2, 18 ATP, and 12 NADPH.',
+      body: 'CO2 is the inorganic carbon substrate; ATP is energy input and NADPH is reducing power from light reactions; G3P is glyceraldehyde-3-phosphate output. For one net G3P, inputs = 3 CO2 + 9 ATP + 6 NADPH. For one glucose (2 G3P), inputs = 6 CO2 + 18 ATP + 12 NADPH.',
       diagram: calvinCycleDiagram(),
     },
     {

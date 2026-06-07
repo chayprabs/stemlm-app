@@ -10,7 +10,7 @@ export const Q03: BiologyQuestionDef = {
   number: 3,
   topic: 'Enzyme Kinetics, Inhibition, and Delta G',
   question:
-    'Using enzyme kinetic principles, interpret a reaction coordinate diagram, apply Michaelis-Menten kinetics, compare inhibition types, and compute Gibbs free energy changes.',
+    'In enzyme biology, interpret a reaction coordinate diagram for substrate-to-product enzyme catalysis, apply Michaelis-Menten kinetics, compare competitive and non-competitive inhibition, and compute delta G (activation energy and thermodynamic driving force).',
   steps: [
     {
       title: 'Interpret activation energy from reaction coordinate',

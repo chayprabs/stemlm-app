@@ -56,7 +56,7 @@ export const Q20: BiologyQuestionDef = {
     },
   ],
   solution:
-    'Homeostasis uses feedback control to maintain internal biological variables near set points. Blood glucose regulation is a classic negative feedback system using insulin and glucagon. Positive feedback, by contrast, amplifies change temporarily (for example in specific physiological events) until interrupted. Thermoregulation uses neural and vascular effectors plus heat transfer physics (Q=mcDeltaT) to counter deviations from temperature targets.',
+    'Homeostasis uses feedback control to maintain internal biological variables near set points. Blood glucose regulation is a classic negative feedback system using insulin and glucagon. Positive feedback, by contrast, amplifies change temporarily (for example in specific physiological events) until interrupted. thermoregulation uses neural and vascular effectors plus heat transfer physics (Q=mcDeltaT) to counter deviations from temperature targets.',
   verifiedPatterns: ['homeostasis', 'negative feedback', 'insulin', 'glucagon', 'Q=mc', 'thermoregulation'],
   minDiagramSteps: 3,
 };

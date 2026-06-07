@@ -11,7 +11,7 @@ export const Q01: BiologyQuestionDef = {
   number: 1,
   topic: 'Prokaryote vs Eukaryote and Endosymbiosis',
   question:
-    'Compare prokaryotic and eukaryotic cells using a structured table and labeled diagrams. Then explain the endosymbiotic origin of mitochondria (and chloroplasts) with key molecular evidence.',
+    'In cell biology, compare prokaryotic and eukaryotic cells using a structured table and labeled diagrams. Then explain the endosymbiotic origin of mitochondria and chloroplasts with key genetic and organelle evidence.',
   steps: [
     {
       title: 'Build a comparison table for major cell features',

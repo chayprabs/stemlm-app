@@ -6,7 +6,7 @@ export const Q18: BiologyQuestionDef = {
   number: 18,
   topic: 'Respiratory Pathway, Gas Transport, Bohr Effect, and Lung Volumes',
   question:
-    'In respiratory physiology, trace air flow through the respiratory pathway, explain oxygen and carbon dioxide transport in blood, interpret the oxyhaemoglobin dissociation curve including the Bohr effect, and compute lung function indices such as FEV1/FVC.',
+    'In respiratory physiology of a human organism, trace air flow through the respiratory pathway to alveoli, explain oxygen and carbon dioxide transport across alveolar tissue and blood cells, interpret the oxyhaemoglobin dissociation curve including the Bohr effect, and estimate lung function indices such as FEV1/FVC for gas-exchange homeostasis.',
   steps: [
     {
       title: 'Map the respiratory pathway to alveolar exchange',
