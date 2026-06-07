@@ -417,3 +417,24 @@ export interface EEBenchmarkEntry {
   problemStatement: string;
   spec: EEProblemSpec;
 }
+
+// ── Solver output types ────────────────────────────────────────────────────────
+
+/** One derivation step hint returned by the solver. */
+export interface SolutionStep {
+  /** Key equation for this step (LaTeX-ready string). */
+  formula: string;
+  /** Plain-text explanation. */
+  explanation: string;
+}
+
+/**
+ * Structured solution returned by solve(spec).
+ * computed: all numerically derived quantities keyed by their standard symbol.
+ * steps: ordered derivation hints for diagram labels and step synthesis.
+ */
+export interface EESolution {
+  kind: string;
+  computed: Record<string, number>;
+  steps: SolutionStep[];
+}

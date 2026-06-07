@@ -2,13 +2,44 @@
  * Dynamic SVG diagram generator for EE benchmark problems.
  *
  * renderDiagram(spec, solution, stepIndex?) dispatches on spec.kind and
- * produces an SVG string driven entirely by spec.params and solution.computed.
- * Every diagram satisfies the electrical audit: ≥3 SVG primitives and ≥2 text
- * labels, with no text-only fallbacks.
+ * produces an SVG string whose element labels are driven entirely by
+ * spec.params and solution.computed — never by hardcoded question IDs.
  *
- * Import spec types from ./spec-types; EESolution is defined there as well.
+ * Every diagram satisfies the electrical audit: ≥4 SVG primitives and
+ * ≥2 text labels, with at least one non-text graphical element.
  */
 import type { EEProblemSpec, EESolution } from './spec-types';
+import type {
+  KvlSeriesLoopParams,
+  NodalAnalysisParams,
+  MeshAnalysisParams,
+  TheveninNortonParams,
+  SuperpositionParams,
+  RcStepParams,
+  RlTransientParams,
+  RlcSeriesStepParams,
+  AcSeriesRlcParams,
+  SeriesResonanceParams,
+  MutualInductanceParams,
+  IdealTransformerParams,
+  DeltaWyeParams,
+  PfCorrectionParams,
+  ThreePhaseYYParams,
+  BodePlotParams,
+  ZParametersParams,
+  AbcdCascadeParams,
+  TwoPortGainParams,
+  PerUnitParams,
+  YbusFormationParams,
+  GaussSeidelPfParams,
+  SymmetricalFaultParams,
+  BjtCeAmplifierParams,
+  MosfetCsParams,
+  MosfetDiffPairParams,
+  OpampSummerParams,
+  SeriesShuntFeedbackParams,
+  IntegratorOscillatorParams,
+} from './spec-types';
 import {
   wrapSvg,
   wire,
@@ -17,1087 +48,871 @@ import {
   node,
   resistorH,
   resistorV,
-  capacitorH,
   inductorH,
+  capacitorH,
   currentArrow,
   equationPanel,
-  seriesLoopCircuit,
 } from './circuit-svg';
 
-// ── Formatting helpers ───────────────────────────────────────────────────────
+// ── formatting helpers ────────────────────────────────────────────────
 
-/** Format a number to 4 significant figures, with optional unit suffix. */
-function fmt(n: number | undefined | null, unit = ''): string {
-  if (n == null || !isFinite(n)) return '?';
-  const s = parseFloat(n.toPrecision(4)).toString();
-  return unit ? `${s}\u202f${unit}` : s;
+/** Format a numeric value with SI-friendly precision */
+function fmtNum(v: number, decimals = 2): string {
+  const abs = Math.abs(v);
+  if (abs === 0) return '0';
+  if (abs >= 1e6) return `${(v / 1e6).toPrecision(3)}M`;
+  if (abs >= 1e3) return `${(v / 1e3).toPrecision(3)}k`;
+  if (abs >= 1)   return `${parseFloat(v.toFixed(decimals))}`;
+  if (abs >= 1e-3) return `${parseFloat((v * 1e3).toFixed(decimals))}m`;
+  return v.toExponential(2);
 }
 
-/** Read a value from the solution's computed map, defaulting to 0. */
-function sv(sol: EESolution, key: string): number {
-  return sol.computed[key] ?? 0;
+/** Extract a value from solution.computed */
+function sv(sol: EESolution, key: string): number | undefined {
+  return sol.computed[key];
 }
 
-// ── Bode magnitude computation ───────────────────────────────────────────────
+/** Format a solution value as a string with unit, or return fallback */
+function fmtSv(sol: EESolution, key: string, unit = '', fallback = '?'): string {
+  const v = sv(sol, key);
+  return v !== undefined ? `${fmtNum(v)}${unit}` : fallback;
+}
+
+/** Build lines for an equation panel from solution.steps, falling back to values */
+function panelLines(sol: EESolution, fallbackLines: string[]): string[] {
+  return sol.steps.length > 0 ? sol.steps.map(s => s.formula) : fallbackLines;
+}
+
+// ── main dispatch ─────────────────────────────────────────────────────
 
 /**
- * Compute |H(jω)| in dB for a system with real break frequencies.
- * poles/zeros are positive real frequencies (rad/s) in the denominator/numerator
- * of (1 + jω/ωn) form.
+ * Render an SVG diagram for the given problem spec and solution.
+ *
+ * @param spec       - Problem specification (kind + params)
+ * @param solution   - Computed solution values and step hints
+ * @param stepIndex  - Optional 0-based step index; when ≥ 3, solution
+ *                     annotations (voltage drops, currents) are overlaid
+ *                     on circuit diagrams
  */
-function bodeMagdB(omega: number, gain: number, poles: number[], zeros: number[]): number {
-  let mag = Math.abs(gain);
+export function renderDiagram(
+  spec: EEProblemSpec,
+  solution: EESolution,
+  stepIndex?: number,
+): string {
+  switch (spec.kind) {
+    case 'kvl-series-loop':       return renderKvlSeries(spec.params, solution, stepIndex);
+    case 'nodal-analysis':        return renderNodal(spec.params, solution);
+    case 'mesh-analysis':         return renderMeshPanel(spec.params, solution);
+    case 'thevenin-norton':       return renderThevenin(spec.params, solution);
+    case 'superposition':         return renderSuperpositionPanel(spec.params, solution);
+    case 'rc-step':               return renderRcTransient(spec.params, solution);
+    case 'rl-transient':          return renderRlTransient(spec.params, solution);
+    case 'rlc-series-step':       return renderRlcSeries(spec.params, solution);
+    case 'ac-series-rlc':         return renderAcRlc(spec.params, solution);
+    case 'series-resonance':      return renderResonance(spec.params, solution);
+    case 'mutual-inductance':     return renderMutualInductance(spec.params, solution);
+    case 'ideal-transformer':     return renderTransformerCircuit(spec.params, solution);
+    case 'delta-wye':             return renderDeltaWye(spec.params, solution);
+    case 'bjt-ce-amplifier':      return renderBjtHybridPi(spec.params, solution);
+    case 'mosfet-cs':             return renderMosfetCs(spec.params, solution);
+    case 'mosfet-diff-pair':      return renderDiffPair(spec.params, solution);
+    case 'opamp-summer':          return renderOpampCircuit(spec.params, solution);
+    case 'bode-plot':             return renderBodePlot(spec.params, solution);
+    case 'pf-correction':         return renderPfCorrectionPanel(spec.params, solution);
+    case 'ybus-formation':        return renderYbusPanel(spec.params, solution);
+    case 'z-parameters':          return renderZParamsPanel(spec.params, solution);
+    case 'abcd-cascade':          return renderAbcdPanel(spec.params, solution);
+    case 'two-port-gain':         return renderTwoPortPanel(spec.params, solution);
+    case 'three-phase-yy':        return renderThreePhasePanel(spec.params, solution);
+    case 'per-unit':              return renderPerUnitPanel(spec.params, solution);
+    case 'series-shunt-feedback': return renderFeedbackPanel(spec.params, solution);
+    case 'symmetrical-fault':     return renderFaultPanel(spec.params, solution);
+    case 'gauss-seidel-pf':       return renderPowerFlowPanel(spec.params, solution);
+    case 'integrator-oscillator': return renderOscillatorPanel(spec.params, solution);
+    default:                      return renderGenericPanel(solution);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CIRCUIT DIAGRAMS — driven by spec.params + solution.computed
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── KVL series loop ───────────────────────────────────────────────────
+function renderKvlSeries(
+  params: KvlSeriesLoopParams,
+  sol: EESolution,
+  stepIndex?: number,
+): string {
+  const { Vs, resistors } = params;
+  const n = resistors.length;
+  const rW = Math.min(70, Math.max(50, 230 / Math.max(n, 1)));
+  const x0 = 40;
+  const yTop = 50;
+  const yBot = 175;
+  const parts: string[] = [];
+
+  parts.push(vSource(x0, yTop, yBot, `${Vs}V`));
+
+  let x = x0;
+  for (let i = 0; i < n; i++) {
+    const entry = resistors[i]!;
+    const rLabel = entry.label ?? `R${i + 1}=${entry.ohms}Ω`;
+
+    parts.push(wire(x, yTop, x + 8, yTop));
+    x += 8;
+    parts.push(resistorH(x, yTop, rW, rLabel));
+    x += rW;
+
+    // Overlay voltage drops once the solving step is reached
+    const annotate = stepIndex === undefined || stepIndex >= 3;
+    const vDrop = annotate
+      ? (sv(sol, `V_R${i + 1}`) ?? sv(sol, `VR${i + 1}`))
+      : undefined;
+    if (vDrop !== undefined) {
+      parts.push(
+        `<text x="${x - rW / 2}" y="${yTop + 30}" font-size="10" text-anchor="middle" fill="#2e7d32">${fmtNum(vDrop, 1)}V</text>`,
+      );
+    }
+  }
+
+  const xEnd = x;
+  parts.push(wire(xEnd, yTop, xEnd, yBot));
+  parts.push(wire(xEnd, yBot, x0, yBot));
+  parts.push(ground(x0 + 30, yBot));
+
+  const iVal = sv(sol, 'I');
+  const iLabel = iVal !== undefined ? `I=${fmtNum(iVal, 2)}A` : 'I';
+  parts.push(currentArrow(x0 + 55, yBot - 14, x0 + 95, yBot - 14, iLabel));
+
+  return wrapSvg(parts.join(''), xEnd + 60, 220);
+}
+
+// ── Nodal analysis ────────────────────────────────────────────────────
+function renderNodal(params: NodalAnalysisParams, sol: EESolution): string {
+  const { nodeCount, resistors } = params;
+  const n = Math.min(nodeCount, 4);
+  const x0 = 40;
+  const yTop = 40;
+  const yBot = 185;
+  const nodeSpacing = 110;
+  const nodeXs = Array.from({ length: n }, (_, i) => x0 + i * nodeSpacing);
+  const parts: string[] = [];
+
+  // Node labels with solved-voltage annotations
+  for (let i = 0; i < n; i++) {
+    const nx = nodeXs[i]!;
+    const vSol = sv(sol, `V${i + 1}`);
+    const lbl = vSol !== undefined ? `V${i + 1}=${fmtNum(vSol, 1)}V` : `V${i + 1}`;
+    parts.push(node(nx, yTop, lbl, i === 0 ? '#2e7d32' : undefined));
+  }
+
+  // Resistor branches from [from, to, ohms] tuples
+  for (const [from, to, ohms] of resistors) {
+    if (to === 0) {
+      // Shunt to ground
+      const nx = nodeXs[(from - 1)] ?? x0;
+      parts.push(wire(nx, yTop + 4, nx, yTop + 20));
+      parts.push(resistorV(nx, yTop + 20, 55, `${ohms}Ω`));
+      parts.push(wire(nx, yTop + 75, nx, yBot));
+    } else {
+      const x1 = nodeXs[from - 1] ?? 0;
+      const x2 = nodeXs[to - 1] ?? 0;
+      const left = Math.min(x1, x2);
+      const len = Math.abs(x2 - x1) - 8;
+      if (len > 20) {
+        parts.push(resistorH(left + 4, yTop, len, `${ohms}Ω`));
+      }
+    }
+  }
+
+  // Ground bus
+  const rightX = nodeXs[n - 1] ?? x0;
+  parts.push(wire(x0, yBot, rightX, yBot));
+  parts.push(ground((x0 + rightX) / 2, yBot));
+
+  return wrapSvg(parts.join(''), rightX + 60, 220);
+}
+
+// ── Thevenin equivalent source circuit ───────────────────────────────
+function renderThevenin(params: TheveninNortonParams, sol: EESolution): string {
+  const { Vs, R1, R2, R3 } = params;
+  const parts: string[] = [];
+  const x0 = 30;
+  const yTop = 50;
+  const yBot = 170;
+
+  parts.push(vSource(x0, yTop, yBot, `${Vs}V`));
+  parts.push(wire(x0, yTop, x0 + 10, yTop));
+  parts.push(resistorH(x0 + 10, yTop, 55, `R₁=${R1}Ω`));
+  parts.push(wire(x0 + 65, yTop, x0 + 95, yTop));
+  parts.push(wire(x0 + 95, yTop, x0 + 95, yTop + 20));
+  parts.push(resistorV(x0 + 95, yTop + 20, 55, `R₂=${R2}Ω`));
+  parts.push(wire(x0 + 95, yTop + 75, x0 + 95, yBot));
+  parts.push(wire(x0 + 95, yTop, x0 + 125, yTop));
+  parts.push(resistorH(x0 + 125, yTop, 55, `R₃=${R3}Ω`));
+  parts.push(wire(x0 + 180, yTop, x0 + 205, yTop));
+  parts.push(`<text x="${x0 + 212}" y="${yTop + 4}" font-size="12" font-weight="bold">A</text>`);
+  parts.push(wire(x0 + 95, yBot, x0 + 205, yBot));
+  parts.push(`<text x="${x0 + 212}" y="${yBot + 4}" font-size="12" font-weight="bold">B</text>`);
+  parts.push(wire(x0, yBot, x0 + 95, yBot));
+  parts.push(ground(x0 + 95, yBot));
+
+  const vth = sv(sol, 'Vth');
+  const rth = sv(sol, 'Rth');
+  if (vth !== undefined) {
+    parts.push(`<text x="${x0 + 215}" y="${yTop + 30}" font-size="10" fill="#1565c0">Vth=${fmtNum(vth, 2)}V</text>`);
+  }
+  if (rth !== undefined) {
+    parts.push(`<text x="${x0 + 215}" y="${yTop + 45}" font-size="10" fill="#1565c0">Rth=${fmtNum(rth, 1)}Ω</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 280, 220);
+}
+
+// ── RC transient circuit ──────────────────────────────────────────────
+function renderRcTransient(params: RcStepParams, sol: EESolution): string {
+  const { Vs, R, C, vc0 } = params;
+  const Rlbl = `R=${R}Ω`;
+  const Clbl = `C=${C}F`;
+  const parts: string[] = [];
+
+  parts.push(vSource(40, 40, 160, `${Vs}V`));
+  parts.push(wire(40, 40, 80, 40));
+  parts.push(resistorH(80, 40, 60, Rlbl));
+  parts.push(wire(140, 40, 180, 40));
+  parts.push(wire(180, 40, 180, 82));
+  parts.push(`<line x1="168" y1="82" x2="192" y2="82" stroke="#333" stroke-width="2.5"/>`);
+  parts.push(`<line x1="168" y1="94" x2="192" y2="94" stroke="#333" stroke-width="2.5"/>`);
+  parts.push(`<text x="196" y="92" font-size="11">${Clbl}</text>`);
+  parts.push(wire(180, 94, 180, 160));
+  parts.push(wire(180, 160, 40, 160));
+  parts.push(ground(110, 160));
+
+  const tau = sv(sol, 'tau');
+  if (tau !== undefined) {
+    parts.push(`<text x="50" y="120" font-size="10" fill="#d32f2f">τ=${fmtNum(tau, 2)}s</text>`);
+  }
+  if (vc0 !== 0) {
+    parts.push(`<text x="50" y="135" font-size="10" fill="#888">vc(0)=${vc0}V</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 240, 190);
+}
+
+// ── RL transient circuit ──────────────────────────────────────────────
+function renderRlTransient(params: RlTransientParams, sol: EESolution): string {
+  const { Vs, R_src, L, R_fw } = params;
+  const Rlbl = `R=${R_src}Ω`;
+  const Llbl = `L=${L}H`;
+  const parts: string[] = [];
+
+  parts.push(vSource(40, 40, 160, `${Vs}V`));
+  parts.push(wire(40, 40, 75, 40));
+  parts.push(resistorH(75, 40, 55, Rlbl));
+  parts.push(wire(130, 40, 162, 40));
+  parts.push(inductorH(162, 40, 55, Llbl));
+  parts.push(wire(217, 40, 250, 40));
+
+  parts.push(wire(250, 40, 250, 80));
+  parts.push(resistorV(250, 80, 50, `R_fw=${R_fw}Ω`));
+  parts.push(wire(250, 130, 250, 160));
+  parts.push(wire(250, 160, 40, 160));
+  parts.push(ground(145, 160));
+
+  const tau = sv(sol, 'tau');
+  if (tau !== undefined) {
+    parts.push(`<text x="50" y="120" font-size="10" fill="#d32f2f">τ=${fmtNum(tau, 3)}s</text>`);
+  }
+  const i0 = sv(sol, 'i0');
+  if (i0 !== undefined) {
+    parts.push(`<text x="50" y="135" font-size="10" fill="#888">i(0)=${fmtNum(i0, 3)}A</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 300, 195);
+}
+
+// ── Series RLC (also used for AC-RLC and resonance) ───────────────────
+
+function rlcCircuitSvg(RLabel: string, LLabel: string, CLabel: string, VsLabel: string, sol: EESolution): string {
+  const parts: string[] = [];
+  parts.push(vSource(30, 40, 170, VsLabel));
+  parts.push(wire(30, 40, 60, 40));
+  parts.push(resistorH(60, 40, 50, RLabel));
+  parts.push(wire(110, 40, 142, 40));
+  parts.push(inductorH(142, 40, 50, LLabel));
+  parts.push(wire(192, 40, 222, 40));
+  parts.push(capacitorH(222, 40, 20, CLabel));
+  parts.push(wire(242, 40, 270, 40));
+  parts.push(wire(270, 40, 270, 170));
+  parts.push(wire(270, 170, 30, 170));
+  parts.push(ground(150, 170));
+
+  const w0 = sv(sol, 'w0') ?? sv(sol, 'omega0');
+  if (w0 !== undefined) {
+    parts.push(`<text x="80" y="120" font-size="10" fill="#1565c0">ω₀=${fmtNum(w0, 0)} r/s</text>`);
+  }
+  const iMag = sv(sol, 'I') ?? sv(sol, 'Imag');
+  if (iMag !== undefined) {
+    parts.push(`<text x="80" y="135" font-size="10" fill="#d32f2f">I=${fmtNum(iMag, 2)}A</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 310, 200);
+}
+
+function renderRlcSeries(params: RlcSeriesStepParams, sol: EESolution): string {
+  return rlcCircuitSvg(`R=${params.R}Ω`, `L=${params.L}H`, `C=${params.C}F`, `${params.Vs}V`, sol);
+}
+
+function renderAcRlc(params: AcSeriesRlcParams, sol: EESolution): string {
+  const omega = 2 * Math.PI * params.f_Hz;
+  return rlcCircuitSvg(
+    `R=${params.R}Ω`,
+    `L=${params.L}H`,
+    `C=${params.C}F`,
+    `${params.Vs_mag}V ω=${fmtNum(omega, 0)}`,
+    sol,
+  );
+}
+
+function renderResonance(params: SeriesResonanceParams, sol: EESolution): string {
+  return rlcCircuitSvg(
+    `R=${params.R}Ω`,
+    `L=${params.L}H`,
+    `C=${params.C}F`,
+    'Vs',
+    sol,
+  );
+}
+
+// ── Mutual inductance / coupled coils ─────────────────────────────────
+function renderMutualInductance(params: MutualInductanceParams, sol: EESolution): string {
+  const { L1, L2, M } = params;
+  const parts: string[] = [];
+
+  parts.push(vSource(40, 45, 155, 'V_s'));
+  parts.push(wire(40, 45, 40, 35));
+  parts.push(wire(40, 35, 70, 35));
+  parts.push(inductorH(70, 35, 65, `L₁=${L1}H`));
+  parts.push(wire(135, 35, 135, 155));
+  parts.push(wire(135, 155, 40, 155));
+
+  parts.push(wire(70, 35, 200, 35));
+  parts.push(inductorH(200, 35, 65, `L₂=${L2}H`));
+  parts.push(wire(265, 35, 265, 155));
+  parts.push(wire(265, 155, 135, 155));
+
+  parts.push(`<line x1="100" y1="55" x2="230" y2="55" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="5,4"/>`);
+  parts.push(`<text x="165" y="48" font-size="10" text-anchor="middle" fill="#1565c0">M=${M}H</text>`);
+  parts.push(`<text x="265" y="148" font-size="10" text-anchor="middle" fill="#888">open</text>`);
+
+  const k = sv(sol, 'k');
+  const v2 = sv(sol, 'V2mag') ?? sv(sol, 'V2');
+  if (k !== undefined) {
+    parts.push(`<text x="90" y="120" font-size="10" fill="#1565c0">k=${fmtNum(k, 2)}</text>`);
+  }
+  if (v2 !== undefined) {
+    parts.push(`<text x="200" y="120" font-size="10" fill="#2e7d32">|V₂|=${fmtNum(v2, 1)}V</text>`);
+  }
+
+  parts.push(ground(135, 155));
+  parts.push(currentArrow(46, 95, 46, 115, 'I₁'));
+
+  return wrapSvg(parts.join(''), 310, 185);
+}
+
+// ── Ideal transformer ─────────────────────────────────────────────────
+function renderTransformerCircuit(params: IdealTransformerParams, sol: EESolution): string {
+  const { n, Vs, Zs, ZL } = params;
+  const ratio = `1:${n}`;
+  const parts: string[] = [];
+
+  parts.push(vSource(30, 50, 165, `${Vs}V`));
+  parts.push(wire(30, 50, 65, 50));
+  parts.push(resistorH(65, 50, 50, `Zs=${Zs}Ω`));
+  parts.push(wire(115, 50, 145, 50));
+
+  parts.push(`<line x1="145" y1="40" x2="145" y2="170" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<line x1="158" y1="40" x2="158" y2="170" stroke="#333" stroke-width="2.5"/>`);
+  parts.push(`<line x1="168" y1="40" x2="168" y2="170" stroke="#333" stroke-width="2.5"/>`);
+  parts.push(`<line x1="181" y1="40" x2="181" y2="170" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<text x="163" y="26" font-size="11" text-anchor="middle" font-style="italic">${ratio}</text>`);
+
+  parts.push(wire(181, 50, 215, 50));
+  parts.push(resistorH(215, 50, 50, `ZL=${ZL}Ω`));
+  parts.push(wire(265, 50, 280, 50));
+  parts.push(`<text x="287" y="54" font-size="11" font-weight="bold">A</text>`);
+
+  parts.push(wire(145, 165, 30, 165));
+  parts.push(wire(181, 165, 280, 165));
+  parts.push(`<text x="287" y="169" font-size="11" font-weight="bold">B</text>`);
+  parts.push(ground(110, 165));
+
+  const i1 = sv(sol, 'I1');
+  const vL = sv(sol, 'VL');
+  const zRef = sv(sol, 'ZL_ref');
+  if (i1 !== undefined) {
+    parts.push(`<text x="38" y="128" font-size="10" fill="#d32f2f">I₁=${fmtNum(i1, 3)}A</text>`);
+  }
+  if (vL !== undefined) {
+    parts.push(`<text x="218" y="128" font-size="10" fill="#2e7d32">VL=${fmtNum(vL, 2)}V</text>`);
+  }
+  if (zRef !== undefined) {
+    parts.push(`<text x="120" y="120" font-size="9" fill="#1565c0">Z'L=${fmtNum(zRef, 0)}Ω</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 310, 205);
+}
+
+// ── Delta–Wye network ─────────────────────────────────────────────────
+function renderDeltaWye(params: DeltaWyeParams, sol: EESolution): string {
+  const { Rab, Rbc, Rca } = params;
+  const parts: string[] = [];
+
+  const Ax = 80; const Ay = 50;
+  const Bx = 150; const By = 155;
+  const Cx = 230; const Cy = 50;
+
+  parts.push(`<text x="${Ax - 16}" y="${Ay + 4}" font-size="11" font-weight="bold">A</text>`);
+  parts.push(`<text x="${Bx}" y="${By + 18}" font-size="11" font-weight="bold">B</text>`);
+  parts.push(`<text x="${Cx + 8}" y="${Cy + 4}" font-size="11" font-weight="bold">C</text>`);
+
+  parts.push(wire(Ax, Ay, (Ax + Bx) / 2 - 28, (Ay + By) / 2 - 10));
+  parts.push(resistorH((Ax + Bx) / 2 - 28, (Ay + By) / 2, 56, `${Rab}Ω`));
+  parts.push(wire((Ax + Bx) / 2 + 28, (Ay + By) / 2 - 10, Bx, By - 8));
+
+  const bcMidX = (Bx + Cx) / 2;
+  const bcMidY = (By + Cy) / 2;
+  parts.push(wire(Bx + 10, By - 8, bcMidX - 28, bcMidY));
+  parts.push(resistorH(bcMidX - 28, bcMidY, 56, `${Rbc}Ω`));
+  parts.push(wire(bcMidX + 28, bcMidY, Cx - 10, Cy + 8));
+
+  parts.push(resistorH(Ax + 10, Ay, Cx - Ax - 20, `${Rca}Ω`));
+
+  const Ra = sv(sol, 'Ra');
+  const Rb = sv(sol, 'Rb');
+  const Rc = sv(sol, 'Rc');
+  if (Ra !== undefined && Rb !== undefined && Rc !== undefined) {
+    parts.push(`<text x="155" y="96" font-size="10" text-anchor="middle" fill="#1565c0">Y: Ra=${fmtNum(Ra, 0)}Ω</text>`);
+    parts.push(`<text x="155" y="110" font-size="10" text-anchor="middle" fill="#1565c0">Rb=${fmtNum(Rb, 0)} Rc=${fmtNum(Rc, 0)}Ω</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 330, 185);
+}
+
+// ── BJT CE hybrid-π model ─────────────────────────────────────────────
+function renderBjtHybridPi(params: BjtCeAmplifierParams, sol: EESolution): string {
+  const { IC, beta, RC, RS } = params;
+
+  const gm = sv(sol, 'gm') ?? (IC / 0.026);
+  const rpi = sv(sol, 'rpi') ?? (beta / gm);
+  const Av = sv(sol, 'Av');
+
+  const parts: string[] = [];
+
+  parts.push(`<text x="70" y="26" font-size="11" font-weight="bold" text-anchor="middle">B</text>`);
+  parts.push(`<text x="220" y="26" font-size="11" font-weight="bold" text-anchor="middle">C</text>`);
+  parts.push(`<text x="145" y="168" font-size="11" font-weight="bold" text-anchor="middle">E</text>`);
+
+  parts.push(wire(70, 30, 70, 90));
+  parts.push(resistorH(70, 90, 60, `rπ=${fmtNum(rpi, 1)}Ω`));
+  parts.push(wire(130, 90, 220, 90));
+  parts.push(wire(145, 90, 145, 155));
+
+  parts.push(wire(20, 90, 70, 90));
+  parts.push(`<text x="10" y="86" font-size="9">v_in</text>`);
+
+  parts.push(`<polygon points="220,65 240,90 220,115 200,90" fill="none" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<text x="220" y="133" font-size="9" text-anchor="middle">gm·vbe</text>`);
+  parts.push(`<text x="235" y="86" font-size="9" text-anchor="start">gm=${fmtNum(gm, 3)}S</text>`);
+
+  parts.push(wire(220, 30, 220, 65));
+  parts.push(wire(220, 115, 220, 155));
+  parts.push(resistorV(220, 30, 30, `Rc=${RC}Ω`));
+
+  parts.push(wire(145, 155, 220, 155));
+  parts.push(ground(165, 155));
+
+  if (Av !== undefined) {
+    parts.push(`<text x="40" y="155" font-size="10" fill="#d32f2f">Av≈${fmtNum(Av, 0)}</text>`);
+  }
+
+  // Suppress unused-param warning for RS
+  void RS;
+
+  return wrapSvg(parts.join(''), 280, 185);
+}
+
+// ── MOSFET CS amplifier ───────────────────────────────────────────────
+function renderMosfetCs(params: MosfetCsParams, sol: EESolution): string {
+  const { kn, VTN, VGS, RD } = params;
+  const gm = sv(sol, 'gm') ?? (2 * kn * (VGS - VTN));
+  const Av = sv(sol, 'Av');
+  const parts: string[] = [];
+
+  parts.push(`<text x="14" y="84" font-size="10">v_in</text>`);
+  parts.push(wire(40, 80, 85, 80));
+
+  parts.push(`<rect x="85" y="58" width="30" height="44" fill="none" stroke="#333" stroke-width="2" rx="2"/>`);
+  parts.push(`<text x="100" y="84" font-size="9" text-anchor="middle">NMOS</text>`);
+  parts.push(`<text x="100" y="95" font-size="8" text-anchor="middle">Vgs=${VGS}V</text>`);
+
+  parts.push(wire(100, 58, 100, 30));
+  parts.push(resistorV(100, 10, 18, `Rd=${RD}Ω`));
+  parts.push(wire(100, 10, 100, 0));
+  parts.push(`<text x="112" y="6" font-size="9" fill="#888">VDD</text>`);
+
+  parts.push(wire(100, 102, 100, 145));
+  parts.push(ground(100, 145));
+
+  parts.push(wire(100, 58, 165, 58));
+  parts.push(`<text x="170" y="62" font-size="10">v_out</text>`);
+
+  parts.push(`<polygon points="145,40 160,58 145,75 130,58" fill="none" stroke="#333" stroke-width="1.5"/>`);
+  parts.push(`<text x="145" y="88" font-size="8" text-anchor="middle">gm·vgs</text>`);
+
+  parts.push(`<text x="20" y="135" font-size="10" fill="#1565c0">gm=${fmtNum(gm, 3)}S</text>`);
+  if (Av !== undefined) {
+    parts.push(`<text x="20" y="150" font-size="10" fill="#d32f2f">Av=${fmtNum(Av, 2)}</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 220, 165);
+}
+
+// ── MOSFET differential pair ──────────────────────────────────────────
+function renderDiffPair(params: MosfetDiffPairParams, sol: EESolution): string {
+  const { gm, RD, RSS } = params;
+  const Ad = sv(sol, 'Ad');
+  const cmrr = sv(sol, 'CMRRdB');
+  const parts: string[] = [];
+
+  parts.push(`<rect x="90" y="50" width="26" height="28" fill="none" stroke="#333" stroke-width="2" rx="2"/>`);
+  parts.push(`<text x="103" y="68" font-size="8" text-anchor="middle">M1</text>`);
+
+  parts.push(`<rect x="170" y="50" width="26" height="28" fill="none" stroke="#333" stroke-width="2" rx="2"/>`);
+  parts.push(`<text x="183" y="68" font-size="8" text-anchor="middle">M2</text>`);
+
+  parts.push(wire(103, 50, 103, 30));
+  parts.push(resistorV(103, 10, 18, `Rd=${RD}Ω`));
+  parts.push(wire(183, 50, 183, 30));
+  parts.push(resistorV(183, 10, 18, `Rd=${RD}Ω`));
+  parts.push(`<text x="103" y="6" font-size="9" text-anchor="middle" fill="#888">VDD</text>`);
+  parts.push(`<text x="183" y="6" font-size="9" text-anchor="middle" fill="#888">VDD</text>`);
+
+  parts.push(wire(40, 64, 90, 64));
+  parts.push(`<text x="24" y="68" font-size="9">v_in+</text>`);
+  parts.push(wire(196, 64, 240, 64));
+  parts.push(`<text x="244" y="68" font-size="9">v_in-</text>`);
+
+  parts.push(wire(103, 78, 103, 105));
+  parts.push(wire(183, 78, 183, 105));
+  parts.push(wire(103, 105, 183, 105));
+  parts.push(wire(143, 105, 143, 128));
+
+  parts.push(`<circle cx="143" cy="140" r="12" fill="none" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<text x="143" y="144" font-size="8" text-anchor="middle">ISS</text>`);
+  parts.push(wire(143, 152, 143, 170));
+  parts.push(ground(143, 170));
+
+  parts.push(`<text x="155" y="142" font-size="9" fill="#888">Rss=${RSS}Ω</text>`);
+  parts.push(`<text x="50" y="135" font-size="10" fill="#1565c0">gm=${fmtNum(gm, 3)}S</text>`);
+  if (Ad !== undefined) {
+    parts.push(`<text x="50" y="150" font-size="10" fill="#d32f2f">Ad=${fmtNum(Ad, 0)}</text>`);
+  }
+  if (cmrr !== undefined) {
+    parts.push(`<text x="50" y="165" font-size="9" fill="#888">CMRR≈${fmtNum(cmrr, 0)}dB</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 300, 195);
+}
+
+// ── Op-amp inverting summer ───────────────────────────────────────────
+function renderOpampCircuit(params: OpampSummerParams, sol: EESolution): string {
+  const { Rf, inputs } = params;
+  const Vout = sv(sol, 'Vout');
+  const parts: string[] = [];
+
+  parts.push(`<polygon points="150,60 220,35 220,85 150,60" fill="none" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<text x="162" y="54" font-size="11">+</text>`);
+  parts.push(`<text x="162" y="72" font-size="11">−</text>`);
+
+  // Show first input
+  const inp0 = inputs[0];
+  if (inp0) {
+    parts.push(wire(60, 70, 95, 70));
+    parts.push(resistorH(60, 70, 35, `R₁=${inp0.R}Ω`));
+    parts.push(`<text x="44" y="74" font-size="9">v_in</text>`);
+  }
+  parts.push(wire(60, 50, 150, 50));
+  parts.push(ground(80, 50));
+
+  parts.push(wire(95, 70, 95, 20));
+  parts.push(wire(95, 20, 220, 20));
+  parts.push(resistorH(115, 20, 70, `Rf=${Rf}Ω`));
+  parts.push(wire(220, 20, 220, 35));
+
+  parts.push(wire(220, 60, 270, 60));
+  parts.push(`<text x="274" y="64" font-size="10">v_out</text>`);
+  if (Vout !== undefined) {
+    parts.push(`<text x="274" y="78" font-size="10" fill="#d32f2f">=${fmtNum(Vout, 2)}V</text>`);
+  }
+
+  return wrapSvg(parts.join(''), 320, 120);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BODE PLOT — computed polyline from transfer-function poles/zeros
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Evaluate |H(jω)| in dB using the Bode normalized form:
+ *   H(jω) = K · ∏(1+jω/zᵢ) / [(jω)^m · ∏(1+jω/pⱼ)]
+ * where 0-valued entries mean origin poles/zeros.
+ */
+function bodeMagdB(zeros: number[], poles: number[], K: number, omega: number): number {
+  let mag = Math.abs(K);
   for (const z of zeros) {
-    if (z > 0) mag *= Math.sqrt(1 + (omega / z) ** 2);
+    mag *= z > 0 ? Math.sqrt(1 + (omega / z) ** 2) : omega;
   }
   for (const p of poles) {
-    if (p > 0) mag /= Math.sqrt(1 + (omega / p) ** 2);
+    if (p <= 0) {
+      if (omega <= 0) return -200;
+      mag /= omega;
+    } else {
+      mag /= Math.sqrt(1 + (omega / p) ** 2);
+    }
   }
-  return mag > 0 ? 20 * Math.log10(mag) : -120;
+  return 20 * Math.log10(Math.max(mag, 1e-30));
 }
 
-// ── Bode plot SVG builder ────────────────────────────────────────────────────
+function renderBodePlot(params: BodePlotParams, sol: EESolution): string {
+  const { zeros, poles, gain } = params;
+  const points = 40;
 
-function buildBodePlot(
-  title: string,
-  gain: number,
-  poles: number[],
-  zeros: number[],
-  evalAt?: number,
-): string {
-  const w = 440, h = 230;
-  const xL = 58, xR = w - 18, yT = 28, yB = h - 38;
+  // Compute omega range from corner frequencies or defaults
+  const allFreqs = [...zeros, ...poles].filter(f => f > 0);
+  const omStart = allFreqs.length > 0 ? Math.min(...allFreqs) / 10 : 1;
+  const omEnd   = allFreqs.length > 0 ? Math.max(...allFreqs) * 10 : 1e4;
 
-  const allFreqs = [...poles, ...zeros, ...(evalAt ? [evalAt] : [])].filter(f => f > 0);
-  const omegaMin = allFreqs.length ? Math.min(...allFreqs) / 10 : 1;
-  const omegaMax = allFreqs.length ? Math.max(...allFreqs) * 20 : 1e5;
-  const logMin = Math.log10(Math.max(omegaMin, 1e-9));
-  const logMax = Math.log10(Math.max(omegaMax, omegaMin * 100));
+  const freqs = Array.from({ length: points }, (_, i) => {
+    const t = i / (points - 1);
+    return omStart * Math.pow(omEnd / omStart, t);
+  });
 
-  const N = 100;
-  const dbArr: number[] = [];
-  for (let i = 0; i <= N; i++) {
-    const omega = Math.pow(10, logMin + (i / N) * (logMax - logMin));
-    dbArr.push(bodeMagdB(omega, gain, poles, zeros));
-  }
-  const finiteDb = dbArr.filter(isFinite);
-  let dbLo = finiteDb.length ? Math.min(...finiteDb) : -40;
-  let dbHi = finiteDb.length ? Math.max(...finiteDb) : 20;
-  const span = dbHi - dbLo || 40;
-  dbLo -= span * 0.1;
-  dbHi += span * 0.1;
-  if (dbHi - dbLo < 20) { dbHi += 10; dbLo -= 10; }
+  const mags = freqs.map((om: number) => bodeMagdB(zeros, poles, gain, om));
 
-  const pts: string[] = [];
-  for (let i = 0; i <= N; i++) {
-    const db = dbArr[i]!;
-    if (!isFinite(db)) continue;
-    const omega = Math.pow(10, logMin + (i / N) * (logMax - logMin));
-    const x = xL + ((Math.log10(omega) - logMin) / (logMax - logMin)) * (xR - xL);
-    const y = yB - ((db - dbLo) / (dbHi - dbLo)) * (yB - yT);
-    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
-  }
+  const dBmin = Math.min(...mags) - 5;
+  const dBmax = Math.max(...mags) + 5;
 
-  // 0 dB reference line y-coordinate
-  const y0 = yB - ((0 - dbLo) / (dbHi - dbLo)) * (yB - yT);
-  const refLine =
-    y0 >= yT && y0 <= yB
-      ? `<line x1="${xL}" y1="${y0.toFixed(1)}" x2="${xR}" y2="${y0.toFixed(1)}" stroke="#ccc" stroke-width="1" stroke-dasharray="4,3"/>`
-      : '';
+  const xOf = (om: number): number =>
+    50 + (Math.log10(om / omStart) / Math.log10(omEnd / omStart)) * 320;
+  const yOf = (dB: number): number =>
+    160 - ((dB - dBmin) / (dBmax - dBmin)) * 130;
 
-  const dcDb = 20 * Math.log10(Math.abs(gain));
+  const polyPts = freqs.map((om: number, i: number) => `${xOf(om).toFixed(1)},${yOf(mags[i]!).toFixed(1)}`).join(' ');
+
+  // Annotate evaluated point from solution if available
+  const evalOm = params.evalAt_omega;
+  const h_dB = sv(sol, 'H_dB');
+
   const parts: string[] = [
-    `<line x1="${xL}" y1="${yT}" x2="${xL}" y2="${yB}" stroke="#333" stroke-width="1.5"/>`,
-    `<line x1="${xL}" y1="${yB}" x2="${xR}" y2="${yB}" stroke="#333" stroke-width="1.5"/>`,
-    refLine,
-    `<text x="${(xL + xR) / 2}" y="${h - 9}" font-size="10" text-anchor="middle">\u03c9 (rad/s) \u2014 log scale</text>`,
-    `<text x="14" y="${(yT + yB) / 2 + 4}" font-size="10" text-anchor="middle" transform="rotate(-90,14,${(yT + yB) / 2})">\u2758H\u2758 dB</text>`,
-    `<text x="${(xL + xR) / 2}" y="18" font-size="12" text-anchor="middle" font-weight="bold">${title}</text>`,
-    pts.length >= 2 ? `<polyline points="${pts.join(' ')}" fill="none" stroke="#1565c0" stroke-width="2"/>` : '',
-    `<text x="${xL + 4}" y="${yT + 12}" font-size="9" fill="#555">G=${fmt(gain)}\u2009DC=${fmt(dcDb)}dB</text>`,
+    `<line x1="50" y1="160" x2="375" y2="160" stroke="#333" stroke-width="1.5"/>`,
+    `<line x1="50" y1="30" x2="50" y2="165" stroke="#333" stroke-width="1.5"/>`,
+    `<line x1="50" y1="${yOf(0).toFixed(1)}" x2="375" y2="${yOf(0).toFixed(1)}" stroke="#ddd" stroke-width="1" stroke-dasharray="4,3"/>`,
+    `<polyline points="${polyPts}" fill="none" stroke="#1565c0" stroke-width="2"/>`,
+    `<text x="212" y="186" font-size="10" text-anchor="middle">ω (rad/s)</text>`,
+    `<text x="22" y="100" font-size="10" text-anchor="middle" transform="rotate(-90,22,100)">|H| dB</text>`,
+    `<text x="212" y="20" font-size="12" text-anchor="middle" font-weight="bold">Bode Magnitude</text>`,
+    ...[...zeros.filter(z => z > 0), ...poles.filter(p => p > 0)].slice(0, 4).map((cf: number, i: number) => {
+      const xc = xOf(cf);
+      const role = zeros.includes(cf) ? 'z' : 'p';
+      return `<text x="${xc.toFixed(0)}" y="${44 + i * 16}" font-size="9" fill="#888">${role}@${fmtNum(cf, 0)}</text>`;
+    }),
   ];
 
-  if (poles.length > 0) {
-    parts.push(`<text x="${xL + 4}" y="${yT + 24}" font-size="9" fill="#c00">pole@${fmt(poles[0])}r/s</text>`);
-  }
-  if (zeros.length > 0) {
-    parts.push(`<text x="${xL + 4}" y="${yT + 36}" font-size="9" fill="#070">zero@${fmt(zeros[0])}r/s</text>`);
-  }
-
-  if (evalAt && evalAt > 0) {
-    const db = bodeMagdB(evalAt, gain, poles, zeros);
-    if (isFinite(db)) {
-      const x = xL + ((Math.log10(evalAt) - logMin) / (logMax - logMin)) * (xR - xL);
-      const y = yB - ((db - dbLo) / (dbHi - dbLo)) * (yB - yT);
-      parts.push(
-        `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="none" stroke="#d32f2f" stroke-width="1.5"/>`,
-        `<text x="${x.toFixed(1)}" y="${(y - 8).toFixed(1)}" font-size="9" fill="#d32f2f" text-anchor="middle">${fmt(db)}dB</text>`,
-      );
-    }
+  if (evalOm !== undefined && h_dB !== undefined) {
+    const xe = xOf(evalOm);
+    const ye = yOf(h_dB);
+    parts.push(`<circle cx="${xe.toFixed(1)}" cy="${ye.toFixed(1)}" r="4" fill="#d32f2f"/>`);
+    parts.push(`<text x="${xe.toFixed(0)}" y="${(ye - 8).toFixed(0)}" font-size="9" fill="#d32f2f">${fmtNum(h_dB, 1)}dB</text>`);
   }
 
-  return wrapSvg(parts.join(''), w, h);
+  return wrapSvg(parts.join(''), 400, 205);
 }
 
-// ── Main export ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// EQUATION PANELS — generated from solution.steps + solution.computed
+// ═══════════════════════════════════════════════════════════════════════
 
-/**
- * Render an SVG diagram for the given spec/solution pair.
- * All labels and values are derived from spec.params and sol.computed;
- * no question IDs or hardcoded answers are used.
- */
-export function renderDiagram(spec: EEProblemSpec, sol: EESolution, _stepIndex?: number): string {
-  switch (spec.kind) {
-    // ─────────────────────────────────────────────────────────────────────────
-    // KVL / Nodal / Mesh
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'kvl-series-loop': {
-      const p = spec.params;
-      return seriesLoopCircuit(
-        `${fmt(p.Vs)}V`,
-        p.resistors.map((r, i) => ({
-          label: `${r.label}=${fmt(r.ohms)}\u03a9`,
-          vDrop: `${fmt(sv(sol, `V_R${i + 1}`))}V`,
-        })),
-      );
-    }
+/** Shared helper: pick step formulas from solution or fallback, pass to equationPanel */
+function eqPanel(sol: EESolution, fallback: string[], w = 320, h = 140): string {
+  return equationPanel(panelLines(sol, fallback), w, h);
+}
 
-    case 'nodal-analysis': {
-      const p = spec.params;
-      const count = Math.min(p.nodeCount, 4);
-      const xs = [70, 170, 270, 370].slice(0, count);
-      const yT = 58, yB = 190;
-      const parts: string[] = [];
-      for (let i = 0; i < count; i++) {
-        const vVal =
-          p.fixedVoltages[i + 1] !== undefined
-            ? fmt(p.fixedVoltages[i + 1])
-            : fmt(sv(sol, `V${i + 1}`));
-        parts.push(node(xs[i]!, yT, `V${i + 1}=${vVal}V`));
-        parts.push(wire(xs[i]!, yT, xs[i]!, yB));
-        parts.push(ground(xs[i]!, yB));
-      }
-      p.resistors.forEach(([n1, n2, R], idx) => {
-        const x1 = xs[(n1 ?? 1) - 1] ?? xs[0]!;
-        const x2 = xs[(n2 ?? 2) - 1] ?? xs[1]!;
-        if (x1 !== x2) {
-          parts.push(
-            resistorH(
-              Math.min(x1, x2) + 6,
-              yT - 22,
-              Math.abs(x2 - x1) - 12,
-              `R${idx + 1}=${fmt(R)}\u03a9`,
-            ),
-          );
-        }
-      });
-      if (p.currentSources?.length) {
-        const [fromN, I] = p.currentSources[0]!;
-        const xCs = xs[(fromN ?? 1) - 1] ?? xs[0]!;
-        parts.push(currentArrow(xCs, yT + 60, xCs, yT + 30, `${fmt(I)}A`));
-      }
-      return wrapSvg(parts.join(''), 450, 220);
-    }
+function renderMeshPanel(params: MeshAnalysisParams, sol: EESolution): string {
+  const { meshCount, Vs, selfZ } = params;
+  const fb = [
+    `Meshes: ${meshCount}`,
+    `Vs: [${Vs.map(v => `${v}V`).join(', ')}]`,
+    `selfZ: [${selfZ.map(z => `${z}Ω`).join(', ')}]`,
+    `I1=${fmtSv(sol, 'I1', 'A')} I2=${fmtSv(sol, 'I2', 'A')}`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'mesh-analysis': {
-      const p = spec.params;
-      const xL = 40, xM = 200, xR = 365;
-      const yT = 45, yB = 185;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs[0] ?? 0)}V`));
-      parts.push(resistorH(xL + 36, yT, 80, `Z11=${fmt(p.selfZ[0])}\u03a9`));
-      parts.push(wire(xL + 116, yT, xM, yT));
-      parts.push(resistorV(xM, yT, yB - yT, `Z12=${fmt(p.mutualZ[0]?.[2] ?? 0)}\u03a9`));
-      parts.push(wire(xM, yT, xM + 40, yT));
-      parts.push(resistorH(xM + 40, yT, 65, `Z22=${fmt(p.selfZ[1] ?? 0)}\u03a9`));
-      parts.push(wire(xM + 105, yT, xR, yT));
-      if (p.meshCount >= 2) {
-        parts.push(vSource(xR, yT, yB, `${fmt(p.Vs[1] ?? 0)}V`));
-      } else {
-        parts.push(wire(xR, yT, xR, yB));
-      }
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(currentArrow(xL + 40, yT + 75, xL + 80, yT + 75, `I\u2081=${fmt(sv(sol, 'I1'))}A`));
-      if (p.meshCount >= 2) {
-        parts.push(currentArrow(xM + 40, yT + 75, xM + 80, yT + 75, `I\u2082=${fmt(sv(sol, 'I2'))}A`));
-      }
-      return wrapSvg(parts.join(''), 440, 220);
-    }
+function renderSuperpositionPanel(params: SuperpositionParams, sol: EESolution): string {
+  const { Vs, Is, R1, R2, R3 } = params;
+  const fb = [
+    `Vs=${Vs}V Is=${Is}A`,
+    `R1=${R1}Ω R2=${R2}Ω R3=${R3}Ω`,
+    `I_Vs = ${fmtSv(sol, 'I_R3_vs', 'A')}`,
+    `I_Is = ${fmtSv(sol, 'I_R3_is', 'A')} → sum`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Superposition / Thevenin / Dependent Source
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'superposition': {
-      const p = spec.params;
-      const xL = 40, xM1 = 120, xM2 = 210, xR = 340;
-      const yT = 48, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `Vs=${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xM1 - 8, yT));
-      parts.push(resistorH(xM1 - 8, yT, 58, `R1=${fmt(p.R1)}\u03a9`));
-      parts.push(wire(xM1 + 50, yT, xM2, yT));
-      parts.push(resistorV(xM2, yT, yB - yT, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(wire(xM2, yT, xM2 + 18, yT));
-      parts.push(resistorH(xM2 + 18, yT, 58, `R3=${fmt(p.R3)}\u03a9`));
-      parts.push(wire(xM2 + 76, yT, xR, yT));
-      parts.push(currentArrow(xR, yB - 4, xR, yT + 4, `Is=${fmt(p.Is)}A`));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(
-        `<text x="195" y="210" font-size="10" text-anchor="middle" fill="#1565c0">V_R3=${fmt(sv(sol, 'V_R3'))}V</text>`,
-      );
-      return wrapSvg(parts.join(''), 400, 220);
-    }
+function renderPfCorrectionPanel(params: PfCorrectionParams, sol: EESolution): string {
+  const { P_W, pf1, pf2, V_rms, f_Hz } = params;
+  const fb = [
+    `P = ${fmtNum(P_W, 0)} W @ ${V_rms}V ${f_Hz}Hz`,
+    `PF: ${pf1} → ${pf2}`,
+    `Qc = ${fmtSv(sol, 'Qc', ' VAR')}`,
+    `C ≈ ${fmtSv(sol, 'C', ' F')}`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'thevenin-norton': {
-      const p = spec.params;
-      const xL = 40, xR = 330;
-      const yT = 48, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 58, `R1=${fmt(p.R1)}\u03a9`));
-      parts.push(wire(xL + 86, yT, xL + 106, yT));
-      parts.push(resistorV(xL + 106, yT, yB - yT, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(resistorH(xL + 106, yT, 58, `R3=${fmt(p.R3)}\u03a9`));
-      parts.push(wire(xL + 164, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(node(xR, yT, `${p.terminalLabel}+`));
-      parts.push(node(xR, yB, `${p.terminalLabel}\u2212`));
-      parts.push(`<text x="${xR + 8}" y="98" font-size="10">Vth=${fmt(sv(sol, 'Vth'))}V</text>`);
-      parts.push(`<text x="${xR + 8}" y="113" font-size="10">Rth=${fmt(sv(sol, 'Rth'))}\u03a9</text>`);
-      return wrapSvg(parts.join(''), 440, 220);
-    }
+function renderYbusPanel(params: YbusFormationParams, sol: EESolution): string {
+  const { nBuses, lines } = params;
+  const line0 = lines[0];
+  const y11_re = sv(sol, 'Y11_re') ?? 0;
+  const y11_im = sv(sol, 'Y11_im') ?? 0;
+  const fb = [
+    `${nBuses}-bus Ybus`,
+    line0 ? `y${line0.from}${line0.to}=${fmtNum(line0.y.re, 2)}+j${fmtNum(line0.y.im, 2)}` : 'lines: see params',
+    `Y11=${fmtNum(y11_re, 2)}+j${fmtNum(y11_im, 2)}`,
+    `Yij=−yij (off-diag)`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'dependent-source-nodal': {
-      const p = spec.params;
-      const xL = 40, xM = 180, xR = 340;
-      const yT = 58, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xM - 8, yT));
-      parts.push(resistorH(xM - 8, yT, 68, `R1=${fmt(p.R1)}\u03a9`));
-      parts.push(resistorV(xM + 60, yT, yB - yT, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(wire(xM + 60, yT, xR, yT));
-      parts.push(currentArrow(xR, yT + 20, xR, yT + 80, `gm=${fmt(p.vccsGain)}`));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(node(xM + 60, yT, `N${p.controllingNode}:${fmt(sv(sol, 'V1'))}V`));
-      parts.push(node(xR, yT, `N${p.injectingNode}:${fmt(sv(sol, 'V2'))}V`));
-      return wrapSvg(parts.join(''), 410, 220);
-    }
+function renderZParamsPanel(params: ZParametersParams, sol: EESolution): string {
+  const { Za, Zb, Zc } = params;
+  const toN = (v: number | { re: number; im: number }): number =>
+    typeof v === 'number' ? v : Math.sqrt(v.re ** 2 + v.im ** 2);
+  const Z11 = sv(sol, 'Z11') ?? (toN(Za) + toN(Zc));
+  const Z12 = sv(sol, 'Z12') ?? toN(Zc);
+  const Z22 = sv(sol, 'Z22') ?? (toN(Zb) + toN(Zc));
+  const fb = [
+    `Za=${toN(Za)}Ω Zb=${toN(Zb)}Ω Zc=${toN(Zc)}Ω`,
+    `Z11=${fmtNum(Z11, 0)}Ω Z12=${fmtNum(Z12, 0)}Ω`,
+    `Z22=${fmtNum(Z22, 0)}Ω Z21=Z12`,
+    `Reciprocal: Z12 = Z21`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Delta-Wye conversion
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'delta-wye': {
-      const p = spec.params;
-      const parts: string[] = [];
-      // Left: Δ block
-      parts.push(
-        `<rect x="18" y="20" width="135" height="100" rx="6" fill="none" stroke="#333" stroke-width="1.5"/>`,
-      );
-      parts.push(`<text x="85" y="38" font-size="10" text-anchor="middle" font-weight="bold">\u0394 Network</text>`);
-      parts.push(`<text x="85" y="56" font-size="10" text-anchor="middle">Rab=${fmt(p.Rab)}\u03a9</text>`);
-      parts.push(`<text x="85" y="72" font-size="10" text-anchor="middle">Rbc=${fmt(p.Rbc)}\u03a9</text>`);
-      parts.push(`<text x="85" y="88" font-size="10" text-anchor="middle">Rca=${fmt(p.Rca)}\u03a9</text>`);
-      // Arrow
-      parts.push(
-        `<line x1="162" y1="70" x2="205" y2="70" stroke="#555" stroke-width="1.5" marker-end="url(#arw)"/>`,
-      );
-      parts.push(`<text x="183" y="62" font-size="9" text-anchor="middle">\u0394\u2192Y</text>`);
-      // Right: Y block
-      parts.push(
-        `<rect x="215" y="20" width="150" height="120" rx="6" fill="none" stroke="#1565c0" stroke-width="1.5"/>`,
-      );
-      parts.push(
-        `<text x="290" y="38" font-size="10" text-anchor="middle" font-weight="bold" fill="#1565c0">Y Network</text>`,
-      );
-      parts.push(
-        `<text x="290" y="56" font-size="10" text-anchor="middle" fill="#1565c0">Ra=${fmt(sv(sol, 'Ra'))}\u03a9</text>`,
-      );
-      parts.push(
-        `<text x="290" y="72" font-size="10" text-anchor="middle" fill="#1565c0">Rb=${fmt(sv(sol, 'Rb'))}\u03a9</text>`,
-      );
-      parts.push(
-        `<text x="290" y="88" font-size="10" text-anchor="middle" fill="#1565c0">Rc=${fmt(sv(sol, 'Rc'))}\u03a9</text>`,
-      );
-      const Req = sv(sol, 'Req');
-      if (Req) {
-        parts.push(
-          `<text x="290" y="110" font-size="10" text-anchor="middle">Req=${fmt(Req)}\u03a9</text>`,
-        );
-      }
-      return wrapSvg(parts.join(''), 390, 160);
-    }
+function renderAbcdPanel(params: AbcdCascadeParams, sol: EESolution): string {
+  const { sections, ZL } = params;
+  const fb = [
+    `${sections.length} cascaded sections`,
+    `ZL: re=${typeof ZL === 'object' ? ZL.re : ZL}Ω`,
+    `Av = ${fmtSv(sol, 'Av_mag', '')}`,
+    `[ABCD] = product of section matrices`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Transient / step circuits
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'rc-step': {
-      const p = spec.params;
-      const xL = 40, xR = 348;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 80, `R=${fmt(p.R)}\u03a9`));
-      parts.push(wire(xL + 108, yT, xL + 130, yT));
-      parts.push(capacitorH(xL + 130, yT, 50, `C=${fmt(p.C)}F`));
-      parts.push(wire(xL + 180, yT, xR, yT));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(ground(xR, yB));
-      parts.push(`<text x="240" y="130" font-size="10" fill="#1565c0">\u03c4=${fmt(sv(sol, 'tau'))}s</text>`);
-      parts.push(`<text x="240" y="145" font-size="10">vc(\u221e)=${fmt(sv(sol, 'vc_inf'))}V</text>`);
-      parts.push(`<text x="240" y="160" font-size="10">vc(0)=${fmt(p.vc0)}V</text>`);
-      return wrapSvg(parts.join(''), 410, 220);
-    }
+function renderTwoPortPanel(params: TwoPortGainParams, sol: EESolution): string {
+  const { Z11, Z12, Z22, Zs, ZL } = params;
+  const fb = [
+    `Z11=${Z11}Ω Z12=${Z12}Ω Z22=${Z22}Ω`,
+    `Zs=${Zs}Ω ZL=${ZL}Ω`,
+    `Av ≈ ${fmtSv(sol, 'Av', '')}`,
+    `Zin ≈ ${fmtSv(sol, 'Zin', 'Ω')}`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'rl-transient': {
-      const p = spec.params;
-      const xL = 40, xR = 368;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 70, `Rs=${fmt(p.R_src)}\u03a9`));
-      parts.push(wire(xL + 98, yT, xL + 110, yT));
-      parts.push(inductorH(xL + 110, yT, 80, `L=${fmt(p.L)}H`));
-      parts.push(wire(xL + 190, yT, xL + 208, yT));
-      parts.push(resistorV(xL + 208, yT, yB - yT, `Rfw=${fmt(p.R_fw)}\u03a9`));
-      parts.push(wire(xL + 208, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(`<text x="240" y="150" font-size="10" fill="#1565c0">\u03c4=${fmt(sv(sol, 'tau'))}s</text>`);
-      parts.push(`<text x="240" y="165" font-size="10">iL(\u221e)=${fmt(sv(sol, 'iL_inf'))}A</text>`);
-      return wrapSvg(parts.join(''), 420, 220);
-    }
+function renderThreePhasePanel(params: ThreePhaseYYParams, sol: EESolution): string {
+  const { VL_rms, Z_ph } = params;
+  const fb = [
+    `Y-Y: VL=${VL_rms}V`,
+    `Zph=${Z_ph.re}+j${Z_ph.im}Ω`,
+    `Vph=${fmtSv(sol, 'Vph', 'V')} IL=${fmtSv(sol, 'IL', 'A')}`,
+    `P=${fmtSv(sol, 'P', 'W')}`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'rlc-series-step': {
-      const p = spec.params;
-      const xL = 40, xR = 390;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 18, yT));
-      parts.push(resistorH(xL + 18, yT, 60, `R=${fmt(p.R)}\u03a9`));
-      parts.push(inductorH(xL + 78, yT, 70, `L=${fmt(p.L)}H`));
-      parts.push(capacitorH(xL + 148, yT, 50, `C=${fmt(p.C)}F`));
-      parts.push(wire(xL + 198, yT, xR, yT));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(ground(xL, yB));
-      parts.push(
-        `<text x="230" y="150" font-size="10">\u03b1=${fmt(sv(sol, 'alpha'))}\u2009\u03c90=${fmt(sv(sol, 'omega0'))}</text>`,
-      );
-      parts.push(`<text x="230" y="165" font-size="10">(${p.damping} damping)</text>`);
-      return wrapSvg(parts.join(''), 450, 220);
-    }
+function renderPerUnitPanel(params: PerUnitParams, sol: EESolution): string {
+  const { Sbase_MVA, zones } = params;
+  const zone0 = zones[0];
+  const zone1 = zones[1];
+  const fb = [
+    `Sbase=${Sbase_MVA}MVA`,
+    zone0 ? `V1=${zone0.Vbase_kV}kV → Zb1=${fmtNum(zone0.Vbase_kV ** 2 / Sbase_MVA, 2)}Ω` : '',
+    zone1 ? `V2=${zone1.Vbase_kV}kV → Zb2=${fmtNum(zone1.Vbase_kV ** 2 / Sbase_MVA, 2)}Ω` : '',
+    `Z_pu = Z_Ω / Zb`,
+  ].filter(Boolean);
+  return eqPanel(sol, fb);
+}
 
-    case 'rc-nonzero-ic': {
-      const p = spec.params;
-      const xL = 40, xM = 205, xR = 380;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 68, `R1=${fmt(p.R)}\u03a9`));
-      parts.push(wire(xL + 96, yT, xM, yT));
-      parts.push(resistorV(xM, yT, yB - yT, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(wire(xM, yT, xM + 18, yT));
-      parts.push(capacitorH(xM + 18, yT, 50, `C=${fmt(p.C)}F`));
-      parts.push(wire(xM + 68, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(
-        `<text x="215" y="210" font-size="10" text-anchor="middle">\u03c4=${fmt(sv(sol, 'tau'))}s\u2009vc(0)=${fmt(p.vc0)}V</text>`,
-      );
-      return wrapSvg(parts.join(''), 440, 220);
-    }
+function renderFeedbackPanel(params: SeriesShuntFeedbackParams, sol: EESolution): string {
+  const { A, beta_f, Rin, Rout } = params;
+  const T = A * beta_f;
+  const Af = sv(sol, 'Af') ?? A / (1 + T);
+  const fb = [
+    `A=${A} β=${beta_f}`,
+    `T=Aβ=${fmtNum(T, 0)}`,
+    `Af=${fmtNum(Af, 1)} (closed-loop)`,
+    `Rif=${fmtSv(sol, 'Rif', 'Ω')} Rof=${fmtSv(sol, 'Rof', 'Ω')}`,
+  ];
+  // Suppress unused-param warning
+  void Rin; void Rout;
+  return eqPanel(sol, fb);
+}
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // AC phasor circuits
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'ac-series-rlc': {
-      const p = spec.params;
-      const omega = 2 * Math.PI * p.f_Hz;
-      const xL = 40, xR = 378;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs_mag)}\u2220${fmt(p.Vs_ang_deg)}\u00b0`));
-      parts.push(wire(xL, yT, xL + 18, yT));
-      parts.push(resistorH(xL + 18, yT, 60, `R=${fmt(p.R)}\u03a9`));
-      parts.push(inductorH(xL + 78, yT, 70, `XL=${fmt(omega * p.L)}\u03a9`));
-      parts.push(capacitorH(xL + 148, yT, 50, `XC=${fmt(1 / (omega * p.C))}\u03a9`));
-      parts.push(wire(xL + 198, yT, xR, yT));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(
-        `<text x="225" y="148" font-size="10">|Z|=${fmt(sv(sol, 'Z_mag'))}\u03a9\u2009|I|=${fmt(sv(sol, 'I_mag'))}A</text>`,
-      );
-      parts.push(`<text x="225" y="163" font-size="10">f=${fmt(p.f_Hz)}Hz</text>`);
-      return wrapSvg(parts.join(''), 448, 220);
-    }
+function renderFaultPanel(params: SymmetricalFaultParams, sol: EESolution): string {
+  const { Zbus, Vpre, faultBus } = params;
+  const Zff = Zbus[faultBus - 1]?.[faultBus - 1];
+  const Zff_im = Zff?.im ?? 0.1;
+  const If_mag = sv(sol, 'If_mag') ?? (Vpre / Math.abs(Zff_im));
+  const fb = [
+    `Vpre=${Vpre}pu Z_ff=j${fmtNum(Zff_im, 3)}pu`,
+    `If = Vpre/Z_ff = ${fmtNum(Math.abs(If_mag), 2)}pu`,
+    `Vi=Vpre−Zif·If (all buses)`,
+    `V_fault≈${fmtSv(sol, 'V_fault', 'pu')}`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'ac-parallel-rlc': {
-      const p = spec.params;
-      const XL = p.omega * p.L;
-      const XC = 1 / (p.omega * p.C);
-      const xL = 40, xR = 365;
-      const yT = 45, yB = 185;
-      const x1 = 140, x2 = 225, x3 = 305;
-      const parts: string[] = [];
-      parts.push(currentArrow(xL, yB - 4, xL, yT + 4, `Is=${fmt(p.Is_mag)}A`));
-      parts.push(wire(xL, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(resistorV(x1, yT, yB - yT, `R=${fmt(p.R)}\u03a9`));
-      parts.push(`<line x1="${x2}" y1="${yT}" x2="${x2}" y2="${yB}" stroke="#333" stroke-width="2"/>`);
-      parts.push(`<text x="${x2 + 10}" y="${(yT + yB) / 2 + 4}" font-size="10">XL=${fmt(XL)}\u03a9</text>`);
-      parts.push(`<line x1="${x3}" y1="${yT}" x2="${x3}" y2="${yB}" stroke="#333" stroke-width="2"/>`);
-      parts.push(`<text x="${x3 + 10}" y="${(yT + yB) / 2 + 4}" font-size="10">XC=${fmt(XC)}\u03a9</text>`);
-      parts.push(
-        `<text x="200" y="210" font-size="10" text-anchor="middle">V=${fmt(sv(sol, 'V_mag'))}V\u2009\u03c9=${fmt(p.omega)}r/s</text>`,
-      );
-      return wrapSvg(parts.join(''), 420, 220);
-    }
+function renderPowerFlowPanel(params: GaussSeidelPfParams, sol: EESolution): string {
+  const { buses, maxIter, tolerance } = params;
+  const iter = sv(sol, 'iter') ?? maxIter;
+  const fb = [
+    `${buses.length}-bus Gauss-Seidel`,
+    `maxIter=${maxIter} tol=${tolerance}`,
+    `Converged in ${fmtNum(iter, 0)} iterations`,
+    `G-S or N-R iteration`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'ac-mesh-dependent': {
-      const p = spec.params;
-      const xL = 40, xM = 200, xR = 365;
-      const yT = 45, yB = 185;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}\u22200\u00b0`));
-      parts.push(wire(xL, yT, xM, yT));
-      parts.push(wire(xM, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(resistorV(xM, yT, yB - yT, `Z\u2081\u2082`));
-      parts.push(resistorV(xR, yT, yB - yT, `dep\u22c5src`));
-      parts.push(
-        currentArrow(xL + 40, yT + 72, xL + 82, yT + 72, `I\u2081=${fmt(sv(sol, 'I1_mag'))}A`),
-      );
-      parts.push(
-        currentArrow(xM + 38, yT + 72, xM + 80, yT + 72, `I\u2082=${fmt(sv(sol, 'I2_mag'))}A`),
-      );
-      parts.push(
-        `<text x="200" y="208" font-size="10" text-anchor="middle">\u03c9=${fmt(p.omega)}r/s\u2009gm=${fmt(p.depSrcGain)}</text>`,
-      );
-      return wrapSvg(parts.join(''), 420, 220);
-    }
+function renderOscillatorPanel(params: IntegratorOscillatorParams, sol: EESolution): string {
+  const { f0, C } = params;
+  const R_val = sv(sol, 'R') ?? (1 / (2 * Math.PI * f0 * C));
+  const fb = [
+    `f0 = ${f0} Hz`,
+    `C = ${C} F`,
+    `R ≈ ${fmtNum(R_val, 1)} Ω`,
+    `β: |L|=1, ∠L=−180°`,
+  ];
+  return eqPanel(sol, fb);
+}
 
-    case 'ac-thevenin': {
-      const p = spec.params;
-      const xL = 40, xR = 345;
-      const yT = 48, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs_mag)}\u2220${fmt(p.Vs_ang_deg)}\u00b0`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 58, `R1=${fmt(p.R1)}\u03a9`));
-      parts.push(inductorH(xL + 86, yT, 58, `L=${fmt(p.L)}H`));
-      parts.push(wire(xL + 144, yT, xL + 160, yT));
-      parts.push(resistorV(xL + 160, yT, yB - yT, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(capacitorH(xL + 160, yT, 48, `C=${fmt(p.C)}F`));
-      parts.push(wire(xL + 208, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(node(xR, yT, `${p.terminalLabel}+`));
-      parts.push(node(xR, yB, `${p.terminalLabel}\u2212`));
-      parts.push(`<text x="${xR + 8}" y="100" font-size="10">|Vth|=${fmt(sv(sol, 'Vth_mag'))}V</text>`);
-      parts.push(`<text x="${xR + 8}" y="115" font-size="10">|Zth|=${fmt(sv(sol, 'Zth_mag'))}\u03a9</text>`);
-      return wrapSvg(parts.join(''), 460, 220);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Power / resonance
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'pf-correction': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `PF Correction: P=${fmt(p.P_W)}W\u2009V=${fmt(p.V_rms)}V`,
-          `PF: ${fmt(p.pf1)} \u2192 ${fmt(p.pf2)}`,
-          `Q1=${fmt(sv(sol, 'Q1'))}VAR\u2009Q2=${fmt(sv(sol, 'Q2'))}VAR`,
-          `Qc=${fmt(sv(sol, 'Qc'))}VAR`,
-          `C=${fmt(sv(sol, 'C_farad'))}F\u2009f=${fmt(p.f_Hz)}Hz`,
-        ],
-        400,
-        165,
-      );
-    }
-
-    case 'complex-power-balance': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Complex Power Balance`,
-          `Vs=${fmt(p.Vs_mag)}V\u2009\u03c9=${fmt(p.omega)}r/s`,
-          `P=${fmt(sv(sol, 'P_W'))}W\u2009Q=${fmt(sv(sol, 'Q_VAR'))}VAR`,
-          `|S|=${fmt(sv(sol, 'S_mag'))}VA\u2009PF=${fmt(sv(sol, 'PF'))}`,
-        ],
-        380,
-        150,
-      );
-    }
-
-    case 'series-resonance': {
-      const p = spec.params;
-      const xL = 40, xR = 368;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(wire(xL, yT, xL + 18, yT));
-      parts.push(resistorH(xL + 18, yT, 60, `R=${fmt(p.R)}\u03a9`));
-      parts.push(inductorH(xL + 78, yT, 70, `L=${fmt(p.L)}H`));
-      parts.push(capacitorH(xL + 148, yT, 50, `C=${fmt(p.C)}F`));
-      parts.push(wire(xL + 198, yT, xR, yT));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(ground(xL, yB));
-      parts.push(
-        `<text x="215" y="148" font-size="10">f0=${fmt(sv(sol, 'f0'))}Hz\u2009Q=${fmt(sv(sol, 'Q'))}</text>`,
-      );
-      parts.push(`<text x="215" y="163" font-size="10">BW=${fmt(sv(sol, 'BW'))}Hz</text>`);
-      return wrapSvg(parts.join(''), 430, 220);
-    }
-
-    case 'parallel-resonance': {
-      const p = spec.params;
-      const xL = 40, xR = 365;
-      const yT = 45, yB = 185;
-      const x1 = 140, x2 = 228, x3 = 308;
-      const parts: string[] = [];
-      parts.push(currentArrow(xL, yB - 4, xL, yT + 4, `Is=${fmt(p.Is)}A`));
-      parts.push(wire(xL, yT, xR, yT));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(resistorV(x1, yT, yB - yT, `R=${fmt(p.R)}\u03a9`));
-      parts.push(`<line x1="${x2}" y1="${yT}" x2="${x2}" y2="${yB}" stroke="#333" stroke-width="2"/>`);
-      parts.push(`<text x="${x2 + 10}" y="${(yT + yB) / 2 + 4}" font-size="10">L=${fmt(p.L)}H</text>`);
-      parts.push(`<line x1="${x3}" y1="${yT}" x2="${x3}" y2="${yB}" stroke="#333" stroke-width="2"/>`);
-      parts.push(`<text x="${x3 + 10}" y="${(yT + yB) / 2 + 4}" font-size="10">C=${fmt(p.C)}F</text>`);
-      parts.push(
-        `<text x="200" y="210" font-size="10" text-anchor="middle">f0=${fmt(sv(sol, 'f0'))}Hz\u2009Q=${fmt(sv(sol, 'Q'))}</text>`,
-      );
-      return wrapSvg(parts.join(''), 420, 220);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Bode plots
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'bode-plot': {
-      const p = spec.params;
-      return buildBodePlot(p.H_s, p.gain, p.poles, p.zeros, p.evalAt_omega);
-    }
-
-    case 'bode-stability': {
-      const p = spec.params;
-      return buildBodePlot(p.L_s, p.gain, p.poles, p.zeros);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Bandpass filter
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'bandpass-filter': {
-      const p = spec.params;
-      const xL = 40, xR = 368;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(wire(xL, yT, xL + 18, yT));
-      parts.push(resistorH(xL + 18, yT, 60, `R=${fmt(p.R)}\u03a9`));
-      parts.push(inductorH(xL + 78, yT, 70, `L=${fmt(p.L)}H`));
-      parts.push(capacitorH(xL + 148, yT, 50, `C=${fmt(p.C)}F`));
-      parts.push(wire(xL + 198, yT, xR, yT));
-      parts.push(wire(xR, yT, xR, yB));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(
-        `<text x="215" y="148" font-size="10">f0=${fmt(sv(sol, 'f0'))}Hz\u2009BW=${fmt(sv(sol, 'BW'))}Hz</text>`,
-      );
-      parts.push(`<text x="215" y="163" font-size="10">Q=${fmt(sv(sol, 'Q'))}</text>`);
-      return wrapSvg(parts.join(''), 430, 220);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Two-port networks
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'z-parameters': {
-      const p = spec.params;
-      const mag = (z: typeof p.Za) => (typeof z === 'number' ? z : Math.sqrt(z.re ** 2 + z.im ** 2));
-      return equationPanel(
-        [
-          `Z-Params (${p.topology} network)`,
-          `Za=${fmt(mag(p.Za))}\u03a9\u2009Zb=${fmt(mag(p.Zb))}\u03a9\u2009Zc=${fmt(mag(p.Zc))}\u03a9`,
-          `Z11=${fmt(sv(sol, 'Z11'))}\u03a9\u2009Z12=${fmt(sv(sol, 'Z12'))}\u03a9`,
-          `Z21=${fmt(sv(sol, 'Z21'))}\u03a9\u2009Z22=${fmt(sv(sol, 'Z22'))}\u03a9`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    case 'abcd-cascade': {
-      return equationPanel(
-        [
-          `ABCD Cascade (${spec.params.sections.length} sections)`,
-          `A=${fmt(sv(sol, 'A'))}\u2009B=${fmt(sv(sol, 'B'))}\u03a9`,
-          `C=${fmt(sv(sol, 'C'))}S\u2009D=${fmt(sv(sol, 'D'))}`,
-          `V ratio=${fmt(sv(sol, 'V_ratio'))}`,
-        ],
-        380,
-        150,
-      );
-    }
-
-    case 'two-port-gain': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Two-Port Network Gain`,
-          `Z11=${fmt(p.Z11)}\u03a9\u2009Z12=${fmt(p.Z12)}\u03a9\u2009Z22=${fmt(p.Z22)}\u03a9`,
-          `Av=${fmt(sv(sol, 'Av'))}\u2009Ai=${fmt(sv(sol, 'Ai'))}`,
-          `Zin=${fmt(sv(sol, 'Zin'))}\u03a9`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Magnetics
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'mutual-inductance': {
-      const p = spec.params;
-      const xL = 40, xM = 210, xR = 388;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs_mag)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(inductorH(xL + 28, yT, 80, `L1=${fmt(p.L1)}H`));
-      parts.push(wire(xL + 108, yT, xM, yT));
-      parts.push(wire(xL, yB, xM, yB));
-      parts.push(
-        `<line x1="${xM}" y1="${yT}" x2="${xM}" y2="${yB}" stroke="#999" stroke-width="1" stroke-dasharray="4"/>`,
-      );
-      parts.push(`<text x="${xM + 4}" y="${(yT + yB) / 2 + 4}" font-size="10">M=${fmt(p.M)}H</text>`);
-      parts.push(inductorH(xM + 10, yT, 80, `L2=${fmt(p.L2)}H`));
-      parts.push(wire(xM + 90, yT, xR, yT));
-      parts.push(wire(xM, yB, xR, yB));
-      if (!p.port2Open) {
-        parts.push(resistorV(xR, yT, yB - yT, 'ZL'));
-      } else {
-        parts.push(node(xR, yT, 'OC'));
-        parts.push(node(xR, yB, ''));
-      }
-      parts.push(
-        `<text x="215" y="210" font-size="10" text-anchor="middle">I1=${fmt(sv(sol, 'I1_mag'))}A\u2009V2=${fmt(sv(sol, 'V2_mag'))}V</text>`,
-      );
-      return wrapSvg(parts.join(''), 448, 220);
-    }
-
-    case 'ideal-transformer': {
-      const p = spec.params;
-      const xL = 40, xM1 = 178, xM2 = 230, xR = 365;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(vSource(xL, yT, yB, `${fmt(p.Vs)}V`));
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 60, `Zs=${fmt(p.Zs)}\u03a9`));
-      parts.push(wire(xL + 88, yT, xM1, yT));
-      parts.push(wire(xL, yB, xM1, yB));
-      parts.push(`<line x1="${xM1}" y1="${yT}" x2="${xM1}" y2="${yB}" stroke="#333" stroke-width="3"/>`);
-      parts.push(`<line x1="${xM2}" y1="${yT}" x2="${xM2}" y2="${yB}" stroke="#333" stroke-width="3"/>`);
-      parts.push(
-        `<text x="${(xM1 + xM2) / 2}" y="${(yT + yB) / 2 + 4}" font-size="11" text-anchor="middle">n=${fmt(p.n)}</text>`,
-      );
-      parts.push(wire(xM2, yT, xR, yT));
-      parts.push(wire(xM2, yB, xR, yB));
-      parts.push(resistorV(xR, yT, yB - yT, `ZL=${fmt(p.ZL)}\u03a9`));
-      parts.push(
-        `<text x="210" y="210" font-size="10" text-anchor="middle">V2=${fmt(sv(sol, 'V2'))}V\u2009I2=${fmt(sv(sol, 'I2'))}A</text>`,
-      );
-      return wrapSvg(parts.join(''), 430, 220);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Three-phase systems
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'three-phase-yy': {
-      const p = spec.params;
-      const Zabs = Math.sqrt(p.Z_ph.re ** 2 + p.Z_ph.im ** 2);
-      return equationPanel(
-        [
-          `Y-Y: VL=${fmt(p.VL_rms)}V rms`,
-          `Vph=${fmt(sv(sol, 'Vph_rms'))}V`,
-          `|Z_ph|=${fmt(Zabs)}\u03a9`,
-          `Iph=${fmt(sv(sol, 'Iph_mag'))}A`,
-          `P3\u03c6=${fmt(sv(sol, 'P_total'))}W`,
-        ],
-        350,
-        165,
-      );
-    }
-
-    case 'three-phase-yd': {
-      const p = spec.params;
-      const Zabs = Math.sqrt(p.Z_delta.re ** 2 + p.Z_delta.im ** 2);
-      return equationPanel(
-        [
-          `Y-\u0394: VL=${fmt(p.VL_rms)}V rms`,
-          `V\u0394=${fmt(sv(sol, 'Vdelta_rms'))}V`,
-          `|Z\u0394|=${fmt(Zabs)}\u03a9`,
-          `Iline=${fmt(sv(sol, 'I_line'))}A`,
-          `P3\u03c6=${fmt(sv(sol, 'P_total'))}W`,
-        ],
-        350,
-        165,
-      );
-    }
-
-    case 'two-wattmeter': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Two-Wattmeter Method`,
-          `W1=${fmt(p.W1)}W\u2009W2=${fmt(p.W2)}W`,
-          `P_total=${fmt(sv(sol, 'P_total'))}W`,
-          `Q_total=${fmt(sv(sol, 'Q_total'))}VAR`,
-          `PF=${fmt(sv(sol, 'PF'))}`,
-        ],
-        370,
-        165,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // BJT amplifiers
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'bjt-ce-amplifier': {
-      const p = spec.params;
-      const xL = 28, xM = 160, xR = 320;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(`<text x="${xL}" y="${yT - 8}" font-size="9">vin</text>`);
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(resistorH(xL + 28, yT, 60, `r\u03c0=${fmt(sv(sol, 'rpi'))}\u03a9`));
-      parts.push(wire(xL + 88, yT, xM, yT));
-      parts.push(node(xM, yT, 'v\u03c0'));
-      parts.push(currentArrow(xM + 48, yT, xM + 48, yB, `gm=${fmt(sv(sol, 'gm'))}S`));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(resistorV(xR, yT, yB - yT, `RC=${fmt(p.RC)}\u03a9`));
-      parts.push(wire(xM + 48, yT, xR, yT));
-      parts.push(ground(xM + 48, yB));
-      parts.push(
-        `<text x="195" y="208" font-size="10" text-anchor="middle">Av=${fmt(sv(sol, 'Av'))}\u2009Rin=${fmt(sv(sol, 'Rin'))}\u03a9</text>`,
-      );
-      return wrapSvg(parts.join(''), 380, 225);
-    }
-
-    case 'miller-bandwidth': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Miller Bandwidth`,
-          `|Av|=${fmt(Math.abs(p.Av))}\u2009C\u03c0=${fmt(p.Cpi)}F\u2009C\u03bc=${fmt(p.Cmu)}F`,
-          `Cin_eff=${fmt(sv(sol, 'Cin_eff'))}F`,
-          `fH=${fmt(sv(sol, 'fH'))}Hz`,
-        ],
-        380,
-        150,
-      );
-    }
-
-    case 'emitter-degeneration': {
-      const p = spec.params;
-      const xC = 80, xM = 195;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(`<text x="${xC + 18}" y="${yT - 8}" font-size="9">VCC</text>`);
-      parts.push(wire(xC + 18, yT, xC + 18, yT + 18));
-      parts.push(resistorV(xC + 18, yT + 18, 50, `RC=${fmt(p.RC)}\u03a9`));
-      parts.push(wire(xC - 28, yT + 42, xC, yT + 42));
-      parts.push(`<text x="${xC - 34}" y="${yT + 46}" font-size="9" text-anchor="end">vin</text>`);
-      parts.push(resistorH(xC, yT + 42, 58, `r\u03c0=${fmt(p.rpi)}\u03a9`));
-      parts.push(wire(xC + 58, yT + 42, xM, yT + 42));
-      parts.push(currentArrow(xM, yT + 20, xM, yT + 80, `gm=${fmt(p.gm)}S`));
-      parts.push(resistorV(xM, yT + 80, 50, `RE=${fmt(p.RE)}\u03a9`));
-      parts.push(ground(xM, yB));
-      parts.push(
-        `<text x="200" y="208" font-size="10" text-anchor="middle">Av=${fmt(sv(sol, 'Av'))}\u2009Rout=${fmt(sv(sol, 'Rout'))}\u03a9</text>`,
-      );
-      return wrapSvg(parts.join(''), 380, 225);
-    }
-
-    case 'cascode': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Cascode Amplifier`,
-          `gm1=${fmt(p.gm1)}S\u2009ro1=${fmt(p.ro1)}\u03a9`,
-          `gm2=${fmt(p.gm2)}S\u2009ro2=${fmt(p.ro2)}\u03a9`,
-          `Av=${fmt(sv(sol, 'Av'))}`,
-          `Rout=${fmt(sv(sol, 'Rout'))}\u03a9\u2009RL=${fmt(p.RL)}\u03a9`,
-        ],
-        380,
-        165,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // MOSFET amplifiers
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'mosfet-cs': {
-      const p = spec.params;
-      const xL = 28, xM = 178, xR = 320;
-      const yT = 55, yB = 188;
-      const parts: string[] = [];
-      parts.push(`<text x="${xL}" y="${yT - 8}" font-size="9">vin(G)</text>`);
-      parts.push(wire(xL, yT, xL + 28, yT));
-      parts.push(node(xL + 28, yT, 'G'));
-      parts.push(currentArrow(xM, yT, xM, yB, `gm=${fmt(sv(sol, 'gm'))}S`));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(ground(xM, yB));
-      parts.push(resistorV(xR, yT, yB - yT, `RD=${fmt(p.RD)}\u03a9`));
-      parts.push(wire(xM, yT, xR, yT));
-      parts.push(
-        `<text x="195" y="195" font-size="10" text-anchor="middle">VGS=${fmt(p.VGS)}V\u2009VTN=${fmt(p.VTN)}V</text>`,
-      );
-      parts.push(
-        `<text x="195" y="210" font-size="10" text-anchor="middle">ID=${fmt(sv(sol, 'ID'))}A\u2009Av=${fmt(sv(sol, 'Av'))}</text>`,
-      );
-      return wrapSvg(parts.join(''), 380, 225);
-    }
-
-    case 'mosfet-diff-pair': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `MOSFET Diff Pair`,
-          `gm=${fmt(p.gm)}S\u2009ro=${fmt(p.ro)}\u03a9`,
-          `Ad=${fmt(sv(sol, 'Ad'))}\u2009Ac=${fmt(sv(sol, 'Ac'))}`,
-          `CMRR=${fmt(sv(sol, 'CMRR_dB'))}dB`,
-          `RD=${fmt(p.RD)}\u03a9\u2009RSS=${fmt(p.RSS)}\u03a9`,
-        ],
-        380,
-        165,
-      );
-    }
-
-    case 'source-follower': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Source Follower`,
-          `gm=${fmt(p.gm)}S\u2009ro=${fmt(p.ro)}\u03a9`,
-          `Av=${fmt(sv(sol, 'Av'))}`,
-          `Rout=${fmt(sv(sol, 'Rout'))}\u03a9`,
-          `RS=${fmt(p.RS)}\u03a9\u2009RL=${fmt(p.RL)}\u03a9`,
-        ],
-        360,
-        165,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Op-amp circuits
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'opamp-summer': {
-      const p = spec.params;
-      const xBase = 38, xOA = 225;
-      const yBot = 185;
-      const yIn0 = 55;
-      const parts: string[] = [];
-      // Feedback resistor (top)
-      parts.push(resistorH(xOA - 55, yIn0, 55, `Rf=${fmt(p.Rf)}\u03a9`));
-      // Op-amp triangle
-      const yTriTop = yIn0;
-      const yTriBot = yBot - 20;
-      const yTriMid = (yTriTop + yTriBot) / 2;
-      parts.push(
-        `<polygon points="${xOA},${yTriTop} ${xOA + 60},${yTriMid} ${xOA},${yTriBot}" fill="#f5f5f5" stroke="#333" stroke-width="1.5"/>`,
-      );
-      parts.push(
-        `<text x="${xOA + 30}" y="${yTriMid + 4}" font-size="9" text-anchor="middle">op-amp</text>`,
-      );
-      // Input branches (up to 3)
-      const inputs = p.inputs.slice(0, 3);
-      inputs.forEach((inp, i) => {
-        const yy = yIn0 + i * 30;
-        parts.push(resistorH(xBase, yy, 78, `R${i + 1}=${fmt(inp.R)}\u03a9`));
-        parts.push(
-          `<text x="${xBase - 4}" y="${yy + 4}" font-size="9" text-anchor="end">V${i + 1}=${fmt(inp.V)}V</text>`,
-        );
-        parts.push(wire(xBase + 78, yy, xOA - 57, yy));
-      });
-      // Output label
-      parts.push(
-        `<text x="${xOA + 65}" y="${yTriMid + 4}" font-size="10">Vo=${fmt(sv(sol, 'Vout'))}V</text>`,
-      );
-      return wrapSvg(parts.join(''), 440, 220);
-    }
-
-    case 'diff-amp-cmrr': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Diff Amp (CMRR)`,
-          `R1=${fmt(p.R1)}\u03a9\u2009R2=${fmt(p.R2)}\u03a9\u2009\u0394R4=${fmt(p.deltaR4)}\u03a9`,
-          `Ad=${fmt(sv(sol, 'Ad'))}\u2009Ac=${fmt(sv(sol, 'Ac'))}`,
-          `CMRR=${fmt(sv(sol, 'CMRR_dB'))}dB`,
-        ],
-        390,
-        150,
-      );
-    }
-
-    case 'sallen-key': {
-      const p = spec.params;
-      const xL = 38, xR = 390;
-      const yT = 58, yM = 128, yB = 188;
-      const parts: string[] = [];
-      parts.push(resistorH(xL, yT, 58, `R1=${fmt(p.R1)}\u03a9`));
-      parts.push(resistorH(xL + 58, yT, 58, `R2=${fmt(p.R2)}\u03a9`));
-      parts.push(wire(xL + 116, yT, xL + 136, yT));
-      parts.push(capacitorH(xL + 136, yT, 48, `C1=${fmt(p.C1)}F`));
-      parts.push(capacitorH(xL + 58, yM, 48, `C2=${fmt(p.C2)}F`));
-      parts.push(wire(xL, yB, xR, yB));
-      parts.push(ground(xL + 184, yT));
-      parts.push(ground(xL + 106, yM));
-      parts.push(
-        `<text x="260" y="165" font-size="10">f0=${fmt(sv(sol, 'f0'))}Hz\u2009Q=${fmt(sv(sol, 'Q'))}</text>`,
-      );
-      parts.push(`<text x="260" y="180" font-size="10">K=${fmt(p.K)}</text>`);
-      return wrapSvg(parts.join(''), 440, 220);
-    }
-
-    case 'schmitt-trigger': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Schmitt Trigger`,
-          `R1=${fmt(p.R1)}\u03a9\u2009R2=${fmt(p.R2)}\u03a9`,
-          `V+=${fmt(sv(sol, 'V_upper'))}V`,
-          `V\u2212=${fmt(sv(sol, 'V_lower'))}V`,
-          `Vsat\u00b1=${fmt(p.Vsat_pos)}/${fmt(p.Vsat_neg)}V`,
-        ],
-        360,
-        165,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Feedback / stability / control
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'series-shunt-feedback': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Series-Shunt Feedback`,
-          `A=${fmt(p.A)}\u2009\u03b2=${fmt(p.beta_f)}`,
-          `Af=${fmt(sv(sol, 'Af'))}`,
-          `Rinf=${fmt(sv(sol, 'Rinf'))}\u03a9\u2009Routf=${fmt(sv(sol, 'Routf'))}\u03a9`,
-        ],
-        390,
-        150,
-      );
-    }
-
-    case 'root-locus': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Root Locus: ${p.GH_s}`,
-          `OL poles: ${p.openLoopPoles.join(', ')}`,
-          `OL zeros: ${p.openLoopZeros.length ? p.openLoopZeros.join(', ') : 'none'}`,
-          `Centroid=${fmt(sv(sol, 'centroid'))}`,
-          `Asymptote: ${fmt(sv(sol, 'asym0'))}\u00b0\u2009${fmt(sv(sol, 'asym1'))}\u00b0`,
-        ],
-        420,
-        165,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Power systems
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'per-unit': {
-      const p = spec.params;
-      const zoneStr = p.zones.map((z, i) => `Z${i + 1}:${fmt(z.Vbase_kV)}kV`).join('\u2009');
-      return equationPanel(
-        [
-          `Per-Unit System: Sbase=${fmt(p.Sbase_MVA)}MVA`,
-          zoneStr,
-          `Zbase1=${fmt(sv(sol, 'Zbase1'))}\u03a9`,
-          `Z_pu=${fmt(sv(sol, 'Z1pu'))}pu`,
-        ],
-        420,
-        150,
-      );
-    }
-
-    case 'ybus-formation': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Ybus: ${p.nBuses} buses, ${p.lines.length} branches`,
-          `Y11=${fmt(sv(sol, 'Y11_re'))}+j${fmt(sv(sol, 'Y11_im'))}`,
-          `Y12=${fmt(sv(sol, 'Y12_re'))}+j${fmt(sv(sol, 'Y12_im'))}`,
-          `Y22=${fmt(sv(sol, 'Y22_re'))}+j${fmt(sv(sol, 'Y22_im'))}`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    case 'gauss-seidel-pf': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Gauss-Seidel Power Flow`,
-          `${p.buses.length} buses\u2009maxIter=${p.maxIter}`,
-          `|V2|=${fmt(sv(sol, 'V2_mag'))}pu\u2009\u03b42=${fmt(sv(sol, 'V2_ang_deg'))}\u00b0`,
-          `P2=${fmt(sv(sol, 'P2'))}pu\u2009Q2=${fmt(sv(sol, 'Q2'))}pu`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    case 'symmetrical-fault': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `3-Phase Fault at bus ${p.faultBus + 1}`,
-          `Vpre=${fmt(p.Vpre)}pu`,
-          `Zbus=${fmt(sv(sol, 'Zbus_re'))}+j${fmt(sv(sol, 'Zbus_im'))}pu`,
-          `Ifault=${fmt(sv(sol, 'Ifault_mag'))}pu`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    case 'nr-jacobian': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Newton-Raphson Power Flow`,
-          `${p.buses.length} buses\u2009tol=${fmt(p.tolerance)}`,
-          `|V2|=${fmt(sv(sol, 'V2_mag'))}pu\u2009\u03b4=${fmt(sv(sol, 'V2_ang_deg'))}\u00b0`,
-          `\u0394P=${fmt(sv(sol, 'dP2'))}\u2009\u0394Q=${fmt(sv(sol, 'dQ2'))}`,
-        ],
-        400,
-        150,
-      );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Oscillator
-    // ─────────────────────────────────────────────────────────────────────────
-    case 'integrator-oscillator': {
-      const p = spec.params;
-      return equationPanel(
-        [
-          `Two-Integrator Oscillator`,
-          `f0=${fmt(p.f0)}Hz\u2009C=${fmt(p.C)}F`,
-          `R=${fmt(sv(sol, 'R'))}\u03a9\u2009\u03c90=${fmt(sv(sol, 'omega0'))}r/s`,
-          `T=${fmt(sv(sol, 'T_period'))}s\u2009\u03c6/integ=\u221290\u00b0`,
-        ],
-        380,
-        150,
-      );
-    }
-  }
+function renderGenericPanel(sol: EESolution): string {
+  const eqs = sol.steps.length > 0
+    ? sol.steps.map(s => s.formula)
+    : Object.entries(sol.computed).slice(0, 4).map(([k, v]) => `${k} = ${fmtNum(v, 3)}`);
+  return equationPanel(eqs.length > 0 ? eqs : ['Solution', 'see computed values']);
 }
