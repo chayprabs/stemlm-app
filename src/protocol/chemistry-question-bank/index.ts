@@ -39,6 +39,16 @@ import { Q37 } from './q37';
 import { Q38 } from './q38';
 import { Q39 } from './q39';
 import { Q40 } from './q40';
+import { Q41 } from './q41';
+import { Q42 } from './q42';
+import { Q43 } from './q43';
+import { Q44 } from './q44';
+import { Q45 } from './q45';
+import { Q46 } from './q46';
+import { Q47 } from './q47';
+import { Q48 } from './q48';
+import { Q49 } from './q49';
+import { Q50 } from './q50';
 
 /** All verified chemistry benchmark questions (Q1-Q50). */
 export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
@@ -82,6 +92,16 @@ export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
   Q38,
   Q39,
   Q40,
+  Q41,
+  Q42,
+  Q43,
+  Q44,
+  Q45,
+  Q46,
+  Q47,
+  Q48,
+  Q49,
+  Q50,
 ];
 
 export function getChemistryQuestionByNumber(n: number): ChemistryQuestionDef | undefined {
