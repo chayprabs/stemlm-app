@@ -99,7 +99,11 @@ export type ParseWarningCode =
   | 'quickcheck_missing_question'
   | 'quickcheck_missing_answer'
   | 'quickcheck_thin_answer'
-  | 'quickcheck_generic_trivia';
+  | 'quickcheck_generic_trivia'
+  | 'missing_initial_circuit'
+  | 'missing_circuit_diagram'
+  | 'insufficient_diagrams'
+  | 'diagram_lacks_graphics';
 
 export type ParseErrorCode =
   | 'no_capsule'

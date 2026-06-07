@@ -14,7 +14,7 @@ title: <one line — single move>
 <REQUIRED. Define new symbols, plug in givens, compute with units — ONE move, real numbers, inline $x$>
 @endbody
 @diagram type=svg
-<state at THIS step; skip if unhelpful>
+<circuit/structure state AT this step — REQUIRED on visual topology steps; never skip for laziness>
 @enddiagram
 @takeaway
 <one line>
@@ -31,4 +31,4 @@ a: <answer + because + formula/number from this step; not one word>
 <full answer, markdown + $math$>
 @endsolution
 __END__
-Rules: one move per @step; @body required (never empty); if @formula has symbols, @body defines them + substitutes numbers; @quickcheck answers need because + formula/number (never one word); no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; mermaid only for CS flow, quote all labels A["x"].
+Rules: one move per @step; @body required (never empty); @diagram type=svg REQUIRED on step 1 circuits (full schematic), node/ground/KCL/KVL, branch reduction, superposition/Thevenin, source killing — real line/path/rect/circle primitives, not text-only; if @formula has symbols, @body defines them + substitutes numbers; @quickcheck answers need because + formula/number (never one word); no Setup/Solve/Answer titles; split algebra line-by-line; every substitution + units; KaTeX (aligned/cases, not align; $\ce{}$ for chemistry); each diagram = that step's state; svg = one <svg viewBox> of line/path/circle/rect/polygon/polyline/text/g, arrowheads via <defs><marker><polygon/></marker></defs> + marker-end, no width/height/script/image/external refs; multi-node circuits ≥1 diagram per 2–3 steps; mermaid only for CS flow, quote all labels A["x"].

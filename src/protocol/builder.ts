@@ -31,6 +31,16 @@ export const STEP_BODY_REQUIREMENT = [
   'A step with @formula but empty @body is invalid. Conceptual steps still need @body prose.',
 ].join('\n');
 
+/** Repeated on every inject so models cannot skip circuit / spatial diagrams. */
+export const STEP_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — visual/spatial problems MUST include @diagram type=svg (never skip for laziness).',
+  'EE CIRCUITS: Step 1 MUST show the FULL original circuit — every R, source, node label (A,B,C,D…), ground, dependent source, and bridge connections.',
+  'REQUIRED @diagram on: node labeling, ground, KCL/KVL, branch reduction, superposition sub-circuits, Thevenin/Norton, source killing — any step where topology or labels change.',
+  'Each @diagram needs real SVG primitives (line, path, polyline, rect, circle) — NOT text-only labels. Use zigzag resistors, source symbols, current arrows.',
+  'Redraw circuit state AT THIS STEP (highlight what changed). Pure simultaneous-equation algebra with no topology change may omit @diagram.',
+  'Minimum on multi-node circuits: at least one diagram per 2–3 steps; never fewer than 3 diagrams total.',
+].join('\n');
+
 /** Blank lines after this label are where the student types their follow-up question. */
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
 
@@ -95,6 +105,7 @@ export function buildComposerStub(question: string, subject: Subject, opt?: Pick
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     STEP_BODY_REQUIREMENT,
+    STEP_DIAGRAM_REQUIREMENT,
     'No prose outside the block.',
   ].join('\n');
 }
@@ -122,7 +133,7 @@ export function buildInjectionAppendix(question: string, opt?: BuildOptions): Bu
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${STEP_DIAGRAM_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
   return { prompt, subject, variant };
 }
 
@@ -182,6 +193,7 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
     'Follow the stemLM protocol below exactly.',
     `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
     'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
+    STEP_DIAGRAM_REQUIREMENT,
     'No prose outside the block.',
   ].join('\n');
 }
@@ -240,19 +252,34 @@ const QUALITY_REPAIR_CODES = new Set([
   'quickcheck_generic_trivia',
   'quickcheck_missing_question',
   'quickcheck_missing_answer',
+  'missing_initial_circuit',
+  'missing_circuit_diagram',
+  'insufficient_diagrams',
+  'diagram_lacks_graphics',
+]);
+
+const DIAGRAM_REPAIR_CODES = new Set([
+  'missing_initial_circuit',
+  'missing_circuit_diagram',
+  'insufficient_diagrams',
+  'diagram_lacks_graphics',
 ]);
 
 export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
   const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
-  const qualityFix = opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode)
+  const bodyFix = opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode) && !DIAGRAM_REPAIR_CODES.has(opt.errorCode)
     ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
+    : '';
+  const diagramFix = opt.errorCode && DIAGRAM_REPAIR_CODES.has(opt.errorCode)
+    ? ' ADD the missing @diagram type=svg blocks: Step 1 must show the FULL original circuit with every component and node label. Every topology step (nodes, KCL/KVL, superposition, Thevenin, source killing) needs a real SVG with line/path/rect/circle primitives — not text-only placeholders.'
     : '';
   return [
     `Your previous stemLM capsule was incomplete or malformed.${reason}`,
     'Re-emit the FULL answer as exactly one fenced block with info string stemlm.',
-    `No prose outside the block. Keep the same math and diagrams; fix every step's @body work.${qualityFix}`,
+    `No prose outside the block. Keep the same math; fix every step's @body work and add every required circuit diagram.${bodyFix}${diagramFix}`,
     `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
     STEP_BODY_REQUIREMENT,
+    STEP_DIAGRAM_REQUIREMENT,
     '@quickcheck: test this step\'s result; answer with because + formula/number — not one word.',
   ].join('\n');
 }

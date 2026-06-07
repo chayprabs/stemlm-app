@@ -31,6 +31,7 @@ import {
   normalizeCapsuleText,
   stripProtocolMarkers,
 } from './strip-markers';
+import { auditCapsuleDiagrams, diagramQualityMessage } from './diagram-quality';
 import { auditStepQuality, enrichStepBody, isDiagnosticBodyText, stepQualityMessage } from './step-quality';
 import {
   auditQuickCheck,
@@ -607,6 +608,14 @@ export function parseCapsule(capsuleText: string): ParseResult {
     solution: stripProtocolMarkers(solution),
     solutionDiagrams,
   };
+
+  for (const code of auditCapsuleDiagrams(capsule)) {
+    const key = `diagram:${code}`;
+    if (!warnedQuality.has(key)) {
+      warnedQuality.add(key);
+      addWarning(warnings, warningCodes, code, diagramQualityMessage(code, capsule));
+    }
+  }
 
   if (steps.length === 0 && !solution) {
     const errorCode: ParseErrorCode = sawMeta ? 'no_usable_content' : 'missing_meta';

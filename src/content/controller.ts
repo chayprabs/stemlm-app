@@ -23,6 +23,7 @@ import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { auditCapsuleDiagrams } from '@/src/protocol/diagram-quality';
 import { auditStepQuality } from '@/src/protocol/step-quality';
 
 /** Fallback key when mirrored/workspace sessions strip bulky raw text. */
@@ -391,21 +392,39 @@ export class StemController {
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
-  /** When steps still lack worked @body after parse enrichment, queue a repair prompt. */
+  /** When steps lack worked @body or circuit diagrams, queue a repair prompt. */
   private offerQualityRepair(result: ParseResult): void {
     if (this.repairPromptInserted || !result.capsule) return;
+
     const weakSteps = result.capsule.steps.filter((s) => auditStepQuality(s).length > 0);
-    if (!weakSteps.length) return;
-    const code = auditStepQuality(weakSteps[0]!)[0];
+    if (weakSteps.length) {
+      const code = auditStepQuality(weakSteps[0]!)[0];
+      if (!code) return;
+      const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
+      this.repairPromptInserted = inserted || this.repairPromptInserted;
+      if (inserted && weakSteps.length >= result.capsule.steps.length / 2) {
+        useStore
+          .getState()
+          .setStatus(
+            'ready',
+            `${weakSteps.length} steps are missing worked math. A repair prompt was added to the chat — send it for a complete answer.`,
+          );
+      }
+      return;
+    }
+
+    const diagramIssues = auditCapsuleDiagrams(result.capsule);
+    if (!diagramIssues.length) return;
+    const code = diagramIssues[0];
     if (!code) return;
     const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
     this.repairPromptInserted = inserted || this.repairPromptInserted;
-    if (inserted && weakSteps.length >= result.capsule.steps.length / 2) {
+    if (inserted) {
       useStore
         .getState()
         .setStatus(
           'ready',
-          `${weakSteps.length} steps are missing worked math. A repair prompt was added to the chat — send it for a complete answer.`,
+          'Circuit diagrams are missing or too sparse. A repair prompt was added to the chat — send it for diagrams on every topology step.',
         );
     }
   }
