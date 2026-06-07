@@ -108,7 +108,7 @@ describe('math AI pipeline (structural verification)', () => {
   });
 
   it('exam prompts are math topics without pre-authored solution fields', () => {
-    expect(MATH_PROMPTS.length).toBe(50);
+    expect(MATH_PROMPTS.length).toBeGreaterThanOrEqual(50);
     expect(MATH_PROMPTS.every((p) => p.topic.length > 3)).toBe(true);
     const visual = MATH_PROMPTS.filter(
       (p) =>

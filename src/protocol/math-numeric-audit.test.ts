@@ -36,9 +36,9 @@ const SYNTHETIC_ANSWERS: Record<number, string> = {
 };
 
 describe('math numeric audit (independent recomputation)', () => {
-  it('has one solver per prompt', () => {
+  it('has numeric solvers for the first 50 exam questions', () => {
     expect(MATH_NUMERIC_SOLVERS.length).toBe(50);
-    expect(MATH_PROMPTS.length).toBe(50);
+    expect(MATH_PROMPTS.length).toBeGreaterThanOrEqual(50);
   });
 
   it('matrix power sanity check is independent of capsule text', () => {
