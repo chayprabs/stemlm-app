@@ -9,7 +9,6 @@ import {
   takePanelActionResult,
   type PanelActionResult,
 } from '@/src/lib/tab-workspace';
-import { debugLog } from '@/src/lib/debug-log';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
@@ -89,41 +88,26 @@ export async function deliverStemLmMessage(
   if (tab?.id == null) throw new Error('no-active-tab');
   if (!isGeminiUrl(tab.url)) throw new Error('not-gemini');
 
-  debugLog('tab-bridge.ts:deliver', 'deliver start', { type, tabId: tab.id }, 'A');
-
   try {
-    const direct = await sendStemLmMessage(tab.id, { type });
-    debugLog('tab-bridge.ts:deliver', 'direct send ok', { type, direct }, 'A');
-    return direct;
+    return await sendStemLmMessage(tab.id, { type });
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
-    debugLog('tab-bridge.ts:deliver', 'direct send failed, reloading', { type }, 'A');
   }
 
   await setPendingPanelAction({ tabId: tab.id, type });
   await browser.tabs.reload(tab.id);
 
   const ready = await waitForContentScript(tab.id, 25000);
-  debugLog('tab-bridge.ts:deliver', 'content script poll done', { type, ready }, 'B');
   if (!ready) throw new Error('content-script-timeout');
 
   const resultTimeoutMs = type === 'stemlm:load-conversation' ? 20_000 : 10_000;
   const pendingResult = await waitForPanelActionResult(tab.id, resultTimeoutMs);
-  debugLog(
-    'tab-bridge.ts:deliver',
-    'pending result poll done',
-    { type, pendingResult },
-    'C',
-  );
   if (pendingResult) return pendingResult;
 
   try {
-    const fallback = await sendStemLmMessage(tab.id, { type });
-    debugLog('tab-bridge.ts:deliver', 'fallback send ok', { type, fallback }, 'C');
-    return fallback;
+    return await sendStemLmMessage(tab.id, { type });
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
-    debugLog('tab-bridge.ts:deliver', 'fallback send failed', { type }, 'C');
     return { ok: false };
   }
 }

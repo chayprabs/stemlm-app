@@ -30,7 +30,6 @@ import {
   takePendingPanelAction,
   workspaceFromStore,
 } from '@/src/lib/tab-workspace';
-import { debugLog } from '@/src/lib/debug-log';
 
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
@@ -132,21 +131,9 @@ export default defineContentScript({
 
     if (tabId != null) {
       const pending = await takePendingPanelAction(tabId);
-      debugLog(
-        'content/index.ts:pending',
-        'pending action check',
-        { tabId, pending },
-        'C',
-      );
       if (pending) {
         const result = await handleStemLmPanelMessage(pending, adapter.id);
         await setPanelActionResult(tabId, result);
-        debugLog(
-          'content/index.ts:pending',
-          'pending action done',
-          { tabId, pending, result },
-          'C',
-        );
       }
     }
 

@@ -33,10 +33,6 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-vi.mock('@/src/lib/debug-log', () => ({
-  debugLog: vi.fn(),
-}));
-
 import { deliverStemLmMessage } from './tab-bridge';
 import { setPanelActionResult } from './tab-workspace';
 
