@@ -4,6 +4,7 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { StepWork } from './StepWork';
+import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 
@@ -23,7 +24,7 @@ function SolutionStep({
         <h3 className="slm-solution-step-title">{step.title}</h3>
       </header>
 
-      {step.formula && (
+      {shouldShowFormulaBlock(step) && step.formula && (
         <div className="slm-formula">
           <span className="slm-formula-label">Formula</span>
           <MathMarkdown content={step.formula} />

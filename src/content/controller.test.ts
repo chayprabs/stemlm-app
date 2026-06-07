@@ -189,6 +189,14 @@ describe('StemController.inject', () => {
 describe('StemController.followUp', () => {
   beforeEach(resetStore);
 
+  it('sets buttonInjected after a successful follow-up', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    expect(await c.followUp('Why is R1 + R2 here?', 'Series resistors', 'Electrical')).toBe(true);
+    expect(useStore.getState().buttonInjected).toBe(true);
+    c.stopWatching();
+  });
+
   it('inserts a question slot above follow-up context and protocol', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);

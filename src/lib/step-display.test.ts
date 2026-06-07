@@ -21,6 +21,10 @@ describe('resolveStepWorkText', () => {
     expect(resolveStepWorkText(base)).toContain('75.4');
   });
 
+  it('treats missing body as empty', () => {
+    expect(resolveStepWorkText({ ...base, body: undefined as unknown as string })).toContain('75.4');
+  });
+
   it('ignores diagnostic body and falls back to worked formula', () => {
     expect(
       resolveStepWorkText({

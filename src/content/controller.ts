@@ -159,6 +159,7 @@ export class StemController {
 
     this.adapter.focusComposerQuestionSlot();
     this.lastQuestion = normalized;
+    useStore.getState().setButtonInjected(true);
     useStore.getState().setStatus('loading');
     this.armAnswerDetection();
     void trackEvent('followup_used', { platform: this.adapter.id });
@@ -221,6 +222,9 @@ export class StemController {
     this.observer = null;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+    this.stableText = '';
+    this.stableSince = 0;
+    this.repairPromptInserted = false;
   }
 
   private scheduleCheck(): void {
@@ -307,6 +311,9 @@ export class StemController {
     }
 
     this.rememberCaptured(key);
+    if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+    this.stableText = '';
+    this.stableSince = 0;
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
@@ -332,7 +339,8 @@ export class StemController {
   private offerRepairPrompt(result: ParseResult): void {
     const code = result.errorCode ?? result.warningCodes[0] ?? 'no_usable_content';
     const inserted =
-      !this.repairPromptInserted && this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }));
+      !this.repairPromptInserted &&
+      this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
     this.repairPromptInserted = inserted || this.repairPromptInserted;
     const suffix = inserted ? ' A repair prompt has been added to the chatbox; send it to retry.' : '';
     useStore
@@ -379,17 +387,35 @@ export class StemController {
       return;
     }
     const diagrams = allDiagrams(result.capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])), result.capsule.solutionDiagrams);
+    const store = useStore.getState();
+    const topic = result.capsule.meta.topic;
+    const cleanedQuestion = cleanSessionQuestion(question) || topic;
+    const last = store.sessions[store.sessions.length - 1];
+    const shouldReplace =
+      last &&
+      store.activeSessionId === last.id &&
+      last.platform === this.adapter.id &&
+      (cleanSessionQuestion(last.question) === cleanedQuestion || last.capsule.meta.topic === topic);
+
     const session: Session = {
-      id: makeId(),
-      createdAt: Date.now(),
+      id: shouldReplace ? last.id : makeId(),
+      createdAt: shouldReplace ? last.createdAt : Date.now(),
       updatedAt: Date.now(),
       platform: this.adapter.id,
-      question: cleanSessionQuestion(question) || result.capsule.meta.topic,
+      question: cleanedQuestion,
       capsule: result.capsule,
-      reviewedStepIds: [],
+      reviewedStepIds: shouldReplace ? last.reviewedStepIds : [],
       raw: result.raw,
     };
-    useStore.getState().addSession(session);
+
+    if (shouldReplace) {
+      useStore.setState((s) => ({
+        sessions: s.sessions.map((sess) => (sess.id === last.id ? session : sess)),
+        status: 'ready',
+      }));
+    } else {
+      store.addSession(session);
+    }
     this.offerQualityRepair(result);
     this.resetInjection();
     void trackEvent('question_solved', {

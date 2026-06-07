@@ -16,10 +16,31 @@ function bodyShowsNumericWork(body: string): boolean {
   return /=|≈|~|\\approx|\\times|\\cdot|\\frac|\\angle/.test(body);
 }
 
+const DIAGNOSTIC_BODY_PATTERNS = [
+  /\bhas no @body\b/i,
+  /\bno @body work\b/i,
+  /needs numeric substitution in @body/i,
+  /introduces symbols in @formula without defining them/i,
+  /add symbol definitions and the worked calculation/i,
+  /\bstep_missing_/i,
+  /\bmissing_step_body\b/i,
+  /\bformula_without_body\b/i,
+  /\bparser error code was\b/i,
+  /\bre-emit the (same|FULL) answer\b/i,
+  /\bprevious stemLM capsule\b/i,
+  /fix every step's @body/i,
+  /\bEach @step with @formula\b/i,
+  /\bis missing worked explanation\b/i,
+  /packs multiple moves/i,
+  /shows a formula but no @body/i,
+  /without defining them in @body/i,
+  /incomplete or malformed/i,
+];
+
 export function isDiagnosticBodyText(text: string): boolean {
-  return /\bhas no @body\b|no @body work\b|needs numeric substitution in @body|introduces symbols in @formula without defining them|add symbol definitions and the worked calculation|step_missing_|formula_without_body|parser error code was|re-emit the same answer/i.test(
-    text,
-  );
+  const t = text.trim();
+  if (!t) return false;
+  return DIAGNOSTIC_BODY_PATTERNS.some((re) => re.test(t));
 }
 
 export function formulaShowsNumericWork(formula: string): boolean {
@@ -46,7 +67,7 @@ function formulaIntroducesSymbols(formula: string): boolean {
 
 /** Fill empty @body from worked @formula so students see math instead of blank steps. */
 export function enrichStepBody(step: Step): void {
-  let body = step.body.trim();
+  let body = (step.body ?? '').trim();
   if (isDiagnosticBodyText(body)) {
     step.body = '';
     body = '';
@@ -61,7 +82,7 @@ export function enrichStepBody(step: Step): void {
 
 export function auditStepQuality(step: Step): ParseWarningCode[] {
   const issues: ParseWarningCode[] = [];
-  const body = step.body.trim();
+  const body = (step.body ?? '').trim();
   const formula = step.formula?.trim() ?? '';
 
   if (isDiagnosticBodyText(body)) {

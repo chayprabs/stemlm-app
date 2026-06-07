@@ -13,7 +13,7 @@ function normalizeMath(s: string): string {
 
 /** Worked explanation to show under "Work", or null when nothing to show. */
 export function resolveStepWorkText(step: Step): string | null {
-  let body = step.body.trim();
+  let body = (step.body ?? '').trim();
   if (isDiagnosticBodyText(body)) body = '';
   if (body) return body;
 

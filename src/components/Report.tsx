@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { Session, Diagram } from '@/src/protocol/types';
 import { resolveStepWorkText, shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { MathMarkdown } from './MathMarkdown';
@@ -94,11 +95,16 @@ export function Report({
               {solutionParts.map((part, i) => {
                 if (i % 2 === 1) {
                   const idx = Number(part);
+                  if (!Number.isFinite(idx)) return <Fragment key={`d-${i}`} />;
                   return (
                     <ResolvedDiagram key={`d-${i}`} svg={diagramSvg[diagramKey('sol', idx)]} />
                   );
                 }
-                return part.trim() ? <MathMarkdown key={`t-${i}`} content={part} /> : null;
+                return part.trim() ? (
+                  <MathMarkdown key={`t-${i}`} content={part} />
+                ) : (
+                  <Fragment key={`t-${i}`} />
+                );
               })}
             </div>
           )}

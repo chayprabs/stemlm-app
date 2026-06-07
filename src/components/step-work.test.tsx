@@ -54,6 +54,22 @@ describe('StepWork', () => {
     expect(html).not.toContain('has no @body');
   });
 
+  it('never renders repair prompt text echoed into body', () => {
+    const html = renderToStaticMarkup(
+      <StepWork
+        step={{
+          id: 's1',
+          index: 2,
+          title: 'Calculate inductive reactance',
+          formula: '$$X_L = \\omega L$$',
+          body: 'Your previous stemLM capsule was incomplete or malformed. Re-emit the FULL answer as exactly one fenced block.',
+        }}
+      />,
+    );
+    expect(html).toBe('');
+    expect(html).not.toContain('stemLM capsule');
+  });
+
   it('never renders parser diagnostic text even if model echoed it in body', () => {
     const html = renderToStaticMarkup(
       <StepWork

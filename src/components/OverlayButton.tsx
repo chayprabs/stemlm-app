@@ -154,6 +154,7 @@ export function OverlayButton() {
     if (!ctrl) return;
 
     const tick = () => {
+      if (useStore.getState().status === 'loading') return;
       const text = adapter.getEditorText().trim();
       if (text.length === 0) {
         ctrl.resetInjection();

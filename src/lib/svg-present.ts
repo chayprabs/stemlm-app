@@ -218,7 +218,7 @@ function prefixSvgIds(root: Element): void {
 function extractMarkerId(value: string | null): string | null {
   if (!value) return null;
   const m = /url\(#([^)]+)\)/i.exec(value);
-  return m ? m[1] : null;
+  return m?.[1] ?? null;
 }
 
 function findById(root: Element, id: string): Element | null {

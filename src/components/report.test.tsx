@@ -124,6 +124,7 @@ describe('buildReportDocument (vector print PDF)', () => {
         meta: { version: 1, subject: 'Electrical', topic: 'Admittance' },
         steps: [
           {
+            id: 'step-1',
             index: 1,
             title: 'Combine components to find total admittance',
             body: '',

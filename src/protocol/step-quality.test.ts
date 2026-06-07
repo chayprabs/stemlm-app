@@ -1,7 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from './parser';
 import { RLC_AC_IMPEDANCE } from './__fixtures__';
-import { auditStepQuality, enrichStepBody } from './step-quality';
+import { auditStepQuality, enrichStepBody, isDiagnosticBodyText } from './step-quality';
+
+describe('isDiagnosticBodyText', () => {
+  it('flags repair prompts and quality warnings echoed into @body', () => {
+    expect(
+      isDiagnosticBodyText(
+        'Your previous stemLM capsule was incomplete or malformed. The parser error code was missing_step_body.',
+      ),
+    ).toBe(true);
+    expect(
+      isDiagnosticBodyText('Re-emit the FULL answer as exactly one fenced block with info string stemlm.'),
+    ).toBe(true);
+    expect(isDiagnosticBodyText('Step 3 ("Split reactance") packs multiple moves; split into smaller steps.')).toBe(
+      true,
+    );
+    expect(isDiagnosticBodyText('Step 2 ("XL") is missing worked explanation.')).toBe(true);
+    expect(isDiagnosticBodyText('$X_L=75\\,\\Omega$ with numeric substitution.')).toBe(false);
+  });
+});
 
 describe('auditStepQuality', () => {
   it('flags formula-only steps with no body', () => {

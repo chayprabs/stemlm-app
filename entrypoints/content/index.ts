@@ -67,11 +67,20 @@ export default defineContentScript({
     } else if (tabId != null) {
       const backup = await loadTabWorkspace(tabId);
       if (backup?.sessions.length && useStore.getState().sessions.length === 0) {
+        const sessions = backup.sessions;
+        const activeSessionId =
+          backup.activeSessionId ?? sessions[sessions.length - 1]?.id;
+        const activeSession =
+          sessions.find((s) => s.id === activeSessionId) ?? sessions[sessions.length - 1];
+        const maxStep = Math.max(0, (activeSession?.capsule.steps.length ?? 1) - 1);
+        const activeStepIndex = Math.max(
+          0,
+          Math.min(backup.activeStepIndex ?? 0, maxStep),
+        );
         useStore.setState({
-          sessions: backup.sessions,
-          activeSessionId:
-            backup.activeSessionId ?? backup.sessions[backup.sessions.length - 1]?.id,
-          activeStepIndex: backup.activeStepIndex,
+          sessions,
+          activeSessionId,
+          activeStepIndex,
           status: 'ready',
         });
       }
