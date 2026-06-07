@@ -9,6 +9,7 @@ import { Q07 } from './q07';
 import { Q08 } from './q08';
 import { Q09 } from './q09';
 import { Q10 } from './q10';
+import { Q11 } from './q11';
 import { Q21 } from './q21';
 
 /** All verified chemistry benchmark questions (Q1–Q50). */
@@ -23,6 +24,7 @@ export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
   Q08,
   Q09,
   Q10,
+  Q11,
   Q21,
 ];
 
