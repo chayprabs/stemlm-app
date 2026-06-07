@@ -1215,6 +1215,32 @@
 .slm-formula .slm-prose b {
   color: var(--slm-formula-fg);
 }
+
+/* Dark mode — lift section labels & borders without changing layout */
+:host([data-stemlm-theme='dark']) .slm-formula-label,
+:host([data-stemlm-theme='dark']) .slm-step-work-label,
+:host([data-stemlm-theme='dark']) .slm-step-diagram-label,
+:host([data-stemlm-theme='dark']) .slm-followup-label,
+[data-stemlm-theme='dark'] .slm-formula-label,
+[data-stemlm-theme='dark'] .slm-step-work-label,
+[data-stemlm-theme='dark'] .slm-step-diagram-label,
+[data-stemlm-theme='dark'] .slm-followup-label {
+  color: var(--slm-fg-muted);
+}
+:host([data-stemlm-theme='dark']) .slm-progress-count,
+[data-stemlm-theme='dark'] .slm-progress-count {
+  color: var(--slm-fg-muted);
+}
+:host([data-stemlm-theme='dark']) .slm-review:not(.is-on),
+[data-stemlm-theme='dark'] .slm-review:not(.is-on) {
+  background: var(--slm-bg-muted);
+  border-color: var(--slm-border-subtle);
+}
+:host([data-stemlm-theme='dark']) .slm-tab:not(.is-active),
+[data-stemlm-theme='dark'] .slm-tab:not(.is-active) {
+  background: var(--slm-bg-muted);
+}
+
 .slm-solution { font-size: 13px; }
 .slm-selectable { user-select: text; }
 
