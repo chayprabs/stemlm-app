@@ -126,6 +126,6 @@ export const Q02: MathQuestionDef = {
   ],
   solution:
     'For continuity, |f(x)| = |x^2 sin(1/x)| <= x^2, so f is continuous at 0. For the derivative at 0, f\'(0) = lim_{h->0} h sin(1/h) = 0 by the same squeeze idea. For x != 0, f\'(x) = 2x\\sin(1/x)-\\cos(1/x). Along x_n = 1/(2pi n), f\'(x_n) -> -1, while along y_n = 1/((2n+1)pi), f\'(y_n) -> 1, so f\' is not continuous at 0 and f is not C^1.',
-  verifiedPatterns: ['continuous at 0', "f'(0)", '= 0', '2x\\sin(1/x)-\\cos(1/x)', 'not continuous at 0', 'not C^1'],
+  verifiedPatterns: ['continuous at 0', "f'(0)=0", '2x\\sin(1/x)-\\cos(1/x)', 'not continuous at 0', 'not C^1'],
   minDiagramSteps: 4,
 };

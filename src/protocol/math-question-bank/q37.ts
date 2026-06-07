@@ -72,7 +72,7 @@ export const Q37: MathQuestionDef = {
       title: 'Expand and simplify the polynomial',
       formula:
         '$$P(x)=1+2x+x(x-1)=1+2x+x^2-x=x^2+x+1$$',
-      body: 'The simplified polynomial is exactly $x^2+x+1$. Checking at $x=3$ gives $9+3+1=13$, which matches the final data point and confirms the fit.',
+      body: 'The simplified polynomial is $P(x)=x^2+x+1$. At $x=1.5$: $P(1.5)=1.5^2+1.5+1=2.25+1.5+1=4.75$. At $x=3$: $P(3)=9+3+1=13$, matching the final data point.',
       diagram: axesGraph({
         curves: [
           {
@@ -100,6 +100,6 @@ export const Q37: MathQuestionDef = {
   ],
   solution:
     'The divided differences are $$f[0,1]=2,\\qquad f[1,2]=4,\\qquad f[2,3]=6,$$ then $$f[0,1,2]=1,\\qquad f[1,2,3]=1,$$ and finally $$f[0,1,2,3]=0.$$ Therefore the Newton interpolating polynomial is $$P(x)=1+2(x-0)+1(x-0)(x-1)+0(x-0)(x-1)(x-2).$$ Simplifying gives $$P(x)=1+2x+x(x-1)=x^2+x+1.$$ Hence the interpolant is exactly $$f(x)=x^2+x+1.$$',
-  verifiedPatterns: ['f[0,1]=2', 'f[0,1,2]=1', 'f[0,1,2,3]=0', 'x^2+x+1'],
+  verifiedPatterns: ['f[0,1]=2', 'f[0,1,2]=1', 'f[0,1,2,3]=0', 'x^2+x+1', '4.75'],
   minDiagramSteps: 5,
 };
