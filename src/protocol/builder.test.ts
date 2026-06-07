@@ -77,7 +77,7 @@ describe('buildInjectionAppendix', () => {
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
     expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
-    expect(prompt).toContain('CRITICAL — visual/spatial problems MUST include @diagram type=svg');
+    expect(prompt).toContain('CRITICAL — electrical/visual problems MUST include @diagram type=svg');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
   });
