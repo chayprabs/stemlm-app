@@ -40,6 +40,7 @@ const RULES: Rule[] = [
   {
     subject: 'Biology',
     patterns: [
+      { re: /\b(enzyme|substrate|activation energy)\b/i, w: 4 },
       { re: /\b(cell|cellular|dna|rna|mrna|trna|protein|amino acid|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|gene|genetic|allele|genotype|phenotype|chromosome|organism|ecosystem|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit|dominant|recessive|evolution|natural selection|neuron|synapse|hormone|homeostasis|bacteria|virus|antibody|immune|tissue|organ|nucleus|ribosome|mitochondri|chloroplast)\b/i, w: 3 },
     ],
   },

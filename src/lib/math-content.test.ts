@@ -4,6 +4,7 @@ import {
   looksLikeProseWithMath,
   prepareMathForRender,
   hasMathDelimiters,
+  splitMathSegments,
 } from './math-content';
 
 describe('looksLikeRawLatex', () => {
@@ -107,6 +108,14 @@ describe('prepareMathForRender', () => {
     expect(qOut).not.toMatch(/^\$Why is/);
     expect(aOut).toContain("Because Ohm's law states");
     expect(aOut).not.toMatch(/^\$Because/);
+  });
+
+  it('handles stray dollar signs without looping forever', () => {
+    expect(splitMathSegments('cost is $5 today')).toEqual([
+      { math: false, text: 'cost is ' },
+      { math: false, text: '$' },
+      { math: false, text: '5 today' },
+    ]);
   });
 
 });

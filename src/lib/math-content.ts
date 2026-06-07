@@ -14,7 +14,7 @@ const LATEX_COMMAND =
 const SUBSCRIPT = /[A-Za-z]_\{[^}]+\}|[A-Za-z]_[A-Za-z0-9]/;
 const SUPERSCRIPT = /\^[^{}\s]|\^\{[^}]+\}/;
 const DISPLAY_HINT = /\\begin\s*\{|\\\\|\\frac|\\sum|\\int|\\prod|\\lim|\\displaystyle/;
-const BARE_SNIPPET_CMD = /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf)\b/g;
+const BARE_SNIPPET_CMD = /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf)\b/;
 
 /** Sentence openers common in @quickcheck / @body prose (not raw formulas). */
 const PROSE_STARTERS =
@@ -182,6 +182,12 @@ export function splitMathSegments(line: string): MathSegment[] {
 
     const next = line.indexOf('$', i);
     const end = next === -1 ? line.length : next;
+    if (end === i) {
+      // Treat stray delimiters as literal text so we always make progress.
+      segments.push({ math: false, text: '$' });
+      i += 1;
+      continue;
+    }
     segments.push({ math: false, text: line.slice(i, end) });
     i = end;
   }
