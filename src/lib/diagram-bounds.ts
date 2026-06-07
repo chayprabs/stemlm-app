@@ -1,25 +1,28 @@
 /**
  * Shared display bounds for inline SVG diagrams (panel + PDF).
  *
- * AI SVGs often use large viewBox coordinates (e.g. 520×260). When width/height
- * attributes are stripped, browsers treat those as CSS pixels and diagrams blow up.
- * We compute explicit display width/height that fit these caps while preserving
- * aspect ratio.
+ * Panel profiles stay compact so diagrams don't dominate the step card.
+ * Print profile is larger for legible PDF export.
  */
 export type DiagramSizeProfile = 'step' | 'solution' | 'print';
 
 export const DIAGRAM_BOUNDS: Record<DiagramSizeProfile, { maxW: number; maxH: number }> = {
-  step: { maxW: 480, maxH: 280 },
-  solution: { maxW: 520, maxH: 320 },
-  /** Match panel step size — print must not be smaller than the extension. */
-  print: { maxW: 480, maxH: 280 },
+  /** Inline step card — compact, readable, not half the panel. */
+  step: { maxW: 300, maxH: 165 },
+  solution: { maxW: 340, maxH: 185 },
+  /** PDF — larger than panel for print legibility. */
+  print: { maxW: 480, maxH: 275 },
 };
 
 /** Hard print caps (mm) used by PDF CSS as a second line of defense. */
-export const PRINT_DIAGRAM_MM = { maxW: 120, maxH: 70 } as const;
+export const PRINT_DIAGRAM_MM = { maxW: 125, maxH: 72 } as const;
 
-/** Modest upscale for small viewBoxes so diagrams fill the card width. */
-export const MAX_DIAGRAM_UPSCALE = 1.25;
+/** Only PDF may upscale small viewBoxes; panel keeps native scale. */
+export const MAX_DIAGRAM_UPSCALE: Record<DiagramSizeProfile, number> = {
+  step: 1,
+  solution: 1,
+  print: 1.15,
+};
 
 export function parseViewBox(viewBox: string | null | undefined): {
   x: number;
@@ -36,7 +39,7 @@ export function parseViewBox(viewBox: string | null | undefined): {
   return { x: parts[0]!, y: parts[1]!, w, h };
 }
 
-/** Scale factor applied to viewBox user-units when rendering (may upscale modestly). */
+/** Scale factor applied to viewBox user-units when rendering. */
 export function getDisplayScale(
   viewBox: string | null | undefined,
   profile: DiagramSizeProfile,
@@ -44,7 +47,8 @@ export function getDisplayScale(
   const { maxW, maxH } = DIAGRAM_BOUNDS[profile];
   const parsed = parseViewBox(viewBox);
   if (!parsed) return 1;
-  return Math.min(maxW / parsed.w, maxH / parsed.h, MAX_DIAGRAM_UPSCALE);
+  const cap = MAX_DIAGRAM_UPSCALE[profile];
+  return Math.min(maxW / parsed.w, maxH / parsed.h, cap);
 }
 
 export function computeDisplaySize(

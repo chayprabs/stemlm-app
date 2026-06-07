@@ -20,10 +20,10 @@
   border-radius: var(--radius-sm);
 }
 .slm-diagram--step .slm-diagram-svg svg {
-  max-height: 280px;
+  max-height: 165px;
 }
 .slm-diagram--solution .slm-diagram-svg svg {
-  max-height: 320px;
+  max-height: 185px;
 }
 .slm-wordmark {
   font-weight: 500;
@@ -667,7 +667,7 @@
   background: var(--slm-bg-subtle);
   border: 0.5px solid var(--slm-border);
   border-radius: var(--radius-sm);
-  overflow: hidden;
+  overflow: visible;
 }
 .slm-step-diagram-label {
   display: block;
@@ -690,13 +690,13 @@
 }
 .slm-step-diagram .slm-diagram-svg svg {
   display: block;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   height: auto;
-  max-height: 280px;
+  max-height: 165px;
 }
 .slm-step-diagram .slm-diagram--solution .slm-diagram-svg svg {
-  max-height: 320px;
+  max-height: 185px;
 }
 .slm-formula {
   margin: 0.5rem 0 0.65rem;
@@ -871,7 +871,7 @@
 .slm-diagram-svg svg {
   display: block;
   flex-shrink: 0;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   height: auto;
   overflow: visible;

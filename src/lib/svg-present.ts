@@ -7,6 +7,7 @@ import {
   type DiagramSizeProfile,
   computeDisplaySize,
   getDisplayScale,
+  parseViewBox as parseViewBoxDims,
 } from './diagram-bounds';
 
 const LATEX_IN_TEXT: [RegExp, string][] = [
@@ -405,13 +406,10 @@ interface ViewBoxRect {
   height: number;
 }
 
-function parseViewBox(value: string | null): ViewBoxRect {
-  if (!value) return { x: 0, y: 0, width: 100, height: 100 };
-  const parts = value.trim().split(/[\s,]+/).map(Number);
-  if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
-    return { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! };
-  }
-  return { x: 0, y: 0, width: 100, height: 100 };
+function viewBoxRect(value: string | null): ViewBoxRect {
+  const parsed = parseViewBoxDims(value);
+  if (!parsed) return { x: 0, y: 0, width: 100, height: 100 };
+  return { x: parsed.x, y: parsed.y, width: parsed.w, height: parsed.h };
 }
 
 interface WireSegment {
@@ -481,7 +479,7 @@ function pointNearVerticalWire(
  * wires so labels stay readable in the panel and PDF export.
  */
 function nudgeLabelsAwayFromWires(root: Element): void {
-  const viewBox = parseViewBox(root.getAttribute('viewBox'));
+  const viewBox = viewBoxRect(root.getAttribute('viewBox'));
   const midY = viewBox.y + viewBox.height / 2;
   const midX = viewBox.x + viewBox.width / 2;
   const wires = collectWireSegments(root);
@@ -515,13 +513,61 @@ function nudgeLabelsAwayFromWires(root: Element): void {
 }
 
 /**
+ * Spread labels that share the same anchor point so they don't stack on top of each other.
+ */
+function spreadOverlappingLabels(root: Element): void {
+  const texts = [...root.querySelectorAll('text')].filter((el) => !el.closest('marker'));
+  const items: { el: Element; x: number; y: number; fontSize: number }[] = [];
+  for (const el of texts) {
+    const pos = textPosition(el);
+    if (!pos) continue;
+    items.push({ el, x: pos.x, y: pos.y, fontSize: textFontSize(el) });
+  }
+  items.sort((a, b) => a.y - b.y || a.x - b.x);
+
+  const threshold = 16;
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i]!;
+      const b = items[j]!;
+      if (Math.abs(a.x - b.x) >= threshold || Math.abs(a.y - b.y) >= threshold) continue;
+      b.y = a.y + Math.max(a.fontSize, b.fontSize, 12) + 5;
+      b.el.setAttribute('y', String(Math.round(b.y)));
+      if (!b.el.getAttribute('text-anchor')) b.el.setAttribute('text-anchor', 'middle');
+    }
+  }
+}
+
+/** Keep labels inside the viewBox after nudging/spreading. */
+function clampLabelsToViewBox(root: Element): void {
+  const vb = viewBoxRect(root.getAttribute('viewBox'));
+  const pad = 6;
+  const minX = vb.x + pad;
+  const maxX = vb.x + vb.width - pad;
+  const minY = vb.y + pad + 10;
+  const maxY = vb.y + vb.height - pad;
+
+  for (const text of root.querySelectorAll('text')) {
+    if (text.closest('marker')) continue;
+    const pos = textPosition(text);
+    if (!pos) continue;
+    const fontSize = textFontSize(text);
+    let { x, y } = pos;
+    x = Math.min(maxX, Math.max(minX, x));
+    y = Math.min(maxY, Math.max(minY + fontSize * 0.3, y));
+    text.setAttribute('x', String(Math.round(x)));
+    text.setAttribute('y', String(Math.round(y)));
+  }
+}
+
+/**
  * When the SVG is scaled down for display, bump label font-size in user units
- * so rendered text stays ~12–14px on screen and in PDF.
+ * so rendered text stays ~11–13px on screen and in PDF.
  */
 function compensateScaledText(root: Element, profile: DiagramSizeProfile): void {
   const scale = getDisplayScale(root.getAttribute('viewBox'), profile);
-  if (scale >= 1) return;
-  const factor = Math.min(1 / scale, 2.5);
+  if (scale >= 0.98) return;
+  const factor = Math.min(1 / scale, 1.75);
   for (const el of root.querySelectorAll('text, tspan')) {
     if (el.closest('marker')) continue;
     const size = textFontSize(el);
@@ -573,7 +619,7 @@ export function presentSvg(
   root.setAttribute('height', String(height));
   root.setAttribute(
     'style',
-    'display:block;width:100%;height:auto;max-width:100%;',
+    `display:block;width:${width}px;height:${height}px;max-width:100%;`,
   );
   root.setAttribute('data-stemlm-theme', theme);
   root.setAttribute('data-stemlm-size', profile);
@@ -585,8 +631,10 @@ export function presentSvg(
   normalizeAllMarkers(root);
   themeSvgTree(root, theme);
   syncMarkerFills(root);
-  compensateScaledText(root, profile);
   nudgeLabelsAwayFromWires(root);
+  spreadOverlappingLabels(root);
+  compensateScaledText(root, profile);
+  clampLabelsToViewBox(root);
 
   let out = new XMLSerializer().serializeToString(root);
   return decodeTextNodes(out);

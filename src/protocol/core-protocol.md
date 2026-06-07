@@ -47,7 +47,7 @@ RULES:
 - @quickcheck optional (2–4 per capsule on hardest moves). Skip on pure diagram/label steps. Never one-word answers — explain why with a formula or number from this step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
 - Each @diagram = complete state at this step — every named component labeled; never text-only or partial SVG; ≥8 primitives on model steps, ≥5 on other EE steps.
-- svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; prefer compact viewBox **0 0 300 180** (max ~360×220); arrowheads via <defs><marker>…<polygon/></marker></defs> + marker-end; stroke-width 2, **font-size 14–16** minimum; no width/height/script/foreignObject/image/external refs; **no "Symbols: …" legend blocks** inside SVG. Best for spatial/EE/chem/bio/geometry. Keep <text> labels offset from wires (nodes above/below wires); max ~6 value labels per diagram.
+- svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; prefer compact viewBox **0 0 300 180** (max ~360×220); arrowheads via <defs><marker>…<polygon/></marker></defs> + marker-end; stroke-width 2, **font-size 13–15**; no width/height/script/foreignObject/image/external refs; no "Symbols:" legend; **label components** (R1,Vs,Id) offset 10px from symbol (never stacked); max ~6 labels.
 - mermaid: CS flow/sequence/state only; valid `graph TD`/`sequenceDiagram`; quote every node label — A["v = u+at"] — no ( ) { } ` in labels.
 
 Now produce the capsule.

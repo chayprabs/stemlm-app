@@ -40,7 +40,8 @@ export const STEP_DIAGRAM_REQUIREMENT = [
   'REQUIRED @diagram on: model drawing, R_in/R_out/gain derivations, KCL/KVL, superposition, Thevenin, source killing, bandwidth/stability — any step mentioning circuit elements.',
   'Each SVG: ≥8 primitives on model steps, ≥5 on other EE steps, ≥3 text labels; use line/path/polyline/rect/circle — NOT text-only. Highlight what changed this step.',
   'Minimum: ≥55% of steps have diagrams; never fewer than 3; complex multi-part problems need a diagram on most steps.',
-  'SVG SIZE: use compact viewBox="0 0 300 180" (max ~360×220); font-size 14–16 on every <text>; max ~6 value labels; no "Symbols: …" legend block inside the SVG.',
+  'SVG SIZE: use compact viewBox="0 0 300 180" (max ~360×220); font-size 13–15 on every <text>; max ~6 value labels; no "Symbols: …" legend block inside the SVG.',
+  'LABELS: name components (R1,L1,Vs,Id); offset text 10px from symbol — never stacked or on wires.',
 ].join('\n');
 
 /** Blank lines after this label are where the student types their follow-up question. */

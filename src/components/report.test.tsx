@@ -97,8 +97,8 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(printStyles()).toContain('#0ea5a0');
     expect(printStyles()).toContain('Inter');
     expect(printStyles()).toContain('JetBrains Mono');
-    expect(printStyles()).toContain('max-width:120mm');
-    expect(printStyles()).toContain('max-height:70mm');
+    expect(printStyles()).toContain('max-width:125mm');
+    expect(printStyles()).toContain('max-height:72mm');
   });
 
   it('embeds admittance triangle with normalized markers for PDF export', async () => {
@@ -167,7 +167,7 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(doc).toContain('width="480"');
     expect(doc).not.toContain('width="520"');
     expect(doc).not.toContain('width="900"');
-    expect(doc).toContain('style="display:block;width:100%;height:auto;max-width:100%;"');
+    expect(doc).toContain('style="display:block;width:480px;height:240px;max-width:100%;"');
     expect(doc).toContain('slm-report-solution');
   });
 

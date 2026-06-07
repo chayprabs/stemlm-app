@@ -69,8 +69,8 @@ describe('presentSvg', () => {
     const out = presentSvg(raw, 'light', 'step');
     expect(out).toContain('preserveAspectRatio="xMidYMid meet"');
     expect(out).toContain('viewBox="0 0 520 260"');
-    expect(out).toContain('width="480"');
-    expect(out).toContain('height="240"');
+    expect(out).toContain('width="300"');
+    expect(out).toContain('height="150"');
   });
 
   it('uses print profile dimensions and inline style for PDF output', () => {
@@ -78,7 +78,7 @@ describe('presentSvg', () => {
     const out = presentSvg(raw, 'light', 'print');
     expect(out).toContain('width="480"');
     expect(out).toContain('height="240"');
-    expect(out).toContain('style="display:block;width:100%;height:auto;max-width:100%;"');
+    expect(out).toContain('style="display:block;width:480px;height:240px;max-width:100%;"');
   });
 
   it('compensates text font-size when diagram is scaled down', () => {
@@ -91,11 +91,25 @@ describe('presentSvg', () => {
     expect(size).toBeLessThanOrEqual(30);
   });
 
-  it('modestly upscales small viewBox diagrams', () => {
+  it('does not upscale small viewBox diagrams in panel profile', () => {
     const raw = '<svg viewBox="0 0 120 80"><rect width="10" height="10"/></svg>';
     const out = presentSvg(raw, 'light', 'step');
-    expect(out).toContain('width="150"');
-    expect(out).toContain('height="100"');
+    expect(out).toContain('width="120"');
+    expect(out).toContain('height="80"');
+  });
+
+  it('spreads labels stacked at the same point', () => {
+    const raw =
+      '<svg viewBox="0 0 200 120">' +
+      '<text x="100" y="60" font-size="12">I_1</text>' +
+      '<text x="100" y="60" font-size="12">I_d</text>' +
+      '<text x="100" y="60" font-size="12">I_2</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'light', 'step');
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    const ys = [...doc.querySelectorAll('text')].map((el) => Number(el.getAttribute('y')));
+    expect(new Set(ys).size).toBe(3);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(10);
   });
 
   it('syncs marker fills to themed line strokes in dark mode', () => {
@@ -180,7 +194,7 @@ describe('presentSvg', () => {
 
   it('fixes admittance triangle arrowheads for PDF print profile', () => {
     const out = presentSvg(BAD_ADMITTANCE_TRIANGLE, 'light', 'print');
-    expect(out).toContain('width="400"');
+    expect(out).toContain('width="368"');
     expect(out).not.toContain('userSpaceOnUse');
     expect(out).toContain('fill="#16a34a"');
     expect(out).not.toContain('<path ');
