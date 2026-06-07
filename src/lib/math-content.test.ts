@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   looksLikeRawLatex,
+  looksLikeProseWithMath,
   prepareMathForRender,
   hasMathDelimiters,
 } from './math-content';
@@ -27,6 +28,17 @@ describe('looksLikeRawLatex', () => {
     expect(looksLikeRawLatex('Impedances are the foundational units for AC analysis.')).toBe(false);
     expect(looksLikeRawLatex('$Z_1 = j10 \\, \\Omega$')).toBe(false);
     expect(hasMathDelimiters('$Z_1 = j10 \\, \\Omega$')).toBe(true);
+  });
+
+  it('does not treat quickcheck prose with embedded subscripts as raw LaTeX', () => {
+    const q =
+      'Why is the current leaving C towards D written as (V_C - V_D)/24?';
+    const a =
+      "Because Ohm's law states current is the potential difference divided by resistance, and the potential at C minus the potential at D is V_C - V_D, so I = (V_C - V_D)/24Ω.";
+    expect(looksLikeProseWithMath(q)).toBe(true);
+    expect(looksLikeProseWithMath(a)).toBe(true);
+    expect(looksLikeRawLatex(q)).toBe(false);
+    expect(looksLikeRawLatex(a)).toBe(false);
   });
 });
 
@@ -76,4 +88,18 @@ describe('prepareMathForRender', () => {
     const once = prepareMathForRender('Z_{th} = Z_3 + \\frac{Z_2}{Z_1}', 'display');
     expect(prepareMathForRender(once, 'display')).toBe(once);
   });
+
+  it('keeps spaces in quickcheck prose wrongly wrapped in $ delimiters', () => {
+    const q =
+      '$Why is the current leaving C towards D written as (V_C - V_D)/24$?';
+    const a =
+      "$Because Ohm's law states current is the potential difference divided by resistance, and the potential at C minus the potential at D is V_C - V_D, so I = (V_C - V_D)/24Ω.$";
+    const qOut = prepareMathForRender(q, 'auto');
+    const aOut = prepareMathForRender(a, 'auto');
+    expect(qOut).toContain('Why is the current');
+    expect(qOut).not.toMatch(/^\$Why is/);
+    expect(aOut).toContain("Because Ohm's law states");
+    expect(aOut).not.toMatch(/^\$Because/);
+  });
+
 });

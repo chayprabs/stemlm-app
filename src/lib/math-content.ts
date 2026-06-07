@@ -15,6 +15,10 @@ const SUPERSCRIPT = /\^[^{}\s]|\^\{[^}]+\}/;
 const DISPLAY_HINT = /\\begin\s*\{|\\\\|\\frac|\\sum|\\int|\\prod|\\lim|\\displaystyle/;
 const BARE_SNIPPET_CMD = /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf)\b/g;
 
+/** Sentence openers common in @quickcheck / @body prose (not raw formulas). */
+const PROSE_STARTERS =
+  /^(?:Why|What|How|When|Where|Which|Who|Whose|Is|Are|Was|Were|Does|Do|Did|Can|Could|Should|Would|Will|Has|Have|Had|Because|Yes|No|Not|The|If|With|During|Since|So|This|That|These|Those|In|At|For|From|To|A|An)\b/i;
+
 export type MathRenderMode = 'auto' | 'display';
 
 type MathSegment = { math: boolean; text: string };
@@ -88,10 +92,30 @@ function extractLatexSnippet(src: string, start: number): string | null {
   return null;
 }
 
+function countEnglishWords(text: string): number {
+  const stripped = text
+    .replace(/\\[A-Za-z]+(\{[^}]*\})?/g, ' ')
+    .replace(/\\[A-Za-z]+/g, ' ')
+    .replace(/[{}_^$\\&]/g, ' ');
+  return (stripped.match(/\b[a-zA-Z]{3,}\b/g) ?? []).length;
+}
+
+/**
+ * Natural-language sentences that mention symbols (e.g. V_C) must stay prose —
+ * wrapping them in $..$ collapses spaces in KaTeX.
+ */
+export function looksLikeProseWithMath(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (PROSE_STARTERS.test(t)) return true;
+  return countEnglishWords(t) >= 4;
+}
+
 /** True when a line/paragraph is almost certainly raw LaTeX without $ delimiters. */
 export function looksLikeRawLatex(text: string): boolean {
   const t = text.trim();
   if (!t || hasMathDelimiters(t) || isStructuralMarkdownLine(t)) return false;
+  if (looksLikeProseWithMath(t)) return false;
   if (!startsLikeMath(t)) return false;
 
   if (/\\begin\s*\{/.test(t)) return true;
@@ -188,9 +212,27 @@ function wrapBareLatexSnippets(text: string): string {
   return out;
 }
 
+function unwrapProseMathDelimiters(segment: string): string {
+  const t = segment.trim();
+  if (t.startsWith('$$') && t.endsWith('$$')) {
+    const inner = t.slice(2, -2);
+    return looksLikeProseWithMath(inner) ? inner : segment;
+  }
+  if (t.startsWith('$') && t.endsWith('$') && t.length > 2) {
+    const inner = t.slice(1, -1);
+    return looksLikeProseWithMath(inner) ? inner : segment;
+  }
+  return segment;
+}
+
 function wrapFragmentsInLine(line: string): string {
   if (isStructuralMarkdownLine(line) || !line.trim()) return line;
-  if (isAlreadyDelimitedMath(line)) return line;
+
+  if (isAlreadyDelimitedMath(line)) {
+    const unwrapped = unwrapProseMathDelimiters(line.trim());
+    if (unwrapped !== line.trim()) return wrapFragmentsInLine(unwrapped);
+    return line;
+  }
 
   if (!hasMathDelimiters(line)) {
     return wrapBareLatexSnippets(line);
@@ -198,7 +240,11 @@ function wrapFragmentsInLine(line: string): string {
 
   return splitMathSegments(line)
     .map((seg) => {
-      if (seg.math) return seg.text;
+      if (seg.math) {
+        const unwrapped = unwrapProseMathDelimiters(seg.text);
+        if (unwrapped !== seg.text) return wrapFragmentsInLine(unwrapped);
+        return seg.text;
+      }
       const trimmed = seg.text.trim();
       if (!trimmed) return seg.text;
       if (looksLikeRawLatex(trimmed)) {

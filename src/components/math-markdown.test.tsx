@@ -78,6 +78,19 @@ describe('MathMarkdown', () => {
     expect(html).toContain('Z');
   });
 
+  it('keeps spaces in quickcheck prose with embedded subscripts', () => {
+    const q =
+      'Why is the current leaving C towards D written as (V_C - V_D)/24?';
+    const a =
+      "Because Ohm's law states current is the potential difference divided by resistance, and the potential at C minus the potential at D is V_C - V_D, so I = (V_C - V_D)/24Ω.";
+    const qHtml = renderToStaticMarkup(<MathMarkdown content={q} />);
+    const aHtml = renderToStaticMarkup(<MathMarkdown content={a} />);
+    expect(qHtml).toContain('Why is the current leaving');
+    expect(qHtml).not.toContain('Whyisthecurrentleaving');
+    expect(aHtml).toContain('law states current');
+    expect(aHtml).not.toContain('BecauseOhm');
+  });
+
   it('renders transfer function and Thevenin formulas', () => {
     const transfer = renderToStaticMarkup(
       <MathMarkdown
