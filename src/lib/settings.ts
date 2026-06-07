@@ -96,8 +96,12 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
 
 export function onSettingsChanged(cb: (settings: Settings) => void): () => void {
   const handler = (changes: Record<string, { newValue?: unknown }>, area: string) => {
-    if (area === 'local' && changes[KEY]?.newValue) {
-      cb(hydrateSettings(changes[KEY].newValue as Partial<Settings>));
+    if (area === 'local' && changes[KEY]) {
+      if (changes[KEY].newValue) {
+        cb(hydrateSettings(changes[KEY].newValue as Partial<Settings>));
+      } else {
+        cb(DEFAULT_SETTINGS);
+      }
     }
   };
   browser.storage.onChanged.addListener(handler);
