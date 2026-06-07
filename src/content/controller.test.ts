@@ -291,6 +291,20 @@ describe('StemController.followUp', () => {
     c.stopWatching();
   });
 
+  it('rejects follow-up while the initial answer is still loading', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    expect(useStore.getState().status).toBe('loading');
+
+    const ok = await c.followUp('Why is R1 + R2 here?', 'Series resistors', 'Electrical');
+    expect(ok).toBe(false);
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toContain('Wait for the current answer');
+    c.stopWatching();
+  });
+
   it('adds a new session for follow-up answers instead of replacing the original', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
@@ -411,6 +425,63 @@ describe('StemController capture', () => {
     expect(adapter.editorText).not.toContain('Your previous stemLM capsule');
     expect(adapter.editorText).not.toContain('Re-emit the FULL answer');
     c.stopWatching();
+  });
+
+  it('clamps activeStepIndex when a retry replaces a session with fewer steps', async () => {
+    const adapter = new MockAdapter();
+    const question = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    adapter.editorText = question;
+    const c = new StemController(adapter);
+
+    expect(await c.inject()).toBe(true);
+    adapter.capsules = [TEN_STEP_BODY];
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions[0]?.capsule.steps).toHaveLength(10);
+    useStore.setState({ activeStepIndex: 9 });
+    c.stopWatching();
+
+    adapter.editorText = question;
+    adapter.capsules = [CAPSULE_BODY];
+    expect(await c.inject()).toBe(true);
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().sessions[0]?.capsule.steps.length).toBeLessThan(10);
+    expect(useStore.getState().activeStepIndex).toBeLessThan(
+      useStore.getState().sessions[0]!.capsule.steps.length,
+    );
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+  });
+
+  it('does not stay on loading when an identical capsule is already on the page after re-inject', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const c = new StemController(adapter);
+
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    expect(await c.inject()).toBe(true);
+    expect(useStore.getState().status).toBe('loading');
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().status).toBe('ready');
+    c.stopWatching();
+  });
+
+  it('does not capture after stopWatching', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    c.stopWatching();
+    await new Promise((r) => setTimeout(r, 600));
+    expect(useStore.getState().sessions).toHaveLength(0);
   });
 
   it('does not append a repair prompt when a malformed response cannot be used', async () => {

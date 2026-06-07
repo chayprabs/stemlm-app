@@ -24,6 +24,9 @@ const CHEMISTRY_VISUAL_QUESTION =
 const BIOLOGY_VISUAL_QUESTION =
   /\b(draw|sketch|diagrams?|labels?|labeled|cell|organelle|punnett|pedigree|pathway|cycle|membrane|anatomy|mitosis|meiosis|food web|phylogen\w+|gel electrophoresis|ecg|synapse|chloroplast|mitochondri|lac operon|action potential|respiratory|digestive tract|heart|neuron|virus|immune|calvin|krebs|glycolysis|hardy-?weinberg|pcr|blastocyst|gastrulation)\b/i;
 
+const MATH_VISUAL_QUESTION =
+  /\b(graph|sketch|plot|figure|number line|coordinate|level curve|contour|phase (?:plane|portrait)|vector field|geometry|triangle|circle|region|shade|eigenvector|basis|disk|paraboloid|polar)\b/i;
+
 const CIRCUIT_QUESTION =
   /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm|kirchhoff|kvl|kcl|thevenin|norton|superposition|mesh|branch|ground|dependent source|current source|label all nodes|consider the circuit|bjt|transistor|amplifier|hybrid|small[- ]signal|op-?amp|mosfet|common[- ]emitter|degeneration)\b/i;
 
@@ -97,6 +100,9 @@ export function isVisualDenseProblem(capsule: Capsule): boolean {
     return true;
   }
   if (subject === 'Biology' && BIOLOGY_VISUAL_QUESTION.test(text)) {
+    return true;
+  }
+  if (subject === 'Math' && MATH_VISUAL_QUESTION.test(text)) {
     return true;
   }
   return false;

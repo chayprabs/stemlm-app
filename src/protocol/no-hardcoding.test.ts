@@ -21,6 +21,8 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+const TEST_FILE = /\.test\.(ts|tsx)$/;
+
 const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /verifiedPatterns\s*:/, label: 'verifiedPatterns answer oracle' },
   { pattern: /buildChemistryCapsule|buildPhysicsCapsule|buildMathCapsule/, label: 'hardcoded capsule builder' },
@@ -98,5 +100,19 @@ describe('no hardcoded solutions or diagram banks', () => {
         expect(text, `${file} matched ${pattern}`).not.toMatch(pattern);
       }
     }
+  });
+
+  it('math-numeric-checks oracles are test-only (never imported by production protocol modules)', () => {
+    const hits: string[] = [];
+    for (const file of files) {
+      if (TEST_FILE.test(file)) continue;
+      if (file.includes('math-numeric-checks')) continue;
+      if (file.includes('numeric-verify-shared')) continue;
+      const text = readFileSync(file, 'utf8');
+      if (/from ['"].*math-numeric-checks|getMathNumericSolver|MATH_NUMERIC_SOLVERS/.test(text)) {
+        hits.push(file.replace(process.cwd() + '/', ''));
+      }
+    }
+    expect(hits, `Numeric oracles must stay in *.test.* only:\n${hits.join('\n')}`).toEqual([]);
   });
 });

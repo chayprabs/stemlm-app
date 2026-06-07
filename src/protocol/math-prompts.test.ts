@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { MATH_PROMPTS } from './math-prompts';
 import { classifySubject } from './classifier';
-import { buildInjectionPrompt, buildInjectionPayload, getDiagramRequirement } from './builder';
+import {
+  buildInjectionPrompt,
+  buildInjectionPayload,
+  GENERAL_DIAGRAM_REQUIREMENT,
+  getDiagramRequirement,
+} from './builder';
 
 describe('math prompts (AI pipeline inputs)', () => {
   it('has exactly 61 exam prompts without pre-authored solutions', () => {
@@ -23,20 +28,23 @@ describe('math prompts (AI pipeline inputs)', () => {
 
   for (const prompt of MATH_PROMPTS) {
     describe(`Q${prompt.number}: ${prompt.topic}`, () => {
-      it('classifies as Math', () => {
-        expect(classifySubject(prompt.question)).toBe('Math');
+      it('classifies as Math with topic context', () => {
+        expect(classifySubject(`${prompt.topic}. ${prompt.question}`)).toBe('Math');
       });
 
-      it('builds Gemini injection prompt with math playbook', () => {
-        const { prompt: injected, subject } = buildInjectionPrompt(prompt.question);
+      it('builds Gemini injection prompt with math playbook and diagram rules', () => {
+        const { prompt: injected, subject } = buildInjectionPrompt(prompt.question, {
+          subject: 'Math',
+        });
         expect(subject).toBe('Math');
         expect(injected).toContain(prompt.question.slice(0, 40));
         expect(injected).toContain('stemLM instructions');
         expect(injected).toContain('MATH');
+        expect(injected).toContain(GENERAL_DIAGRAM_REQUIREMENT.slice(0, 40));
       });
 
       it('file-attach payload routes to Math playbook', () => {
-        const payload = buildInjectionPayload(prompt.question);
+        const payload = buildInjectionPayload(prompt.question, { subject: 'Math' });
         expect(payload.subject).toBe('Math');
         expect(payload.fileContent).toContain('MATH');
         expect(payload.composerText).toContain(getDiagramRequirement('Math').slice(0, 30));

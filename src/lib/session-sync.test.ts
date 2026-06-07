@@ -41,4 +41,12 @@ describe('mergeMirroredSessions', () => {
     const merged = mergeMirroredSessions([makeSession('a')], [makeSession('b')]);
     expect(merged.map((s) => s.id).sort()).toEqual(['a', 'b']);
   });
+
+  it('preserves local raw text when a newer mirrored copy strips it', () => {
+    const local = { ...makeSession('a'), updatedAt: 10, raw: 'full capsule raw' };
+    const incoming = { ...makeSession('a'), updatedAt: 99, raw: '' };
+    const merged = mergeMirroredSessions([local], [incoming]);
+    expect(merged[0]?.raw).toBe('full capsule raw');
+    expect(merged[0]?.updatedAt).toBe(99);
+  });
 });
