@@ -9,6 +9,7 @@ import {
   takePanelActionResult,
   type PanelActionResult,
 } from '@/src/lib/tab-workspace';
+import { debugLog } from '@/src/lib/debug-log';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
 
@@ -28,44 +29,6 @@ export async function getActiveTab() {
   } catch {
     return null;
   }
-}
-
-/**
- * Wait until a tab finishes reloading. Ignores a stale pre-reload "complete"
- * status and only resolves after a loading → complete cycle (or loading alone
- * when the reload is already in flight).
- */
-function waitForTabLoad(tabId: number, timeoutMs = 20000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let sawLoading = false;
-
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      browser.tabs.onUpdated.removeListener(onUpdated);
-      clearTimeout(timer);
-      ok ? resolve() : reject(new Error('tab load timeout'));
-    };
-
-    const onUpdated = (id: number, info: { status?: string }) => {
-      if (id !== tabId) return;
-      if (info.status === 'loading') sawLoading = true;
-      if (info.status === 'complete' && sawLoading) {
-        setTimeout(() => finish(true), 450);
-      }
-    };
-
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    browser.tabs.onUpdated.addListener(onUpdated);
-
-    void browser.tabs.get(tabId).then((tab) => {
-      if (tab.status === 'loading') sawLoading = true;
-      if (tab.status === 'complete' && sawLoading) {
-        setTimeout(() => finish(true), 450);
-      }
-    });
-  });
 }
 
 function isNoReceiverError(err: unknown): boolean {
@@ -126,27 +89,41 @@ export async function deliverStemLmMessage(
   if (tab?.id == null) throw new Error('no-active-tab');
   if (!isGeminiUrl(tab.url)) throw new Error('not-gemini');
 
+  debugLog('tab-bridge.ts:deliver', 'deliver start', { type, tabId: tab.id }, 'A');
+
   try {
-    return await sendStemLmMessage(tab.id, { type });
+    const direct = await sendStemLmMessage(tab.id, { type });
+    debugLog('tab-bridge.ts:deliver', 'direct send ok', { type, direct }, 'A');
+    return direct;
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
-    /* content script not connected — reload and let it consume the pending action */
+    debugLog('tab-bridge.ts:deliver', 'direct send failed, reloading', { type }, 'A');
   }
 
   await setPendingPanelAction({ tabId: tab.id, type });
   await browser.tabs.reload(tab.id);
-  await waitForTabLoad(tab.id);
 
-  const ready = await waitForContentScript(tab.id);
+  const ready = await waitForContentScript(tab.id, 25000);
+  debugLog('tab-bridge.ts:deliver', 'content script poll done', { type, ready }, 'B');
   if (!ready) throw new Error('content-script-timeout');
 
-  const pendingResult = await waitForPanelActionResult(tab.id);
+  const resultTimeoutMs = type === 'stemlm:load-conversation' ? 20_000 : 10_000;
+  const pendingResult = await waitForPanelActionResult(tab.id, resultTimeoutMs);
+  debugLog(
+    'tab-bridge.ts:deliver',
+    'pending result poll done',
+    { type, pendingResult },
+    'C',
+  );
   if (pendingResult) return pendingResult;
 
   try {
-    return await sendStemLmMessage(tab.id, { type });
+    const fallback = await sendStemLmMessage(tab.id, { type });
+    debugLog('tab-bridge.ts:deliver', 'fallback send ok', { type, fallback }, 'C');
+    return fallback;
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
+    debugLog('tab-bridge.ts:deliver', 'fallback send failed', { type }, 'C');
     return { ok: false };
   }
 }
