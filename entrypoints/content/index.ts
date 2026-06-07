@@ -243,14 +243,22 @@ export default defineContentScript({
 
     ctx.onInvalidated(() => {
       if (workspaceTimer) clearTimeout(workspaceTimer);
-      persistTabWorkspace();
+      try {
+        persistTabWorkspace();
+      } catch {
+        /* context may already be dead */
+      }
       removeSplit();
       removeComposerSlot();
       getController()?.stopWatching();
       stopSystemWatch();
       stopSettingsWatch();
       stopMirrorWatch();
-      browser.runtime.onMessage.removeListener(onMessage);
+      try {
+        browser.runtime.onMessage.removeListener(onMessage);
+      } catch {
+        /* Extension context invalidated */
+      }
     });
   },
 });

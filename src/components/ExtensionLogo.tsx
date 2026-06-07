@@ -1,11 +1,4 @@
-import { browser } from 'wxt/browser';
-
-function extensionIconUrl(path: string): string {
-  const runtime = browser?.runtime as
-    | (typeof browser.runtime & { getURL: (p: string) => string })
-    | undefined;
-  return runtime?.getURL?.(path) ?? path;
-}
+import { extensionAssetUrl } from '@/src/lib/extension-context';
 
 function iconPathForSize(size: number): string {
   if (size <= 18) return 'icon/16.png';
@@ -18,7 +11,7 @@ export function ExtensionLogo({ size = 32 }: { size?: number }) {
   return (
     <img
       className="slm-extension-logo"
-      src={extensionIconUrl(iconPathForSize(size))}
+      src={extensionAssetUrl(iconPathForSize(size))}
       alt=""
       width={size}
       height={size}

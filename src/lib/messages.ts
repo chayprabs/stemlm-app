@@ -25,7 +25,11 @@ export function isStemLmMessage(msg: unknown): msg is StemLmMessage {
 export type ExtensionMessageSender = { id?: string };
 
 export function isTrustedExtensionSender(sender: ExtensionMessageSender): boolean {
-  return sender.id === browser.runtime.id;
+  try {
+    return sender.id === browser.runtime.id;
+  } catch {
+    return false;
+  }
 }
 
 export function parseStemLmMessage(
