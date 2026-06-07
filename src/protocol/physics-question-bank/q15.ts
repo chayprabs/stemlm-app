@@ -4,9 +4,9 @@ import type { PhysicsQuestionDef } from './types';
 export const Q15: PhysicsQuestionDef = {
   id: 'q15',
   number: 15,
-  topic: 'Physics Magnetostatics Biot-Savart and Ampere Law',
+  topic: 'Physics Magnetic Field Magnetostatics',
   question:
-    'Physics magnetostatics: (a) Use Biot-Savart law to find magnetic field at the center of a circular loop of radius R carrying current I. (b) Find magnetic field inside and outside a long solenoid (turn density n, current I). (c) Find magnetic field in a toroid (N turns, current I) as a function of radius r.',
+    'Physics magnetic field and force: (a) Find B at the center of a circular wire loop of radius R with steady charge flow I. (b) Find B inside and outside a long solenoid coil (turn density n). (c) Find B in a toroidal coil (N turns) as a function of radius r.',
   steps: [
     {
       title: 'Biot-Savart field at center of a circular loop',
@@ -48,7 +48,7 @@ export const Q15: PhysicsQuestionDef = {
     },
   ],
   solution:
-    '**(a)** Circular loop center: $B=\\mu_0I/(2R)$, giving $3.93\\times10^{-5}\\,\\text{T}$ for $I=5\\,\\text{A}$, $R=0.08\\,\\text{m}$. **(b)** Long solenoid: $B_{\\text{inside}}\\approx\\mu_0nI=3.02\\times10^{-3}\\,\\text{T}$ and $B_{\\text{outside}}\\approx0$. **(c)** Toroid: $B=\\mu_0NI/(2\\pi r)$ for $a<r<b$, otherwise approximately zero.',
-  verifiedPatterns: ['\\mu_0 I/(2R)', '3.93\\times10^{-5}\\,\\text{T}', '3.02\\times10^{-3}\\,\\text{T}', '\\mu_0NI/(2\\pi r)'],
+    '**(a)** Circular loop center: $B=\\mu_0I/(2R)$, giving $B=3.93\\times10^{-5}\\,\\text{T}$ for $I=5\\,\\text{A}$, $R=0.08\\,\\text{m}$. **(b)** Long solenoid: $B_{\\text{inside}}\\approx\\mu_0nI=3.02\\times10^{-3}\\,\\text{T}$ and $B_{\\text{outside}}\\approx0$. **(c)** Toroid: $B=\\mu_0NI/(2\\pi r)$ for $a<r<b$, otherwise approximately zero.',
+  verifiedPatterns: ['\\mu_0I/(2R)', '3.93\\times10^{-5}', '3.02\\times10^{-3}', '\\mu_0NI/(2\\pi r)'],
   minDiagramSteps: 3,
 };

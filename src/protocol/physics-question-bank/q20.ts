@@ -16,7 +16,7 @@ export const Q20: PhysicsQuestionDef = {
       diagram: wrapPhysicsSvg(
         '<path d="M 40 130 Q 95 45 150 130 Q 205 45 260 130" fill="none" stroke="#1d4ed8" stroke-width="2.5"/>' +
           '<line x1="40" y1="130" x2="260" y2="130" stroke="#333" stroke-width="2"/>' +
-          '<text x="118" y="28" font-size="11">V(x)=\\u00bd m\\u03c9\\u00b2x\\u00b2</text>' +
+          '<text x="100" y="28" font-size="11">V(x) parabola</text>' +
           '<text x="48" y="146" font-size="11">x</text>',
       ),
     },
@@ -25,13 +25,17 @@ export const Q20: PhysicsQuestionDef = {
       formula:
         '$$H=\\hbar\\omega\\left(a^\\dagger a+\\tfrac12\\right),\\quad H|n\\rangle=\\hbar\\omega\\left(n+\\tfrac12\\right)|n\\rangle$$',
       body: 'For $n=2$, $E_2=(2.5)\\hbar\\omega=(2.5)(1.054\\times10^{-34})(2.0\\times10^{13})=5.27\\times10^{-21}\\,\\text{J}=0.0329\\,\\text{eV}$.',
-      diagram: physicsGraph({
-        curves: [],
-        annotations:
-          '<line x1="95" y1="125" x2="230" y2="125" stroke="#1d4ed8" stroke-width="2"/><line x1="95" y1="95" x2="230" y2="95" stroke="#1d4ed8" stroke-width="2"/><line x1="95" y1="65" x2="230" y2="65" stroke="#1d4ed8" stroke-width="2"/><text x="235" y="128" font-size="11">n=0</text><text x="235" y="98" font-size="11">n=1</text><text x="235" y="68" font-size="11">n=2</text>',
-        xLabel: '',
-        yLabel: 'E',
-      }),
+      diagram: wrapPhysicsSvg(
+        '<line x1="40" y1="140" x2="260" y2="140" stroke="#333" stroke-width="2"/>' +
+          '<line x1="40" y1="140" x2="40" y2="30" stroke="#333" stroke-width="2"/>' +
+          '<line x1="95" y1="125" x2="230" y2="125" stroke="#1d4ed8" stroke-width="2"/>' +
+          '<line x1="95" y1="95" x2="230" y2="95" stroke="#1d4ed8" stroke-width="2"/>' +
+          '<line x1="95" y1="65" x2="230" y2="65" stroke="#1d4ed8" stroke-width="2"/>' +
+          '<text x="235" y="128" font-size="11">n=0</text>' +
+          '<text x="235" y="98" font-size="11">n=1</text>' +
+          '<text x="235" y="68" font-size="11">n=2</text>' +
+          '<text x="18" y="35" font-size="11">E</text>',
+      ),
     },
     {
       title: 'Position and momentum uncertainties in |n=2>',

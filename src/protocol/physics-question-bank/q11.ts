@@ -4,13 +4,13 @@ import type { PhysicsQuestionDef } from './types';
 export const Q11: PhysicsQuestionDef = {
   id: 'q11',
   number: 11,
-  topic: 'Physics Thermodynamics Carnot Engine',
+  topic: 'Physics Thermodynamics Entropy',
   question:
-    'Physics thermodynamics: A Carnot heat engine operates between Th=600 K and Tc=300 K and delivers work W=10 kJ per cycle. (a) Find efficiency. (b) Find heat absorbed Qh and heat rejected Qc. (c) Compute entropy changes of hot and cold reservoirs and net entropy change. (d) A real engine delivering the same 10 kJ has efficiency 35%; find Qh, Qc, and entropy production.',
+    'Physics thermodynamics entropy and energy: A reversible engine operates between Th=600 K and Tc=300 K and delivers work W=10 kJ per cycle. (a) Find efficiency. (b) Find heat absorbed Qh and heat rejected Qc. (c) Compute entropy changes of hot and cold reservoirs and net entropy change. (d) A real engine delivering the same 10 kJ has efficiency 35%; find Qh, Qc, and entropy production.',
   steps: [
     {
       title: 'Sketch the Carnot cycle and energy flows',
-      body: 'Use a standard Physics P-V Carnot cycle with two isotherms (at 600 K and 300 K) and two adiabats. Heat $Q_h$ enters from the hot reservoir, work $W$ is extracted, and $Q_c$ is expelled to the cold reservoir.',
+      body: 'Use a standard Physics P-V reversible cycle with two isotherms (at 600 K and 300 K) and two adiabats. Heat $Q_h=20\\,\\text{kJ}$ enters from the hot reservoir, work $W=10\\,\\text{kJ}$ is extracted, and $Q_c=10\\,\\text{kJ}$ is expelled to the cold reservoir.',
       diagram: carnotCycle(),
     },
     {

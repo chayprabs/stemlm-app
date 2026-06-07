@@ -52,7 +52,7 @@ export const Q18: PhysicsQuestionDef = {
     {
       title: 'Interpret phase and impedance mismatch',
       formula: '$$r<0\\Rightarrow \\text{reflected }E\\text{ has }\\pi\\text{ phase flip}$$',
-      body: 'Because light goes from lower to higher refractive index ($n_1<n_2$), the reflected electric field changes sign ($-10\\,\\text{V/m}$). The transmitted field keeps phase while changing amplitude.',
+      body: 'Because $n_1=1<n_2=2$, the reflected field is $E_{r0}=rE_{i0}=-10\\,\\text{V/m}$ (phase flip). Transmitted field $E_{t0}=20\\,\\text{V/m}$ keeps sign while $|t|=2/3$.',
       takeaway: 'At normal incidence, amplitude coefficients are simple ratios of refractive indices and power still satisfies $R+T=1$.',
     },
   ],
