@@ -65,7 +65,7 @@ export const Q44: ChemistryQuestionDef = {
       title: 'Band-structure consequence of periodic solids',
       formula:
         '$$n_i \\propto \\exp\\!\\left(-\\frac{E_g}{2k_B T}\\right)$$',
-      body: 'At $T=300\\,\\text{K}$, compare Si ($E_g=1.12\\,\\text{eV}$) and a wider-gap oxide ($E_g=3.20\\,\\text{eV}$). The carrier-density ratio is $\\exp[-(3.20-1.12)/(2\\times8.617\\times10^{-5}\\times300)]$. The exponent is $-40.2$, so the ratio is about $3.4\\times10^{-18}$, showing why large-gap solids are insulating.',
+      body: 'At $T=300\\,\\text{K}$, compare Si ($E_g=1.12\\,\\text{eV}$) and a wider-gap oxide ($E_g=3.20\\,\\text{eV}$). The **band structure** gap sets intrinsic carrier density via $\\exp[-(3.20-1.12)/(2\\times8.617\\times10^{-5}\\times300)]$. The exponent is $-40.2$, so the ratio is about $3.4\\times10^{-18}$, showing why large-gap solids are insulating.',
       diagram: pnJunction(),
     },
     {

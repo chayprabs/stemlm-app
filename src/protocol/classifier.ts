@@ -99,7 +99,7 @@ const PRIORITY: Subject[] = [
 export function classifySubject(question: string): Subject {
   const text = question || '';
   if (
-    /\b(chem\w*|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|reaction engineering|pfr|cstr|rtd|huckel|ab initio|boltzmann|partition function|schottky|hammett|bronsted|lipinski|ferrocene|fission|nuclide|nuclear)\b/i.test(
+    /\b(chem\w*|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|boltzmann|partition function|schottky|hammett|bronsted|lipinski|ferrocene|fission|nuclide|nuclear)\b/i.test(
       text,
     )
   ) {

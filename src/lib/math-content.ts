@@ -189,7 +189,8 @@ export function splitMathSegments(line: string): MathSegment[] {
       continue;
     }
     segments.push({ math: false, text: line.slice(i, end) });
-    i = end;
+    // Stray/unclosed $ — advance by one to avoid infinite loop (i === end).
+    i = end === i ? i + 1 : end;
   }
 
   return segments.length ? segments : [{ math: false, text: line }];

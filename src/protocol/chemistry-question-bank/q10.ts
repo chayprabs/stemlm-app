@@ -6,7 +6,7 @@ export const Q10: ChemistryQuestionDef = {
   number: 10,
   topic: 'Elimination Mechanisms (E1, E2, and E1cb)',
   question:
-    'Elimination mechanisms: (a) Compare E1 and E2 pathways for 2-bromo-2-methylbutane under different conditions. (b) Use a Newman projection to show anti-periplanar geometry for E2. (c) Explain an E1cb pathway for 2-fluoroacetaldehyde.',
+    'Organic chemistry elimination mechanisms: (a) Compare E1 and E2 pathways for 2-bromo-2-methylbutane under different conditions. (b) Use a Newman projection to show anti-periplanar geometry for E2. (c) Explain an E1cb pathway for 2-fluoroacetaldehyde under basic conditions.',
   steps: [
     {
       title: 'E1 vs E2 competition for 2-bromo-2-methylbutane',

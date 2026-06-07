@@ -6,7 +6,7 @@ export const Q49: ChemistryQuestionDef = {
   number: 49,
   topic: 'Reaction Engineering: PFR vs CSTR, Conversion-Temperature, and RTD',
   question:
-    'Reaction engineering: (a) Compare PFR and CSTR sizing for a first-order reaction. (b) Analyze conversion-temperature behavior for an exothermic system. (c) Interpret RTD curves and calculate mean residence metrics.',
+    'Chemical reaction engineering and kinetics: (a) Compare PFR and CSTR sizing for a first-order reaction. (b) Analyze conversion-temperature behavior for an exothermic system with Arrhenius rate constants. (c) Interpret RTD curves and calculate mean residence metrics.',
   steps: [
     {
       title: 'Design equations for first-order PFR and CSTR',
@@ -84,7 +84,7 @@ export const Q49: ChemistryQuestionDef = {
     },
   ],
   solution:
-    '**(a)** For first-order conversion targets, PFR generally needs less volume than CSTR. **(b)** Exothermic reactors require simultaneous material and energy balances, often with multiple temperature-conversion intersections. **(c)** RTD curves reveal non-ideal flow and can be reduced to equivalent tanks-in-series models for design use.',
+    '**(a)** For first-order conversion targets, PFR generally needs less volume than CSTR. **(b)** Exothermic reactors require simultaneous material and energy balances, often with multiple temperature-conversion intersections linked by **Arrhenius** kinetics. **(c)** RTD curves reveal non-ideal flow and can be reduced to equivalent tanks-in-series models for design use.',
   verifiedPatterns: [
     'PFR',
     'CSTR',

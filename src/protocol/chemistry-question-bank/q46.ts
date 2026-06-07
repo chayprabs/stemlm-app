@@ -76,12 +76,12 @@ export const Q46: ChemistryQuestionDef = {
     },
   ],
   solution:
-    '**(a)** p-n junction operation sets $V_{bi}$ and the diode-like illuminated IV response. **(b)** Device efficiency follows directly from $V_{oc}$, $J_{sc}$, and fill factor under known irradiance. **(c)** MAPbI3 combines near-optimal band gap, strong absorption, and long diffusion lengths, but degradation kinetics must be controlled for durable high performance.',
+    '**(a)** The silicon **solar cell** p-n junction sets $V_{bi}$ and the diode-like illuminated IV response. **(b)** Device efficiency follows from $V_{oc}$ (open-circuit voltage), $J_{sc}$ (short-circuit current density), and fill factor under known irradiance. **(c)** The **perovskite** MAPbI3 absorber combines near-optimal band gap, strong absorption, and long diffusion lengths, but degradation kinetics must be controlled for durable high performance.',
   verifiedPatterns: [
     'p-n junction',
     'solar cell',
-    'Voc',
-    'Jsc',
+    'V_{oc}',
+    'J_{sc}',
     'fill factor',
     'MAPbI3',
     'perovskite',

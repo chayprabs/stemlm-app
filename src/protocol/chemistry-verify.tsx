@@ -109,9 +109,9 @@ export async function verifyChemistryQuestion(
   for (const pat of def.verifiedPatterns) {
     const found =
       typeof pat === 'string'
-        ? normalizedAllText.includes(normalizeVerifiedText(pat))
+        ? allText.includes(pat) || normalizedAllText.includes(normalizeVerifiedText(pat))
         : pat.test(allText);
-    if (!found) warnings.push(`Missing verified answer pattern: ${String(pat)}`);
+    if (!found) errors.push(`Missing verified answer pattern: ${String(pat)}`);
   }
 
   const diagrams = capsule.steps.flatMap((s) => (s.diagram?.type === 'svg' ? [s.diagram] : []));
@@ -139,7 +139,7 @@ export async function verifyChemistryQuestion(
   const score = await scoreRaw(raw);
   if (score.parse_ok !== 1) errors.push('scoreRaw: parse_ok failed');
   if (score.svg_valid === 0) errors.push('scoreRaw: svg_valid failed');
-  if (score.step_work_ok !== 1) warnings.push('scoreRaw: step_work_ok failed');
+  if (score.step_work_ok !== 1) errors.push('scoreRaw: step_work_ok failed');
 
   try {
     const session: Session = {

@@ -12,7 +12,7 @@ export const Q50: ChemistryQuestionDef = {
       title: 'Cyanocobalamin structure and oxidation-state bookkeeping',
       formula:
         '$$\\text{OS(Co)} + (-1)_{CN} + (-1)_{DMB} + 0_{corrin\\,approx} = 0$$',
-      body: 'Taking cyanide as $-1$ and dimethylbenzimidazole lower ligand as $-1$, cobalt in cyanocobalamin is assigned near +3 in the common formal picture. The cobalt center is hexacoordinate with four equatorial corrin nitrogens plus axial CN and DMB ligands, giving the characteristic cyanocobalamin structure.',
+      body: 'Taking cyanide as $-1$ and dimethylbenzimidazole as $-1$, oxidation-state balance gives $\\text{OS(Co)}=0-(-1)-(-1)=+3$. The cobalt center is hexacoordinate with four equatorial corrin nitrogens plus axial CN and DMB ligands, giving the characteristic cyanocobalamin structure.',
       diagram: cobalaminStructure(),
     },
     {

@@ -28,7 +28,7 @@ export const Q35: ChemistryQuestionDef = {
       title: 'Chain transfer effect on molecular weight in styrene polymerization',
       formula:
         '$$\\frac{1}{DP_n}=\\frac{1}{DP_{n,0}}+C_{tr}\\frac{[S]}{[M]}=\\frac{1}{900}+0.35\\frac{0.05}{4.0}=0.00549$$',
-      body: 'Using $DP_{n,0}=900$, chain-transfer constant $C_{tr}=0.35$, transfer-agent concentration $[S]=0.05\\ \\text{M}$, and monomer $[M]=4.0\\ \\text{M}$ gives $1/DP_n=0.00549$. Therefore $DP_n=1/0.00549=182$, showing strong molecular-weight suppression by transfer.',
+      body: 'Here $DP_{n,0}$ is the degree of polymerization without transfer, $C_{tr}$ is the chain-transfer constant, $[S]$ is transfer-agent concentration, and $[M]$ is monomer concentration. With $DP_{n,0}=900$, $C_{tr}=0.35$, $[S]=0.05\\ \\text{M}$, and $[M]=4.0\\ \\text{M}$, $1/DP_n=0.00549$ and $DP_n=182$, showing strong molecular-weight suppression by transfer.',
       diagram: chemGraph({
         xLabel: 'condition',
         yLabel: 'DPn',
@@ -61,7 +61,8 @@ export const Q35: ChemistryQuestionDef = {
     },
     {
       title: 'Dispersity target for living anionic SBS',
-      body: 'With measured $M_w=44{,}800$ and $M_n=40{,}000\\ \\text{g mol}^{-1}$, dispersity is $\\Đ=1.12$, consistent with narrow distributions expected for living anionic polymerization. A higher value such as $\\Đ>1.3$ would indicate termination or transfer contamination.',
+      formula: '$$\\text{Đ}=\\frac{M_w}{M_n}=\\frac{44{,}800}{40{,}000}=1.12$$',
+      body: 'With measured $M_w=44{,}800$ and $M_n=40{,}000\\ \\text{g mol}^{-1}$, dispersity is $\\text{Đ}=M_w/M_n=44{,}800/40{,}000=1.12$, consistent with narrow distributions expected for living anionic polymerization. A higher value such as $\\text{Đ}>1.3$ would indicate termination or transfer contamination.',
       diagram: chemGraph({
         xLabel: 'distribution metric',
         yLabel: 'value',

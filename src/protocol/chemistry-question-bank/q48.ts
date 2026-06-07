@@ -26,7 +26,7 @@ export const Q48: ChemistryQuestionDef = {
       title: 'Electrophoretic mobility and zeta potential',
       formula:
         '$$\\mu_e=\\frac{\\varepsilon\\zeta}{\\eta}$$',
-      body: 'Using water permittivity $\\varepsilon=6.95\\times10^{-10}\\,\\text{C V}^{-1}\\text{m}^{-1}$, viscosity $\\eta=1.00\\times10^{-3}\\,\\text{Pa s}$, and measured mobility $\\mu_e=-3.0\\times10^{-8}\\,\\text{m}^2\\text{V}^{-1}\\text{s}^{-1}$, zeta potential is $\\zeta=\\mu_e\\eta/\\varepsilon=(-3.0\\times10^{-8}\\times10^{-3})/(6.95\\times10^{-10})=-0.043\\,\\text{V}$ or $-43\\,\\text{mV}$.',
+      body: 'Electrophoretic mobility is $\\mu_e=\\varepsilon\\zeta/\\eta$, where $\\varepsilon$ is permittivity, $\\zeta$ is zeta potential, and $\\eta$ is viscosity. With $\\varepsilon=6.95\\times10^{-10}\\,\\text{C V}^{-1}\\text{m}^{-1}$, $\\eta=1.00\\times10^{-3}\\,\\text{Pa s}$, and $\\mu_e=-3.0\\times10^{-8}\\,\\text{m}^2\\text{V}^{-1}\\text{s}^{-1}$, $\\zeta=\\mu_e\\eta/\\varepsilon=-0.043\\,\\text{V}$ or $-43\\,\\text{mV}$.',
       diagram: chemGraph({
         xLabel: 'zeta potential',
         yLabel: 'stability',
@@ -54,7 +54,7 @@ export const Q48: ChemistryQuestionDef = {
       title: 'Langmuir surface coverage for surfactant adsorption',
       formula:
         '$$\\theta=\\frac{KC}{1+KC}$$',
-      body: 'If adsorption constant is $K=1.8\\,\\text{mM}^{-1}$ and concentration is $C=2.0\\,\\text{mM}$, then $KC=3.6$ and coverage is $\\theta=3.6/(1+3.6)=0.783$. So the interface is about $78\\%$ covered prior to full monolayer saturation.',
+      body: 'The **Langmuir** adsorption model gives $\\theta=KC/(1+KC)$. With $K=1.8\\,\\text{mM}^{-1}$ and $C=2.0\\,\\text{mM}$, $KC=3.6$ and coverage is $\\theta=3.6/(1+3.6)=0.783$, so the interface is about $78\\%$ covered prior to full monolayer saturation.',
       diagram: langmuirIsotherm(),
     },
     {

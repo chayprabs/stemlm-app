@@ -330,25 +330,28 @@ export function periodicTrends(): string {
 /** Ionization energy bar chart for Na, Mg, Al. */
 export function ionizationEnergyBars(): string {
   const bars = [
-    { x: 40, heights: [80, 140, 200, 210, 215, 220], label: 'Na' },
-    { x: 120, heights: [70, 130, 210, 220, 225, 230], label: 'Mg' },
-    { x: 200, heights: [65, 125, 195, 205, 215, 220], label: 'Al' },
+    { x: 50, scaled: [0.35, 0.55, 0.78, 0.82, 0.85, 0.88], label: 'Na' },
+    { x: 130, scaled: [0.32, 0.52, 0.82, 0.87, 0.89, 0.91], label: 'Mg' },
+    { x: 210, scaled: [0.30, 0.50, 0.75, 0.80, 0.83, 0.85], label: 'Al' },
   ];
+  const maxH = 90;
+  const baseY = 140;
+  const colors = ['#1d4ed8', '#16a34a', '#dc2626', '#7c3aed', '#d97706', '#64748b'];
   const barSvg = bars
-    .flatMap((b, bi) =>
-      b.heights.map((h, i) => {
-        const colors = ['#1d4ed8', '#16a34a', '#dc2626', '#7c3aed', '#d97706', '#64748b'];
-        return `<rect x="${b.x + i * 12}" y="${150 - h}" width="10" height="${h}" fill="${colors[i]}" stroke="#333"/>`;
+    .flatMap((b) =>
+      b.scaled.map((s, i) => {
+        const h = s * maxH;
+        return `<rect x="${b.x + i * 12}" y="${baseY - h}" width="10" height="${h}" fill="${colors[i]}" stroke="#333"/>`;
       }),
     )
     .join('');
   return wrapChemSvg(
     chemAxes('IE', 'Energy') +
       barSvg +
-      '<text x="55" y="168" font-size="10">Na</text>' +
-      '<text x="135" y="168" font-size="10">Mg</text>' +
-      '<text x="215" y="168" font-size="10">Al</text>' +
-      '<text x="100" y="18" font-size="10">Sudden jumps at core electrons</text>',
+      '<text x="65" y="155" font-size="10">Na</text>' +
+      '<text x="145" y="155" font-size="10">Mg</text>' +
+      '<text x="225" y="155" font-size="10">Al</text>' +
+      '<text x="70" y="22" font-size="10">Sudden jumps at core electrons</text>',
   );
 }
 
@@ -579,25 +582,21 @@ export function energyProfile(opts: {
   compareSn?: boolean;
 }): string {
   const { title, hasIntermediate, compareSn } = opts;
-  let path = 'M 40 120 C 80 120 100 60 130 70 C 160 80 180 50 220 50 L 260 50';
-  if (compareSn) {
-    path =
-      'M 40 120 C 90 120 120 80 160 50 L 260 50' +
-      '" fill="none" stroke="#1d4ed8" stroke-width="2"/><path d="M 40 120 C 70 115 90 90 260 50';
-  }
+  const paths = compareSn
+    ? '<path d="M 40 120 C 90 120 120 80 160 50 L 260 50" fill="none" stroke="#1d4ed8" stroke-width="2"/>' +
+      '<path d="M 40 120 C 70 115 90 90 130 82 C 155 75 175 100 200 68 L 255 58" fill="none" stroke="#dc2626" stroke-width="2"/>'
+    : '<path d="M 40 120 C 80 120 100 60 130 70 C 160 80 180 50 220 50 L 260 50" fill="none" stroke="#1d4ed8" stroke-width="2"/>';
   const intermediate = hasIntermediate
     ? '<circle cx="160" cy="75" r="4" fill="#dc2626"/><text x="165" y="78" font-size="8">carbocation</text>'
     : '';
   return wrapChemSvg(
-  (compareSn ? '<path d="' : '<path d="') +
-      path +
-      '" fill="none" stroke="' +
-      (compareSn ? '#dc2626' : '#1d4ed8') +
-      '" stroke-width="2"/>' +
+    paths +
       intermediate +
       `<text x="10" y="18" font-size="11" font-weight="bold">${title}</text>` +
       '<text x="40" y="135" font-size="9">R</text><text x="255" y="45" font-size="9">P</text>' +
-      (compareSn ? '<text x="100" y="100" font-size="8" fill="#1d4ed8">SN2 (1 step)</text><text x="100" y="112" font-size="8" fill="#dc2626">SN1 (2 step)</text>' : ''),
+      (compareSn
+        ? '<text x="100" y="100" font-size="8" fill="#1d4ed8">SN2 (1 step)</text><text x="100" y="112" font-size="8" fill="#dc2626">SN1 (2 step)</text>'
+        : ''),
   );
 }
 

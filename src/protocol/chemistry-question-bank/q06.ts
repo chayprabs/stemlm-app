@@ -40,19 +40,19 @@ export const Q06: ChemistryQuestionDef = {
     {
       title: 'NaCl lattice (rock-salt, 6:6 coordination)',
       formula: '$$\\text{NaCl units per cell} = 4$$',
-      body: 'In the rock-salt unit cell, count gives $\\mathrm{Na^+}=4$ and $\\mathrm{Cl^-}=4$, so formula units $=4/1=4$. Radius-ratio check: $r_+/r_-=1.02/1.81=0.56$, which supports octahedral holes and coordination number $=6$ for each ion.',
+      body: 'In the rock-salt unit cell, count gives $\\mathrm{Na^+}=4$ and $\\mathrm{Cl^-}=4$, so formula units \\(=4/1=4\\). Radius-ratio check: $r_+/r_-=1.02/1.81=0.56$, which supports octahedral holes and coordination number \\(=6\\) for each ion.',
       diagram: crystalUnitCell({ type: 'nacl', label: 'NaCl (6:6, rock-salt)' }),
     },
     {
       title: 'CsCl lattice (8:8 coordination)',
       formula: '$$\\frac{r_+}{r_-}=\\frac{1.67}{1.81}=0.92$$',
-      body: 'For cesium chloride, the larger cation gives $r_+/r_-=1.67/1.81=0.92$, so cubic coordination is favored. The unit-cell count gives one body-center ion plus corner contribution $8\\times\\tfrac{1}{8}=1$, hence Cs:Cl $=1:1$ with coordination number $=8$.',
+      body: 'For cesium chloride, the larger cation gives $r_+/r_-=1.67/1.81=0.92$, so cubic coordination is favored. The unit-cell count gives one body-center ion plus corner contribution $8\\times\\tfrac{1}{8}=1$, hence Cs:Cl ratio \\(=1:1\\) with coordination number \\(=8\\).',
       diagram: crystalUnitCell({ type: 'cscl', label: 'CsCl (8:8)' }),
     },
     {
       title: 'ZnS and CaF2 lattices: tetrahedral vs fluorite',
       formula: '$$\\text{CaF}_2\\ \\text{per cell} = \\frac{8\\ \\mathrm{F^-}}{2}=4$$',
-      body: 'ZnS (zinc blende) occupies half of tetrahedral holes and gives tetrahedral $4:4$ coordination. In fluorite CaF2, Ca2+ forms an FCC lattice and all eight tetrahedral holes are occupied by F-. Counting gives $\\mathrm{Ca^{2+}}=4$ and $\\mathrm{F^-}=8$, so $8/2=4$ formula units and Ca:F $=1:2$.',
+      body: 'ZnS (zinc blende) occupies half of tetrahedral holes and gives tetrahedral \\(4:4\\) coordination. In fluorite CaF2, Ca2+ forms an FCC lattice and all eight tetrahedral holes are occupied by F-. Counting gives $\\mathrm{Ca^{2+}}=4$ and $\\mathrm{F^-}=8$, so $8/2=4$ formula units and Ca:F ratio \\(=1:2\\).',
       diagram: crystalUnitCell({ type: 'fluorite', label: 'CaF2 fluorite (8 F-, 4 Ca2+)' }),
       takeaway:
         'Across these ionic solids, radius ratio and hole occupancy determine coordination number and resulting crystal type.',

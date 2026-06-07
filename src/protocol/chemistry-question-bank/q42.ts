@@ -86,7 +86,7 @@ export const Q42: ChemistryQuestionDef = {
     'irreversible',
     'Randles-Sevcik',
     'Nyquist',
-    'Rct',
+    'R_{ct}',
     'Warburg',
     'E_1/2',
   ],

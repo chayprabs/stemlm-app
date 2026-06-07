@@ -28,7 +28,7 @@ export const Q47: ChemistryQuestionDef = {
       title: 'Binding energy from mass defect',
       formula:
         '$$E_b=\\Delta m\\,c^2,\\quad \\Delta m=Zm_p+Nm_n-m_{nucleus}$$',
-      body: 'For Fe-56, use $Z=26$, $N=30$, proton mass $m_p=1.007276\\,u$, neutron mass $m_n=1.008665\\,u$, and nuclear mass $m_{nucleus}=55.9207\\,u$. Then $\\Delta m=26(1.007276)+30(1.008665)-55.9207=0.5285\\,u$. Since $1\\,u=931.5\\,\\text{MeV}$, total binding is $0.5285\\times931.5=492\\,\\text{MeV}$, or $492/56=8.79\\,\\text{MeV per nucleon}$.',
+      body: 'The mass defect is $\\Delta m=Zm_p+Nm_n-m_{nucleus}$, where $m_p$ is the proton mass and $m_n$ is the neutron mass. For Fe-56 with $Z=26$, $N=30$, $m_p=1.007276\\,u$, $m_n=1.008665\\,u$, and $m_{nucleus}=55.9207\\,u$, $\\Delta m=0.5285\\,u$. Total binding is $0.5285\\times931.5=492\\,\\text{MeV}$, or $8.79\\,\\text{MeV per nucleon}$.',
       diagram: chemGraph({
         xLabel: 'mass number A',
         yLabel: 'Eb/A (MeV)',
@@ -62,7 +62,7 @@ export const Q47: ChemistryQuestionDef = {
       title: 'Neutron multiplication factor in a thermal reactor',
       formula:
         '$$k_{eff}=\\eta f p \\varepsilon$$',
-      body: 'Using representative factors $\\eta=2.05$, $f=0.72$, $p=0.88$, and $\\varepsilon=1.03$, multiplication is $k_{eff}=2.05\\times0.72\\times0.88\\times1.03=1.34$. Because $k_{eff}>1$, the system is supercritical; control rods must reduce reactivity toward $k_{eff}=1.00$.',
+      body: 'The neutron multiplication factor is $k_{eff}=\\eta f p \\varepsilon$. Using $\\eta=2.05$, $f=0.72$, $p=0.88$, and $\\varepsilon=1.03$ gives $k_{eff}=2.05\\times0.72\\times0.88\\times1.03=1.34$. Because $k_{eff}>1$, the system is supercritical; control rods must reduce reactivity toward $k_{eff}=1.00$.',
       diagram: chemGraph({
         xLabel: 'generation',
         yLabel: 'neutron population',

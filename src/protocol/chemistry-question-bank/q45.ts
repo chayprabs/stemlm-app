@@ -63,7 +63,7 @@ export const Q45: ChemistryQuestionDef = {
     {
       title: 'Surface adsorption contribution to pollution control',
       formula: '$$\\theta=\\frac{KP}{1+KP}$$',
-      body: 'For sulfur dioxide adsorption with $K=2.5\\,\\text{bar}^{-1}$ and $P=0.40\\,\\text{bar}$, coverage is $\\theta=(2.5\\times0.40)/(1+2.5\\times0.40)=1.0/2.0=0.50$. Half-monolayer coverage is often sufficient to sustain catalytic turnover while limiting sulfate blocking.',
+      body: 'The **Langmuir** isotherm gives coverage $\\theta=KP/(1+KP)$. For sulfur dioxide with $K=2.5\\,\\text{bar}^{-1}$ and $P=0.40\\,\\text{bar}$, $\\theta=(2.5\\times0.40)/(1+2.5\\times0.40)=1.0/2.0=0.50$. Half-monolayer coverage sustains catalytic turnover while limiting sulfate blocking.',
       diagram: langmuirIsotherm(),
       takeaway:
         'Ozone chemistry, catalytic converters, and the Contact process are all governed by the same triad of kinetics, equilibrium, and catalytic surface chemistry.',

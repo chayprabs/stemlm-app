@@ -88,7 +88,7 @@ export const Q09: ChemistryQuestionDef = {
     'Walden inversion',
     'steric hindrance',
     '(R)-3-chloro-3-methylhexane',
-    'solvolysis',
+    'solvolyzes',
     'SN1',
     'carbocation',
     'racemization',
