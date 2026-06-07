@@ -53,6 +53,7 @@ import {
   currentArrow,
   equationPanel,
 } from './circuit-svg';
+import { zbusFromLines } from './solvers/math-utils';
 
 // ── formatting helpers ────────────────────────────────────────────────
 
@@ -437,7 +438,7 @@ function renderMutualInductance(params: MutualInductanceParams, sol: EESolution)
   parts.push(`<text x="265" y="148" font-size="10" text-anchor="middle" fill="#888">open</text>`);
 
   const k = sv(sol, 'k');
-  const v2 = sv(sol, 'V2mag') ?? sv(sol, 'V2');
+  const v2 = sv(sol, 'V2_mag') ?? sv(sol, 'V2mag') ?? sv(sol, 'V2');
   if (k !== undefined) {
     parts.push(`<text x="90" y="120" font-size="10" fill="#1565c0">k=${fmtNum(k, 2)}</text>`);
   }
@@ -928,7 +929,8 @@ function renderFeedbackPanel(params: SeriesShuntFeedbackParams, sol: EESolution)
 }
 
 function renderFaultPanel(params: SymmetricalFaultParams, sol: EESolution): string {
-  const { Zbus, Vpre, faultBus } = params;
+  const { nBuses, lines, Vpre, faultBus } = params;
+  const Zbus = zbusFromLines(nBuses, lines);
   const Zff = Zbus[faultBus - 1]?.[faultBus - 1];
   const Zff_im = Zff?.im ?? 0.1;
   const If_mag = sv(sol, 'If_mag') ?? (Vpre / Math.abs(Zff_im));

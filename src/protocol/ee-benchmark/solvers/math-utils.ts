@@ -150,6 +150,38 @@ export function solveLinearSystemC(A: Complex[][], b: Complex[]): Complex[] {
   return x;
 }
 
+/**
+ * Build Zbus from line admittances by regularizing Ybus with tiny shunt-to-ground
+ * at each bus (standard trick when the raw Ybus is singular without loads).
+ */
+export function zbusFromLines(
+  nBuses: number,
+  lines: Array<{ from: number; to: number; y: Complex }>,
+): Complex[][] {
+  const shunts: Record<number, Complex> = {};
+  for (let i = 1; i <= nBuses; i++) {
+    shunts[i] = cx(1e-9, 1e-9);
+  }
+  const Y = buildYbusN(nBuses, lines, shunts);
+  return invertMatrixC(Y);
+}
+
+/** Invert an n×n complex matrix via column-wise Gaussian elimination. */
+export function invertMatrixC(A: Complex[][]): Complex[][] {
+  const n = A.length;
+  const inv: Complex[][] = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => cx(0)),
+  );
+  for (let col = 0; col < n; col++) {
+    const e = Array.from({ length: n }, (_, i) => cx(i === col ? 1 : 0));
+    const colVec = solveLinearSystemC(A, e);
+    for (let row = 0; row < n; row++) {
+      inv[row]![col] = colVec[row] ?? cx(0);
+    }
+  }
+  return inv;
+}
+
 // ---------------------------------------------------------------------------
 // 2×2 real Cramer shortcut
 // ---------------------------------------------------------------------------

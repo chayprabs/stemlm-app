@@ -26,7 +26,7 @@ import {
   mat2cMul, abcdSeriesZ, abcdShuntY, abcdSectionMatrix, sectionImpedance,
   bodeMag, bodePhase,
   rootLocusCentroid, rootLocusAsymptoteAngles,
-  buildYbus3, buildYbusN, gsUpdatePQ, calcPinj, calcQinj,
+  buildYbus3, buildYbusN, zbusFromLines, gsUpdatePQ, calcPinj, calcQinj,
   type Mat2C,
 } from './math-utils';
 
@@ -43,6 +43,19 @@ function sol(kind: string, computed: Record<string, number>, steps: SolutionStep
 }
 
 const VT = 0.026; // thermal voltage at 300 K (V)
+
+/** BJT hybrid-π small-signal parameters from bias point — shared by CE and Miller solvers. */
+function bjtHybridPi(
+  p: { IC: number; beta: number; VA: number; RC: number; RS: number },
+) {
+  const gm = p.IC / VT;
+  const rpi = p.beta / gm;
+  const ro = p.VA / p.IC;
+  const Rout = parallel(ro, p.RC);
+  const Av = -gm * Rout;
+  const Rin = rpi + p.RS;
+  return { gm, rpi, ro, Rout, Av, Rin };
+}
 
 // ---------------------------------------------------------------------------
 // Q01: KVL single-loop series circuit  (kind: 'kvl-series-loop')
@@ -797,12 +810,7 @@ function solveBjtCe(
   p: { IC: number; beta: number; VA: number; RC: number; RS: number },
   kind: string
 ): EESolution {
-  const gm = p.IC / VT;
-  const rpi = p.beta / gm;
-  const ro = p.VA / p.IC;
-  const Rout = parallel(ro, p.RC);
-  const Av = -gm * Rout;
-  const Rin = rpi + p.RS;
+  const { gm, rpi, ro, Rout, Av, Rin } = bjtHybridPi(p);
   return sol(kind, { gm, rpi, ro, Rout, Av, Rin }, [
     step(`g_m = I_C/V_T = ${gm.toFixed(4)}\\,\\text{S}`, 'Transconductance.'),
     step(`r_\\pi = \\beta/g_m = ${rpi.toFixed(2)}\\,\\Omega,\\; r_o = V_A/I_C = ${ro.toFixed(2)}\\,\\Omega`, 'Hybrid-π elements.'),
@@ -813,18 +821,25 @@ function solveBjtCe(
 
 // ---------------------------------------------------------------------------
 // Q32: Miller bandwidth  (kind: 'miller-bandwidth')
-// Params: { Av, Cpi, Cmu, RS, rpi }
+// Av and r_pi derived from nested BJT bias params — never hardcoded carry-over.
 // ---------------------------------------------------------------------------
 
 function solveMillerBandwidth(
-  p: { Av: number; Cpi: number; Cmu: number; RS: number; rpi: number },
+  p: {
+    bjt: { IC: number; beta: number; VA: number; RC: number; RS: number };
+    Cpi: number;
+    Cmu: number;
+  },
   kind: string
 ): EESolution {
-  const CM = p.Cmu * (1 - p.Av);
+  const { Av, rpi } = bjtHybridPi(p.bjt);
+  const RS = p.bjt.RS;
+  const CM = p.Cmu * (1 - Av);
   const Cin = p.Cpi + CM;
-  const Rin = parallel(p.RS, p.rpi);
+  const Rin = parallel(RS, rpi);
   const f3dB = 1 / (2 * Math.PI * Rin * Cin);
-  return sol(kind, { CM, Cin, Rin, f3dB, CM_pF: CM * 1e12 }, [
+  return sol(kind, { Av, rpi, CM, Cin, Rin, f3dB, CM_pF: CM * 1e12 }, [
+    step(`A_v = ${Av.toFixed(4)}\\text{ from BJT bias (same as CE analysis)}`, 'Midband gain for Miller effect.'),
     step(`C_M = C_\\mu(1-A_v) = ${(CM * 1e12).toFixed(2)}\\,\\text{pF}`, 'Miller capacitance.'),
     step(`C_{in} = C_\\pi + C_M = ${(Cin * 1e12).toFixed(2)}\\,\\text{pF}`, 'Total input capacitance.'),
     step(`f_{3dB} = 1/(2\\pi R_{in} C_{in}) = ${(f3dB / 1e3).toFixed(4)}\\,\\text{kHz}`, 'Dominant pole.'),
@@ -953,8 +968,8 @@ function solveDiffAmpCmrr(
   p: { R1: number; R2: number; R3: number; R4: number; deltaR4: number },
   kind: string
 ): EESolution {
-  const Ad = 1;  // R1=R2=R3=R4 → gain = 1
-  const R_nom = p.R1;  // nominal value
+  const Ad = p.R2 / p.R1;
+  const R_nom = p.R1;
   const Acm = p.deltaR4 / (4 * R_nom);
   const CMRR = Math.abs(Ad / Acm);
   const CMRRdB = 20 * Math.log10(CMRR);
@@ -1215,19 +1230,20 @@ function solveGaussSeidelPf(
 // ---------------------------------------------------------------------------
 
 function solveSymmetricalFault(
-  p: { Zbus: Complex[][]; Vpre: number; faultBus: number },
+  p: { nBuses: number; lines: Array<{ from: number; to: number; y: Complex }>; Vpre: number; faultBus: number },
   kind: string
 ): EESolution {
+  const Zbus = zbusFromLines(p.nBuses, p.lines);
   const fb = p.faultBus - 1;  // 0-indexed
-  const Zff = p.Zbus[fb]?.[fb] ?? cx(0, 0.1);
+  const Zff = Zbus[fb]?.[fb] ?? cx(0, 0.1);
   const Zff_mag = cAbs(Zff);
   const If_mag = Zff_mag > 0 ? p.Vpre / Zff_mag : 0;
   // If = Vpre / Zff (phasor); Zff purely imaginary → If is -j * (Vpre / Zff_im)
   const If_im = Zff.im !== 0 ? p.Vpre / Zff.im : 0;
   const computed: Record<string, number> = { If_mag, If_pu_re: 0, If_pu_im: -If_mag };
-  const n = p.Zbus.length;
+  const n = Zbus.length;
   for (let i = 0; i < n; i++) {
-    const Zif_im = p.Zbus[i]?.[fb]?.im ?? 0;
+    const Zif_im = Zbus[i]?.[fb]?.im ?? 0;
     computed[`V${i + 1}_post`] = p.Vpre - Zif_im * If_mag;
   }
   computed['V_fault'] = 0;

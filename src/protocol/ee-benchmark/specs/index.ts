@@ -1,18 +1,14 @@
 import type { EEBenchmarkEntry } from '../spec-types';
+import { buildYbusN } from '../solvers/math-utils';
 
-// Shared Ybus for Q46/Q47/Q48/Q49 (3-bus system, pu admittances)
-const YBUS_3BUS = [
-  [{ re: 3, im: -9 },    { re: -1, im: 3 },    { re: -2, im: 6 }],
-  [{ re: -1, im: 3 },    { re: 2.5, im: -7.5 }, { re: -1.5, im: 4.5 }],
-  [{ re: -2, im: 6 },    { re: -1.5, im: 4.5 }, { re: 3.5, im: -10.5 }],
-];
+// Shared 3-bus line data for Q46–Q49 — Ybus/Zbus computed at load time, never hand-entered.
+const SHARED_3BUS_LINES = [
+  { from: 1, to: 2, y: { re: 1, im: -3 } },
+  { from: 1, to: 3, y: { re: 2, im: -6 } },
+  { from: 2, to: 3, y: { re: 1.5, im: -4.5 } },
+] as const;
 
-// Zbus derived from Q46 Ybus (pu, purely reactive for lossless network)
-const ZBUS_3BUS = [
-  [{ re: 0, im: 0.12 }, { re: 0, im: 0.08 }, { re: 0, im: 0.05 }],
-  [{ re: 0, im: 0.08 }, { re: 0, im: 0.15 }, { re: 0, im: 0.07 }],
-  [{ re: 0, im: 0.05 }, { re: 0, im: 0.07 }, { re: 0, im: 0.18 }],
-];
+const YBUS_3BUS = buildYbusN(3, [...SHARED_3BUS_LINES]);
 
 export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
   // ── Q01 ──────────────────────────────────────────────────────────────────────
@@ -720,11 +716,15 @@ export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
     spec: {
       kind: 'miller-bandwidth',
       params: {
-        Av: -196,
+        bjt: {
+          IC: 2e-3,
+          beta: 100,
+          VA: 80,
+          RC: 5e3,
+          RS: 1e3,
+        },
         Cpi: 15e-12,
         Cmu: 2e-12,
-        RS: 1e3,
-        rpi: 1.3e3,
       },
     },
   },
@@ -1022,11 +1022,7 @@ export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
       kind: 'ybus-formation',
       params: {
         nBuses: 3,
-        lines: [
-          { from: 1, to: 2, y: { re: 1,   im: -3   } },
-          { from: 1, to: 3, y: { re: 2,   im: -6   } },
-          { from: 2, to: 3, y: { re: 1.5, im: -4.5 } },
-        ],
+        lines: [...SHARED_3BUS_LINES],
       },
     },
   },
@@ -1069,7 +1065,8 @@ export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
     spec: {
       kind: 'symmetrical-fault',
       params: {
-        Zbus: ZBUS_3BUS,
+        nBuses: 3,
+        lines: [...SHARED_3BUS_LINES],
         Vpre: 1.0,
         faultBus: 2,
       },

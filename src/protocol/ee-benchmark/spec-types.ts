@@ -229,11 +229,16 @@ export interface BjtCeAmplifierParams {
 }
 
 export interface MillerBandwidthParams {
-  Av: number;
+  /** BJT bias point — Av and r_π are derived by the solver, not given as answers. */
+  bjt: {
+    IC: number;
+    beta: number;
+    VA: number;
+    RC: number;
+    RS: number;
+  };
   Cpi: number;
   Cmu: number;
-  RS: number;
-  rpi: number;
 }
 
 export interface EmitterDegenerationParams {
@@ -342,7 +347,8 @@ export interface GaussSeidelPfParams {
 }
 
 export interface SymmetricalFaultParams {
-  Zbus: Complex[][];
+  nBuses: number;
+  lines: Array<{ from: number; to: number; y: Complex }>;
   Vpre: number;
   faultBus: number;
 }
