@@ -19,14 +19,26 @@ export function sessionsForMirror(sessions: Session[]): Session[] {
   }));
 }
 
+function mergeSessionPair(local: Session, incoming: Session): Session {
+  if (incoming.updatedAt > local.updatedAt) {
+    return incoming.raw.trim() ? incoming : { ...incoming, raw: local.raw };
+  }
+  if (local.updatedAt > incoming.updatedAt) {
+    return local;
+  }
+  return local.raw.trim() ? local : { ...local, raw: incoming.raw };
+}
+
 /** Merge by session id — keep the copy with the latest updatedAt. */
 export function mergeMirroredSessions(local: Session[], incoming: Session[]): Session[] {
   const byId = new Map<string, Session>();
   for (const session of [...local, ...incoming]) {
     const existing = byId.get(session.id);
-    if (!existing || session.updatedAt >= existing.updatedAt) {
+    if (!existing) {
       byId.set(session.id, session);
+      continue;
     }
+    byId.set(session.id, mergeSessionPair(existing, session));
   }
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }

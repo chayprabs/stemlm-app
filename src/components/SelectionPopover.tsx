@@ -34,13 +34,16 @@ export function SelectionPopover({
     const root = containerRef.current;
     if (!root) return;
 
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
     const refresh = () => {
       setSel(readPanelSelection(root));
     };
 
     const onPointerUp = () => {
       // Read selection after the browser finalizes it.
-      setTimeout(refresh, 0);
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refresh, 0);
     };
 
     const onSelectionChange = () => {
@@ -55,6 +58,7 @@ export function SelectionPopover({
     window.addEventListener('scroll', onScroll, true);
 
     return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
       root.removeEventListener('pointerup', onPointerUp);
       root.removeEventListener('keyup', onPointerUp);
       document.removeEventListener('selectionchange', onSelectionChange);
