@@ -5,8 +5,7 @@ import { classifySubject } from './classifier';
 
 describe('physics question bank', () => {
   it('has 50 questions when complete', () => {
-    expect(PHYSICS_QUESTIONS.length).toBeGreaterThanOrEqual(1);
-    expect(PHYSICS_QUESTIONS.length).toBeLessThanOrEqual(50);
+    expect(PHYSICS_QUESTIONS.length).toBe(50);
   });
 
   it('questions are numbered uniquely without gaps in loaded set', () => {
