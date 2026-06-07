@@ -55,10 +55,63 @@ export function formulaShowsNumericWork(formula: string): boolean {
 }
 
 function bodyDefinesSymbols(body: string): boolean {
-  return (
+  if (
     SYMBOL_CONTEXT.test(body) &&
     /\b(is|are|means|where|denotes|represents|defined as|equals)\b/i.test(body)
+  ) {
+    return true;
+  }
+  // Gold-standard pattern: "$X_L$ is inductive reactance in $\Omega$."
+  return /\$[^$\n]{1,48}\$\s+is\b/i.test(body);
+}
+
+/** Variables introduced in a symbolic @formula (subscripts, greek, hybrid-π). */
+function extractFormulaVars(formula: string): string[] {
+  const vars: string[] = [];
+  for (const m of formula.matchAll(/\b([A-Z])(?:_\{?([A-Za-z0-9]+)\}?)?\b/g)) {
+    if (m[2]) vars.push(`${m[1]}_${m[2]}`);
+    else if ('RCILVXZYWPQFN'.includes(m[1]!)) vars.push(m[1]!);
+  }
+  if (/\\omega/i.test(formula)) vars.push('omega');
+  if (/\\theta/i.test(formula)) vars.push('theta');
+  if (/\\phi/i.test(formula)) vars.push('phi');
+  if (/r[_\s]?(?:π|pi)\b/i.test(formula)) vars.push('r_pi');
+  if (/\bg[_]?m\b/i.test(formula)) vars.push('g_m');
+  return [...new Set(vars)];
+}
+
+function normalizeVarToken(s: string): string {
+  return s
+    .replace(/\\Omega/g, 'ΩUNIT')
+    .toLowerCase()
+    .replace(/\\omega/g, 'omega')
+    .replace(/\\pi/g, 'pi')
+    .replace(/[_\s]/g, '');
+}
+
+function bodyContainsVar(body: string, v: string): boolean {
+  if (v === 'omega') {
+    // Case-sensitive: do not treat \Omega (ohm unit) as angular frequency \omega.
+    return /\\omega\b/.test(body) || /\bangular frequency\b/i.test(body);
+  }
+  const tok = normalizeVarToken(v);
+  if (tok.length > 1 || tok === 'rpi' || tok === 'gm') {
+    const escaped = tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(escaped, 'i').test(normalizeVarToken(body)) || new RegExp(escaped, 'i').test(body);
+  }
+  // Single-letter symbols must appear as math tokens — not inside words like "frequency".
+  return (
+    new RegExp(`\\$[^$]*\\b${v}\\b[^$]*\\$`, 'i').test(body) ||
+    new RegExp(`\\b${v}[_=\\{\\(]`, 'i').test(body) ||
+    new RegExp(`_${v}\\b`, 'i').test(body)
   );
+}
+
+/** Body uses formula symbols in math (plug-in counts as defining them for students). */
+function bodyUsesFormulaVars(body: string, formula: string): boolean {
+  const vars = extractFormulaVars(formula);
+  if (!vars.length) return false;
+  return vars.some((v) => bodyContainsVar(body, v));
 }
 
 function formulaIntroducesSymbols(formula: string): boolean {
@@ -101,7 +154,8 @@ export function auditStepQuality(step: Step): ParseWarningCode[] {
 
   const formulaWorked = formulaShowsNumericWork(formula);
   const hasSubstitution = bodyShowsNumericWork(body);
-  const hasSymbolContext = bodyDefinesSymbols(body);
+  const hasSymbolContext =
+    bodyDefinesSymbols(body) || (hasSubstitution && bodyUsesFormulaVars(body, formula));
 
   if (!hasSubstitution) {
     issues.push('step_missing_substitution');
@@ -141,4 +195,23 @@ export function stepHasQualityIssues(step: Step): boolean {
 
 export function primaryStepQualityIssue(step: Step): ParseWarningCode | null {
   return auditStepQuality(step)[0] ?? null;
+}
+
+const HARD_STEP_QUALITY_CODES = new Set<ParseWarningCode>([
+  'missing_step_body',
+  'formula_without_body',
+  'step_missing_substitution',
+]);
+
+/** Hard failures (empty body, no numbers) — always worth a repair prompt. */
+export function stepHasHardQualityIssue(step: Step): boolean {
+  return auditStepQuality(step).some((c) => HARD_STEP_QUALITY_CODES.has(c));
+}
+
+/** Only queue chatbox repair when work is broadly broken, not one soft symbol line. */
+export function capsuleNeedsStepQualityRepair(steps: Step[]): boolean {
+  const weak = steps.filter((s) => auditStepQuality(s).length > 0);
+  if (!weak.length) return false;
+  if (weak.some(stepHasHardQualityIssue)) return true;
+  return weak.length >= Math.ceil(steps.length * 0.5);
 }

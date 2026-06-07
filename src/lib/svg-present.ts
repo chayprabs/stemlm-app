@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Normalize AI-generated SVG for display: decode LaTeX in labels, theme strokes,
  * and keep aspect ratio sane inside the step card.
  */
@@ -419,20 +419,6 @@ interface WireSegment {
   y2: number;
 }
 
-function collectWireSegments(root: Element): WireSegment[] {
-  const segments: WireSegment[] = [];
-  for (const line of root.querySelectorAll('line')) {
-    if (line.closest('marker')) continue;
-    segments.push({
-      x1: Number(line.getAttribute('x1') ?? 0),
-      y1: Number(line.getAttribute('y1') ?? 0),
-      x2: Number(line.getAttribute('x2') ?? 0),
-      y2: Number(line.getAttribute('y2') ?? 0),
-    });
-  }
-  return segments;
-}
-
 function textFontSize(el: Element): number {
   const raw = el.getAttribute('font-size') ?? el.parentElement?.getAttribute('font-size');
   const size = Number(raw);
@@ -446,123 +432,268 @@ function textPosition(el: Element): { x: number; y: number } | null {
   return { x, y };
 }
 
-function pointNearHorizontalWire(
-  x: number,
-  y: number,
-  wire: WireSegment,
-  fontSize: number,
-): boolean {
-  if (Math.abs(wire.y1 - wire.y2) > 2) return false;
-  const lineY = (wire.y1 + wire.y2) / 2;
-  const minX = Math.min(wire.x1, wire.x2) - fontSize;
-  const maxX = Math.max(wire.x1, wire.x2) + fontSize;
-  const onWire = Math.abs(y - lineY) <= Math.max(8, fontSize * 0.75);
-  return onWire && x >= minX && x <= maxX;
+function labelText(el: Element): string {
+  return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
-function pointNearVerticalWire(
-  x: number,
-  y: number,
-  wire: WireSegment,
-  fontSize: number,
-): boolean {
-  if (Math.abs(wire.x1 - wire.x2) > 2) return false;
-  const lineX = (wire.x1 + wire.x2) / 2;
-  const minY = Math.min(wire.y1, wire.y2) - fontSize;
-  const maxY = Math.max(wire.y1, wire.y2) + fontSize;
-  const onWire = Math.abs(x - lineX) <= Math.max(8, fontSize * 0.75);
-  return onWire && y >= minY && y <= maxY;
+/** Numeric / phasor component values — leave placement alone. */
+function isCoordinateLabel(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (/^(Re|Im)$/i.test(t)) return true;
+  return (
+    /^[+-]?j?\d/.test(t) ||
+    /\d\s*\/\s*\d+/.test(t) ||
+    /[∠°]/.test(t) ||
+    /^[+-]?j[\d./]+$/.test(t)
+  );
 }
 
-/**
- * Models often place node labels on the same y as a conductor. Nudge text off
- * wires so labels stay readable in the panel and PDF export.
- */
-function nudgeLabelsAwayFromWires(root: Element): void {
+function isAxisName(text: string): boolean {
+  return /^(Re|Im|θ|phi|ω)$/i.test(text.trim());
+}
+
+function isProtectedLabel(text: string): boolean {
+  return isCoordinateLabel(text) || isAxisName(text);
+}
+
+function isAxisLine(wire: WireSegment, vb: ViewBoxRect): boolean {
+  const cx = vb.x + vb.width / 2;
+  const cy = vb.y + vb.height / 2;
+  const horiz = Math.abs(wire.y1 - wire.y2) <= 2;
+  const vert = Math.abs(wire.x1 - wire.x2) <= 2;
+  if (horiz) {
+    const span = Math.abs(wire.x2 - wire.x1);
+    const y = (wire.y1 + wire.y2) / 2;
+    return span >= vb.width * 0.5 && Math.abs(y - cy) <= vb.height * 0.2;
+  }
+  if (vert) {
+    const span = Math.abs(wire.y2 - wire.y1);
+    const x = (wire.x1 + wire.x2) / 2;
+    return span >= vb.height * 0.5 && Math.abs(x - cx) <= vb.width * 0.2;
+  }
+  return false;
+}
+
+function pathLineSegments(d: string): WireSegment[] {
+  const segments: WireSegment[] = [];
+  let cx = 0;
+  let cy = 0;
+  const re = /([MLml])\s*([^MLml]*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(d))) {
+    const cmd = match[1]!;
+    const nums = (match[2] ?? '')
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
+    if (cmd === 'M' || cmd === 'm') {
+      if (nums.length >= 2) {
+        cx = cmd === 'M' ? nums[0]! : cx + nums[0]!;
+        cy = cmd === 'M' ? nums[1]! : cy + nums[1]!;
+      }
+      continue;
+    }
+    if (cmd === 'L' || cmd === 'l') {
+      for (let i = 0; i + 1 < nums.length; i += 2) {
+        const nx = cmd === 'L' ? nums[i]! : cx + nums[i]!;
+        const ny = cmd === 'L' ? nums[i + 1]! : cy + nums[i + 1]!;
+        segments.push({ x1: cx, y1: cy, x2: nx, y2: ny });
+        cx = nx;
+        cy = ny;
+      }
+    }
+  }
+  return segments;
+}
+
+function collectGraphicSegments(root: Element, vb: ViewBoxRect): WireSegment[] {
+  const segments: WireSegment[] = [];
+  for (const line of root.querySelectorAll('line')) {
+    if (line.closest('marker')) continue;
+    const seg: WireSegment = {
+      x1: Number(line.getAttribute('x1') ?? 0),
+      y1: Number(line.getAttribute('y1') ?? 0),
+      x2: Number(line.getAttribute('x2') ?? 0),
+      y2: Number(line.getAttribute('y2') ?? 0),
+    };
+    if (!isAxisLine(seg, vb)) segments.push(seg);
+  }
+  for (const poly of root.querySelectorAll('polyline, polygon')) {
+    if (poly.closest('marker')) continue;
+    const pts = (poly.getAttribute('points') ?? '')
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      segments.push({ x1: pts[i]!, y1: pts[i + 1]!, x2: pts[i + 2]!, y2: pts[i + 3]! });
+    }
+    if (poly.tagName.toLowerCase() === 'polygon' && pts.length >= 4) {
+      segments.push({
+        x1: pts[pts.length - 2]!,
+        y1: pts[pts.length - 1]!,
+        x2: pts[0]!,
+        y2: pts[1]!,
+      });
+    }
+  }
+  for (const path of root.querySelectorAll('path')) {
+    if (path.closest('marker')) continue;
+    const d = path.getAttribute('d');
+    if (d) segments.push(...pathLineSegments(d));
+  }
+  return segments;
+}
+
+function distancePointToSegment(px: number, py: number, seg: WireSegment): number {
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-6) return Math.hypot(px - seg.x1, py - seg.y1);
+  const t = Math.max(0, Math.min(1, ((px - seg.x1) * dx + (py - seg.y1) * dy) / lenSq));
+  return Math.hypot(px - (seg.x1 + t * dx), py - (seg.y1 + t * dy));
+}
+
+function nudgePointOffSegment(
+  x: number,
+  y: number,
+  seg: WireSegment,
+  fontSize: number,
+  vb: ViewBoxRect,
+): { x: number; y: number } {
+  const cx = vb.x + vb.width / 2;
+  const gap = Math.max(6, fontSize * 0.55);
+  if (Math.abs(seg.y1 - seg.y2) <= 2) {
+    const lineY = (seg.y1 + seg.y2) / 2;
+    const cy = vb.y + vb.height / 2;
+    return { x, y: lineY < cy ? lineY - gap : lineY + gap };
+  }
+  if (Math.abs(seg.x1 - seg.x2) <= 2) {
+    const lineX = (seg.x1 + seg.x2) / 2;
+    return { x: lineX < cx ? lineX - gap : lineX + gap, y };
+  }
+  const dx = seg.x2 - seg.x1;
+  const dy = seg.y2 - seg.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const cy = vb.y + vb.height / 2;
+  const side = (x - cx) * nx + (y - cy) * ny >= 0 ? 1 : -1;
+  return { x: x + nx * gap * side, y: y + ny * gap * side };
+}
+
+function normalizeLabelTypography(root: Element): void {
+  for (const text of root.querySelectorAll('text')) {
+    if (text.closest('marker')) continue;
+    const content = labelText(text);
+    if (!content) continue;
+    if (!text.getAttribute('dominant-baseline')) {
+      text.setAttribute('dominant-baseline', 'middle');
+    }
+    if (isProtectedLabel(content)) continue;
+    if (!text.getAttribute('text-anchor') && /^I[_\d]/i.test(content)) {
+      text.setAttribute('text-anchor', 'start');
+    }
+  }
+}
+
+/** Nudge identifier labels off wires/paths; skip phasor axes and coordinate values. */
+function nudgeLabelsAwayFromGraphics(root: Element): void {
   const viewBox = viewBoxRect(root.getAttribute('viewBox'));
-  const midY = viewBox.y + viewBox.height / 2;
-  const midX = viewBox.x + viewBox.width / 2;
-  const wires = collectWireSegments(root);
+  const segments = collectGraphicSegments(root, viewBox);
 
   for (const text of root.querySelectorAll('text')) {
     if (text.closest('marker')) continue;
+    if (isProtectedLabel(labelText(text))) continue;
     const pos = textPosition(text);
     if (!pos) continue;
 
     const fontSize = textFontSize(text);
-    const gap = 4;
+    const hitDist = Math.max(5, fontSize * 0.45);
     let { x, y } = pos;
+    let nudged = false;
 
-    for (const wire of wires) {
-      if (pointNearHorizontalWire(x, y, wire, fontSize)) {
-        const lineY = (wire.y1 + wire.y2) / 2;
-        y = lineY < midY ? lineY - fontSize - gap : lineY + fontSize + gap + 2;
-        if (!text.getAttribute('text-anchor')) text.setAttribute('text-anchor', 'middle');
-      } else if (pointNearVerticalWire(x, y, wire, fontSize)) {
-        const lineX = (wire.x1 + wire.x2) / 2;
-        x = lineX < midX ? lineX - fontSize - gap : lineX + fontSize + gap;
-        if (!text.getAttribute('text-anchor')) {
-          text.setAttribute('text-anchor', lineX < midX ? 'end' : 'start');
-        }
+    for (const seg of segments) {
+      if (distancePointToSegment(x, y, seg) > hitDist) continue;
+      const next = nudgePointOffSegment(x, y, seg, fontSize, viewBox);
+      x = next.x;
+      y = next.y;
+      nudged = true;
+      if (Math.abs(seg.y1 - seg.y2) <= 2 && !text.getAttribute('text-anchor')) {
+        text.setAttribute('text-anchor', 'middle');
+      } else if (Math.abs(seg.x1 - seg.x2) <= 2 && !text.getAttribute('text-anchor')) {
+        const lineX = (seg.x1 + seg.x2) / 2;
+        text.setAttribute('text-anchor', lineX < viewBox.x + viewBox.width / 2 ? 'end' : 'start');
       }
+      break;
     }
 
-    text.setAttribute('x', String(x));
-    text.setAttribute('y', String(y));
+    if (nudged) {
+      text.setAttribute('x', String(Math.round(x)));
+      text.setAttribute('y', String(Math.round(y)));
+    }
   }
 }
 
-/**
- * Spread labels that share the same anchor point so they don't stack on top of each other.
- */
 function spreadOverlappingLabels(root: Element): void {
-  const texts = [...root.querySelectorAll('text')].filter((el) => !el.closest('marker'));
-  const items: { el: Element; x: number; y: number; fontSize: number }[] = [];
-  for (const el of texts) {
+  const items: { el: Element; x: number; y: number; fontSize: number; protected: boolean }[] = [];
+  for (const el of root.querySelectorAll('text')) {
+    if (el.closest('marker')) continue;
     const pos = textPosition(el);
     if (!pos) continue;
-    items.push({ el, x: pos.x, y: pos.y, fontSize: textFontSize(el) });
+    items.push({
+      el,
+      x: pos.x,
+      y: pos.y,
+      fontSize: textFontSize(el),
+      protected: isProtectedLabel(labelText(el)),
+    });
   }
   items.sort((a, b) => a.y - b.y || a.x - b.x);
 
-  const threshold = 16;
+  const threshold = 5;
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const a = items[i]!;
       const b = items[j]!;
+      if (a.protected || b.protected) continue;
       if (Math.abs(a.x - b.x) >= threshold || Math.abs(a.y - b.y) >= threshold) continue;
-      b.y = a.y + Math.max(a.fontSize, b.fontSize, 12) + 5;
+      b.y = a.y + Math.max(a.fontSize, b.fontSize, 12) + 6;
       b.el.setAttribute('y', String(Math.round(b.y)));
       if (!b.el.getAttribute('text-anchor')) b.el.setAttribute('text-anchor', 'middle');
     }
   }
 }
 
-/** Keep labels inside the viewBox after nudging/spreading. */
 function clampLabelsToViewBox(root: Element): void {
   const vb = viewBoxRect(root.getAttribute('viewBox'));
-  const pad = 6;
+  const pad = 4;
   const minX = vb.x + pad;
   const maxX = vb.x + vb.width - pad;
-  const minY = vb.y + pad + 10;
+  const minY = vb.y + pad;
   const maxY = vb.y + vb.height - pad;
 
   for (const text of root.querySelectorAll('text')) {
     if (text.closest('marker')) continue;
+    if (isProtectedLabel(labelText(text))) continue;
     const pos = textPosition(text);
     if (!pos) continue;
     const fontSize = textFontSize(text);
     let { x, y } = pos;
+    const out =
+      x < minX || x > maxX || y < minY + fontSize * 0.2 || y > maxY - fontSize * 0.2;
+    if (!out) continue;
     x = Math.min(maxX, Math.max(minX, x));
-    y = Math.min(maxY, Math.max(minY + fontSize * 0.3, y));
+    y = Math.min(maxY - fontSize * 0.2, Math.max(minY + fontSize * 0.5, y));
     text.setAttribute('x', String(Math.round(x)));
     text.setAttribute('y', String(Math.round(y)));
   }
 }
-
 /**
  * When the SVG is scaled down for display, bump label font-size in user units
- * so rendered text stays ~11–13px on screen and in PDF.
+ * so rendered text stays ~11-13px on screen and in PDF.
  */
 function compensateScaledText(root: Element, profile: DiagramSizeProfile): void {
   const scale = getDisplayScale(root.getAttribute('viewBox'), profile);
@@ -631,7 +762,8 @@ export function presentSvg(
   normalizeAllMarkers(root);
   themeSvgTree(root, theme);
   syncMarkerFills(root);
-  nudgeLabelsAwayFromWires(root);
+  normalizeLabelTypography(root);
+  nudgeLabelsAwayFromGraphics(root);
   spreadOverlappingLabels(root);
   compensateScaledText(root, profile);
   clampLabelsToViewBox(root);

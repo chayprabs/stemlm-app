@@ -41,8 +41,8 @@ RULES:
 - One @step = one cognitive move. Never combine setup + solve, or two substitutions, in one step.
 - Forbidden titles: Setup, Solve, Answer, Conclusion, Summary, Final answer, Wrap-up.
 - Prefer more small steps over fewer large ones; split algebra one line per step; show every substitution with units.
-- @body is REQUIRED on every @step (non-empty). If @formula introduces a law or symbol, @body MUST define the symbol and show the numeric plug-in — a bare formula line alone is never enough.
-- @formula = the relation (symbols). @body = definitions + substitution + arithmetic + result. Do not put the only calculation in @formula with a one-line interpretation in @body.
+- @body is REQUIRED on every @step (non-empty). If @formula has symbols, @body MUST open with "$<symbol>$ is <meaning>." then "With <givens>:" then $<symbol>=<plug-in>=<number> <units>$ — copy the template @body line above for every law/reactance/Ohm step.
+- @formula = symbols only (the law). @body = definition + substitution + arithmetic + result. Never put the only calculation in @formula; never leave @formula bare without the full @body pattern.
 - title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @body mandatory; max one @diagram per @step. EE: @diagram on nearly every step; step-1 = full circuit/model; each SVG must include EVERY component named in @body (R_C,R_E,r_π,g_m,B,C,E,v_in,ground…); no partial fragments; ≥55% of steps have diagrams. Close @body before @diagram.
 - @quickcheck optional (2–4 per capsule on hardest moves). Skip on pure diagram/label steps. Never one-word answers — explain why with a formula or number from this step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.

@@ -25,9 +25,15 @@ export const STEMLM_INSTRUCTIONS_SEP = '\n\n--- stemLM instructions (do not remo
 const SEP = STEMLM_INSTRUCTIONS_SEP;
 
 /** Repeated on every inject so models cannot skip worked @body blocks. */
+export const STEP_BODY_FORMULA_PATTERN =
+  '$<symbol>$ is <meaning in words>. With <givens>: $<symbol>=<law plug-in>=<numeric result> <units>.';
+
+/** Repeated on every inject so models cannot skip worked @body blocks. */
 export const STEP_BODY_REQUIREMENT = [
   'CRITICAL — every @step MUST have a non-empty @body block (never omit @body).',
   'In @body: define each new symbol in words, substitute the problem givens, and show the arithmetic with units.',
+  `When @formula has symbols, @body MUST follow: ${STEP_BODY_FORMULA_PATTERN}`,
+  'Example: $X_L$ is inductive reactance in $\\Omega$. With $\\omega=377\\,\\text{rad/s}$ and $L=0.2\\,\\text{H}$: $X_L=\\omega L=377\\times0.2=75.4\\,\\Omega$.',
   'A step with @formula but empty @body is invalid. Conceptual steps still need @body prose.',
 ].join('\n');
 
@@ -42,6 +48,7 @@ export const STEP_DIAGRAM_REQUIREMENT = [
   'Minimum: ≥55% of steps have diagrams; never fewer than 3; complex multi-part problems need a diagram on most steps.',
   'SVG SIZE: use compact viewBox="0 0 300 180" (max ~360×220); font-size 13–15 on every <text>; max ~6 value labels; no "Symbols: …" legend block inside the SVG.',
   'LABELS: name components (R1,L1,Vs,Id); offset text 10px from symbol — never stacked or on wires.',
+  'PHASOR: Re/Im at axis ends; real/imag values (18/97, j8/97) at projection foot on dashed line; I1/I2 beside arrowhead not on stroke.',
 ].join('\n');
 
 /** Blank lines after this label are where the student types their follow-up question. */

@@ -98,6 +98,38 @@ describe('presentSvg', () => {
     expect(out).toContain('height="80"');
   });
 
+  it('preserves phasor axis and coordinate label positions', () => {
+    const raw =
+      '<svg viewBox="0 0 200 200">' +
+      '<line x1="20" y1="100" x2="180" y2="100" stroke="#333" stroke-width="2"/>' +
+      '<line x1="100" y1="20" x2="100" y2="180" stroke="#333" stroke-width="2"/>' +
+      '<text x="175" y="100" font-size="12">Re</text>' +
+      '<text x="100" y="25" font-size="12">Im</text>' +
+      '<text x="140" y="108" font-size="11">18/97</text>' +
+      '<text x="92" y="72" font-size="11">j8/97</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'light', 'step');
+    expect(out).toContain('x="140"');
+    expect(out).toContain('y="108"');
+    expect(out).toContain('x="92"');
+    expect(out).toContain('y="72"');
+    expect(out).toContain('>18/97<');
+    expect(out).toContain('>j8/97<');
+  });
+
+  it('nudges mesh current labels off path strokes', () => {
+    const raw =
+      '<svg viewBox="0 0 200 120">' +
+      '<path d="M60 60 L100 60 L100 90 L60 90 Z" stroke="#c00" fill="none" stroke-width="2"/>' +
+      '<text x="80" y="60" font-size="12">I2 factored</text>' +
+      '</svg>';
+    const out = presentSvg(raw, 'light', 'step');
+    const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
+    const label = doc.querySelector('text');
+    const y = Number(label?.getAttribute('y'));
+    expect(y).not.toBe(60);
+  });
+
   it('spreads labels stacked at the same point', () => {
     const raw =
       '<svg viewBox="0 0 200 120">' +

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from './parser';
-import { RLC_AC_IMPEDANCE } from './__fixtures__';
-import { auditStepQuality, enrichStepBody, isDiagnosticBodyText } from './step-quality';
+import { FENCED_ELECTRICAL, RLC_AC_IMPEDANCE } from './__fixtures__';
+import { TEN_STEP_ELECTRICAL } from './__fixtures-long-steps';
+import {
+  auditStepQuality,
+  capsuleNeedsStepQualityRepair,
+  enrichStepBody,
+  isDiagnosticBodyText,
+} from './step-quality';
 
 describe('isDiagnosticBodyText', () => {
   it('flags repair prompts and quality warnings echoed into @body', () => {
@@ -32,6 +38,17 @@ describe('auditStepQuality', () => {
     });
     expect(issues).toContain('missing_step_body');
     expect(issues).toContain('formula_without_body');
+  });
+
+  it('passes when body substitutes formula symbols inline (no explicit "is" line)', () => {
+    const issues = auditStepQuality({
+      id: 's1',
+      index: 1,
+      title: 'Compute capacitive reactance',
+      formula: '$$X_C = \\frac{1}{\\omega C}$$',
+      body: 'With $\\omega=377\\,\\text{rad/s}$ and $C=10\\,\\mu\\text{F}$: $X_C=1/(\\omega C)\\approx265.3\\,\\Omega$.',
+    });
+    expect(issues).toEqual([]);
   });
 
   it('flags symbolic formula with no symbol definitions or substitution', () => {
@@ -70,11 +87,64 @@ describe('auditStepQuality', () => {
     expect(auditStepQuality(step)).toEqual([]);
   });
 
-  it('passes gold-standard RLC reactance steps', () => {
-    const capsule = parse(RLC_AC_IMPEDANCE).capsule!;
-    for (const step of capsule.steps) {
-      expect(auditStepQuality(step)).toEqual([]);
+  it.each([
+    ['RLC_AC_IMPEDANCE', RLC_AC_IMPEDANCE],
+    ['FENCED_ELECTRICAL', FENCED_ELECTRICAL],
+    ['TEN_STEP_ELECTRICAL', TEN_STEP_ELECTRICAL],
+  ] as const)('passes gold-standard %s steps with no quality issues', (_name, raw) => {
+    const result = parse(raw);
+    expect(result.status).toBe('ok');
+    expect(result.warningCodes).not.toContain('step_missing_symbol_defs');
+    for (const step of result.capsule!.steps) {
+      expect(auditStepQuality(step), `step ${step.index} "${step.title}"`).toEqual([]);
     }
+  });
+});
+
+describe('capsuleNeedsStepQualityRepair', () => {
+  it('skips repair for a single soft symbol-def miss on an otherwise strong capsule', () => {
+    const steps = Array.from({ length: 6 }, (_, i) => ({
+      id: `s${i + 1}`,
+      index: i + 1,
+      title: `Step ${i + 1}`,
+      body: '$I=2\\,\\text{A}$ with numeric substitution.',
+      formula: i === 2 ? '$$X_C = \\frac{1}{\\omega C}$$' : undefined,
+    }));
+    steps[2] = {
+      id: 's3',
+      index: 3,
+      title: 'Compute capacitive reactance',
+      formula: '$$X_C = \\frac{1}{\\omega C}$$',
+      body: 'The equivalent branch measures $R_{eq}=265.3\\,\\Omega$ at this frequency.',
+    };
+    expect(auditStepQuality(steps[2]!)).toContain('step_missing_symbol_defs');
+    expect(capsuleNeedsStepQualityRepair(steps)).toBe(false);
+  });
+
+  it('requires repair when many steps lack worked math', () => {
+    const steps = [
+      {
+        id: 's1',
+        index: 1,
+        title: 'Thin',
+        formula: '$$X_C = \\frac{1}{\\omega C}$$',
+        body: 'The capacitor opposes voltage changes.',
+      },
+      {
+        id: 's2',
+        index: 2,
+        title: 'Thin two',
+        formula: '$$X_L = \\omega L$$',
+        body: 'Inductors store energy.',
+      },
+      {
+        id: 's3',
+        index: 3,
+        title: 'Ok',
+        body: '$I=2\\,\\text{A}$ numeric work.',
+      },
+    ];
+    expect(capsuleNeedsStepQualityRepair(steps)).toBe(true);
   });
 });
 

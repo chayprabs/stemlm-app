@@ -24,7 +24,11 @@ import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { auditCapsuleDiagrams } from '@/src/protocol/diagram-quality';
-import { auditStepQuality } from '@/src/protocol/step-quality';
+import {
+  auditStepQuality,
+  capsuleNeedsStepQualityRepair,
+  stepHasHardQualityIssue,
+} from '@/src/protocol/step-quality';
 
 /** Fallback key when mirrored/workspace sessions strip bulky raw text. */
 function sessionDedupKey(
@@ -397,8 +401,11 @@ export class StemController {
     if (this.repairPromptInserted || !result.capsule) return;
 
     const weakSteps = result.capsule.steps.filter((s) => auditStepQuality(s).length > 0);
-    if (weakSteps.length) {
-      const code = auditStepQuality(weakSteps[0]!)[0];
+    if (weakSteps.length && capsuleNeedsStepQualityRepair(result.capsule.steps)) {
+      const firstHard = weakSteps.find(stepHasHardQualityIssue);
+      const code = firstHard
+        ? auditStepQuality(firstHard)[0]
+        : auditStepQuality(weakSteps[0]!)[0];
       if (!code) return;
       const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
       this.repairPromptInserted = inserted || this.repairPromptInserted;
