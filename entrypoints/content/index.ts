@@ -81,7 +81,27 @@ export default defineContentScript({
 
     if (settings.shareAcrossTabs) {
       const shared = await loadMirroredSessions();
-      if (shared.length) useStore.getState().setSessions(shared);
+      if (shared.length) {
+        const backup = tabId != null ? await loadTabWorkspace(tabId) : null;
+        const activeSessionId =
+          backup?.activeSessionId && shared.some((s) => s.id === backup.activeSessionId)
+            ? backup.activeSessionId
+            : shared[shared.length - 1]?.id;
+        const activeSession =
+          shared.find((s) => s.id === activeSessionId) ?? shared[shared.length - 1];
+        const maxStep = Math.max(0, (activeSession?.capsule.steps.length ?? 1) - 1);
+        const activeStepIndex = Math.max(
+          0,
+          Math.min(backup?.activeStepIndex ?? 0, maxStep),
+        );
+        useStore.setState({
+          sessions: shared,
+          activeSessionId,
+          activeStepIndex,
+          status: 'ready',
+          errorMessage: undefined,
+        });
+      }
     } else if (tabId != null) {
       const backup = await loadTabWorkspace(tabId);
       if (backup?.sessions.length && useStore.getState().sessions.length === 0) {
@@ -222,8 +242,8 @@ export default defineContentScript({
     }
 
     ctx.onInvalidated(() => {
-      persistTabWorkspace();
       if (workspaceTimer) clearTimeout(workspaceTimer);
+      persistTabWorkspace();
       removeSplit();
       removeComposerSlot();
       getController()?.stopWatching();
