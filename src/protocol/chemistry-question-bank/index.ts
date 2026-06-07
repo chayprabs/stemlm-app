@@ -11,6 +11,7 @@ import { Q09 } from './q09';
 import { Q10 } from './q10';
 import { Q11 } from './q11';
 import { Q21 } from './q21';
+import { Q22 } from './q22';
 
 /** All verified chemistry benchmark questions (Q1–Q50). */
 export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
@@ -26,6 +27,7 @@ export const CHEMISTRY_QUESTIONS: ChemistryQuestionDef[] = [
   Q10,
   Q11,
   Q21,
+  Q22,
 ];
 
 export function getChemistryQuestionByNumber(n: number): ChemistryQuestionDef | undefined {
