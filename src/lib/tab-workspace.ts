@@ -33,6 +33,15 @@ function pendingActionKey(tabId: number): string {
   return `stemlm_pending_action_${tabId}`;
 }
 
+function pendingResultKey(tabId: number): string {
+  return `stemlm_pending_result_${tabId}`;
+}
+
+export interface PanelActionResult {
+  ok: boolean;
+  loaded?: number;
+}
+
 export async function getContentTabId(): Promise<number | undefined> {
   try {
     const tab = await browser.tabs.getCurrent();
@@ -116,6 +125,26 @@ export async function takePendingPanelAction(tabId: number): Promise<PendingPane
     const key = pendingActionKey(tabId);
     const data = (await browser.storage.session.get(key))[key] as PendingPanelAction['type'] | undefined;
     if (!data) return null;
+    await browser.storage.session.remove(key);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function setPanelActionResult(tabId: number, result: PanelActionResult): Promise<void> {
+  try {
+    await browser.storage.session.set({ [pendingResultKey(tabId)]: result });
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function takePanelActionResult(tabId: number): Promise<PanelActionResult | null> {
+  try {
+    const key = pendingResultKey(tabId);
+    const data = (await browser.storage.session.get(key))[key] as PanelActionResult | undefined;
+    if (!data || typeof data.ok !== 'boolean') return null;
     await browser.storage.session.remove(key);
     return data;
   } catch {

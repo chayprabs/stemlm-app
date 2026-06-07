@@ -26,6 +26,7 @@ import {
   getContentTabId,
   loadTabWorkspace,
   saveTabWorkspace,
+  setPanelActionResult,
   takePendingPanelAction,
   workspaceFromStore,
 } from '@/src/lib/tab-workspace';
@@ -44,6 +45,21 @@ export default defineContentScript({
   async main(ctx) {
     const adapter = detectAdapter();
     if (!adapter) return;
+
+    const onMessage = (
+      msg: unknown,
+      sender: { id?: string },
+      sendResponse: (response?: unknown) => void,
+    ) => {
+      const parsed = parseStemLmMessage(msg, sender);
+      if (!parsed) return false;
+
+      void handleStemLmPanelMessage(parsed.type, adapter.id)
+        .then(sendResponse)
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    };
+    browser.runtime.onMessage.addListener(onMessage);
 
     const settings = await getSettings();
     const controller = initController(adapter);
@@ -84,8 +100,13 @@ export default defineContentScript({
           activeSessionId,
           activeStepIndex,
           status: 'ready',
+          errorMessage: undefined,
         });
       }
+    }
+
+    if (useStore.getState().sessions.length > 0) {
+      controller.startWatching();
     }
 
     let host: HTMLElement | null = null;
@@ -192,22 +213,12 @@ export default defineContentScript({
       }
     });
 
-    const onMessage = (
-      msg: unknown,
-      sender: { id?: string },
-      sendResponse: (response?: unknown) => void,
-    ) => {
-      const parsed = parseStemLmMessage(msg, sender);
-      if (!parsed) return false;
-
-      void handleStemLmPanelMessage(parsed.type, adapter.id).then(sendResponse);
-      return true;
-    };
-    browser.runtime.onMessage.addListener(onMessage);
-
     if (tabId != null) {
       const pending = await takePendingPanelAction(tabId);
-      if (pending) await handleStemLmPanelMessage(pending, adapter.id);
+      if (pending) {
+        const result = await handleStemLmPanelMessage(pending, adapter.id);
+        await setPanelActionResult(tabId, result);
+      }
     }
 
     ctx.onInvalidated(() => {
