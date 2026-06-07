@@ -55,7 +55,9 @@ const COMPONENT_PATTERNS: RegExp[] = [
   /\bI[_]?[A-Z]\b/gi,
 ];
 
-const HYBRID_PI_CONTEXT = /\b(hybrid|small[- ]signal|bjt|transistor|common[- ]emitter)\b/i;
+/** BJT hybrid-π only — not generic MOSFET/small-signal analysis */
+const HYBRID_PI_CONTEXT =
+  /\b(hybrid[- ]?π|hybrid[- ]?pi|hybrid|bjt|transistor|common[- ]emitter)\b/i;
 const OPAMP_CONTEXT = /\bop-?amp\b/i;
 
 const HYBRID_PI_REQUIRED_LABELS = ['rpi', 'gm', 're', 'rc'] as const;

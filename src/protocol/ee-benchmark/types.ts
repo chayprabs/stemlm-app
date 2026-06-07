@@ -26,7 +26,7 @@ export interface EEQuestionDef {
   steps: EEStepDef[];
   solution: string[];
   solutionSvg: string;
-  /** Numeric verified answers for automated assertion */
+  /** Computed solution values from solver (not hand-authored) */
   verified: Record<string, number | string | boolean>;
 }
 

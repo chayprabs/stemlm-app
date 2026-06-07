@@ -83,6 +83,37 @@ function panelLines(sol: EESolution, fallbackLines: string[]): string[] {
   return sol.steps.length > 0 ? sol.steps.map(s => s.formula) : fallbackLines;
 }
 
+/** Vertical annotation column separated from schematic to avoid label collisions */
+function rightColumn(
+  lines: string[],
+  x = 248,
+  y0 = 28,
+  dy = 18,
+  fontSize = 9,
+  color = '#1565c0',
+): string {
+  return lines
+    .map(
+      (line, i) =>
+        `<text x="${x}" y="${y0 + i * dy}" font-size="${fontSize}" text-anchor="start" fill="${color}">${line}</text>`,
+    )
+    .join('');
+}
+
+function splitSchematicPanel(
+  schematicParts: string[],
+  panelLines: string[],
+  schematicW = 200,
+  h = 200,
+  panelW = 130,
+): string {
+  const totalW = schematicW + panelW + 16;
+  const panelX = schematicW + 20;
+  const divider = `<line x1="${schematicW + 8}" y1="12" x2="${schematicW + 8}" y2="${h - 12}" stroke="#ddd" stroke-width="1"/>`;
+  const panel = rightColumn(panelLines, panelX, 30, 18, 9, '#333');
+  return wrapSvg([...schematicParts, divider, panel].join(''), totalW, h);
+}
+
 // ── main dispatch ─────────────────────────────────────────────────────
 
 /**
@@ -260,10 +291,10 @@ function renderThevenin(params: TheveninNortonParams, sol: EESolution): string {
   const vth = sv(sol, 'Vth');
   const rth = sv(sol, 'Rth');
   if (vth !== undefined) {
-    parts.push(`<text x="${x0 + 215}" y="${yTop + 30}" font-size="10" fill="#1565c0">Vth=${fmtNum(vth, 2)}V</text>`);
+    parts.push(`<text x="${x0 + 215}" y="${yTop + 22}" font-size="10" fill="#1565c0">Vth=${fmtNum(vth, 2)}V</text>`);
   }
   if (rth !== undefined) {
-    parts.push(`<text x="${x0 + 215}" y="${yTop + 45}" font-size="10" fill="#1565c0">Rth=${fmtNum(rth, 1)}Ω</text>`);
+    parts.push(`<text x="${x0 + 215}" y="${yTop + 58}" font-size="10" fill="#1565c0">Rth=${fmtNum(rth, 1)}Ω</text>`);
   }
 
   return wrapSvg(parts.join(''), 280, 220);
@@ -321,11 +352,11 @@ function renderRlTransient(params: RlTransientParams, sol: EESolution): string {
 
   const tau = sv(sol, 'tau');
   if (tau !== undefined) {
-    parts.push(`<text x="50" y="120" font-size="10" fill="#d32f2f">τ=${fmtNum(tau, 3)}s</text>`);
+    parts.push(`<text x="175" y="105" font-size="10" fill="#d32f2f">τ=${fmtNum(tau, 3)}s</text>`);
   }
   const i0 = sv(sol, 'i0');
   if (i0 !== undefined) {
-    parts.push(`<text x="50" y="135" font-size="10" fill="#888">i(0)=${fmtNum(i0, 3)}A</text>`);
+    parts.push(`<text x="175" y="125" font-size="10" fill="#888">i(0)=${fmtNum(i0, 3)}A</text>`);
   }
 
   return wrapSvg(parts.join(''), 300, 195);
@@ -349,11 +380,11 @@ function rlcCircuitSvg(RLabel: string, LLabel: string, CLabel: string, VsLabel: 
 
   const w0 = sv(sol, 'w0') ?? sv(sol, 'omega0');
   if (w0 !== undefined) {
-    parts.push(`<text x="80" y="120" font-size="10" fill="#1565c0">ω₀=${fmtNum(w0, 0)} r/s</text>`);
+    parts.push(`<text x="175" y="115" font-size="10" fill="#1565c0">ω₀=${fmtNum(w0, 0)} r/s</text>`);
   }
   const iMag = sv(sol, 'I') ?? sv(sol, 'Imag');
   if (iMag !== undefined) {
-    parts.push(`<text x="80" y="135" font-size="10" fill="#d32f2f">I=${fmtNum(iMag, 2)}A</text>`);
+    parts.push(`<text x="175" y="132" font-size="10" fill="#d32f2f">I=${fmtNum(iMag, 2)}A</text>`);
   }
 
   return wrapSvg(parts.join(''), 310, 200);
@@ -492,8 +523,9 @@ function renderDeltaWye(params: DeltaWyeParams, sol: EESolution): string {
   const Rb = sv(sol, 'Rb');
   const Rc = sv(sol, 'Rc');
   if (Ra !== undefined && Rb !== undefined && Rc !== undefined) {
-    parts.push(`<text x="155" y="96" font-size="10" text-anchor="middle" fill="#1565c0">Y: Ra=${fmtNum(Ra, 0)}Ω</text>`);
-    parts.push(`<text x="155" y="110" font-size="10" text-anchor="middle" fill="#1565c0">Rb=${fmtNum(Rb, 0)} Rc=${fmtNum(Rc, 0)}Ω</text>`);
+    parts.push(`<text x="268" y="72" font-size="10" text-anchor="start" fill="#1565c0">Y: Ra=${fmtNum(Ra, 0)}Ω</text>`);
+    parts.push(`<text x="268" y="88" font-size="10" text-anchor="start" fill="#1565c0">Rb=${fmtNum(Rb, 0)}Ω</text>`);
+    parts.push(`<text x="268" y="104" font-size="10" text-anchor="start" fill="#1565c0">Rc=${fmtNum(Rc, 0)}Ω</text>`);
   }
 
   return wrapSvg(parts.join(''), 330, 185);
@@ -501,50 +533,63 @@ function renderDeltaWye(params: DeltaWyeParams, sol: EESolution): string {
 
 // ── BJT CE hybrid-π model ─────────────────────────────────────────────
 function renderBjtHybridPi(params: BjtCeAmplifierParams, sol: EESolution): string {
-  const { IC, beta, RC, RS } = params;
+  const { IC, beta, VA, RC, RS } = params;
 
   const gm = sv(sol, 'gm') ?? (IC / 0.026);
   const rpi = sv(sol, 'rpi') ?? (beta / gm);
   const Av = sv(sol, 'Av');
+  const ro = sv(sol, 'ro') ?? sv(sol, 'Rout');
+  const Rin = sv(sol, 'Rin');
+  const Rout = sv(sol, 'Rout') ?? ro;
 
   const parts: string[] = [];
 
   parts.push(`<text x="70" y="26" font-size="11" font-weight="bold" text-anchor="middle">B</text>`);
-  parts.push(`<text x="220" y="26" font-size="11" font-weight="bold" text-anchor="middle">C</text>`);
+  parts.push(`<text x="178" y="26" font-size="11" font-weight="bold" text-anchor="middle">C</text>`);
   parts.push(`<text x="145" y="168" font-size="11" font-weight="bold" text-anchor="middle">E</text>`);
 
   parts.push(wire(70, 30, 70, 90));
   parts.push(resistorH(70, 90, 60, `rπ=${fmtNum(rpi, 1)}Ω`));
-  parts.push(wire(130, 90, 220, 90));
+  parts.push(wire(130, 90, 178, 90));
   parts.push(wire(145, 90, 145, 155));
 
   parts.push(wire(20, 90, 70, 90));
-  parts.push(`<text x="10" y="86" font-size="9">v_in</text>`);
-
-  parts.push(`<polygon points="220,65 240,90 220,115 200,90" fill="none" stroke="#333" stroke-width="2"/>`);
-  parts.push(`<text x="220" y="133" font-size="9" text-anchor="middle">gm·vbe</text>`);
-  parts.push(`<text x="235" y="86" font-size="9" text-anchor="start">gm=${fmtNum(gm, 3)}S</text>`);
-
-  parts.push(wire(220, 30, 220, 65));
-  parts.push(wire(220, 115, 220, 155));
-  parts.push(resistorV(220, 30, 30, `Rc=${RC}Ω`));
-
-  parts.push(wire(145, 155, 220, 155));
-  parts.push(ground(165, 155));
-
-  if (Av !== undefined) {
-    parts.push(`<text x="40" y="155" font-size="10" fill="#d32f2f">Av≈${fmtNum(Av, 0)}</text>`);
+  parts.push(`<text x="8" y="78" font-size="9">v_in</text>`);
+  if (Rin !== undefined) {
+    parts.push(`<text x="8" y="100" font-size="9">R_in=${fmtNum(Rin, 0)}Ω</text>`);
   }
+  parts.push(`<text x="8" y="148" font-size="9">R_S=${fmtNum(RS, 0)}Ω</text>`);
 
-  // Suppress unused-param warning for RS
-  void RS;
+  parts.push(`<polygon points="178,65 194,90 178,115 162,90" fill="none" stroke="#333" stroke-width="2"/>`);
+  parts.push(`<text x="168" y="78" font-size="8" text-anchor="middle">gm·vbe</text>`);
 
-  return wrapSvg(parts.join(''), 280, 185);
+  parts.push(wire(178, 30, 178, 65));
+  parts.push(wire(178, 115, 178, 155));
+  parts.push(resistorV(178, 30, 30, ''));
+  parts.push(`<text x="148" y="48" font-size="8" text-anchor="end">R_C=${fmtNum(RC, 0)}Ω rc</text>`);
+
+  parts.push(wire(145, 155, 178, 155));
+  parts.push(resistorH(145, 155, 40, `R_E=0Ω`));
+  parts.push(`<text x="128" y="172" font-size="8" fill="#666">re</text>`);
+  parts.push(ground(165, 175));
+
+  void IC;
+
+  const panel: string[] = [
+    `gm=${fmtNum(gm, 3)}S`,
+    `β=${beta}`,
+    `V_A=${VA}V`,
+  ];
+  if (ro !== undefined) panel.push(`r_o=${fmtNum(ro, 0)}Ω`);
+  if (Rout !== undefined) panel.push(`R_out=${fmtNum(Rout, 0)}Ω`);
+  if (Av !== undefined) panel.push(`Av≈${fmtNum(Av, 0)}`);
+
+  return splitSchematicPanel(parts, panel, 168, 200, 150);
 }
 
 // ── MOSFET CS amplifier ───────────────────────────────────────────────
 function renderMosfetCs(params: MosfetCsParams, sol: EESolution): string {
-  const { kn, VTN, VGS, RD } = params;
+  const { kn, VTN, VGS, lambda, RD } = params;
   const gm = sv(sol, 'gm') ?? (2 * kn * (VGS - VTN));
   const Av = sv(sol, 'Av');
   const parts: string[] = [];
@@ -553,29 +598,38 @@ function renderMosfetCs(params: MosfetCsParams, sol: EESolution): string {
   parts.push(wire(40, 80, 85, 80));
 
   parts.push(`<rect x="85" y="58" width="30" height="44" fill="none" stroke="#333" stroke-width="2" rx="2"/>`);
-  parts.push(`<text x="100" y="84" font-size="9" text-anchor="middle">NMOS</text>`);
-  parts.push(`<text x="100" y="95" font-size="8" text-anchor="middle">Vgs=${VGS}V</text>`);
+  parts.push(`<text x="100" y="82" font-size="9" text-anchor="middle">NMOS</text>`);
+  parts.push(`<text x="118" y="48" font-size="8">Vgs=${VGS}V</text>`);
 
   parts.push(wire(100, 58, 100, 30));
-  parts.push(resistorV(100, 10, 18, `Rd=${RD}Ω`));
+  parts.push(resistorV(100, 10, 18, `Rd=${fmtNum(RD, 0)}Ω`));
   parts.push(wire(100, 10, 100, 0));
   parts.push(`<text x="112" y="6" font-size="9" fill="#888">VDD</text>`);
 
   parts.push(wire(100, 102, 100, 145));
   parts.push(ground(100, 145));
 
-  parts.push(wire(100, 58, 165, 58));
-  parts.push(`<text x="170" y="62" font-size="10">v_out</text>`);
+  parts.push(wire(100, 58, 148, 58));
+  parts.push(`<text x="152" y="68" font-size="9">v_out</text>`);
 
-  parts.push(`<polygon points="145,40 160,58 145,75 130,58" fill="none" stroke="#333" stroke-width="1.5"/>`);
-  parts.push(`<text x="145" y="88" font-size="8" text-anchor="middle">gm·vgs</text>`);
+  parts.push(`<polygon points="138,40 152,58 138,75 124,58" fill="none" stroke="#333" stroke-width="1.5"/>`);
+  parts.push(`<text x="138" y="88" font-size="8" text-anchor="middle">gm·vgs</text>`);
 
-  parts.push(`<text x="20" y="135" font-size="10" fill="#1565c0">gm=${fmtNum(gm, 3)}S</text>`);
-  if (Av !== undefined) {
-    parts.push(`<text x="20" y="150" font-size="10" fill="#d32f2f">Av=${fmtNum(Av, 2)}</text>`);
-  }
+  void kn;
+  void VTN;
 
-  return wrapSvg(parts.join(''), 220, 165);
+  const ro = sv(sol, 'ro') ?? sv(sol, 'Rout');
+  const ID = sv(sol, 'ID');
+  const Vov = sv(sol, 'Vov');
+  const panel: string[] = [];
+  if (ID !== undefined) panel.push(`I_D=${fmtNum(ID * 1e3, 2)}mA`);
+  if (Vov !== undefined) panel.push(`V_ov=${fmtNum(Vov, 2)}V`);
+  panel.push(`gm=${fmtNum(gm, 3)}S`);
+  panel.push(`λ=${lambda}`);
+  if (ro !== undefined) panel.push(`r_o=${fmtNum(ro, 0)}Ω`);
+  if (Av !== undefined) panel.push(`Av=${fmtNum(Av, 2)}`);
+
+  return splitSchematicPanel(parts, panel, 168, 190, 140);
 }
 
 // ── MOSFET differential pair ──────────────────────────────────────────
@@ -614,15 +668,15 @@ function renderDiffPair(params: MosfetDiffPairParams, sol: EESolution): string {
   parts.push(ground(143, 170));
 
   parts.push(`<text x="155" y="142" font-size="9" fill="#888">Rss=${RSS}Ω</text>`);
-  parts.push(`<text x="50" y="135" font-size="10" fill="#1565c0">gm=${fmtNum(gm, 3)}S</text>`);
+  parts.push(`<text x="248" y="118" font-size="10" fill="#1565c0">gm=${fmtNum(gm, 3)}S</text>`);
   if (Ad !== undefined) {
-    parts.push(`<text x="50" y="150" font-size="10" fill="#d32f2f">Ad=${fmtNum(Ad, 0)}</text>`);
+    parts.push(`<text x="248" y="134" font-size="10" fill="#d32f2f">Ad=${fmtNum(Ad, 0)}</text>`);
   }
   if (cmrr !== undefined) {
-    parts.push(`<text x="50" y="165" font-size="9" fill="#888">CMRR≈${fmtNum(cmrr, 0)}dB</text>`);
+    parts.push(`<text x="248" y="150" font-size="9" fill="#888">CMRR≈${fmtNum(cmrr, 0)}dB</text>`);
   }
 
-  return wrapSvg(parts.join(''), 300, 195);
+  return wrapSvg(parts.join(''), 320, 195);
 }
 
 // ── Op-amp inverting summer ───────────────────────────────────────────
@@ -632,31 +686,32 @@ function renderOpampCircuit(params: OpampSummerParams, sol: EESolution): string 
   const parts: string[] = [];
 
   parts.push(`<polygon points="150,60 220,35 220,85 150,60" fill="none" stroke="#333" stroke-width="2"/>`);
-  parts.push(`<text x="162" y="54" font-size="11">+</text>`);
-  parts.push(`<text x="162" y="72" font-size="11">−</text>`);
+  parts.push(`<text x="132" y="46" font-size="11">+</text>`);
+  parts.push(`<text x="132" y="80" font-size="11">−</text>`);
 
-  // Show first input
   const inp0 = inputs[0];
   if (inp0) {
-    parts.push(wire(60, 70, 95, 70));
-    parts.push(resistorH(60, 70, 35, `R₁=${inp0.R}Ω`));
-    parts.push(`<text x="44" y="74" font-size="9">v_in</text>`);
+    parts.push(wire(40, 72, 75, 72));
+    parts.push(`<text x="14" y="76" font-size="9">v_in</text>`);
+    parts.push(resistorH(75, 72, 45, `Rg=${fmtNum(inp0.R, 0)}Ω`));
+    parts.push(wire(120, 72, 150, 72));
   }
-  parts.push(wire(60, 50, 150, 50));
-  parts.push(ground(80, 50));
+  parts.push(wire(40, 48, 150, 48));
+  parts.push(ground(32, 50));
 
-  parts.push(wire(95, 70, 95, 20));
+  parts.push(wire(95, 72, 95, 20));
   parts.push(wire(95, 20, 220, 20));
-  parts.push(resistorH(115, 20, 70, `Rf=${Rf}Ω`));
+  parts.push(resistorH(115, 20, 70, `Rf=${fmtNum(Rf, 0)}Ω`));
   parts.push(wire(220, 20, 220, 35));
 
   parts.push(wire(220, 60, 270, 60));
-  parts.push(`<text x="274" y="64" font-size="10">v_out</text>`);
   if (Vout !== undefined) {
-    parts.push(`<text x="274" y="78" font-size="10" fill="#d32f2f">=${fmtNum(Vout, 2)}V</text>`);
+    parts.push(`<text x="274" y="64" font-size="10">v_out=${fmtNum(Vout, 2)}V</text>`);
+  } else {
+    parts.push(`<text x="274" y="64" font-size="10">v_out</text>`);
   }
 
-  return wrapSvg(parts.join(''), 320, 120);
+  return wrapSvg(parts.join(''), 340, 120);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

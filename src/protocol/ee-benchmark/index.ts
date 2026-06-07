@@ -1,7 +1,10 @@
 export * from './types';
+export * from './spec-types';
 export * from './svg-utils';
 export * from './circuit-svg';
 export * from './capsule-builder';
-export * from './define-question';
-export * from './verified-answers';
-export { ALL_EE_QUESTIONS, getQuestionById, getQuestionBySlug } from './questions';
+export * from './solvers';
+export * from './render-diagram';
+export * from './synthesize';
+export * from './pipeline';
+export { ALL_EE_SPECS } from './specs';

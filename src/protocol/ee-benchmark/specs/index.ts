@@ -51,7 +51,7 @@ export const ALL_EE_SPECS: EEBenchmarkEntry[] = [
     spec: {
       kind: 'nodal-analysis',
       params: {
-        nodeCount: 4,
+        nodeCount: 3,
         fixedVoltages: { 1: 30 },
         resistors: [
           [1, 2, 5],

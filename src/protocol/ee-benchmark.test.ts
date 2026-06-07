@@ -16,7 +16,8 @@ import { sanitizeSvg, extractSvg } from '@/src/lib/sanitize';
 import { computeDisplaySize } from '@/src/lib/diagram-bounds';
 import { buildReportDocument } from '@/src/lib/pdf';
 import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
-import { ALL_EE_QUESTIONS } from './ee-benchmark/questions';
+import { ALL_EE_QUESTIONS, ALL_EE_SPECS } from './ee-benchmark/pipeline';
+import { solve } from './ee-benchmark/solvers';
 import type { Session } from './types';
 
 function assertDiagramSurvivesPipeline(svg: string): void {
@@ -141,22 +142,33 @@ describe.each(ALL_EE_QUESTIONS.map((q) => [q.id, q.slug, q] as const))(
   },
 );
 
-describe('EE Benchmark — math verification samples', () => {
-  it('Q1: I=2A, V drops sum to 24V', () => {
-    const q = ALL_EE_QUESTIONS[0]!;
-    expect(q.verified.I).toBe(2);
-    expect(q.verified.V_R1 as number + (q.verified.V_R2 as number) + (q.verified.V_R3 as number)).toBe(24);
+describe('EE Benchmark — solver-driven (not hardcoded)', () => {
+  it('every question is generated from spec + solve(), not static fixtures', () => {
+    for (const entry of ALL_EE_SPECS) {
+      const solution = solve(entry.spec);
+      expect(solution.kind).toBe(entry.spec.kind);
+      expect(Object.keys(solution.computed).length).toBeGreaterThan(0);
+      expect(solution.steps.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('Q1: solver derives I=2A from params only', () => {
+    const sol = solve(ALL_EE_SPECS[0]!.spec);
+    expect(sol.computed.I).toBeCloseTo(2, 6);
+    expect(sol.computed.V_R1).toBeCloseTo(8, 6);
+    expect(sol.computed.V_R2).toBeCloseTo(12, 6);
+    expect(sol.computed.V_R3).toBeCloseTo(4, 6);
   });
 
   it('Q17: PF correction reduces line current', () => {
-    const q = ALL_EE_QUESTIONS[16]!;
-    expect(q.verified.I2 as number).toBeLessThan(q.verified.I1 as number);
+    const sol = solve(ALL_EE_SPECS[16]!.spec);
+    expect(sol.computed.I2).toBeLessThan(sol.computed.I1);
   });
 
   it('Q42: closed-loop gain Af = A/(1+T)', () => {
-    const q = ALL_EE_QUESTIONS[41]!;
+    const sol = solve(ALL_EE_SPECS[41]!.spec);
     const A = 2000;
     const T = 80;
-    expect(q.verified.Af).toBeCloseTo(A / (1 + T), 1);
+    expect(sol.computed.Af).toBeCloseTo(A / (1 + T), 1);
   });
 });

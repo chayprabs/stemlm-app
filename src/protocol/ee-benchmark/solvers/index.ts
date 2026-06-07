@@ -161,7 +161,9 @@ function solveMeshAnalysis(
   const Z: number[][] = Array.from({ length: n }, (_, i) =>
     new Array<number>(n).fill(0).map((__, j) => i === j ? (p.selfZ[i] ?? 0) : 0)
   );
-  for (const [i, j, z] of p.mutualZ) {
+  for (const [meshA, meshB, z] of p.mutualZ) {
+    const i = meshA - 1;
+    const j = meshB - 1;
     if (i >= 0 && i < n && j >= 0 && j < n) {
       (Z[i] as number[])[j] = -z;
       (Z[j] as number[])[i] = -z;
