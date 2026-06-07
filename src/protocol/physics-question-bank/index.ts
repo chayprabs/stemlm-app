@@ -1,9 +1,10 @@
 import type { PhysicsQuestionDef } from './types';
 import { Q01 } from './q01';
 import { Q02 } from './q02';
+import { Q03 } from './q03';
 
 /** All verified physics benchmark questions (Q1–Q50). */
-export const PHYSICS_QUESTIONS: PhysicsQuestionDef[] = [Q01, Q02];
+export const PHYSICS_QUESTIONS: PhysicsQuestionDef[] = [Q01, Q02, Q03];
 
 export function getPhysicsQuestion(id: string): PhysicsQuestionDef | undefined {
   return PHYSICS_QUESTIONS.find((q) => q.id === id);
@@ -13,4 +14,4 @@ export function getPhysicsQuestionByNumber(n: number): PhysicsQuestionDef | unde
   return PHYSICS_QUESTIONS.find((q) => q.number === n);
 }
 
-export { Q01, Q02 };
+export { Q01, Q02, Q03 };

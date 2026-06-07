@@ -17,7 +17,7 @@ export const Q03: PhysicsQuestionDef = {
       title: 'Write translation and rotation equations',
       formula:
         '$$Mg\\sin\\theta - f = Ma,\\quad fR = I\\alpha,\\quad a=\\alpha R\\ \\text{(rolling)}$$',
-      body: 'Newton law for translation along the incline plus torque $\\tau=fR=I\\alpha$. Rolling without slipping links $a$ and $\\alpha$.',
+      body: 'Newton law for translation along the incline plus torque $\\tau=fR=I\\alpha$. With $f=2Mg\\sin\\theta/7$ for a solid sphere, $a=5g\\sin\\theta/7$ when $\\theta=30°$.',
     },
     {
       title: 'Solve for linear acceleration (solid sphere)',
@@ -29,7 +29,7 @@ export const Q03: PhysicsQuestionDef = {
       title: 'Compare with hollow sphere and sliding mass',
       formula:
         '$$a_{\\text{hollow}}=\\tfrac{3}{5}g\\sin\\theta,\\quad a_{\\text{slide}}=g\\sin\\theta$$',
-      body: 'Hollow sphere ($I=\\tfrac{2}{3}MR^2$): $a=3g\\sin\\theta/5$. Frictionless sliding point: $a=g\\sin\\theta$ (fastest). Solid sphere is intermediate: more rotational inertia slows translation.',
+      body: 'Hollow sphere ($I=\\tfrac{2}{3}MR^2$): $a=3g\\sin\\theta/5=2.94\\,\\text{m/s}^2$ at $30°$. Frictionless sliding: $a=g\\sin\\theta=4.9\\,\\text{m/s}^2$. Solid sphere at $3.50\\,\\text{m/s}^2$ is intermediate.',
     },
     {
       title: 'Energy method for speed at bottom',
