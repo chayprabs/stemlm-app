@@ -1,4 +1,5 @@
 import type { Session, Diagram } from '@/src/protocol/types';
+import { resolveStepWorkText, shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark } from './BrandWordmark';
 import { ExtensionLogo } from './ExtensionLogo';
@@ -52,23 +53,25 @@ export function Report({
       <section className="slm-report-a">
         <span className="slm-report-label">Answer</span>
         <div className="slm-report-a-body">
-          {steps.map((step) => (
+          {steps.map((step) => {
+            const work = resolveStepWorkText(step);
+            return (
             <div key={step.id} className="slm-report-step">
               <h3 className="slm-report-step-title">
                 <span className="slm-report-step-no">{step.index}</span>
                 {step.title}
               </h3>
-              {step.formula && (
+              {shouldShowFormulaBlock(step) && step.formula && (
                 <div className="slm-report-formula">
                   <span className="slm-report-formula-label">Formula</span>
                   <MathMarkdown content={step.formula} />
                 </div>
               )}
-              {step.body.trim() && (
+              {work && (
                 <div className="slm-report-work">
                   <span className="slm-report-work-label">Work</span>
                   <div className="slm-report-body">
-                    <MathMarkdown content={step.body} />
+                    <MathMarkdown content={work} />
                   </div>
                 </div>
               )}
@@ -82,7 +85,8 @@ export function Report({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           {solution.trim() && (
             <div className="slm-report-solution">

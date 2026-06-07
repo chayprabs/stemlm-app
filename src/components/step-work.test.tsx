@@ -20,7 +20,7 @@ describe('StepWork', () => {
     expect(html).toContain('capacitive reactance');
   });
 
-  it('renders nothing when body is missing (no parser error boxes)', () => {
+  it('renders nothing when body and formula lack worked math', () => {
     const html = renderToStaticMarkup(
       <StepWork
         step={{
@@ -35,5 +35,38 @@ describe('StepWork', () => {
     expect(html).toBe('');
     expect(html).not.toContain('@body');
     expect(html).not.toContain('slm-step-quality-note');
+  });
+
+  it('shows worked formula under Work when body is empty', () => {
+    const html = renderToStaticMarkup(
+      <StepWork
+        step={{
+          id: 's1',
+          index: 2,
+          title: 'Calculate inductive reactance',
+          formula: '$$X_L = \\omega L = 377 \\times 0.2 = 75.4\\,\\Omega$$',
+          body: '',
+        }}
+      />,
+    );
+    expect(html).toContain('slm-step-work-body');
+    expect(html).toContain('75.4');
+    expect(html).not.toContain('has no @body');
+  });
+
+  it('never renders parser diagnostic text even if model echoed it in body', () => {
+    const html = renderToStaticMarkup(
+      <StepWork
+        step={{
+          id: 's1',
+          index: 2,
+          title: 'Calculate inductive reactance',
+          formula: '$$X_L = \\omega L$$',
+          body: 'Step 2 ("Calculate inductive reactance") has no @body — add symbol definitions and the worked calculation.',
+        }}
+      />,
+    );
+    expect(html).toBe('');
+    expect(html).not.toContain('has no @body');
   });
 });

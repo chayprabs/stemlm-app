@@ -310,15 +310,23 @@ export class StemController {
     this.captureFromText(candidate, this.lastQuestion, result);
   }
 
-  /** When a capsule parses but steps lack @body work, queue a one-shot repair prompt. */
+  /** When steps still lack worked @body after parse enrichment, queue a repair prompt. */
   private offerQualityRepair(result: ParseResult): void {
     if (this.repairPromptInserted || !result.capsule) return;
-    const weakStep = result.capsule.steps.find((s) => auditStepQuality(s).length > 0);
-    if (!weakStep) return;
-    const code = auditStepQuality(weakStep)[0];
+    const weakSteps = result.capsule.steps.filter((s) => auditStepQuality(s).length > 0);
+    if (!weakSteps.length) return;
+    const code = auditStepQuality(weakSteps[0]!)[0];
     if (!code) return;
     const inserted = this.adapter.insertPrompt(buildRepairPrompt({ errorCode: code }), 'append');
     this.repairPromptInserted = inserted || this.repairPromptInserted;
+    if (inserted && weakSteps.length >= result.capsule.steps.length / 2) {
+      useStore
+        .getState()
+        .setStatus(
+          'error',
+          `${weakSteps.length} steps are missing worked math. A repair prompt was added to the chat — send it for a complete answer.`,
+        );
+    }
   }
 
   private offerRepairPrompt(result: ParseResult): void {

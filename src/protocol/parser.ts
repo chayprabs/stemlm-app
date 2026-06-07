@@ -31,7 +31,7 @@ import {
   normalizeCapsuleText,
   stripProtocolMarkers,
 } from './strip-markers';
-import { auditStepQuality, stepQualityMessage } from './step-quality';
+import { auditStepQuality, enrichStepBody, stepQualityMessage } from './step-quality';
 import {
   auditQuickCheck,
   isSubstantiveQuickCheck,
@@ -330,6 +330,12 @@ function parseStep(
       step.formula = readBlock(c, '@endformula') || undefined;
       continue;
     }
+    const bodyInline = /^@body\s+(.+)/i.exec(t);
+    if (bodyInline) {
+      step.body = bodyInline[1] ?? '';
+      c.i++;
+      continue;
+    }
     if (t === '@body') {
       c.i++;
       step.body = readBlock(c, '@endbody');
@@ -405,6 +411,7 @@ function parseStep(
     addWarning(warnings, warningCodes, 'missing_step_title', `Step ${index} had no title.`);
   }
   sanitizeStepFields(step);
+  enrichStepBody(step);
   return step;
 }
 

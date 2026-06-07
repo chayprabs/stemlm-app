@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from './parser';
 import { RLC_AC_IMPEDANCE } from './__fixtures__';
-import { auditStepQuality } from './step-quality';
+import { auditStepQuality, enrichStepBody } from './step-quality';
 
 describe('auditStepQuality', () => {
   it('flags formula-only steps with no body', () => {
@@ -37,6 +37,19 @@ describe('auditStepQuality', () => {
       body: 'The current depends on the net reactance sign.',
     });
     expect(issues).toContain('step_missing_substitution');
+  });
+
+  it('enrichStepBody copies worked formula into empty body', () => {
+    const step = {
+      id: 's1',
+      index: 1,
+      title: 'Calculate XL',
+      formula: '$$X_L = \\omega L = 377 \\times 0.2 = 75.4\\,\\Omega$$',
+      body: '',
+    };
+    enrichStepBody(step);
+    expect(step.body).toContain('75.4');
+    expect(auditStepQuality(step)).toEqual([]);
   });
 
   it('passes gold-standard RLC reactance steps', () => {

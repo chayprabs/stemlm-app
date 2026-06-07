@@ -1,4 +1,5 @@
 import type { Step } from '@/src/protocol/types';
+import { resolveStepWorkText } from '@/src/lib/step-display';
 import { MathMarkdown } from './MathMarkdown';
 
 export function StepWork({
@@ -8,14 +9,14 @@ export function StepWork({
   step: Step;
   className?: string;
 }) {
-  const body = step.body.trim();
-  if (!body) return null;
+  const work = resolveStepWorkText(step);
+  if (!work) return null;
 
   return (
     <div className={className}>
       <span className="slm-step-work-label">Work</span>
       <div className="slm-step-work-body slm-selectable">
-        <MathMarkdown content={step.body} />
+        <MathMarkdown content={work} />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
+import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { StepWork } from './StepWork';
 import { IconCheck } from './icons';
 import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
@@ -54,7 +55,7 @@ export function StepCard({
         <h2 className="slm-card-title">{step.title}</h2>
       </header>
 
-      {step.formula && (
+      {shouldShowFormulaBlock(step) && step.formula && (
         <div className="slm-formula">
           <span className="slm-formula-label">Formula</span>
           <MathMarkdown content={step.formula} />

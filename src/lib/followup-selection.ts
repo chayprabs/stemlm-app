@@ -3,6 +3,7 @@
  * quote-reply follow-ups.
  */
 import type { Session, Step } from '@/src/protocol/types';
+import { resolveStepWorkText } from '@/src/lib/step-display';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 
@@ -58,7 +59,8 @@ export function buildLastStepFollowupSelection(session: Session, step: Step): st
   const question = cleanSessionQuestion(session.question) || session.capsule.meta.topic;
   const lines = [`Problem: ${question}`, `Final step: ${step.title}`];
   const takeaway = step.takeaway ? stripProtocolMarkers(step.takeaway) : '';
-  const body = step.body ? stripProtocolMarkers(step.body) : '';
+  const work = resolveStepWorkText(step);
+  const body = work ? stripProtocolMarkers(work) : '';
   if (takeaway) lines.push(`Takeaway: ${takeaway}`);
   else if (body) lines.push(`Context: ${body.slice(0, 280)}`);
   return lines.join('\n');

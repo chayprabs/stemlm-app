@@ -16,7 +16,13 @@ function bodyShowsNumericWork(body: string): boolean {
   return /=|≈|~|\\approx|\\times|\\cdot|\\frac|\\angle/.test(body);
 }
 
-function formulaShowsNumericWork(formula: string): boolean {
+export function isDiagnosticBodyText(text: string): boolean {
+  return /\bhas no @body\b|no @body work\b|needs numeric substitution in @body|introduces symbols in @formula without defining them|add symbol definitions and the worked calculation|step_missing_|formula_without_body|parser error code was|re-emit the same answer/i.test(
+    text,
+  );
+}
+
+export function formulaShowsNumericWork(formula: string): boolean {
   if (!NUMERIC_WORK.test(formula)) return false;
   if (/\\frac\s*\{\s*1\s*\}/.test(formula) && !/\\times|\\cdot|≈|~|\\approx/.test(formula)) {
     return false;
@@ -38,10 +44,31 @@ function formulaIntroducesSymbols(formula: string): boolean {
   return /_[A-Za-z]|\\omega|\\Omega|\\mu|\\theta|\\phi|\\angle\s*[A-Za-z]/i.test(formula);
 }
 
+/** Fill empty @body from worked @formula so students see math instead of blank steps. */
+export function enrichStepBody(step: Step): void {
+  let body = step.body.trim();
+  if (isDiagnosticBodyText(body)) {
+    step.body = '';
+    body = '';
+  }
+  if (body) return;
+
+  const formula = step.formula?.trim() ?? '';
+  if (formula && formulaShowsNumericWork(formula)) {
+    step.body = formula;
+  }
+}
+
 export function auditStepQuality(step: Step): ParseWarningCode[] {
   const issues: ParseWarningCode[] = [];
   const body = step.body.trim();
   const formula = step.formula?.trim() ?? '';
+
+  if (isDiagnosticBodyText(body)) {
+    issues.push('missing_step_body');
+    if (formula) issues.push('formula_without_body');
+    return issues;
+  }
 
   if (!body) {
     issues.push('missing_step_body');
