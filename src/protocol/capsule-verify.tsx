@@ -14,7 +14,7 @@ import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { buildReportDocument } from '@/src/lib/pdf';
 import { parse } from './parser';
 import { scoreRaw } from './score';
-import { auditCapsuleDiagrams } from './diagram-quality';
+import { auditCapsuleDiagrams, isVisualDenseProblem } from './diagram-quality';
 import type { Session, Subject } from './types';
 
 export interface CapsuleVerifyOptions {
@@ -125,7 +125,7 @@ export async function verifyCapsule(
   const diagrams = capsule.steps.flatMap((s) => (s.diagram?.type === 'svg' ? [s.diagram] : []));
   const diagramCount = diagrams.length;
 
-  if (VISUAL_DIAGRAM_SUBJECTS.has(subject)) {
+  if (VISUAL_DIAGRAM_SUBJECTS.has(subject) && isVisualDenseProblem(capsule)) {
     const need = minDiagramCount(stepCount, subject, opt);
     if (diagramCount < need) {
       errors.push(`Only ${diagramCount} diagram steps (need >= ${need} for ${subject})`);

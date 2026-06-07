@@ -33,7 +33,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
     });
 
     return () => {
-      /* bump id so in-flight renders from a prior step are ignored */
+      requestId.current += 1;
     };
   }, [diagram.content, diagram.type, theme, size]);
 

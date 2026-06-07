@@ -85,7 +85,9 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
           <div className="slm-solution-full-body">
             {solutionParts.map((part, i) => {
               if (i % 2 === 1) {
-                const diagram = solutionDiagrams[Number(part)];
+                const idx = Number(part);
+                if (!Number.isFinite(idx)) return <Fragment key={`d-${i}`} />;
+                const diagram = solutionDiagrams[idx];
                 return diagram ? (
                   <div key={`d-${i}`} className="slm-step-diagram">
                     <span className="slm-step-diagram-label">Diagram</span>

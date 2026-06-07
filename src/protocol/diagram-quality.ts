@@ -111,7 +111,11 @@ export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
       return true;
     }
     if (PURE_ALGEBRA_STEP.test(title) && !TOPOLOGY_STEP_TITLE.test(body)) return false;
-    return true;
+    if (STEP_NEEDS_DIAGRAM_TITLE.test(title)) return true;
+    if (/\b(node [A-Z]\b|nodes? [A-Z](?:,? [A-Z])+|ground|KCL|KVL|superposition|Thevenin|Norton|hybrid|small[- ]signal|BJT|R[_]?in|R[_]?out)\b/i.test(body)) {
+      return true;
+    }
+    return false;
   }
 
   if (TOPOLOGY_STEP_TITLE.test(title)) return true;

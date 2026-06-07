@@ -104,12 +104,19 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
   return classifySubject(question);
 }
 
-/** Subject-specific diagram injection block appended after the EE baseline rules. */
+/** Generic diagram rules for non-EE visual subjects (not circuit-specific). */
+export const GENERAL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on steps that draw, sketch, diagram, or show spatial/chemical/mechanical state.',
+  'Each @diagram shows the state AT THIS STEP only — every named component, bond, load, or label from @body must appear in the SVG.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols.',
+  'Minimum ≥40% of steps carry diagrams on diagram-intensive problems; never text-only SVG.',
+].join('\n');
+
+/** Subject-specific diagram injection block for Gemini prompts. */
 export function getDiagramRequirement(subject: Subject): string {
-  if (subject === 'Chemistry') {
-    return `${STEP_DIAGRAM_REQUIREMENT}\n\n${CHEMISTRY_DIAGRAM_REQUIREMENT}`;
-  }
-  return STEP_DIAGRAM_REQUIREMENT;
+  if (subject === 'Electrical') return STEP_DIAGRAM_REQUIREMENT;
+  if (subject === 'Chemistry') return CHEMISTRY_DIAGRAM_REQUIREMENT;
+  return GENERAL_DIAGRAM_REQUIREMENT;
 }
 
 /** Protocol + one playbook — the contents of the attached .txt file. */
