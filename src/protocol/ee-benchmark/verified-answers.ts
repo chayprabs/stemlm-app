@@ -123,11 +123,12 @@ export const Q11 = (() => {
   return { alpha, w0, wd, t_peak };
 })();
 
-// Q12: Switched RC — C=10uF, V0=8, R1=20k, R2=30k, Vs=15
+// Q12: Switched RC — C=10uF, V0=8, R1=20k, R2=30k, Vs=15 (C parallel R2)
 export const Q12 = (() => {
   const vInf = (15 * 30) / (20 + 30);
-  const tau = 10000e-6 * (20000 * 30000) / 50000;
-  const t12 = -tau * Math.log((12 - vInf) / (8 - vInf));
+  const tau = 10e-6 * ((20000 * 30000) / 50000);
+  // v_C(∞) = 9 V < 12 V — capacitor never crosses 12 V for t > 0
+  const t12 = Number.NaN;
   return { v0: 8, vInf, tau, t12 };
 })();
 
@@ -400,11 +401,11 @@ export const Q40 = (() => {
   return { w0, Q, f3dB };
 })();
 
-// Q41: Schmitt trigger — R1=10k, R2=90k, ±15V
+// Q41: Schmitt trigger — R1=10k, R2=90k, ±15V (non-inverting)
 export const Q41 = (() => {
   const beta = 10000 / 100000;
-  const VUT = 15 * beta + (-15) * (1 - beta);
-  const VLT = -15 * beta + 15 * (1 - beta);
+  const VUT = 15 * (1 - beta) + (-15) * beta;
+  const VLT = 15 * beta + (-15) * (1 - beta);
   return { VUT, VLT, beta };
 })();
 
