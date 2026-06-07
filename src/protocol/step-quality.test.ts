@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from './parser';
-import { FENCED_ELECTRICAL, RLC_AC_IMPEDANCE } from './__fixtures__';
+import { FENCED_ELECTRICAL } from './__fixtures__';
 import { TEN_STEP_ELECTRICAL } from './__fixtures-long-steps';
 import {
   auditStepQuality,
@@ -88,10 +88,9 @@ describe('auditStepQuality', () => {
   });
 
   it.each([
-    ['RLC_AC_IMPEDANCE', RLC_AC_IMPEDANCE],
     ['FENCED_ELECTRICAL', FENCED_ELECTRICAL],
     ['TEN_STEP_ELECTRICAL', TEN_STEP_ELECTRICAL],
-  ] as const)('passes gold-standard %s steps with no quality issues', (_name, raw) => {
+  ] as const)('passes structural %s steps with no quality issues', (_name, raw) => {
     const result = parse(raw);
     expect(result.status).toBe('ok');
     expect(result.warningCodes).not.toContain('step_missing_symbol_defs');

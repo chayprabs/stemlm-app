@@ -26,8 +26,8 @@ const RULES: Rule[] = [
   {
     subject: 'Electrical',
     patterns: [
-      { re: /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm'?s? law|ohm|kirchhoff|kvl|kcl|impedance|reactance|transistor|diode|op-?amp|operational amplifier|thevenin|norton|superposition|dependent source|current source|nodal analysis|mesh (analysis|current)|series and parallel|rc circuit|rl circuit|rlc|logic gate|boolean logic|truth table|flip-?flop|mosfet|bjt\b|amplifier|rectifier|capacitance|inductance|emf\b|label all nodes|hybrid[- ]?π|hybrid[- ]?pi|small[- ]signal|common[- ]emitter|emitter degeneration|voltage gain|bandwidth)\b/i, w: 3 },
-      { re: /\b(electrical|electronics|ampere|amps?\b|watt|signal|frequency|waveform)\b/i, w: 1 },
+      { re: /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm'?s? law|ohm|kirchhoff|kvl|kcl|impedance|reactance|transistor|diode|op-?amp|operational amplifier|thevenin|norton|superposition|dependent source|current source|nodal analysis|mesh (analysis|current)|series and parallel|rc circuit|rl circuit|rlc|logic gate|boolean logic|truth table|flip-?flop|mosfet|bjt\b|amplifier|rectifier|capacitance|inductance|emf\b|label all nodes|hybrid[- ]?π|hybrid[- ]?pi|small[- ]signal|common[- ]emitter|emitter degeneration|voltage gain|bandwidth|phasor|admittance|bode|transfer function|laplace|fourier|z-?transform|s-?domain|ce amplifier|integrator oscillator|power flow|ybus|symmetrical fault|gauss-?seidel|newton-?raphson|per unit|pu\b|slack bus|pv bus|pq bus|wattmeter|power factor|three[- ]phase|line voltage|transformer|induction motor|synchronous machine|pwm|buck converter|boost converter|pid controller|nyquist|bode plot)\b/i, w: 3 },
+      { re: /\b(electrical|electronics|ampere|amps?\b|watt|signal|frequency|waveform|electrical engineering)\b/i, w: 1 },
     ],
   },
   {
