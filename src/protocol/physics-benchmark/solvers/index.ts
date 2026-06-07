@@ -430,6 +430,260 @@ export const verifyQ25: PhysicsVerificationSolver = (input) =>
     expectApprox(ctx, 'heat capacity in J/K', heatCapacityJ, { rel: 0.08, abs: 5e-25 });
   });
 
+export const verifyQ26: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ26();
+    expectApprox(ctx, 'reduced energy x', values.x, { rel: 0.02, abs: 0.02 });
+    expectApprox(ctx, 'Fermi-Dirac occupancy', values.fFD, { rel: 0.03, abs: 5e-4 });
+    expectApprox(ctx, 'Bose-Einstein occupancy', values.fBE, { rel: 0.03, abs: 5e-4 });
+    expectApprox(ctx, 'Maxwell-Boltzmann occupancy', values.fMB, { rel: 0.03, abs: 5e-4 });
+    expectApprox(ctx, 'relative quantum difference', values.delta, { rel: 0.05, abs: 0.005 });
+  });
+
+export const verifyQ27: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ27();
+    expectApprox(ctx, 'angular frequency', values.omega, { rel: 0.02 });
+    expectApprox(ctx, 'centripetal acceleration', values.a, { rel: 0.03 });
+    expectApprox(ctx, 'Larmor power', values.power, { rel: 0.06 });
+    expectApprox(ctx, 'radiated energy per cycle', values.dE, { rel: 0.06 });
+    expectApprox(ctx, 'photon momentum scale', values.pGamma, { rel: 0.08 });
+  });
+
+export const verifyQ28: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ28();
+    expectApprox(ctx, 'retarded-time delay', values.tDelay, { rel: 0.03 });
+    expectApprox(ctx, 'wave number k', values.k, { rel: 0.02, abs: 0.05 });
+    expectApprox(ctx, 'far-zone E amplitude', values.e0, { rel: 0.05 });
+    expectApprox(ctx, 'far-zone B amplitude', values.b0, { rel: 0.05 });
+    expectApprox(ctx, 'average Poynting flux', values.sAvg, { rel: 0.08 });
+  });
+
+export const verifyQ29: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ29();
+    expectApprox(ctx, 'Lorentz gamma', values.gamma, { rel: 0.02, abs: 0.003 });
+    expectApprox(ctx, 'lab-frame energy', values.energy, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'lab-frame pc', values.pc, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'mass-shell invariant', values.invariant, { rel: 0.04, abs: 0.004 });
+    expectApprox(ctx, 'boosted-frame energy', values.ePrime, { rel: 0.04, abs: 0.006 });
+  });
+
+export const verifyQ30: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ30();
+    expectApprox(ctx, 'CG coefficient sqrt(2/3)', values.cgA, { rel: 0.02, abs: 0.003 });
+    expectApprox(ctx, 'CG coefficient sqrt(1/3)', values.cgB, { rel: 0.02, abs: 0.003 });
+    expectApprox(ctx, 'probability weight 2/3', values.pA, { rel: 0.02, abs: 0.003 });
+    expectApprox(ctx, 'probability weight 1/3', values.pB, { rel: 0.02, abs: 0.003 });
+    expectApprox(ctx, 'orthogonality dot product', values.orth, { rel: 0.02, abs: 0.003 });
+  });
+
+export const verifyQ31: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ31();
+    expectApprox(ctx, 'optimal variational alpha', values.alphaStar, { rel: 0.03 });
+    expectApprox(ctx, 'trial energy in eV', values.eTrialEv, { rel: 0.05, abs: 0.1 });
+    expectApprox(ctx, 'minimum energy in joules', values.eMinJ, { rel: 0.05 });
+    expectApprox(ctx, 'minimum energy in eV', values.eMinEv, { rel: 0.04, abs: 0.1 });
+    expectApprox(ctx, 'optimization improvement', Math.abs(values.gainEv), { rel: 0.3, abs: 0.05 });
+  });
+
+export const verifyQ32: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ32();
+    expectApprox(ctx, 'well ground energy E1', values.e1Ev, { rel: 0.03, abs: 0.01 });
+    expectApprox(ctx, 'well first excited energy E2', values.e2Ev, { rel: 0.03, abs: 0.02 });
+    expectApprox(ctx, 'boson two-particle energy', values.eBoson, { rel: 0.03, abs: 0.02 });
+    expectApprox(ctx, 'fermion two-particle energy', values.eFermion, { rel: 0.03, abs: 0.03 });
+    expectApprox(ctx, 'boson-fermion energy gap', values.deltaEv, { rel: 0.04, abs: 0.03 });
+  });
+
+export const verifyQ33: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ33();
+    expectApprox(ctx, 'perturbation matrix element', values.vfi, { rel: 0.05 });
+    expectApprox(ctx, 'Fermi-golden-rule transition rate', values.rate, { rel: 0.08 });
+    expectApprox(ctx, 'transition lifetime', values.tau, { rel: 0.08 });
+    expectApprox(ctx, 'photon momentum emission scale', values.pGamma, { rel: 0.08 });
+  });
+
+export const verifyQ34: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ34();
+    expectApprox(ctx, 'critical temperature Tc', values.tc, { rel: 0.03, abs: 1.0 });
+    expectApprox(ctx, 'reduced exchange A', values.a, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'reduced field h', values.h, { rel: 0.05 });
+    expectApprox(ctx, 'linearized magnetization m', values.m, { rel: 0.05 });
+    expectApprox(ctx, 'per-spin field energy', values.fieldEnergy, { rel: 0.08 });
+  });
+
+export const verifyQ35: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ35();
+    expectApprox(ctx, 'equipartition thermal energy U', values.u, { rel: 0.03 });
+    expectApprox(ctx, 'per-particle thermal energy', values.uPerParticle, { rel: 0.03 });
+    expectApprox(ctx, 'rms speed', values.vRms, { rel: 0.03 });
+    expectApprox(ctx, 'rms momentum', values.pRms, { rel: 0.04 });
+    expectApprox(ctx, 'virial potential average', values.vAvg, { rel: 0.03 });
+    expectApprox(ctx, 'virial total energy', values.eTotal, { rel: 0.03 });
+  });
+
+export const verifyQ36: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ36();
+    expectApprox(ctx, 'reciprocal lattice constant a*', values.aStar * 1e-9, { rel: 0.03, abs: 0.2 });
+    expectApprox(ctx, '|G111| in nm^-1', values.g111 * 1e-9, { rel: 0.03, abs: 0.2 });
+    expectApprox(ctx, '|G200| in nm^-1', values.g200 * 1e-9, { rel: 0.03, abs: 0.2 });
+    expectApprox(ctx, 'd111 spacing in nm', values.d111Nm, { rel: 0.03, abs: 0.002 });
+    expectApprox(ctx, 'd200 spacing in nm', values.d200Nm, { rel: 0.03, abs: 0.002 });
+  });
+
+export const verifyQ37: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ37();
+    expectApprox(ctx, 'Fermi wave vector', values.kF, { rel: 0.03 });
+    expectApprox(ctx, 'Fermi energy in eV', values.eFEv, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'Fermi velocity', values.vF, { rel: 0.03 });
+    expectApprox(ctx, 'DOS at EF in eV^-1 m^-3', values.gEv, { rel: 0.06 });
+    expectApprox(ctx, 'kT/EF degeneracy ratio', values.ratio, { rel: 0.08, abs: 2e-4 });
+  });
+
+export const verifyQ38: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ38();
+    expectApprox(ctx, 'zone-boundary wave number', values.kBz, { rel: 0.03 });
+    expectApprox(ctx, 'zone-boundary free-electron energy', values.e0Ev, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'lower split branch energy', values.eMinus, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'upper split branch energy', values.ePlus, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'band gap', values.gap, { rel: 0.02, abs: 0.01 });
+  });
+
+export const verifyQ39: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ39();
+    expectApprox(ctx, 'volume term', values.bv, { rel: 0.02, abs: 0.5 });
+    expectApprox(ctx, 'surface term', values.bs, { rel: 0.03, abs: 0.5 });
+    expectApprox(ctx, 'Coulomb term', values.bc, { rel: 0.03, abs: 0.5 });
+    expectApprox(ctx, 'total binding energy MeV', values.bMeV, { rel: 0.03, abs: 0.7 });
+    expectApprox(ctx, 'binding energy per nucleon', values.bPerA, { rel: 0.03, abs: 0.05 });
+  });
+
+export const verifyQ40: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ40();
+    expectApprox(ctx, 'parent population NA', values.nA, { rel: 0.03 });
+    expectApprox(ctx, 'daughter population NB', values.nB, { rel: 0.03 });
+    expectApprox(ctx, 'stable product population NC', values.nC, { rel: 0.03 });
+    expectApprox(ctx, 'activity of parent in Bq', values.aA_bq, { rel: 0.03, abs: 0.2 });
+    expectApprox(ctx, 'activity of daughter in Bq', values.aB_bq, { rel: 0.03, abs: 0.2 });
+  });
+
+export const verifyQ41: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ41();
+    expectApprox(ctx, 'Michelson fringe shift count', values.fringes, { rel: 0.03, abs: 0.02 });
+    expectApprox(ctx, 'phase shift', values.phaseShift, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'Fabry-Perot FSR', values.fsr, { rel: 0.03 });
+    expectApprox(ctx, 'Fabry-Perot finesse', values.finesse, { rel: 0.04, abs: 0.2 });
+    expectApprox(ctx, 'Fabry-Perot linewidth', values.linewidth, { rel: 0.04 });
+  });
+
+export const verifyQ42: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ42();
+    expectApprox(ctx, 'first-order grating position', values.y1 * 100, { rel: 0.04, abs: 0.1 });
+    expectApprox(ctx, 'first diffraction minimum', values.yMin1 * 100, { rel: 0.04, abs: 0.1 });
+    expectApprox(ctx, 'missing-order rule ratio d/a', values.missingSpacing, { rel: 0.02, abs: 0.02 });
+    expectApprox(ctx, 'visible central orders', values.centralVisibleOrders, { rel: 0.02, abs: 0.1 });
+  });
+
+export const verifyQ43: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ43();
+    expectApprox(ctx, 'laser photon energy in eV', values.photonEnergyEv, { rel: 0.03, abs: 0.02 });
+    expectApprox(ctx, 'three-level threshold fraction', values.fracThree * 100, { rel: 0.03, abs: 0.5 });
+    expectApprox(ctx, 'four-level threshold fraction', values.fracFour * 100, { rel: 0.04, abs: 0.05 });
+    expectApprox(ctx, 'three-vs-four threshold ratio', values.fractionRatio, { rel: 0.04, abs: 1.0 });
+    expectApprox(ctx, 'slope-efficiency output power', values.pOut, { rel: 0.03, abs: 0.05 });
+  });
+
+export const verifyQ44: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ44();
+    expectApprox(ctx, 'Green function value G(x,x0)', values.g, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'potential at x=0.60 m', values.phi, { rel: 0.03, abs: 0.3 });
+    expectApprox(ctx, 'left electric field branch', values.eLeft, { rel: 0.03, abs: 1.0 });
+    expectApprox(ctx, 'right electric field branch', values.eRight, { rel: 0.03, abs: 1.0 });
+    expectApprox(ctx, 'field jump across source', values.jump, { rel: 0.03, abs: 1.5 });
+  });
+
+export const verifyQ45: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ45();
+    expectApprox(ctx, 'first stress invariant I1', values.i1, { rel: 0.02, abs: 0.5 });
+    expectApprox(ctx, 'second stress invariant I2', values.i2, { rel: 0.02, abs: 2.0 });
+    expectApprox(ctx, 'major principal stress', values.lambda1, { rel: 0.03, abs: 0.6 });
+    expectApprox(ctx, 'minor principal stress', values.lambda2, { rel: 0.03, abs: 0.6 });
+    expectApprox(ctx, 'principal-axis angle', values.thetaDeg, { rel: 0.03, abs: 0.4 });
+    expectApprox(ctx, 'equivalent stress', values.sigmaEq, { rel: 0.03, abs: 0.6 });
+  });
+
+export const verifyQ46: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ46();
+    expectApprox(ctx, 'propagator magnitude', values.kMag, { rel: 0.04 });
+    expectApprox(ctx, 'path-integral phase', values.phi, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'classical action', values.sClassical, { rel: 0.04 });
+    expectApprox(ctx, 'effective classical velocity', values.vClassical, { rel: 0.03 });
+    expectApprox(ctx, 'effective kinetic energy in eV', values.eClassicalEv, { rel: 0.04, abs: 0.05 });
+  });
+
+export const verifyQ47: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ47();
+    expectApprox(ctx, 'pipe average velocity', values.v, { rel: 0.03, abs: 0.02 });
+    expectApprox(ctx, 'Reynolds number', values.reynolds, { rel: 0.04 });
+    expectApprox(ctx, 'friction head loss', values.hLoss, { rel: 0.04, abs: 0.01 });
+    expectApprox(ctx, 'pressure drop', values.deltaP, { rel: 0.04, abs: 50 });
+    expectApprox(ctx, 'wall shear stress', values.tauW, { rel: 0.05, abs: 0.2 });
+    expectApprox(ctx, 'pump power requirement', values.pumpPower, { rel: 0.04, abs: 0.2 });
+  });
+
+export const verifyQ48: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ48();
+    expectApprox(ctx, 'initial dx/dt', values.dxdt, { rel: 0.02, abs: 0.02 });
+    expectApprox(ctx, 'initial dy/dt', values.dydt, { rel: 0.02, abs: 0.05 });
+    expectApprox(ctx, 'initial dz/dt', values.dzdt, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'nontrivial fixed-point amplitude', values.eq, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'phase-space divergence', values.divergence, { rel: 0.03, abs: 0.1 });
+    expectApprox(ctx, 'Lyapunov doubling time', values.tDouble, { rel: 0.05, abs: 0.03 });
+  });
+
+export const verifyQ49: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ49();
+    expectApprox(ctx, 'Schwarzschild radius in km', values.rsKm, { rel: 0.02, abs: 0.2 });
+    expectApprox(ctx, 'ISCO radius in km', values.rIscoKm, { rel: 0.02, abs: 0.3 });
+    expectApprox(ctx, 'photon sphere radius in km', values.rPhotonKm, { rel: 0.02, abs: 0.2 });
+    expectApprox(ctx, 'ISCO speed as fraction of c', values.vFracC, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'gravitational redshift', values.z, { rel: 0.03, abs: 0.005 });
+    expectApprox(ctx, 'weak-field deflection angle (rad)', values.alphaRad, { rel: 0.04, abs: 0.01 });
+  });
+
+export const verifyQ50: PhysicsVerificationSolver = (input) =>
+  withSolverContext(input, (ctx) => {
+    const { values } = solveQ50();
+    expectApprox(ctx, 'Wien peak wavelength', values.lambdaMax, { rel: 0.03 });
+    expectApprox(ctx, 'peak photon energy in eV', values.photonEnergyEv, { rel: 0.03, abs: 0.03 });
+    expectApprox(ctx, 'Planck exponent x at 500nm', values.x, { rel: 0.03, abs: 0.05 });
+    expectApprox(ctx, 'Planck radiance B_lambda', values.bLambda, { rel: 0.08 });
+    expectApprox(ctx, 'Stefan-Boltzmann flux', values.flux, { rel: 0.04 });
+    expectApprox(ctx, 'blackbody luminosity', values.luminosity, { rel: 0.04 });
+  });
+
 export const PHYSICS_BENCHMARK_SOLVERS: PhysicsVerificationSolver[] = [
   verifyQ01,
   verifyQ02,
@@ -456,6 +710,31 @@ export const PHYSICS_BENCHMARK_SOLVERS: PhysicsVerificationSolver[] = [
   verifyQ23,
   verifyQ24,
   verifyQ25,
+  verifyQ26,
+  verifyQ27,
+  verifyQ28,
+  verifyQ29,
+  verifyQ30,
+  verifyQ31,
+  verifyQ32,
+  verifyQ33,
+  verifyQ34,
+  verifyQ35,
+  verifyQ36,
+  verifyQ37,
+  verifyQ38,
+  verifyQ39,
+  verifyQ40,
+  verifyQ41,
+  verifyQ42,
+  verifyQ43,
+  verifyQ44,
+  verifyQ45,
+  verifyQ46,
+  verifyQ47,
+  verifyQ48,
+  verifyQ49,
+  verifyQ50,
 ];
 
 export default PHYSICS_BENCHMARK_SOLVERS;
