@@ -1,4 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('./mermaid', () => ({
+  renderMermaid: vi.fn(
+    async () =>
+      '<svg viewBox="0 0 100 60"><style>.node{fill:#fff}</style><rect width="40" height="20" style="fill:#eee;stroke:#333"/></svg>',
+  ),
+}));
+
 import { normalizeDiagramSource, resolveDiagramSvg } from './resolve-diagram';
 
 describe('normalizeDiagramSource', () => {

@@ -1,4 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@/src/lib/mermaid', () => ({
+  renderMermaid: vi.fn(
+    async () =>
+      '<svg viewBox="0 0 100 60"><rect width="40" height="20" style="fill:#eee;stroke:#333"/></svg>',
+  ),
+}));
+
 import { parse, parseCapsule } from './parser';
 import {
   THEVENIN_ELECTRICAL,
