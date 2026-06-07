@@ -8,6 +8,7 @@ import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import type { Capsule, ParseWarningCode, Step, Subject } from './types';
 
 const VISUAL_SUBJECTS = new Set<Subject>([
+  'Chemistry',
   'Electrical',
   'Physics',
   'Mechanical',
@@ -16,6 +17,9 @@ const VISUAL_SUBJECTS = new Set<Subject>([
   'Biology',
   'Math',
 ]);
+
+const CHEMISTRY_VISUAL_QUESTION =
+  /\b(draw|sketch|diagram|spectrum|orbital|energy level|molecular orbital|mo diagram|lewis|structure|conformation|newman|fischer|mechanism|energy profile|ice table|phase diagram|unit cell|lattice|spectroscop|nmr|ir\b|uv-?vis|titration curve|cell diagram|born-?haber|vsepr|hybrid)\b/i;
 
 const CIRCUIT_QUESTION =
   /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm|kirchhoff|kvl|kcl|thevenin|norton|superposition|mesh|branch|ground|dependent source|current source|label all nodes|consider the circuit|bjt|transistor|amplifier|hybrid|small[- ]signal|op-?amp|mosfet|common[- ]emitter|degeneration)\b/i;
@@ -86,6 +90,9 @@ export function isVisualDenseProblem(capsule: Capsule): boolean {
   if (subject === 'Mechanical' && /\b(free[- ]body|stress|shaft|gear|pulley)\b/i.test(text)) {
     return true;
   }
+  if (subject === 'Chemistry' && CHEMISTRY_VISUAL_QUESTION.test(text)) {
+    return true;
+  }
   return false;
 }
 
@@ -104,7 +111,11 @@ export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
       return true;
     }
     if (PURE_ALGEBRA_STEP.test(title) && !TOPOLOGY_STEP_TITLE.test(body)) return false;
-    return true;
+    if (STEP_NEEDS_DIAGRAM_TITLE.test(title)) return true;
+    if (/\b(node [A-Z]\b|nodes? [A-Z](?:,? [A-Z])+|ground|KCL|KVL|superposition|Thevenin|Norton|hybrid|small[- ]signal|BJT|R[_]?in|R[_]?out)\b/i.test(body)) {
+      return true;
+    }
+    return false;
   }
 
   if (TOPOLOGY_STEP_TITLE.test(title)) return true;

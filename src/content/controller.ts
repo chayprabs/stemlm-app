@@ -12,6 +12,8 @@ import {
   buildInjectionPayload,
   buildInjectionPrompt,
   buildFollowupAskInChatPrompt,
+  buildFollowupPayload,
+  FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
   PROTOCOL_FILENAME,
 } from '@/src/protocol/builder';
@@ -63,6 +65,8 @@ export class StemController {
   private capturedRaw = new Set<string>();
   private static readonly CAPTURED_RAW_MAX = 100;
   private lastQuestion = '';
+  /** True while waiting for a dig-deeper / ask follow-up answer (never replace the prior session). */
+  private pendingFollowUpCapture = false;
   private watching = false;
 
   // Answer-started detection (used to open the panel only once the assistant
@@ -174,14 +178,23 @@ export class StemController {
     }
 
     const variant = useStore.getState().settings.promptVariant;
-    const prompt = buildFollowupAskInChatPrompt({
+    const followOpt = {
       selection: normalized,
       stepTitle,
       subject,
       variant,
       intent: opt?.intent,
-    });
-    const ok = await this.insertVerifiedPrompt(prompt);
+    };
+    const payload = buildFollowupPayload(followOpt);
+    const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
+    let ok: boolean;
+    if (attached.ok) {
+      ok = await this.insertVerifiedPrompt(`${FOLLOWUP_QUESTION_SLOT}${payload.composerText}`, 'replace', {
+        fileAttach: true,
+      });
+    } else {
+      ok = await this.insertVerifiedPrompt(buildFollowupAskInChatPrompt(followOpt));
+    }
 
     if (!ok) {
       useStore
@@ -195,6 +208,7 @@ export class StemController {
 
     this.adapter.focusComposerQuestionSlot();
     this.lastQuestion = normalized;
+    this.pendingFollowUpCapture = true;
     useStore.getState().setButtonInjected(true);
     useStore.getState().setStatus('loading');
     this.armAnswerDetection();
@@ -445,10 +459,11 @@ export class StemController {
       topic;
     const last = store.sessions[store.sessions.length - 1];
     const shouldReplace =
+      !this.pendingFollowUpCapture &&
       last &&
       store.activeSessionId === last.id &&
       last.platform === this.adapter.id &&
-      (cleanSessionQuestion(last.question) === cleanedQuestion || last.capsule.meta.topic === topic);
+      cleanSessionQuestion(last.question) === cleanedQuestion;
 
     const newStepIds = new Set(result.capsule.steps.map((s) => s.id));
     const session: Session = {
@@ -473,6 +488,7 @@ export class StemController {
     } else {
       store.addSession(session);
     }
+    this.pendingFollowUpCapture = false;
     this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,

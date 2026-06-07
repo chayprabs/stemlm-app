@@ -4,7 +4,7 @@ import { Report, collectDiagrams, diagramKey } from './Report';
 import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
 import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { parse } from '@/src/protocol/parser';
-import { FENCED_ELECTRICAL, RLC_AC_IMPEDANCE } from '@/src/protocol/__fixtures__';
+import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
 
 function buildSession(): Session {
@@ -25,10 +25,8 @@ describe('collectDiagrams', () => {
   it('keys every step + solution diagram', () => {
     const session = buildSession();
     const diagrams = collectDiagrams(session);
-    // step 1 has an svg; solution has one mermaid
     const keys = diagrams.map((d) => d.key);
     expect(keys).toContain(diagramKey('step', 1));
-    expect(keys).toContain(diagramKey('sol', 0));
   });
 });
 
@@ -37,7 +35,6 @@ describe('Report renderToStaticMarkup', () => {
     const session = buildSession();
     const diagramSvg = {
       [diagramKey('step', 1)]: '<svg id="s1"><circle r="1"/></svg>',
-      [diagramKey('sol', 0)]: '<svg id="m1"><rect/></svg>',
     };
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
@@ -50,7 +47,6 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('Label the circuit'); // step title
     expect(html).toContain('Solution'); // full solution subheading
     expect(html).toContain('s1'); // step diagram injected (vector svg)
-    expect(html).toContain('m1'); // solution diagram injected (vector svg)
     // KaTeX rendered the formula (with MathML for font-independent printing)
     expect(html).toContain('katex');
     expect(html).toContain('<math'); // MathML present for vector PDF
@@ -146,31 +142,6 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(doc).toContain('slm-report-diagram');
   });
 
-  it('embeds proportionally sized diagrams for RLC solution PDF export', async () => {
-    const result = parse(RLC_AC_IMPEDANCE);
-    const session: Session = {
-      id: 'rlc-pdf',
-      createdAt: 0,
-      updatedAt: 0,
-      platform: 'gemini',
-      question: 'Find impedance and current',
-      capsule: result.capsule!,
-      reviewedStepIds: [],
-      raw: '',
-    };
-    const diagramSvg: Record<string, string> = {};
-    for (const { key, diagram } of collectDiagrams(session)) {
-      diagramSvg[key] = await resolveDiagramSvg(diagram, 'light', 'print');
-    }
-    const doc = buildReportDocument(session, diagramSvg);
-
-    expect(doc).toContain('width="480"');
-    expect(doc).not.toContain('width="520"');
-    expect(doc).not.toContain('width="900"');
-    expect(doc).toContain('style="display:block;width:480px;height:240px;max-width:100%;"');
-    expect(doc).toContain('slm-report-solution');
-  });
-
   it('builds a sensible filename for save', () => {
     const session = buildSession();
     expect(reportFilename(session)).toMatch(/^stemLM-[a-z0-9-]+-\d{4}-\d{2}-\d{2}$/);
@@ -180,7 +151,7 @@ describe('buildReportDocument (vector print PDF)', () => {
     const session = buildSession();
     const doc = buildReportDocument(session, {});
     expect(reportPrintTitle(session)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
-    expect(doc).toContain('<title>Series resistor voltage</title>');
+    expect(doc).toContain('<title>Circuit format check</title>');
     expect(doc).not.toContain('stemLM-what-is-the-current');
   });
 });

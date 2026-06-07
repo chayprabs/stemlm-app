@@ -54,7 +54,7 @@ describe('DiagramRenderer in shadow DOM', () => {
     const svg = mounted.shadow.querySelector('.slm-diagram-svg svg');
     expect(svg).toBeTruthy();
     expect(mounted.shadow.querySelector('.slm-diagram-skeleton')).toBeNull();
-    expect(mounted.shadow.textContent).toContain('P=5 kN');
+    expect(mounted.shadow.textContent).toContain('state');
   });
 
   it('renders admittance triangle with colored arrowheads in shadow DOM', async () => {

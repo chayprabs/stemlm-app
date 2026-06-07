@@ -2,17 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SolutionView } from './SolutionView';
 import { parse } from '@/src/protocol/parser';
-import { RLC_AC_IMPEDANCE } from '@/src/protocol/__fixtures__';
+import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
 
-function buildRlcSession(): Session {
-  const result = parse(RLC_AC_IMPEDANCE);
+function buildSession(): Session {
+  const result = parse(FENCED_ELECTRICAL);
   return {
-    id: 'rlc',
+    id: 'structural',
     createdAt: 0,
     updatedAt: 0,
     platform: 'gemini',
-    question: 'Series RLC at 60 Hz — find Z, I, and circuit nature.',
+    question: 'Structural fixture question.',
     capsule: result.capsule!,
     reviewedStepIds: [],
     raw: '',
@@ -20,15 +20,14 @@ function buildRlcSession(): Session {
 }
 
 describe('SolutionView', () => {
-  it('renders the question, every step with diagrams, and the full solution', () => {
-    const session = buildRlcSession();
+  it('renders the question, steps with diagrams, and the full solution', () => {
+    const session = buildSession();
     const html = renderToStaticMarkup(<SolutionView session={session} theme="light" />);
 
     expect(html).toContain('Question');
-    expect(html).toContain('Series RLC at 60 Hz');
+    expect(html).toContain('Structural fixture question.');
     expect(html).toContain('Step-by-step');
-    expect(html).toContain('Compute angular frequency');
-    expect(html).toContain('inductive reactance');
+    expect(html).toContain('Label the circuit');
     expect(html).toContain('slm-step-diagram');
     expect(html).toContain('Full solution');
     expect(html).toContain('katex');

@@ -286,8 +286,31 @@ describe('StemController.followUp', () => {
     expect(ok).toBe(true);
     expect(adapter.editorText).toMatch(/^Ask your question here:/);
     expect(adapter.editorText).toContain('> Why is total resistance R1 + R2 here?');
-    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.editorText).toContain('stemLM follow-up context');
     expect(focused).toBe(true);
+    c.stopWatching();
+  });
+
+  it('adds a new session for follow-up answers instead of replacing the original', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    const originalId = useStore.getState().sessions[0]!.id;
+    c.stopWatching();
+
+    await c.followUp('Why is R1 + R2 here?', 'Series resistors', 'Electrical');
+    const followUpCapsule = CAPSULE_BODY.replace('Circuit format check', 'Follow-up explanation');
+    adapter.capsules = [followUpCapsule];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]!.id).toBe(originalId);
     c.stopWatching();
   });
 });
