@@ -301,6 +301,306 @@ export const BIOLOGY_PROMPTS: BiologyPromptDef[] = [
     "number": 50,
     "topic": "Biocius comprehensivus: Integrated Quantitative Biology Synthesis",
     "question": "In an integrative biology scenario (Biocius comprehensivus), calculate guanine count for a 500 Mb genome at 40% GC, identify key eukaryotic autotroph organelles, solve a Hardy-Weinberg bioluminescence case with 80 of 420 recessive individuals, compute lake energy flow from 100000 kcal, and explain allopatric speciation."
+  },
+  {
+    "id": "q51",
+    "number": 51,
+    "topic": "Epithelial Tissue Types, Junctions, and Barrier Functions",
+    "question": "In histology, compare simple and stratified epithelia (squamous, cuboidal, columnar), diagram tight junctions, desmosomes, and gap junctions, and explain how epithelial polarity supports absorption and secretion in organs."
+  },
+  {
+    "id": "q52",
+    "number": 52,
+    "topic": "Connective Tissue Matrix, Cartilage, and Bone Remodeling",
+    "question": "In connective tissue biology, compare collagen and elastic fibers, classify cartilage types, diagram osteon structure in compact bone, and explain how osteoblasts and osteoclasts regulate bone remodeling."
+  },
+  {
+    "id": "q53",
+    "number": 53,
+    "topic": "Muscle Tissue: Skeletal, Cardiac, and Smooth Contraction",
+    "question": "In muscle physiology, compare skeletal, cardiac, and smooth muscle at the cellular level, diagram the sarcomere and sliding filament model, and explain how Ca2+ and ATP couple excitation to contraction."
+  },
+  {
+    "id": "q54",
+    "number": 54,
+    "topic": "Nervous Tissue, Glia, and Myelin Sheath Formation",
+    "question": "In neurohistology, distinguish neurons from astrocytes, oligodendrocytes, Schwann cells, and microglia, explain myelin formation in CNS versus PNS, and interpret how demyelination alters conduction velocity."
+  },
+  {
+    "id": "q55",
+    "number": 55,
+    "topic": "Nephron Structure, Filtration, and Urine Formation",
+    "question": "In renal physiology, label nephron regions (glomerulus, PCT, loop of Henle, DCT, collecting duct), trace filtrate through filtration, reabsorption, and secretion, and calculate GFR from given inulin clearance data."
+  },
+  {
+    "id": "q56",
+    "number": 56,
+    "topic": "Renin-Angiotensin-Aldosterone System and Blood Pressure",
+    "question": "In cardiovascular-renal integration, diagram the renin-angiotensin-aldosterone system (RAAS), explain how low blood pressure triggers angiotensin II effects, and predict aldosterone actions on sodium and water balance."
+  },
+  {
+    "id": "q57",
+    "number": 57,
+    "topic": "ADH, Osmoregulation, and Kidney Concentrating Ability",
+    "question": "In osmoregulation, explain antidiuretic hormone (ADH) release from the posterior pituitary, interpret aquaporin insertion in collecting duct cells, and predict urine osmolarity changes during dehydration."
+  },
+  {
+    "id": "q58",
+    "number": 58,
+    "topic": "Skeletal System, Joint Types, and Lever Mechanics",
+    "question": "In skeletal biology, classify synovial joint types, diagram a hinge joint with ligaments and cartilage, and apply lever mechanics to a biceps curl with given force and distance values."
+  },
+  {
+    "id": "q59",
+    "number": 59,
+    "topic": "Integumentary System: Skin Layers and Thermoregulation",
+    "question": "In integumentary biology, label epidermis, dermis, and hypodermis layers, explain melanocyte function, and describe vasodilation, vasoconstriction, and sweating in thermoregulation."
+  },
+  {
+    "id": "q60",
+    "number": 60,
+    "topic": "Endocrine Glands: Thyroid, Parathyroid, and Adrenal Axes",
+    "question": "In endocrinology, compare thyroid hormone synthesis and feedback, explain parathyroid hormone effects on blood calcium, and diagram adrenal cortex zones with glucocorticoid and mineralocorticoid roles."
+  },
+  {
+    "id": "q61",
+    "number": 61,
+    "topic": "Menstrual Cycle Hormones and Ovarian/Uterine Events",
+    "question": "In reproductive endocrinology, map FSH, LH, estrogen, and progesterone across the menstrual cycle, correlate hormone peaks with follicular development and endometrial changes, and explain negative feedback control."
+  },
+  {
+    "id": "q62",
+    "number": 62,
+    "topic": "Spermatogenesis, Oogenesis, and Gamete Maturation",
+    "question": "In gametogenesis, compare spermatogenesis and oogenesis timelines, diagram meiotic arrest points in oogenesis, and calculate chromosome number at each stage for 2n=46 human cells."
+  },
+  {
+    "id": "q63",
+    "number": 63,
+    "topic": "Placental Exchange, Fetal Circulation, and Parturition",
+    "question": "In developmental physiology, explain placental nutrient and gas exchange, diagram fetal circulation including foramen ovale and ductus arteriosus, and outline hormonal triggers of parturition."
+  },
+  {
+    "id": "q64",
+    "number": 64,
+    "topic": "Lymphatic System, Immune Surveillance, and Edema",
+    "question": "In lymphatic biology, trace lymph from interstitial fluid to venous return, explain lymph node filtering of pathogens, and relate blocked lymphatic drainage to edema formation."
+  },
+  {
+    "id": "q65",
+    "number": 65,
+    "topic": "ABO and Rh Blood Groups with Transfusion Compatibility",
+    "question": "In hematology, explain ABO antigen and antibody rules, interpret Rh incompatibility in pregnancy, and determine compatible donor units for a patient with given blood type."
+  },
+  {
+    "id": "q66",
+    "number": 66,
+    "topic": "Hemostasis, Coagulation Cascade, and Clot Resolution",
+    "question": "In hemostasis biology, diagram platelet plug formation, outline intrinsic and extrinsic coagulation pathways to fibrin, and explain how plasmin dissolves clots during wound repair."
+  },
+  {
+    "id": "q67",
+    "number": 67,
+    "topic": "Anemia Types, Hemoglobin, and Oxygen-Carrying Capacity",
+    "question": "In clinical physiology, distinguish iron-deficiency, pernicious, and sickle-cell anemia mechanisms, calculate oxygen carrying capacity from hemoglobin concentration, and interpret oxyhemoglobin dissociation shifts."
+  },
+  {
+    "id": "q68",
+    "number": 68,
+    "topic": "Asthma Pathophysiology and Ventilation-Perfusion Mismatch",
+    "question": "In respiratory disease biology, explain bronchoconstriction and inflammation in asthma, interpret spirometry changes (FEV1, FVC), and describe ventilation-perfusion mismatch during an acute attack."
+  },
+  {
+    "id": "q69",
+    "number": 69,
+    "topic": "Dialysis Principles, GFR Estimation, and Renal Failure",
+    "question": "In nephrology, compare hemodialysis and peritoneal dialysis principles, estimate GFR from creatinine clearance, and explain how chronic kidney disease disrupts electrolyte and acid-base homeostasis."
+  },
+  {
+    "id": "q70",
+    "number": 70,
+    "topic": "Photosynthetic Electron Transport and Proton Motive Force",
+    "question": "In photosynthesis biochemistry, diagram Z-scheme electron transport through PSII and PSI, quantify ATP and NADPH output per absorbed photon cycle, and relate proton gradient to chemiosmotic ATP synthesis in chloroplasts."
+  },
+  {
+    "id": "q71",
+    "number": 71,
+    "topic": "C4 Photosynthesis: Kranz Anatomy and CO2 Concentration",
+    "question": "In plant physiology, diagram Kranz anatomy in C4 leaves, explain mesophyll and bundle-sheath roles in concentrating CO2, and compare photosynthetic efficiency of C4 versus C3 plants in hot climates."
+  },
+  {
+    "id": "q72",
+    "number": 72,
+    "topic": "CAM Pathway, Succulent Adaptation, and Stomatal Timing",
+    "question": "In CAM plant biology, explain temporal separation of CO2 uptake and Calvin cycle, diagram nightly malate storage in vacuoles, and relate stomatal opening patterns to water conservation in succulents."
+  },
+  {
+    "id": "q73",
+    "number": 73,
+    "topic": "Xylem and Phloem Structure with Long-Distance Transport",
+    "question": "In vascular plant anatomy, compare xylem vessel elements and tracheids, explain cohesion-tension theory for water ascent, and describe pressure-flow model of phloem translocation."
+  },
+  {
+    "id": "q74",
+    "number": 74,
+    "topic": "Stomatal Regulation, Transpiration, and Water Use Efficiency",
+    "question": "In plant water relations, diagram guard cell turgor control by K+ flux, calculate transpiration rate from given leaf area and water loss, and explain abscisic acid effects during drought."
+  },
+  {
+    "id": "q75",
+    "number": 75,
+    "topic": "Plant Hormones: Auxin, Gibberellin, Cytokinin, and Ethylene",
+    "question": "In plant signaling, compare auxin, gibberellin, cytokinin, and ethylene effects on growth, explain apical dominance and fruit ripening, and interpret a hormone experiment with quantitative shoot elongation data."
+  },
+  {
+    "id": "q76",
+    "number": 76,
+    "topic": "Photoperiodism, Flowering Loci, and Circadian Control",
+    "question": "In plant developmental biology, distinguish short-day, long-day, and day-neutral plants, explain phytochrome role in night-length sensing, and diagram florigen concept in flowering induction."
+  },
+  {
+    "id": "q77",
+    "number": 77,
+    "topic": "Seed Germination, Dormancy, and Reserve Mobilization",
+    "question": "In seed biology, explain dormancy breaking by gibberellin and water imbibition, diagram amylase activation in germinating barley seeds, and track reserve mobilization to support early seedling growth."
+  },
+  {
+    "id": "q78",
+    "number": 78,
+    "topic": "Fungal Hyphae, Reproductive Structures, and Ecological Roles",
+    "question": "In mycology, compare septate and coenocytic hyphae, diagram basidiomycete mushroom life cycle, and evaluate fungal roles as decomposers, pathogens, and mutualists."
+  },
+  {
+    "id": "q79",
+    "number": 79,
+    "topic": "Protist Diversity, Locomotion, and Disease Examples",
+    "question": "In protist biology, classify major protist groups by nutrition and locomotion, diagram Amoeba pseudopodia and Paramecium cilia, and relate Plasmodium life cycle stages to malaria pathogenesis."
+  },
+  {
+    "id": "q80",
+    "number": 80,
+    "topic": "Eutrophication, Algal Blooms, and Dead Zones",
+    "question": "In aquatic ecology, explain how nitrogen and phosphorus runoff triggers algal blooms, diagram dissolved oxygen collapse and fish kills, and propose watershed management to reduce eutrophication."
+  },
+  {
+    "id": "q81",
+    "number": 81,
+    "topic": "Wetland Ecology, Methane Flux, and Carbon Storage",
+    "question": "In wetland biology, compare marsh, swamp, and bog ecosystems, explain anaerobic decomposition and methane production, and estimate carbon storage benefits of wetland conservation."
+  },
+  {
+    "id": "q82",
+    "number": 82,
+    "topic": "Coral Bleaching, Zooxanthellae Symbiosis, and Reef Resilience",
+    "question": "In marine biology, explain coral-zooxanthellae mutualism, interpret sea-surface temperature stress leading to bleaching, and evaluate reef recovery versus collapse scenarios."
+  },
+  {
+    "id": "q83",
+    "number": 83,
+    "topic": "Invasive Species Dynamics and Biotic Resistance",
+    "question": "In invasion ecology, analyze logistic spread of an introduced species with given r and K, explain enemy release and niche opportunity hypotheses, and design biosecurity measures for early detection."
+  },
+  {
+    "id": "q84",
+    "number": 84,
+    "topic": "Conservation Genetics and Minimum Viable Population",
+    "question": "In conservation biology, calculate effective population size from census data and sex ratio, explain inbreeding depression and genetic drift risks, and estimate minimum viable population for a threatened mammal."
+  },
+  {
+    "id": "q85",
+    "number": 85,
+    "topic": "Epigenetics, DNA Methylation, and Histone Modification",
+    "question": "In epigenetics, explain how DNA methylation silences genes, compare euchromatin and heterochromatin states, and interpret how environmental cues can produce heritable expression changes without DNA sequence alteration."
+  },
+  {
+    "id": "q86",
+    "number": 86,
+    "topic": "RNA Interference, miRNA, and siRNA Gene Silencing",
+    "question": "In RNA biology, diagram miRNA and siRNA pathways leading to mRNA degradation or translational block, compare RISC complex function, and propose an RNAi experiment to knock down a target gene."
+  },
+  {
+    "id": "q87",
+    "number": 87,
+    "topic": "Western Blot, ELISA, and Antibody-Based Detection",
+    "question": "In molecular diagnostics, explain SDS-PAGE and Western blot antibody detection, compare direct versus indirect ELISA formats, and interpret quantitative ELISA standard curve data."
+  },
+  {
+    "id": "q88",
+    "number": 88,
+    "topic": "Mass Spectrometry Proteomics and Protein Identification",
+    "question": "In proteomics, outline tandem mass spectrometry (MS/MS) peptide identification, explain how spectral libraries match fragment ions, and interpret a simple protein coverage result from a cell lysate."
+  },
+  {
+    "id": "q89",
+    "number": 89,
+    "topic": "Flow Cytometry, Cell Sorting, and Fluorescent Markers",
+    "question": "In cell biology technology, explain how flow cytometry measures scatter and fluorescence, interpret a two-marker dot plot separating lymphocyte subsets, and describe how FACS sorts live cells."
+  },
+  {
+    "id": "q90",
+    "number": 90,
+    "topic": "Light and Electron Microscopy, Resolution, and Staining",
+    "question": "In microscopy, compare bright-field, fluorescence, and electron microscopy resolution limits, explain why SEM versus TEM differ in sample preparation, and interpret how Gram stain differentiates bacterial cell walls."
+  },
+  {
+    "id": "q91",
+    "number": 91,
+    "topic": "Induced Pluripotent Stem Cells and Regenerative Medicine Ethics",
+    "question": "In stem cell biology, explain how Yamanaka factors reprogram somatic cells to iPSCs, compare embryonic versus induced pluripotent stem cell applications, and discuss ethical constraints in human trials."
+  },
+  {
+    "id": "q92",
+    "number": 92,
+    "topic": "Gene Therapy Vectors: AAV, Lentivirus, and Delivery Challenges",
+    "question": "In gene therapy, compare adeno-associated virus (AAV) and lentiviral vector properties, explain tissue tropism and immune clearance, and evaluate ex vivo versus in vivo delivery for a monogenic disorder."
+  },
+  {
+    "id": "q93",
+    "number": 93,
+    "topic": "Pharmacogenomics, CYP450 Variants, and Drug Metabolism",
+    "question": "In pharmacogenomics, explain how CYP450 enzyme polymorphisms alter drug clearance, interpret poor-metabolizer versus ultra-rapid metabolizer phenotypes, and predict warfarin dosing implications from genotype."
+  },
+  {
+    "id": "q94",
+    "number": 94,
+    "topic": "Antibiotic Mechanisms and Resistance Evolution",
+    "question": "In antimicrobial biology, compare beta-lactam, aminoglycoside, and fluoroquinolone targets, explain horizontal gene transfer of resistance cassettes, and model selection for resistant clones in a hospital outbreak."
+  },
+  {
+    "id": "q95",
+    "number": 95,
+    "topic": "Biofilms, Quorum Sensing, and Chronic Infections",
+    "question": "In microbial ecology, diagram biofilm matrix formation on surfaces, explain quorum sensing signal accumulation, and relate biofilm persistence to antibiotic tolerance in chronic wound infections."
+  },
+  {
+    "id": "q96",
+    "number": 96,
+    "topic": "Gut Microbiome, Dysbiosis, and Host Metabolism",
+    "question": "In microbiome biology, explain how gut commensals aid vitamin synthesis and fiber fermentation, interpret dysbiosis links to inflammation, and outline how diet shifts microbial community composition."
+  },
+  {
+    "id": "q97",
+    "number": 97,
+    "topic": "Prions, Protein Misfolding, and Neurodegeneration",
+    "question": "In molecular pathology, explain prion protein conformational conversion, contrast infectious prion hypothesis with seeded misfolding models, and relate prion-like spread to other neurodegenerative diseases."
+  },
+  {
+    "id": "q98",
+    "number": 98,
+    "topic": "Synthetic Biology Circuits and Genetic Logic Gates",
+    "question": "In synthetic biology, design a two-input genetic AND gate using regulated promoters, explain feedback loops in oscillatory circuits, and discuss biosafety containment for engineered microbes."
+  },
+  {
+    "id": "q99",
+    "number": 99,
+    "topic": "Metabolomics, Pathway Flux, and Stable Isotope Tracing",
+    "question": "In systems biology, interpret a metabolomics heatmap of glycolysis and TCA intermediates, explain 13C isotope tracing through pyruvate, and calculate flux redistribution under hypoxic culture conditions."
+  },
+  {
+    "id": "q100",
+    "number": 100,
+    "topic": "Biocius comprehensivus II: Advanced Integrative Biology Synthesis",
+    "question": "In an advanced integrative biology scenario (Biocius comprehensivus II), estimate effective population size for 120 breeding adults with unequal sex ratio, calculate dialysis clearance from given urea data, interpret a flow-cytometry lymphocyte plot, predict RAAS response to 90/60 mmHg blood pressure, and explain coral bleaching recovery thresholds."
   }
 ] as BiologyPromptDef[];
 

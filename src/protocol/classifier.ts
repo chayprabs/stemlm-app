@@ -40,7 +40,14 @@ const RULES: Rule[] = [
   {
     subject: 'Biology',
     patterns: [
-      { re: /\b(cell|cellular|dna|rna|mrna|trna|protein|amino acid|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|gene|genetic|allele|genotype|phenotype|chromosome|organism|ecosystem|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit|dominant|recessive|evolution|natural selection|neuron|synapse|hormone|homeostasis|bacteria|virus|antibody|immune|tissue|organ|nucleus|ribosome|mitochondri|chloroplast|endosymbios|replication fork|telomerase|calvin cycle|mendelian|genetics|crassulacean|microbiology|gram[- ]stain|binary fission|antibiotic resistance|bacterial growth|peptidoglycan)\b/i, w: 3 },
+      {
+        re: /\b(cells?|prokaryot\w*|eukaryot\w*|cellular|dna|rna|mrna|trna|protein|amino acids?|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|genes?|genetic|alleles?|genotypes?|phenotypes?|chromosomes?|organisms?|ecosystems?|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit|dominant|recessive|evolution|natural selection|neurons?|synapse|hormones?|homeostasis|bacteria|viruses?|antibod(?:y|ies)|immune|tissues?|organs?|nucleus|ribosomes?|mitochondria?|chloroplasts?|endosymbios\w*|replication fork|telomerase|calvin cycle|mendelian|genetics|crassulacean|microbiology|gram[- ]stain|binary fission|antibiotic resistance|bacterial growth|peptidoglycan)\b/i,
+        w: 3,
+      },
+      {
+        re: /\b(histology|epithelial|connective tissue|cartilage|osteoblast|osteoclast|sarcomere|myelin|nephron|renal|kidney|glomerulus|dialysis|gfr\b|raas|angiotensin|aldosterone|adh\b|aquaporin|cardiac|ecg|respiratory|spirometry|fev1|fvc|hemoglobin|anemia|asthma|hemostasis|coagulation|lymphatic|placenta|menstrual|spermatogenesis|oogenesis|fertilisation|fertilization|embryogenesis|blastocyst|gastrulation|phylogen\w*|gel electrophoresis|western blot|elisa\b|flow cytometry|pcr\b|rt-pcr|sanger sequencing|sequence alignment|blast\b|hardy-?weinberg|lac operon|hpa axis|dicot|apoplast|symplast|xylem|phloem|stomatal|transpiration|photoperiodism|germination|kranz|cam plant|eutrophication|wetland|coral|zooxanthellae|microbiome|biofilm|quorum sensing|prion|epigenet\w*|histone|methylation|ipsc|gene therapy|pharmacogenomics|cyp450|oncogenes?|tumor suppressor|biomes?|biodiversity|shannon|inbreeding|effective population|mycology|hyphae|protist|plasmodium|malaria|histolog\w*|integumentary|immunolog\w*|virolog\w*|ecolog\w+|physiolog\w+)\b/i,
+        w: 3,
+      },
       { re: /\b(michaelis[- ]menten|vmax|\bkm\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
       { re: /\benzyme\b.*\b(activation energy|\bea\b|Δg|delta g)\b|\b(activation energy|\bea\b)\b.*\benzyme\b/i, w: 4 },
       { re: /\bactivation energy\b/i, w: 2 },
@@ -106,12 +113,43 @@ export function classifySubject(question: string): Subject {
       /\b(physical chemistry|quantum chemistry|statistical thermodynamics|chemical kinetics|reaction engineering|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|schottky|hammett|bronsted|lipinski|ferrocene|born[- ]haber|grignard|titration|stoichiometr)\b/i.test(
         text,
       )) &&
-    !/\b(chemical engineering|mass balance on|distillation column|control volume balance|mixer stream|kg\/h|wt%|blackbody|planck|stefan|maxwell[- ]boltzmann|nuclear physics|radioactive decay|binding energy per nucleon)\b/i.test(
+    !/\b(chemical engineering|mass balance on|distillation column|control volume balance|mixer stream|kg\/h|wt%|blackbody|planck|stefan|maxwell[- ]boltzmann|nuclear physics|radioactive decay|binding energy per nucleon|photosynthesis|chloroplast|calvin cycle|z-?scheme|psii|psi\b|chemiosmotic|cellular respiration|glycolysis|krebs cycle|enzyme kinetic|michaelis)\b/i.test(
       text,
     )
   ) {
     return 'Chemistry';
   }
+
+  const CHEMISTRY_EXAM_OVERRIDE =
+    /\b(physical chemistry|quantum chemistry|reaction engineering|born[- ]haber|grignard|stoichiometr|titration curve|electroanalytical|colloid|dlvo|langmuir isotherm|huckel|ab initio|hartree[- ]fock)\b/i;
+
+  if (
+    !CHEMISTRY_EXAM_OVERRIDE.test(text) &&
+    (/\b(biology|physiology|ecology|histology|immunology|virology|genetics|embryogenesis|gametogenesis|microbiome|epigenetics|proteomics|pharmacogenomics|nephron|phylogenetic|gel electrophoresis|western blot|elisa\b|flow cytometry|hardy-?weinberg|punnett|mendel|lac operon|calvin cycle|krebs|glycolysis|endosymbios\w*|homeostasis|speciation|allopatric|crispr|reverse transcriptase|telomerase|sanger sequencing|mrna vaccine|herd immunity|mhc\b|clonal selection|biofilm|quorum sensing|prions?|zooxanthellae|eutrophication|kranz anatomy|cam plant|xylem|phloem|stomatal|photoperiodism|dicot root|hpa axis|prokaryot\w*|eukaryot\w*|mitochondria|chloroplasts?)\b/i.test(
+      text,
+    ) ||
+      /^In (an integrative biology|an advanced integrative biology|histology|renal physiology|cardiovascular biology|respiratory physiology|human digestive biology|synaptic neurobiology|population ecology|community ecology|ecosystem ecology|evolutionary biology|evolutionary speciation biology|microbiology|virology|immunology|adaptive immunity|molecular genetics|gene regulation|molecular biology|genome engineering|cell signalling biology|developmental biology|neurobiology|reproductive biology|plant physiology|seed biology|mycology|protist biology|aquatic ecology|wetland biology|marine biology|invasion ecology|conservation biology|epigenetics|RNA biology|molecular diagnostics|proteomics|cell biology technology|microscopy|stem cell biology|gene therapy|pharmacogenomics|antimicrobial biology|microbial ecology|microbiome biology|molecular pathology|synthetic biology|systems biology|cardiovascular-renal integration|nephrology|hematology|clinical physiology|endocrinology|reproductive endocrinology|gametogenesis|developmental physiology|lymphatic biology|muscle physiology|neurohistology|osmoregulation|photosynthesis biochemistry|plant water relations|plant developmental biology|plant signaling|vascular plant anatomy|CAM plant biology|integumentary biology|connective tissue biology|skeletal biology|hemostasis biology|ecology and biogeography|cancer biology)\b/i.test(
+        text,
+      ) ||
+      /^Using (enzyme kinetic|evolutionary biology|community ecology|population genetics)/i.test(text) ||
+      /^For (population genetics|pea traits)/i.test(text) ||
+      /^Explain (the central dogma|chloroplast|Sanger sequencing|the fluid mosaic|how DNA methylation|miRNA|SDS-PAGE)/i.test(
+        text,
+      ) ||
+      /^Compare (prokaryotic|simple and stratified|skeletal, cardiac|nervous and endocrine)/i.test(text) ||
+      /^Differentiate (global and local)/i.test(text) ||
+      /^Describe (PCR|Sanger|how gut commensals|how CYP450|how DNA methylation|innate immunity)/i.test(
+        text,
+      ) ||
+      /^Construct a (macromolecule|five-species)/i.test(text) ||
+      /^Draw (the aerobic|a replication|the cell-cycle|a reflex)/i.test(text) ||
+      /^Classify (mutation types|common vaccine)/i.test(text) ||
+      /^Map FSH/i.test(text) ||
+      /^Interpret a dicot root/i.test(text))
+  ) {
+    return 'Biology';
+  }
+
   const scores = new Map<Subject, number>();
 
   for (const rule of RULES) {

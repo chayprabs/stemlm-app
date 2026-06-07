@@ -97,6 +97,6 @@ describe('biology AI pipeline (structural verification)', () => {
   it('exam prompts are biology topics that require Gemini-generated diagrams', () => {
     expect(BIOLOGY_PROMPTS.every((p) => p.topic.length > 3)).toBe(true);
     const explicitDraw = BIOLOGY_PROMPTS.filter((p) => /\b(draw|diagram|label|sketch)\b/i.test(p.question));
-    expect(explicitDraw.length).toBeGreaterThanOrEqual(8);
+    expect(explicitDraw.length).toBeGreaterThanOrEqual(16);
   });
 });
