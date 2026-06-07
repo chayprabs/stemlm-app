@@ -33,7 +33,7 @@ const RULES: Rule[] = [
   {
     subject: 'Chemistry',
     patterns: [
-      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr|isomer|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|lyman|balmer|paschen|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|galvanic|daniell|haber process|grignard|alkali metal|lanthanide|actinide|pericyclic|retrosynth|polymeris|polymeriz|enzyme|biochem|porphyrin|cobalamin|vitamin b)\b/i, w: 3 },
+      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr|isomer|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|lyman|balmer|paschen|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|electroanalytical|cyclic voltammogram|randles[- ]sevcik|nyquist|grignard|alkali metal|lanthanide|lanthanide contraction|actinide|pericyclic|retrosynth|polymeris|polymeriz|biochem|porphyrin|cobalamin|vitamin b|nucleophilic substitution|\bsn1\b|\bsn2\b|elimination mechanism|\be1\b|\be2\b|zaitsev|stereoisomer|enantiomer|colloid|dlvo|double layer|cmc|surfactant|photovoltaic|solar cell|perovskite|mapbi3|p[- ]n junction|nuclear chemistr|nuclide|fission|binding energy|reaction engineering|residence time distribution|\brtd\b|hammett|bronsted|lipinski|aspirin|penicillin|heterocyclic|sharpless|fischer indole|schottky|point group|character table|ferrocene|sulfonamide|medicinal chemistry)\b/i, w: 3 },
       { re: /\b(h2o|co2|nacl|hcl|naoh|nh3|h2so4|ch4|\\ce|solution|solute|solvent|salt|gas\b)\b/i, w: 2 },
     ],
   },
@@ -97,6 +97,13 @@ const PRIORITY: Subject[] = [
 
 export function classifySubject(question: string): Subject {
   const text = question || '';
+  if (
+    /\b(chem\w*|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|reaction engineering|pfr|cstr|rtd|huckel|ab initio|boltzmann|partition function|schottky|hammett|bronsted|lipinski|ferrocene|fission|nuclide|nuclear)\b/i.test(
+      text,
+    )
+  ) {
+    return 'Chemistry';
+  }
   const scores = new Map<Subject, number>();
 
   for (const rule of RULES) {
