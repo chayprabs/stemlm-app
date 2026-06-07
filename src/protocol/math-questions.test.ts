@@ -4,10 +4,8 @@ import { verifyMathQuestion } from './math-verify';
 import { classifySubject } from './classifier';
 
 describe('mathematics question bank', () => {
-  it('has 50 questions when complete', () => {
-    // Incrementally grows as questions are added
-    expect(MATH_QUESTIONS.length).toBeGreaterThanOrEqual(1);
-    expect(MATH_QUESTIONS.length).toBeLessThanOrEqual(50);
+  it('has all 50 mathematics benchmark questions', () => {
+    expect(MATH_QUESTIONS.length).toBe(50);
   });
 
   it('questions are numbered uniquely without gaps in loaded set', () => {

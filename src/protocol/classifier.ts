@@ -66,7 +66,7 @@ const RULES: Rule[] = [
   {
     subject: 'Physics',
     patterns: [
-      { re: /\b(free[- ]body|projectile|kinematics?|newton'?s (first|second|third)? ?law|electric field|magnetic field|coulomb|gauss'?s? law|momentum|impulse|kinetic energy|potential energy|conservation of energy|refraction|reflection|snell'?s? law|lens|mirror|diffraction|interference|relativity|quantum|photon|wavelength|frequency|terminal velocity|incline(d plane)?|tension|normal force|centripetal|angular velocity|simple harmonic|pendulum)\b/i, w: 3 },
+      { re: /\b(free[- ]body|projectile|kinematics?|newton'?s (first|second|third)? ?law|electric field|magnetic field|coulomb|gauss'?s? law|momentum|impulse|kinetic energy|potential energy|conservation of energy|refraction|reflection|snell'?s? law|lens|mirror|diffraction|interference|relativity|quantum|photon|wavelength|frequency|terminal velocity|incline(d plane)?|tension|normal force|centripetal|angular velocity|simple harmonic|pendulum|bethe|weizsaecker|weizsacker|binding energy per nucleon|nuclear physics|radioactive decay|blackbody|planck|stefan[- ]boltzmann|maxwell[- ]boltzmann)\b/i, w: 3 },
       { re: /\b(force|velocity|acceleration|energy|work|power|gravity|gravitational|mass\b|wave|optics?|joule|newton|friction|displacement|speed|distance|motion)\b/i, w: 1 },
     ],
   },
@@ -99,6 +99,18 @@ const PRIORITY: Subject[] = [
 
 export function classifySubject(question: string): Subject {
   const text = question || '';
+  // Chemistry-bank phrasing: "… chemistry:" topic lines and named chem subfields.
+  if (
+    (/\b([a-z][\w -]{0,48}chemistry|chem\w+)\b/i.test(text) ||
+      /\b(physical chemistry|quantum chemistry|statistical thermodynamics|chemical kinetics|reaction engineering|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|schottky|hammett|bronsted|lipinski|ferrocene|born[- ]haber|grignard|titration|stoichiometr)\b/i.test(
+        text,
+      )) &&
+    !/\b(chemical engineering|mass balance on|distillation column|control volume balance|mixer stream|kg\/h|wt%|blackbody|planck|stefan|maxwell[- ]boltzmann|nuclear physics|radioactive decay|binding energy per nucleon)\b/i.test(
+      text,
+    )
+  ) {
+    return 'Chemistry';
+  }
   const scores = new Map<Subject, number>();
 
   for (const rule of RULES) {
