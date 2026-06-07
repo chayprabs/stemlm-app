@@ -100,6 +100,13 @@ const PRIORITY: Subject[] = [
 
 export function classifySubject(question: string): Subject {
   const text = question || '';
+  if (
+    /\b(laplace transforms?|inverse laplace|sturm[- ]liouville|frobenius|variation of parameters|gram[- ]schmidt|maclaurin|taylor series|l.?hopital|eigen(value|vector)|singular value|quadratic form|chinese remainder|mobius|residue theorem|cauchy integral|fourier series|runge[- ]kutta|gauss[- ]legendre|newton[- ]raphson method|bisection method|numerical analysis|damped wave equation|heat equation|wave equation|laplace equation|markov chain|confidence interval|z[- ]test|gamma distribution|orthogonal diagonal)\b/i.test(
+      text,
+    )
+  ) {
+    return 'Math';
+  }
   // Chemistry-bank phrasing: "… chemistry:" topic lines and named chem subfields.
   if (
     (/\b([a-z][\w -]{0,48}chemistry)\b/i.test(text) ||

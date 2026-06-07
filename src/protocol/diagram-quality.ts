@@ -21,6 +21,9 @@ const VISUAL_SUBJECTS = new Set<Subject>([
 const CHEMISTRY_VISUAL_QUESTION =
   /\b(draw|sketch|diagram|spectrum|orbital|energy level|molecular orbital|mo diagram|lewis|structure|conformation|newman|fischer|mechanism|energy profile|ice table|phase diagram|unit cell|lattice|spectroscop|nmr|ir\b|uv-?vis|titration curve|cell diagram|born-?haber|vsepr|hybrid)\b/i;
 
+const MATH_VISUAL_QUESTION =
+  /\b(graph|sketch|plot|figure|number line|coordinate|level curve|contour|phase (?:plane|portrait)|vector field|geometry|triangle|circle|region|shade|eigenvector|basis|disk|paraboloid|polar)\b/i;
+
 const CIRCUIT_QUESTION =
   /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm|kirchhoff|kvl|kcl|thevenin|norton|superposition|mesh|branch|ground|dependent source|current source|label all nodes|consider the circuit|bjt|transistor|amplifier|hybrid|small[- ]signal|op-?amp|mosfet|common[- ]emitter|degeneration)\b/i;
 
@@ -91,6 +94,9 @@ export function isVisualDenseProblem(capsule: Capsule): boolean {
     return true;
   }
   if (subject === 'Chemistry' && CHEMISTRY_VISUAL_QUESTION.test(text)) {
+    return true;
+  }
+  if (subject === 'Math' && MATH_VISUAL_QUESTION.test(text)) {
     return true;
   }
   return false;
