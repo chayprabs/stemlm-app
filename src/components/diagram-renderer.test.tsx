@@ -57,6 +57,35 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(mounted.shadow.textContent).toContain('P=5 kN');
   });
 
+  it('renders admittance triangle with colored arrowheads in shadow DOM', async () => {
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 320 220"><defs>' +
+        '<marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12">' +
+        '<path d="M0,0 L12,6 L0,12 L4,6 Z" fill="#000"/></marker></defs>' +
+        '<line x1="40" y1="160" x2="200" y2="160" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>' +
+        '<text x="100" y="150" fill="#3b82f6">G = 0.05</text>' +
+        '<line x1="40" y1="160" x2="200" y2="60" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow)"/>' +
+        '<text x="90" y="100" fill="#16a34a">Y_total</text>' +
+        '</svg>',
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="light" />);
+    host = mounted.host;
+    root = mounted.root;
+
+    await flushDiagram();
+
+    const svgHtml = mounted.shadow.querySelector('.slm-diagram-svg')?.innerHTML ?? '';
+    expect(svgHtml).toContain('G = 0.05');
+    expect(svgHtml).toContain('Y_total');
+    expect(svgHtml).not.toContain('userSpaceOnUse');
+    expect(svgHtml).not.toContain('fill="#000"');
+    expect(svgHtml).toContain('fill="#3b82f6"');
+    expect(svgHtml).toContain('fill="#16a34a"');
+    expect(svgHtml).not.toContain('<path ');
+  });
+
   it('does not leave an eternal skeleton for SVG diagrams', async () => {
     const parsed = parseCapsule(MECHANICAL_AXIAL_STRESS_BAR);
     const diagram = parsed.capsule!.steps[1]!.diagram!;

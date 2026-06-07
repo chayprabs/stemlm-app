@@ -49,7 +49,7 @@ describe('presentSvg', () => {
       '<text x="120" y="100" fill="blue">|Z| = 12.61 Ω</text>' +
       '</svg>';
     const out = presentSvg(raw, 'dark');
-    expect(out).toContain('fill="#e2e8f0"');
+    expect(out).toContain('fill="#cbd5e1"');
     expect(out).toContain('stroke="#cbd5e1"');
     expect(out).toContain('fill="#60a5fa"');
     expect(out).not.toContain('fill="black"');
@@ -128,6 +128,73 @@ describe('presentSvg', () => {
     expect(idA).not.toBe(idB);
     expect(a).toContain(`marker-end="url(#${idA})"`);
     expect(b).toContain(`marker-end="url(#${idB})"`);
+  });
+
+  const BAD_ADMITTANCE_TRIANGLE =
+    '<svg viewBox="0 0 320 220" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+    '<marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse">' +
+    '<polygon points="0,0 10,5 0,10 3,5" fill="black"/></marker>' +
+    '<marker id="arrow2" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">' +
+    '<path d="M0,0 L12,6 L0,12 L4,6 Z" fill="#000"/></marker>' +
+    '</defs>' +
+    '<line x1="40" y1="160" x2="200" y2="160" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>' +
+    '<text x="100" y="150" fill="#3b82f6" font-size="12">G = 0.05</text>' +
+    '<line x1="200" y1="160" x2="200" y2="60" stroke="#ffa500" stroke-width="2" marker-end="url(#arrow)"/>' +
+    '<text x="210" y="110" fill="#ffa500" font-size="12">j0.025</text>' +
+    '<line x1="40" y1="160" x2="200" y2="60" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow2)"/>' +
+    '<text x="90" y="100" fill="#16a34a" font-size="12">Y_total</text>' +
+    '</svg>';
+
+  it('fixes admittance triangle arrowheads for extension light theme', () => {
+    const out = presentSvg(BAD_ADMITTANCE_TRIANGLE, 'light');
+    expect(out).not.toContain('userSpaceOnUse');
+    expect(out).not.toContain('fill="black"');
+    expect(out).not.toContain('fill="#000"');
+    expect(out).not.toContain('<path d="M0,0 L12,6');
+    expect(out).toContain('markerUnits="strokeWidth"');
+    expect(out).toContain('fill="#3b82f6"');
+    expect(out).toContain('fill="#ffa500"');
+    expect(out).toContain('fill="#16a34a"');
+    expect(out).toContain('points="0,0 6,3 0,6"');
+    expect(out).toContain('G = 0.05');
+    expect(out).toContain('Y_total');
+  });
+
+  it('fixes admittance triangle arrowheads for PDF print profile', () => {
+    const out = presentSvg(BAD_ADMITTANCE_TRIANGLE, 'light', 'print');
+    expect(out).toContain('width="153"');
+    expect(out).not.toContain('userSpaceOnUse');
+    expect(out).toContain('fill="#16a34a"');
+    expect(out).not.toContain('<path ');
+  });
+
+  it('keeps marker fill matched to themed neutral stroke after serialize', () => {
+    const raw =
+      '<svg viewBox="0 0 120 60">' +
+      '<defs><marker id="arw" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">' +
+      '<polygon points="0,0 6,3 0,6" fill="black"/></marker></defs>' +
+      '<line x1="10" y1="30" x2="100" y2="30" stroke="#333" stroke-width="2" marker-end="url(#arw)"/>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).toContain('stroke="#cbd5e1"');
+    const markerFill = out.match(/<marker[\s\S]*?<polygon[^>]*fill="([^"]+)"/)?.[1];
+    expect(markerFill).toBe('#cbd5e1');
+    expect(out).not.toContain('fill="#e2e8f0"');
+  });
+
+  it('converts path-based markers to triangle polygons', () => {
+    const raw =
+      '<svg viewBox="0 0 120 60">' +
+      '<defs><marker id="p" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12">' +
+      '<path d="M0,0 L12,6 L0,12 L4,6 Z" fill="#000"/></marker></defs>' +
+      '<line x1="10" y1="30" x2="100" y2="30" stroke="#3b82f6" stroke-width="2" marker-end="url(#p)"/>' +
+      '</svg>';
+    const out = presentSvg(raw, 'light');
+    expect(out).not.toContain('<path ');
+    expect(out).toContain('points="0,0 6,3 0,6"');
+    expect(out).toContain('fill="#3b82f6"');
+    expect(out).toContain('markerUnits="strokeWidth"');
   });
 
   it('normalizes star-like marker polygons to a triangle arrowhead', () => {

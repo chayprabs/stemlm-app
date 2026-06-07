@@ -169,27 +169,12 @@ function mapColor(color: string, theme: ResolvedTheme, kind: 'stroke' | 'fill'):
   return color;
 }
 
-function retintColorAttributes(svg: string, theme: ResolvedTheme): string {
-  return svg.replace(/\b(stroke|fill)\s*=\s*"([^"]+)"/gi, (match, attr: string, color: string) => {
-    const raw = normColor(color);
-    if (!raw) return match;
-    const mapped = mapColor(raw, theme, attr === 'stroke' ? 'stroke' : 'fill');
-    return mapped === raw ? match : `${attr}="${mapped}"`;
-  });
-}
-
-function retintAccentAttributes(svg: string, theme: ResolvedTheme): string {
-  const accents = themeAccentMap(theme);
-  let out = svg;
-  for (const [from, to] of Object.entries(accents)) {
-    const re = new RegExp(`\\b(stroke|fill)\\s*=\\s*"${from.replace('#', '#')}"`, 'gi');
-    out = out.replace(re, `$1="${to}"`);
-  }
-  return out;
-}
-
 const MARKER_REF_ATTRS = ['marker-end', 'marker-start', 'marker-mid'] as const;
 const DEFAULT_ARROW_POINTS = '0,0 6,3 0,6';
+const DEFAULT_MARKER_WIDTH = '6';
+const DEFAULT_MARKER_HEIGHT = '6';
+const DEFAULT_MARKER_REF_X = '6';
+const DEFAULT_MARKER_REF_Y = '3';
 
 function generateIdPrefix(): string {
   return `slm${Math.random().toString(36).slice(2, 9)}`;
@@ -240,21 +225,45 @@ function findById(root: Element, id: string): Element | null {
   return root.querySelector(`[id="${CSS.escape(id)}"]`);
 }
 
-function normalizeMarkerShape(marker: Element): void {
-  let shape = marker.querySelector('polygon, path');
-  if (shape?.tagName.toLowerCase() === 'polygon') {
-    const pts = shape.getAttribute('points')?.trim() ?? '';
-    const pointPairs = pts.split(/\s+/).filter(Boolean);
-    if (pointPairs.length !== 3) shape.setAttribute('points', DEFAULT_ARROW_POINTS);
-  } else if (!shape) {
-    shape = marker.ownerDocument!.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    shape.setAttribute('points', DEFAULT_ARROW_POINTS);
-    marker.appendChild(shape);
+function isTrianglePolygon(points: string): boolean {
+  const pairs = points.trim().split(/\s+/).filter(Boolean);
+  return pairs.length === 3;
+}
+
+function replaceMarkerShape(marker: Element): SVGPolygonElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const existing = marker.querySelector('polygon, path');
+  const poly = marker.ownerDocument!.createElementNS(ns, 'polygon');
+  poly.setAttribute('points', DEFAULT_ARROW_POINTS);
+  if (existing) {
+    const fill = existing.getAttribute('fill');
+    if (fill) poly.setAttribute('fill', fill);
+    existing.replaceWith(poly);
+  } else {
+    marker.appendChild(poly);
   }
-  if (!marker.getAttribute('markerUnits')) marker.setAttribute('markerUnits', 'strokeWidth');
+  return poly;
+}
+
+/** Force compact stroke-scaled arrowheads; models often emit userSpace stars/diamonds. */
+function normalizeMarkerShape(marker: Element): void {
+  marker.setAttribute('markerUnits', 'strokeWidth');
+  marker.setAttribute('markerWidth', DEFAULT_MARKER_WIDTH);
+  marker.setAttribute('markerHeight', DEFAULT_MARKER_HEIGHT);
+  marker.setAttribute('refX', DEFAULT_MARKER_REF_X);
+  marker.setAttribute('refY', DEFAULT_MARKER_REF_Y);
   if (!marker.getAttribute('orient')) marker.setAttribute('orient', 'auto');
-  if (!marker.getAttribute('refX')) marker.setAttribute('refX', '6');
-  if (!marker.getAttribute('refY')) marker.setAttribute('refY', '3');
+
+  const shape = marker.querySelector('polygon, path');
+  if (!shape) {
+    replaceMarkerShape(marker);
+    return;
+  }
+
+  const tag = shape.tagName.toLowerCase();
+  if (tag === 'path' || (tag === 'polygon' && !isTrianglePolygon(shape.getAttribute('points') ?? ''))) {
+    replaceMarkerShape(marker);
+  }
 }
 
 /** Match arrowhead fills to line strokes; clone markers when one id serves multiple colors. */
@@ -323,10 +332,15 @@ function syncMarkerFills(root: Element): void {
   }
 }
 
+function isInsideMarker(el: Element): boolean {
+  return Boolean(el.closest('marker'));
+}
+
 function themeSvgTree(root: Element, theme: ResolvedTheme): void {
   const textTags = new Set(['text', 'tspan']);
 
   for (const el of root.querySelectorAll('*')) {
+    if (isInsideMarker(el)) continue;
     const tag = el.tagName.toLowerCase();
     const isText = textTags.has(tag);
 
@@ -345,6 +359,7 @@ function themeSvgTree(root: Element, theme: ResolvedTheme): void {
   }
 
   for (const el of root.querySelectorAll('line, polyline, path, rect, circle, ellipse')) {
+    if (isInsideMarker(el)) continue;
     if (!normColor(el.getAttribute('stroke'))) {
       el.setAttribute('stroke', themeNeutralStroke(theme));
     }
@@ -404,7 +419,5 @@ export function presentSvg(
   syncMarkerFills(root);
 
   let out = new XMLSerializer().serializeToString(root);
-  out = retintAccentAttributes(out, theme);
-  out = retintColorAttributes(out, theme);
   return decodeTextNodes(out);
 }

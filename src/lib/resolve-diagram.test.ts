@@ -29,6 +29,29 @@ describe('resolveDiagramSvg', () => {
     expect(svg).toContain('height="20"');
   });
 
+  it('normalizes admittance triangle markers through the full resolve path', async () => {
+    const svg = await resolveDiagramSvg(
+      {
+        type: 'svg',
+        content:
+          '<svg viewBox="0 0 320 220"><defs>' +
+          '<marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10">' +
+          '<polygon points="0,0 10,5 0,10 3,5" fill="black"/></marker></defs>' +
+          '<line x1="40" y1="160" x2="200" y2="160" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>' +
+          '<line x1="200" y1="160" x2="200" y2="60" stroke="#ffa500" stroke-width="2" marker-end="url(#arrow)"/>' +
+          '<line x1="40" y1="160" x2="200" y2="60" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow)"/>' +
+          '</svg>',
+      },
+      'light',
+      'step',
+    );
+    expect(svg).not.toContain('userSpaceOnUse');
+    expect(svg).not.toContain('fill="black"');
+    expect(svg).toContain('fill="#3b82f6"');
+    expect(svg).toContain('fill="#ffa500"');
+    expect(svg).toContain('fill="#16a34a"');
+  });
+
   it('uses print profile bounds for PDF export', async () => {
     const svg = await resolveDiagramSvg(
       {

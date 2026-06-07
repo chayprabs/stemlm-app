@@ -84,6 +84,7 @@ export function sanitizeSvg(svg: string): string {
       'refY',
       'markerWidth',
       'markerHeight',
+      'markerUnits',
     ],
     FORBID_TAGS: ['script', 'style', 'foreignObject', 'image'],
   });

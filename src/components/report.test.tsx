@@ -101,6 +101,50 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(printStyles()).toContain('max-height:28mm');
   });
 
+  it('embeds admittance triangle with normalized markers for PDF export', async () => {
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 320 220"><defs>' +
+        '<marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12">' +
+        '<path d="M0,0 L12,6 L0,12 L4,6 Z" fill="#000"/></marker></defs>' +
+        '<line x1="40" y1="160" x2="200" y2="160" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)"/>' +
+        '<line x1="200" y1="160" x2="200" y2="60" stroke="#ffa500" stroke-width="2" marker-end="url(#arrow)"/>' +
+        '<line x1="40" y1="160" x2="200" y2="60" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow)"/>' +
+        '</svg>',
+    };
+    const svg = await resolveDiagramSvg(diagram, 'light', 'print');
+    const session: Session = {
+      id: 'adm-pdf',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Parallel RLC admittance',
+      capsule: {
+        meta: { version: 1, subject: 'Electrical', topic: 'Admittance' },
+        steps: [
+          {
+            index: 1,
+            title: 'Combine components to find total admittance',
+            body: '',
+            diagram,
+          },
+        ],
+        solution: 'Y_total',
+        solutionDiagrams: [],
+      },
+      reviewedStepIds: [],
+      raw: '',
+    };
+    const doc = buildReportDocument(session, { [diagramKey('step', 1)]: svg });
+    expect(doc).not.toContain('userSpaceOnUse');
+    expect(doc).not.toContain('fill="#000"');
+    expect(doc).toContain('fill="#3b82f6"');
+    expect(doc).toContain('fill="#ffa500"');
+    expect(doc).toContain('fill="#16a34a"');
+    expect(doc).toContain('slm-report-diagram');
+  });
+
   it('embeds proportionally sized diagrams for RLC solution PDF export', async () => {
     const result = parse(RLC_AC_IMPEDANCE);
     const session: Session = {
