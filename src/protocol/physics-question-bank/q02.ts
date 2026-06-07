@@ -23,7 +23,7 @@ export const Q02: PhysicsQuestionDef = {
       title: 'Integrate to find the potential energy',
       formula:
         '$$U(x,y)=-\\int 3x^2y\\,dx=-x^3y+C(y),\\quad \\frac{dU}{dy}=-(x^3+2y)\\Rightarrow U=-x^3y-y^2$$',
-      body: 'Choose $U(0,0)=0$, giving $U(x,y)=-x^3y-y^2$ J (up to an additive constant). Check: $-\\nabla U=(3x^2y)\\hat{i}+(x^3+2y)\\hat{j}=\\mathbf{F}$.',
+      body: 'Choose $U(0,0)=0$, giving $U(x,y)=-x^3y-y^2$ J. At $(2,3)$: $U=-8\\cdot3-9=-33\\,\\text{J}$. Check: $-\\nabla U=(3x^2y)\\hat{i}+(x^3+2y)\\hat{j}=\\mathbf{F}$.',
     },
     {
       title: 'Compute work along any path',
