@@ -25,6 +25,17 @@ import { trackEvent } from '@/src/lib/analytics';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { auditStepQuality } from '@/src/protocol/step-quality';
 
+/** Fallback key when mirrored/workspace sessions strip bulky raw text. */
+function sessionDedupKey(
+  raw: string,
+  fallback?: { topic: string; stepCount: number; firstTitle: string },
+): string {
+  const trimmed = (findCapsuleRaw(raw) ?? raw).trim();
+  if (trimmed) return trimmed;
+  if (fallback) return `fp:${fallback.topic}:${fallback.stepCount}:${fallback.firstTitle}`;
+  return '';
+}
+
 /** Quiet period after the last DOM mutation before we inspect the page. */
 const DEBOUNCE_MS = 350;
 /**
@@ -532,7 +543,11 @@ export class StemController {
     const seen = new Set<string>();
     const existingByRaw = new Map<string, Session>();
     for (const s of store.sessions) {
-      const k = (findCapsuleRaw(s.raw) ?? s.raw).trim();
+      const k = sessionDedupKey(s.raw, {
+        topic: s.capsule.meta.topic,
+        stepCount: s.capsule.steps.length,
+        firstTitle: s.capsule.steps[0]?.title ?? '',
+      });
       if (k) existingByRaw.set(k, s);
     }
 
@@ -546,9 +561,15 @@ export class StemController {
         result.status !== 'empty' && result.capsule && result.capsule.steps.length > 0;
       if (!usable) continue;
 
+      const dedupKey =
+        sessionDedupKey(result.raw, {
+          topic: result.capsule!.meta.topic,
+          stepCount: result.capsule!.steps.length,
+          firstTitle: result.capsule!.steps[0]?.title ?? '',
+        }) || key;
       seen.add(key);
       this.rememberCaptured(key);
-      const prev = existingByRaw.get(key);
+      const prev = existingByRaw.get(dedupKey);
       sessions.push({
         id: prev?.id ?? makeId(),
         createdAt: prev?.createdAt ?? Date.now(),
