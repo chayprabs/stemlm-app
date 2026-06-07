@@ -120,7 +120,9 @@ function themeAccentMap(theme: ResolvedTheme): Record<string, string> {
   if (theme === 'dark') {
     return {
       '#ffffff': themeSchematicFill('dark'),
+      '#fff': themeSchematicFill('dark'),
       '#000000': themeNeutralStroke('dark'),
+      '#000': themeNeutralStroke('dark'),
       '#d32f2f': '#f87171',
       '#c62828': '#f87171',
       '#ff0000': '#f87171',
@@ -342,6 +344,29 @@ function isInsideMarker(el: Element): boolean {
   return Boolean(el.closest('marker'));
 }
 
+const SHAPE_TAGS = 'line, polyline, path, rect, circle, ellipse, polygon';
+
+function inheritedStroke(el: Element, root: Element): string | null {
+  let node: Element | null = el.parentElement;
+  while (node && node !== root) {
+    const stroke = node.getAttribute('stroke');
+    if (stroke && stroke !== 'none') return stroke;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/** Ensure every shape has an explicit themed stroke (models often set stroke only on <g>). */
+function ensureShapeStrokes(root: Element, theme: ResolvedTheme): void {
+  for (const el of root.querySelectorAll(SHAPE_TAGS)) {
+    if (isInsideMarker(el)) continue;
+    const attrStroke = el.getAttribute('stroke');
+    if (attrStroke && attrStroke !== 'none') continue;
+    const fromGroup = inheritedStroke(el, root);
+    el.setAttribute('stroke', fromGroup ?? themeNeutralStroke(theme));
+  }
+}
+
 function themeSvgTree(root: Element, theme: ResolvedTheme): void {
   const textTags = new Set(['text', 'tspan']);
 
@@ -362,11 +387,13 @@ function themeSvgTree(root: Element, theme: ResolvedTheme): void {
     }
   }
 
-  for (const el of root.querySelectorAll('line, polyline, path, rect, circle, ellipse')) {
-    if (isInsideMarker(el)) continue;
-    if (!normColor(el.getAttribute('stroke'))) {
-      el.setAttribute('stroke', themeNeutralStroke(theme));
-    }
+  ensureShapeStrokes(root, theme);
+}
+
+/** Normalize every marker in defs — not only those referenced at sync time. */
+function normalizeAllMarkers(root: Element): void {
+  for (const marker of root.querySelectorAll('marker')) {
+    normalizeMarkerShape(marker);
   }
 }
 
@@ -401,6 +428,9 @@ export function presentSvg(
   const root = doc.documentElement;
   if (root.tagName.toLowerCase() !== 'svg') return svg;
 
+  if (!root.getAttribute('xmlns')) {
+    root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
   if (!root.getAttribute('viewBox')) {
     root.setAttribute('viewBox', '0 0 100 100');
   }
@@ -419,6 +449,7 @@ export function presentSvg(
   }
 
   prefixSvgIds(root);
+  normalizeAllMarkers(root);
   themeSvgTree(root, theme);
   syncMarkerFills(root);
 

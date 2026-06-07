@@ -3,8 +3,10 @@
 @import 'katex/dist/katex.min.css';
 @import '../../assets/panel.css';
 
+/* Do not use `all: initial` on :host — it breaks SVG stroke inheritance in diagrams. */
 :host {
-  all: initial;
+  display: block;
+  color-scheme: light dark;
 }
 
 #stemlm-app {

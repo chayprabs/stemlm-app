@@ -86,6 +86,58 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(svgHtml).not.toContain('<path ');
   });
 
+  it('renders impedance Thevenin diagram with wires and normalized arrowheads', async () => {
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 300 150">' +
+        '<circle cx="250" cy="40" r="4" fill="white" stroke="black" stroke-width="2"/>' +
+        '<text x="260" y="45" font-size="14">Port 2 (+)</text>' +
+        '<line x1="80" y1="120" x2="250" y2="120" stroke="black" stroke-width="2"/>' +
+        '<rect x="160" y="30" width="40" height="20" fill="white" stroke="black" stroke-width="2"/>' +
+        '<text x="170" y="45" font-size="12">Z_3</text>' +
+        '<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20">' +
+        '<path d="M0,0 L20,10 L0,20 L5,10 Z" fill="blue"/></marker></defs>' +
+        '<line x1="250" y1="80" x2="280" y2="80" stroke="blue" stroke-width="2" marker-end="url(#arrow)"/>' +
+        '<text x="285" y="85" fill="blue">Z_th</text>' +
+        '</svg>',
+    };
+    const mounted = mountInShadow(
+      <div className="slm-step-diagram">
+        <DiagramRenderer diagram={diagram} theme="dark" size="step" />
+      </div>,
+    );
+    host = mounted.host;
+    root = mounted.root;
+
+    await flushDiagram();
+
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeNull();
+    const svgHtml = mounted.shadow.querySelector('.slm-diagram-svg')?.innerHTML ?? '';
+    expect(svgHtml).toContain('<line');
+    expect(svgHtml).toContain('<rect');
+    expect(svgHtml).toContain('Port 2 (+)');
+    expect(svgHtml).toContain('Z_th');
+    expect(svgHtml).not.toContain('userSpaceOnUse');
+    expect(svgHtml).not.toContain('<path d="M0,0 L20,10');
+  });
+
+  it('falls back when the diagram is labels only (no drawable shapes)', async () => {
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 300 40"><text x="1" y="12">Port 2 (+) Port 2 (-) Z_3 Z_2 Z_1 + Z_s Z_th</text></svg>',
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    host = mounted.host;
+    root = mounted.root;
+
+    await flushDiagram();
+
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
+    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('Port 2');
+  });
+
   it('does not leave an eternal skeleton for SVG diagrams', async () => {
     const parsed = parseCapsule(MECHANICAL_AXIAL_STRESS_BAR);
     const diagram = parsed.capsule!.steps[1]!.diagram!;

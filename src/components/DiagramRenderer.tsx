@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Diagram } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
-import { mountSvgMarkup } from '@/src/lib/mount-svg';
+import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 
 export interface DiagramRendererProps {
   diagram: Diagram;
@@ -20,7 +20,6 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mounted = useRef(true);
-  const svgHostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -29,7 +28,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
 
     void resolveDiagramSvg(diagram, theme, size).then((clean) => {
       if (!mounted.current) return;
-      if (clean) setSvg(clean);
+      if (clean && svgMarkupHasGraphicShapes(clean)) setSvg(clean);
       else setFailed(true);
     });
 
@@ -37,12 +36,6 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
       mounted.current = false;
     };
   }, [diagram.content, diagram.type, theme, size]);
-
-  useLayoutEffect(() => {
-    if (!svg || !svgHostRef.current) return;
-    const mounted = mountSvgMarkup(svgHostRef.current, svg);
-    if (!mounted) setFailed(true);
-  }, [svg]);
 
   if (failed) {
     return (
@@ -59,7 +52,10 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
       data-empty={svg ? undefined : 'true'}
     >
       {svg ? (
-        <div ref={svgHostRef} className="slm-diagram-svg" />
+        <div
+          className="slm-diagram-svg"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
       ) : (
         <div className="slm-diagram-skeleton" aria-hidden />
       )}

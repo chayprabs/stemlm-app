@@ -1,7 +1,7 @@
 /* stemLM panel — matches stemlm.app hero side panel & DESIGN_SYSTEM.md */
 
 #stemlm-app,
-#stemlm-app * {
+#stemlm-app *:not(svg):not(svg *) {
   box-sizing: border-box;
 }
 #stemlm-app {
@@ -406,12 +406,14 @@
   flex-direction: column;
 }
 .slm-diagram-svg {
-  width: auto;
+  width: 100%;
   max-width: 100%;
   line-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
+  isolation: isolate;
 }
 /* ---------- vertical step rail (numbered circles) ---------- */
 .slm-step-rail {
@@ -861,9 +863,19 @@
 }
 .slm-diagram-svg svg {
   display: block;
-  width: auto;
+  flex-shrink: 0;
   max-width: 100%;
   height: auto;
+  overflow: visible;
+}
+.slm-diagram-svg svg line,
+.slm-diagram-svg svg path,
+.slm-diagram-svg svg polyline,
+.slm-diagram-svg svg polygon,
+.slm-diagram-svg svg rect,
+.slm-diagram-svg svg circle,
+.slm-diagram-svg svg ellipse {
+  vector-effect: non-scaling-stroke;
 }
 .slm-diagram-svg svg text,
 .slm-diagram-svg svg tspan {

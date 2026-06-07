@@ -197,6 +197,32 @@ describe('presentSvg', () => {
     expect(out).toContain('markerUnits="strokeWidth"');
   });
 
+  it('applies stroke from parent <g> to child shapes without explicit stroke', () => {
+    const raw =
+      '<svg viewBox="0 0 200 80">' +
+      '<g stroke="#222" fill="none">' +
+      '<line x1="10" y1="40" x2="180" y2="40"/>' +
+      '<rect x="80" y="28" width="40" height="24"/>' +
+      '</g></svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).toContain('stroke="#cbd5e1"');
+    expect(out).toMatch(/<line[^>]+stroke="#cbd5e1"/);
+    expect(out).toMatch(/<rect[^>]+stroke="#cbd5e1"/);
+  });
+
+  it('normalizes unreferenced markers in defs', () => {
+    const raw =
+      '<svg viewBox="0 0 120 60">' +
+      '<defs><marker id="orphan" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20">' +
+      '<path d="M0,0 L20,10 L0,20 L5,10 Z" fill="black"/></marker></defs>' +
+      '<line x1="10" y1="30" x2="100" y2="30" stroke="#3b82f6" stroke-width="2"/>' +
+      '</svg>';
+    const out = presentSvg(raw, 'dark');
+    expect(out).not.toContain('userSpaceOnUse');
+    expect(out).toContain('markerUnits="strokeWidth"');
+    expect(out).not.toContain('<path d="M0,0 L20,10');
+  });
+
   it('normalizes star-like marker polygons to a triangle arrowhead', () => {
     const raw =
       '<svg viewBox="0 0 120 60">' +
