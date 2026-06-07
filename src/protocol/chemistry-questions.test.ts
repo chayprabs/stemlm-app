@@ -4,9 +4,8 @@ import { verifyChemistryQuestion } from './chemistry-verify';
 import { classifySubject } from './classifier';
 
 describe('chemistry question bank', () => {
-  it('has 50 questions when complete', () => {
-    expect(CHEMISTRY_QUESTIONS.length).toBeGreaterThanOrEqual(1);
-    expect(CHEMISTRY_QUESTIONS.length).toBeLessThanOrEqual(50);
+  it('has exactly 50 questions when complete', () => {
+    expect(CHEMISTRY_QUESTIONS.length).toBe(50);
   });
 
   it('questions are numbered uniquely without gaps in loaded set', () => {

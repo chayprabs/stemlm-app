@@ -131,7 +131,7 @@ export async function verifyChemistryQuestion(
         errors.push(`Step diagram ${i + 1} (${profile}): ${issue}`);
       }
       for (const issue of checkLabelCollisions(presented)) {
-        warnings.push(`Step diagram ${i + 1} (${profile}): ${issue}`);
+        errors.push(`Step diagram ${i + 1} (${profile}): ${issue}`);
       }
     }
   }
