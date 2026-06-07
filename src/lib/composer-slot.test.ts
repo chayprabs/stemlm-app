@@ -56,8 +56,14 @@ describe('ensureComposerSlot', () => {
 
     const second = ensureComposerSlot(geminiAdapter, 'dark');
     expect(second).not.toBeNull();
+    expect(second).toBe(first);
     expect(second!.isConnected).toBe(true);
-    expect(second!.querySelector('.slm-inject-btn, .slm-fab-wrap')).toBeNull();
     expect(document.querySelectorAll('[data-stemlm-composer-slot]').length).toBe(1);
+  });
+
+  it('reuses the same slot element across repeated ensure calls', () => {
+    const a = ensureComposerSlot(geminiAdapter, 'light');
+    const b = ensureComposerSlot(geminiAdapter, 'dark');
+    expect(a).toBe(b);
   });
 });

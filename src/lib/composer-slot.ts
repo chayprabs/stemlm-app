@@ -93,10 +93,15 @@ function ensureFlexRow(parent: HTMLElement) {
   }
 }
 
-function purgeOrphanedSlots() {
-  document.querySelectorAll<HTMLElement>(`[${SLOT_ATTR}]`).forEach((slot) => {
-    if (!slot.isConnected) slot.remove();
-  });
+/** One persistent slot node — moving it in the DOM keeps the React portal stable. */
+let sharedSlot: HTMLElement | null = null;
+
+function getSharedSlot(): HTMLElement {
+  if (!sharedSlot) {
+    sharedSlot = document.createElement('div');
+    sharedSlot.setAttribute(SLOT_ATTR, '');
+  }
+  return sharedSlot;
 }
 
 function mountSlotBefore(anchor: HTMLElement): HTMLElement | null {
@@ -105,13 +110,8 @@ function mountSlotBefore(anchor: HTMLElement): HTMLElement | null {
   if (!parent) return null;
   ensureFlexRow(parent);
   ensureStyles();
-  purgeOrphanedSlots();
 
-  let slot = parent.querySelector<HTMLElement>(`:scope > [${SLOT_ATTR}]`);
-  if (!slot) {
-    slot = document.createElement('div');
-    slot.setAttribute(SLOT_ATTR, '');
-  }
+  const slot = getSharedSlot();
   if (slot.parentElement !== parent || slot.nextElementSibling !== anchor) {
     parent.insertBefore(slot, anchor);
   }
@@ -142,11 +142,17 @@ export function ensureComposerSlot(
 }
 
 export function removeComposerSlot() {
-  document.querySelector(`[${SLOT_ATTR}]`)?.remove();
+  sharedSlot?.remove();
+  sharedSlot = null;
   document.getElementById(STYLE_ID)?.remove();
   document.querySelectorAll(`[${PARENT_ATTR}]`).forEach((el) => {
     el.removeAttribute(PARENT_ATTR);
   });
+}
+
+/** Test hook — returns the singleton slot element if allocated. */
+export function getComposerSlotElement(): HTMLElement | null {
+  return sharedSlot;
 }
 
 export const _composerSlotGap = SLOT_GAP_PX;

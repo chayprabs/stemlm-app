@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
@@ -10,115 +9,115 @@ import { IconCheck, StemMark } from './icons';
 
 const BTN_SIZE = 36;
 const SLOT_GAP = _composerSlotGap;
-
-type PosMode =
-  | { mode: 'docked'; slot: HTMLElement }
-  | { mode: 'fixed'; top: number; left: number };
+const DOCK_RETRY_MS = 400;
+const FIXED_FALLBACK_MS = 900;
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));
 }
 
-function fallbackFixedPosition(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
+function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
   top: number;
   left: number;
 } {
   const PAD = 8;
+  const leading = adapter.getComposerLeadingAnchor();
+  const leadingR = leading?.isConnected ? leading.getBoundingClientRect() : undefined;
+  if (leadingR && leadingR.width > 0) {
+    return {
+      top: clamp(leadingR.top + (leadingR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
+      left: clamp(leadingR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
+    };
+  }
+
+  const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
+  const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
+  if (boxR && boxR.width > 0) {
+    return {
+      top: clamp(boxR.bottom - BTN_SIZE - 10, PAD, window.innerHeight - BTN_SIZE - PAD),
+      left: clamp(boxR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
+    };
+  }
+
   const editor = adapter.findEditor();
-  const editorR = editor?.getBoundingClientRect();
+  const editorR = editor?.isConnected ? editor.getBoundingClientRect() : undefined;
   if (editorR && editorR.width > 0) {
     return {
       top: clamp(editorR.bottom - BTN_SIZE - 10, PAD, window.innerHeight - BTN_SIZE - PAD),
       left: clamp(editorR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
     };
   }
+
   return {
     top: clamp(window.innerHeight - BTN_SIZE - 72, PAD, window.innerHeight - BTN_SIZE - PAD),
     left: clamp(24, PAD, window.innerWidth - BTN_SIZE - PAD),
   };
 }
 
-function initialFixedPosition(): { top: number; left: number } {
+/**
+ * Keep the inject button in one stable portal target. Only fall back to fixed
+ * positioning after the composer slot has been missing for a sustained period —
+ * avoids flicker when Gemini briefly rebuilds the composer row.
+ */
+function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } {
   const adapter = detectAdapter();
-  if (adapter) return fallbackFixedPosition(adapter);
-  return {
-    top: clamp(window.innerHeight - BTN_SIZE - 72, 8, window.innerHeight - BTN_SIZE - 8),
-    left: 24,
-  };
-}
-
-function useComposerPosition(): PosMode {
-  const [pos, setPos] = useState<PosMode>(() => ({
-    mode: 'fixed',
-    ...initialFixedPosition(),
-  }));
-  const lastFixed = useRef<{ top: number; left: number } | null>(null);
+  const [mount, setMount] = useState<
+    { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number }
+  >(() =>
+    adapter
+      ? { mode: 'fixed', ...fixedCoords(adapter) }
+      : { mode: 'fixed', top: window.innerHeight - 108, left: 24 },
+  );
+  const lastDockedAt = useRef(0);
 
   useEffect(() => {
-    const adapter = detectAdapter();
-    if (!adapter) return;
+    const platform = detectAdapter();
+    if (!platform) return;
 
-    let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let observer: MutationObserver | null = null;
 
-    const update = () => {
+    const sync = () => {
       const scheme = detectHostScheme();
-      const slot = ensureComposerSlot(adapter, scheme);
+      const slot = ensureComposerSlot(platform, scheme);
+      const now = Date.now();
+
       if (slot?.isConnected) {
-        setPos((p) =>
-          p.mode === 'docked' && p.slot === slot ? p : { mode: 'docked', slot },
+        lastDockedAt.current = now;
+        setMount((prev) =>
+          prev.mode === 'docked' && prev.slot === slot ? prev : { mode: 'docked', slot },
         );
         return;
       }
 
-      const leading = adapter.getComposerLeadingAnchor();
-      const leadingR = leading?.isConnected ? leading.getBoundingClientRect() : undefined;
-      const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
-      const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
+      if (lastDockedAt.current > 0 && now - lastDockedAt.current < FIXED_FALLBACK_MS) return;
 
-      const PAD = 8;
-      let top: number;
-      let left: number;
-
-      if (leadingR && leadingR.width > 0) {
-        top = leadingR.top + (leadingR.height - BTN_SIZE) / 2;
-        left = leadingR.left - BTN_SIZE - SLOT_GAP;
-      } else if (boxR && boxR.width > 0) {
-        top = boxR.bottom - BTN_SIZE - 10;
-        left = boxR.left - BTN_SIZE - SLOT_GAP;
-      } else {
-        const fb = lastFixed.current ?? fallbackFixedPosition(adapter);
-        top = fb.top;
-        left = fb.left;
-      }
-
-      const next = {
-        mode: 'fixed' as const,
-        top: clamp(top, PAD, window.innerHeight - BTN_SIZE - PAD),
-        left: clamp(left, PAD, window.innerWidth - BTN_SIZE - PAD),
-      };
-      lastFixed.current = { top: next.top, left: next.left };
-      setPos((p) =>
-        p.mode === 'fixed' && p.top === next.top && p.left === next.left ? p : next,
+      const next = { mode: 'fixed' as const, ...fixedCoords(platform) };
+      setMount((prev) =>
+        prev.mode === 'fixed' && prev.top === next.top && prev.left === next.left ? prev : next,
       );
     };
 
-    const loop = () => {
-      update();
-      raf = window.requestAnimationFrame(() => {
-        setTimeout(loop, 280);
-      });
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(sync, DOCK_RETRY_MS);
     };
-    loop();
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
 
-  return pos;
+    observer = new MutationObserver(schedule);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('scroll', schedule, true);
+    window.addEventListener('resize', schedule);
+    sync();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      observer?.disconnect();
+      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [adapter?.id ?? 'none']);
+
+  return mount;
 }
 
 function InjectSpinner() {
@@ -139,7 +138,7 @@ function InjectSpinner() {
 }
 
 export function OverlayButton() {
-  const pos = useComposerPosition();
+  const mount = useInjectMount();
   const [pasting, setPasting] = useState(false);
   const injected = useStore((s) => s.buttonInjected);
   const panelOpen = useStore((s) => s.panelOpen);
@@ -149,8 +148,6 @@ export function OverlayButton() {
   const hostScheme = detectHostScheme();
   const neutral = adapter?.brand.neutral ?? false;
 
-  // Return the inject button to its default state once the user sends (composer
-  // clears) or starts typing a new question — not only after capture completes.
   useEffect(() => {
     if (!injected || !adapter) return;
     const ctrl = getController();
@@ -173,10 +170,6 @@ export function OverlayButton() {
     return () => clearInterval(id);
   }, [injected, adapter]);
 
-  const docked =
-    pos.mode === 'docked' && pos.slot.isConnected ? pos : null;
-  const fixed = pos.mode === 'fixed' ? pos : { mode: 'fixed' as const, ...initialFixedPosition() };
-
   function onMain() {
     if (pasting) return;
     if (injected) {
@@ -191,7 +184,7 @@ export function OverlayButton() {
 
   const wrapClass = [
     'slm-fab-wrap',
-    !docked ? 'slm-fab-wrap--fixed' : '',
+    mount.mode === 'fixed' ? 'slm-fab-wrap--fixed' : '',
     neutral ? 'slm-fab-wrap--neutral' : '',
     `slm-fab-wrap--${hostScheme}`,
   ]
@@ -211,28 +204,28 @@ export function OverlayButton() {
       <InjectSpinner />
     </span>
   ) : (
-    <motion.button
+    <button
       type="button"
       className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
       onClick={onMain}
-      whileTap={{ scale: 0.96 }}
       title={title}
       aria-label={title}
     >
-      {injected ? (
-        <IconCheck width={14} height={14} />
-      ) : (
-        <StemMark width={14} height={14} />
-      )}
-    </motion.button>
+      {injected ? <IconCheck width={14} height={14} /> : <StemMark width={14} height={14} />}
+    </button>
   );
 
-  if (docked) {
-    return createPortal(<div className={wrapClass}>{content}</div>, docked.slot);
+  const shell = <div className={wrapClass}>{content}</div>;
+
+  if (mount.mode === 'docked' && mount.slot.isConnected) {
+    return createPortal(shell, mount.slot);
   }
 
+  const { top, left } =
+    mount.mode === 'fixed' ? mount : { top: window.innerHeight - 108, left: 24 };
+
   return (
-    <div className={wrapClass} style={{ top: fixed.top, left: fixed.left }}>
+    <div className={wrapClass} style={{ top, left }}>
       {content}
     </div>
   );
