@@ -6,6 +6,7 @@
  * LaTeX at render time without breaking markdown lists and tables.
  */
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
+import { dedupeComposerMath } from '@/src/lib/composer-text';
 
 const LATEX_COMMAND =
   /\\(?:frac|omega|Omega|quad|text|angle|sqrt|sum|int|begin|end|left|right|cdot|times|approx|neq|leq|geq|pm|mp|alpha|beta|gamma|theta|phi|mu|sigma|mathrm|mathbf|vec|overline|underline|hat|bar|tilde|parallel|perp|infty|partial|nabla|ldots|dots|sin|cos|tan|log|ln|exp|det|max|min|lim|sup|inf|operatorname|textbf|textit|ce|le|ge|ne|iff|implies|Leftrightarrow|Rightarrow|therefore|because|boxed|cancel|overbrace|underbrace|binom|choose|atop|dfrac|tfrac|mkern)\b/;
@@ -299,7 +300,7 @@ function wrapInlineRawLatexSegments(line: string): string {
  * @param mode — `display` for @formula blocks; `auto` for mixed prose.
  */
 export function prepareMathForRender(content: string, mode: MathRenderMode = 'auto'): string {
-  let src = stripProtocolMarkers(content);
+  let src = dedupeComposerMath(stripProtocolMarkers(content));
   if (!src.trim()) return src;
 
   src = protectFragileLatexCommands(src);

@@ -56,7 +56,10 @@ export function readPanelSelection(panel: HTMLElement): PanelSelection | null {
 
 /** Context quoted into Gemini when the model omits @followup on the final step. */
 export function buildLastStepFollowupSelection(session: Session, step: Step): string {
-  const question = cleanSessionQuestion(session.question) || session.capsule.meta.topic;
+  const question =
+    cleanSessionQuestion(session.question) ||
+    session.capsule.meta.question?.trim() ||
+    session.capsule.meta.topic;
   const lines = [`Problem: ${question}`, `Final step: ${step.title}`];
   const takeaway = step.takeaway ? stripProtocolMarkers(step.takeaway) : '';
   const work = resolveStepWorkText(step);

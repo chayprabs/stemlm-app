@@ -6,7 +6,7 @@ import { DiagramRenderer } from './DiagramRenderer';
 import { StepWork } from './StepWork';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
-import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { resolveSessionQuestion } from '@/src/lib/session-question';
 
 function SolutionStep({
   step,
@@ -56,7 +56,7 @@ function SolutionStep({
  */
 export function SolutionView({ session, theme }: { session: Session; theme: ResolvedTheme }) {
   const { steps, solution, solutionDiagrams, meta } = session.capsule;
-  const question = cleanSessionQuestion(session.question) || meta.topic;
+  const question = resolveSessionQuestion(session);
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
   const hasSteps = steps.length > 0;
   const hasSolutionText = solution.trim().length > 0;
@@ -66,7 +66,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
       {question && (
         <section className="slm-solution-q slm-selectable">
           <span className="slm-solution-section-label">Question</span>
-          <p className="slm-solution-q-text">{question}</p>
+          <MathMarkdown content={question} className="slm-solution-q-text" />
         </section>
       )}
 

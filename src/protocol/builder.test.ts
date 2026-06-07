@@ -80,6 +80,12 @@ describe('buildInjectionAppendix', () => {
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
   });
+
+  it('asks the model to transcribe the image when the composer has no text', () => {
+    const { prompt } = buildInjectionAppendix('', { hasImageAttachment: true });
+    expect(prompt).toContain('problem image');
+    expect(prompt).toContain('@meta question:');
+  });
 });
 
 describe('buildInjectionPayload', () => {

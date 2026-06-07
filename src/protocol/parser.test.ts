@@ -88,6 +88,13 @@ describe('parse warning and error codes', () => {
     const result = parseCapsule('@meta\nsubject: Math\ntopic: First line\nsecond line\n@endmeta\n@step\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end');
     expect(result.capsule?.meta.topic).toBe('First line');
   });
+
+  it('parses the full problem statement from @meta question:', () => {
+    const result = parseCapsule(
+      '@meta\nsubject: Electrical\ntopic: Nodal analysis\nquestion: Find V_A when V_s = 48 V.\n@endmeta\n@step\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end',
+    );
+    expect(result.capsule?.meta.question).toBe('Find V_A when V_s = 48 V.');
+  });
 });
 
 describe('parse (full capsule)', () => {

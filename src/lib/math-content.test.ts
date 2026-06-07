@@ -89,6 +89,13 @@ describe('prepareMathForRender', () => {
     expect(prepareMathForRender(once, 'display')).toBe(once);
   });
 
+  it('dedupes garbled duplicate math from composer paste before wrapping', () => {
+    const raw = 'R1=6 ΩR_1 = 6\\ \\Omega is in series.';
+    const out = prepareMathForRender(raw, 'auto');
+    expect(out).not.toMatch(/R1=6/);
+    expect(out).toContain('R_1 = 6');
+  });
+
   it('keeps spaces in quickcheck prose wrongly wrapped in $ delimiters', () => {
     const q =
       '$Why is the current leaving C towards D written as (V_C - V_D)/24$?';

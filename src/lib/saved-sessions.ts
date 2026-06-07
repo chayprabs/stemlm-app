@@ -72,7 +72,8 @@ async function writeSavedSessions(sessions: SavedSessionSnapshot[]): Promise<Sav
 }
 
 export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
-  const question = (session.question || session.capsule.meta.topic || '').trim();
+  const question =
+    (session.question || session.capsule.meta.question || session.capsule.meta.topic || '').trim();
   return {
     id: session.id,
     question,

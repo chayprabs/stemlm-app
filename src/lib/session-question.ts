@@ -2,6 +2,7 @@
  * Panel heading text — always the student's question, never a step title.
  */
 import type { Session } from '@/src/protocol/types';
+import { normalizeComposerText } from '@/src/lib/composer-text';
 
 /** Show the full question up to this length; above it, compress to a short line. */
 const FULL_QUESTION_MAX = 280;
@@ -10,7 +11,16 @@ const COMPACT_MAX = 200;
 
 /** Remove stemLM composer noise from a stored question string. */
 export function cleanSessionQuestion(text: string): string {
-  return stripInjectedNoise(text);
+  return normalizeComposerText(stripInjectedNoise(text));
+}
+
+/** Best available question text: composer paste, model @meta question, then topic. */
+export function resolveSessionQuestion(session: Session): string {
+  const fromComposer = cleanSessionQuestion(session.question || '');
+  if (fromComposer) return fromComposer;
+  const fromMeta = normalizeComposerText(session.capsule.meta.question || '');
+  if (fromMeta) return fromMeta;
+  return (session.capsule.meta.topic || '').trim();
 }
 
 function stripInjectedNoise(text: string): string {
@@ -50,7 +60,7 @@ function compactLongQuestion(lines: string[]): string {
 
 /** Question text for the panel header (full question or a short layman summary). */
 export function sessionQuestionHeading(session: Session): string {
-  const raw = stripInjectedNoise(session.question || '');
+  const raw = resolveSessionQuestion(session);
   const lines = normalizeLines(raw);
 
   if (lines.length > 0) {

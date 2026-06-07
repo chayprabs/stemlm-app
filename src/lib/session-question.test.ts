@@ -72,4 +72,30 @@ OUTPUT: stemlm`,
     const session = makeSession({ question: '' });
     expect(sessionQuestionHeading(session)).toBe('RLC impedance at 60 Hz');
   });
+
+  it('uses @meta question when composer text is empty (image paste)', () => {
+    const session = makeSession({
+      question: '',
+      capsule: {
+        meta: {
+          version: 1,
+          subject: 'Electrical',
+          topic: 'Nodal analysis',
+          question: 'Find V_A when V_s = 48 V across the network.',
+        },
+        solution: '',
+        solutionDiagrams: [],
+        steps: [],
+      },
+    });
+    expect(sessionQuestionHeading(session)).toContain('V_s = 48 V');
+  });
+
+  it('dedupes garbled composer math in the stored question', () => {
+    const session = makeSession({
+      question: 'Source Vs=48V_s = 48 V is applied.',
+    });
+    expect(sessionQuestionHeading(session)).toContain('V_s = 48');
+    expect(sessionQuestionHeading(session)).not.toContain('Vs=48');
+  });
 });

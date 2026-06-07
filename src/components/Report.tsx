@@ -5,6 +5,7 @@ import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark } from './BrandWordmark';
 import { ExtensionLogo } from './ExtensionLogo';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
+import { resolveSessionQuestion } from '@/src/lib/session-question';
 
 export function diagramKey(scope: string, i: number): string {
   return `${scope}-${i}`;
@@ -31,7 +32,7 @@ export function Report({
 }) {
   const { meta, steps, solution, solutionDiagrams } = session.capsule;
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
-  const question = (session.question || meta.topic || '').trim();
+  const question = resolveSessionQuestion(session);
 
   return (
     <div className="slm-report">
@@ -54,7 +55,7 @@ export function Report({
       <section className="slm-report-q-block">
         <span className="slm-report-label">Q</span>
         <div className="slm-report-q">
-          <div className="slm-report-q-text">{question}</div>
+          <MathMarkdown content={question} className="slm-report-q-text" />
         </div>
       </section>
 

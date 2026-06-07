@@ -445,6 +445,7 @@ export function parseCapsule(capsuleText: string): ParseResult {
 
   let subject: Subject = 'General';
   let topic = '';
+  let metaQuestion = '';
   let version = PROTOCOL_VERSION;
   let sawMeta = false;
   let sawEnd = false;
@@ -484,6 +485,7 @@ export function parseCapsule(capsuleText: string): ParseResult {
         const v = readInlineValue(ml, 'version');
         const s = readInlineValue(ml, 'subject');
         const tp = readInlineValue(ml, 'topic');
+        const q = readInlineValue(ml, 'question');
         if (v !== null) version = Number(v) || PROTOCOL_VERSION;
         else if (s !== null) {
           const normalized = normalizeSubject(s);
@@ -498,6 +500,7 @@ export function parseCapsule(capsuleText: string): ParseResult {
           }
         }
         else if (tp !== null) topic = tp;
+        else if (q !== null) metaQuestion = q;
         c.i++;
       }
       continue;
@@ -594,7 +597,12 @@ export function parseCapsule(capsuleText: string): ParseResult {
   }
 
   const capsule: Capsule = {
-    meta: { version, subject, topic: stripProtocolMarkers(topic) },
+    meta: {
+      version,
+      subject,
+      topic: stripProtocolMarkers(topic),
+      ...(metaQuestion.trim() ? { question: stripProtocolMarkers(metaQuestion) } : {}),
+    },
     steps,
     solution: stripProtocolMarkers(solution),
     solutionDiagrams,

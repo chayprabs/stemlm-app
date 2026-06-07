@@ -7,6 +7,7 @@ TEMPLATE — markers on their own lines; replace <hints>. @body is NEVER optiona
 version: __VER__
 subject: <Physics|Chemistry|Math|Biology|CS|Electrical|Mechanical|Civil|Chemical|General>
 topic: <≤8 words>
+question: <full verbatim problem — transcribe from image/text above>
 @endmeta
 @step
 title: <imperative, one line — name the single move>
@@ -43,7 +44,7 @@ RULES:
 - @body is REQUIRED on every @step (non-empty). If @formula introduces a law or symbol, @body MUST define the symbol and show the numeric plug-in — a bare formula line alone is never enough.
 - @formula = the relation (symbols). @body = definitions + substitution + arithmetic + result. Do not put the only calculation in @formula with a one-line interpretation in @body.
 - title/topic/subject/q/a = one line; only @body/@formula/@diagram/@takeaway/@solution span lines. @body is mandatory on every @step; @formula/@diagram/@takeaway/@quickcheck/@followup are optional; max one @diagram per @step. Always close @body with @endbody before @diagram. Put symbol definitions and numeric substitution in @body; keep @formula symbolic when possible. For circuit+waveform/phasor/triangle, use separate steps.
-- @quickcheck optional (2–4 per capsule on the hardest moves). Skip on pure diagram/label steps. Never answer with one word ("Low frequencies", "Capacitive", "Yes") — always explain why using a formula or number from this step.
+- @quickcheck optional (2–4 per capsule on hardest moves). Skip on pure diagram/label steps. Never one-word answers — explain why with a formula or number from this step.
 - KaTeX only: $…$ / $$…$$; \begin{aligned}, cases, bmatrix (not align); chemistry $\ce{2H2 + O2 -> 2H2O}$.
 - Each @diagram = that step's evolving state (circuit reduced so far, ray after this surface, structure after this op), not one final picture.
 - svg: one <svg viewBox="0 0 W H"> of line/path/circle/rect/polygon/polyline/text/g; arrowheads via <defs><marker>…<polygon/></marker></defs> with marker-end="url(#id)"; stroke-width 2, font-size 12; no width/height/script/foreignObject/image/external refs. Best for spatial/physical/chem/bio/geometry/EE circuits. Place every <text> label at least 14px away from conductor lines — never put a label's x/y on the same coordinate as a wire (node names above top wires, below bottom wires).

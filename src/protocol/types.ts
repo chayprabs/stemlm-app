@@ -64,6 +64,8 @@ export interface CapsuleMeta {
   version: number;
   subject: Subject;
   topic: string;
+  /** Full verbatim problem statement — required when the student pasted an image. */
+  question?: string;
 }
 
 /** The fully parsed structured answer. */

@@ -41,6 +41,8 @@ export interface BuildOptions {
   subject?: Subject | 'Auto';
   /** Balanced is the production default; ultra is for measured experiments. */
   variant?: PromptVariant;
+  /** Composer has an image attachment but may have no typed text. */
+  hasImageAttachment?: boolean;
 }
 
 export interface BuildResult {
@@ -79,10 +81,14 @@ export function buildProtocolFileContent(opt?: BuildOptions & { question?: strin
 }
 
 /** Short composer stub — user question plus a one-line attach instruction. */
-export function buildComposerStub(question: string, subject: Subject): string {
+export function buildComposerStub(question: string, subject: Subject, opt?: Pick<BuildOptions, 'hasImageAttachment'>): string {
   const q = (question || '').trim();
   const head =
-    q.length > 0 ? q : '(The student has not typed a question yet — ask them to type one.)';
+    q.length > 0
+      ? q
+      : opt?.hasImageAttachment
+        ? '(Problem image is attached above — read it and transcribe the full question in @meta question:.)'
+        : '(The student has not typed a question yet — ask them to type one.)';
   return [
     head,
     '',
@@ -97,18 +103,26 @@ export function buildComposerStub(question: string, subject: Subject): string {
 export function buildInjectionPayload(question: string, opt?: BuildOptions): InjectionPayload {
   const { content, subject, variant } = buildProtocolFileContent({ ...opt, question });
   return {
-    composerText: buildComposerStub(question, subject),
+    composerText: buildComposerStub(question, subject, opt),
     fileContent: content,
     subject,
     variant,
   };
 }
 
+const IMAGE_QUESTION_PREAMBLE = [
+  'The student pasted a problem image in the composer above (no typed question).',
+  'Read that image carefully and transcribe the full problem statement verbatim in @meta question: (all givens, labels, and parts (a)(b)…).',
+  'topic: stays a short ≤8-word title only.',
+].join(' ');
+
 /** Protocol + playbook block only — appended below existing composer content. */
 export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
-  const prompt = `${SEP}${STEP_BODY_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const imageNote =
+    opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
+  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
   return { prompt, subject, variant };
 }
 

@@ -104,20 +104,22 @@ export class StemController {
 
     const existing = this.adapter.getEditorText().trim();
     const hasUserContent = this.composerHasUserContent();
+    const hasImageAttachment = this.adapter.composerHasAttachments();
     const question = existing;
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
+    const buildOpt = { variant, hasImageAttachment };
     let subject: Subject;
     let ok: boolean;
     let injectionMethod: 'text' | 'file' = 'text';
 
     if (hasUserContent) {
-      const built = buildInjectionAppendix(question, { variant });
+      const built = buildInjectionAppendix(question, buildOpt);
       subject = built.subject;
       ok = await this.insertVerifiedPrompt(built.prompt, 'append');
     } else {
-      const payload = buildInjectionPayload(question, { variant });
+      const payload = buildInjectionPayload(question, buildOpt);
       subject = payload.subject;
       const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
       if (attached.ok) {
@@ -127,7 +129,7 @@ export class StemController {
         ok = false;
       }
       if (!ok) {
-        const built = buildInjectionPrompt(question, { variant });
+        const built = buildInjectionPrompt(question, buildOpt);
         subject = built.subject;
         ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
         injectionMethod = 'text';
@@ -461,7 +463,10 @@ export class StemController {
     const diagrams = allDiagrams(result.capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])), result.capsule.solutionDiagrams);
     const store = useStore.getState();
     const topic = result.capsule.meta.topic;
-    const cleanedQuestion = cleanSessionQuestion(question) || topic;
+    const cleanedQuestion =
+      cleanSessionQuestion(question) ||
+      result.capsule.meta.question?.trim() ||
+      topic;
     const last = store.sessions[store.sessions.length - 1];
     const shouldReplace =
       last &&
@@ -575,7 +580,10 @@ export class StemController {
         createdAt: prev?.createdAt ?? Date.now(),
         updatedAt: Date.now(),
         platform: this.adapter.id,
-        question: prev?.question ?? result.capsule!.meta.topic,
+        question:
+          prev?.question ??
+          result.capsule!.meta.question ??
+          result.capsule!.meta.topic,
         capsule: result.capsule!,
         reviewedStepIds: prev?.reviewedStepIds ?? [],
         raw: result.raw,

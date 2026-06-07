@@ -9,6 +9,7 @@
 import type { AdapterConfig, PlatformAdapter } from './types';
 import { COMPOSER_SLOT_SELECTOR } from '@/src/lib/composer-slot';
 import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
+import { normalizeComposerText, readComposerText } from '@/src/lib/composer-text';
 
 const STEMLM_CODE_SELECTORS = [
   'pre code.language-stemlm',
@@ -319,9 +320,9 @@ export function focusComposerQuestionSlot(editor: HTMLElement | null): void {
 export function getEditorTextOf(el: HTMLElement | null): string {
   if (!el) return '';
   if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-    return (el as HTMLTextAreaElement | HTMLInputElement).value;
+    return normalizeComposerText((el as HTMLTextAreaElement | HTMLInputElement).value);
   }
-  return el.innerText ?? el.textContent ?? '';
+  return normalizeComposerText(readComposerText(el));
 }
 
 /** Generic layout-root fallbacks appended to every adapter's own selectors. */
