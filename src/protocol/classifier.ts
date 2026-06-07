@@ -33,7 +33,7 @@ const RULES: Rule[] = [
   {
     subject: 'Chemistry',
     patterns: [
-      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr|isomer|hybridi[sz]ation|empirical formula)\b/i, w: 3 },
+      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr|isomer|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|lyman|balmer|paschen|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|galvanic|daniell|haber process|grignard|alkali metal|lanthanide|actinide|pericyclic|retrosynth|polymeris|polymeriz|enzyme|biochem|porphyrin|cobalamin|vitamin b)\b/i, w: 3 },
       { re: /\b(h2o|co2|nacl|hcl|naoh|nh3|h2so4|ch4|\\ce|solution|solute|solvent|salt|gas\b)\b/i, w: 2 },
     ],
   },
