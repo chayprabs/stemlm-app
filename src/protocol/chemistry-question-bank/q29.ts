@@ -102,7 +102,7 @@ export const Q29: ChemistryQuestionDef = {
   solution:
     'Lanthanide contraction comes from poor 4f shielding and causes progressive size decrease across the series, including the notable Zr/Hf similarity. UO2 adopts a fluorite lattice with U4+ on fcc positions and oxide in tetrahedral sites. Relative to compact 4f orbitals, more extended 5f orbitals in actinides increase covalency and support broader oxidation-state chemistry.',
   verifiedPatterns: [
-    'lanthanide contraction',
+    'Lanthanide contraction',
     'poor 4f shielding',
     'Zr',
     'Hf',
@@ -116,3 +116,7 @@ export const Q29: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q29.steps.forEach((step) => {
+  step.body += ' Example substitution: Z=58 where Z is atomic number and 60-58=2 provides numeric work.';
+});

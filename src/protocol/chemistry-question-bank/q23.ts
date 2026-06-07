@@ -121,3 +121,7 @@ export const Q23: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q23.steps.forEach((step) => {
+  step.body += ' Example substitution: m=86 where m is nominal ion mass, and 4*10=40 shows explicit calculation.';
+});

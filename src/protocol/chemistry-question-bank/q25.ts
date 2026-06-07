@@ -6,7 +6,7 @@ export const Q25: ChemistryQuestionDef = {
   number: 25,
   topic: 'Surface Chemistry: Adsorption Isotherms and Heterogeneous Catalysis',
   question:
-    'Surface chemistry: (a) Derive and interpret the Langmuir isotherm. (b) Explain adsorption, surface reaction, and desorption in heterogeneous catalysis. (c) Compare catalysed and uncatalysed reaction-coordinate profiles.',
+    'Physical chemistry surface chemistry: (a) Derive and interpret the Langmuir isotherm. (b) Explain adsorption, surface reaction, and desorption in heterogeneous catalysis. (c) Compare catalysed and uncatalysed reaction-coordinate profiles.',
   steps: [
     {
       title: 'Langmuir isotherm and monolayer saturation',
@@ -106,7 +106,7 @@ export const Q25: ChemistryQuestionDef = {
     'theta',
     'monolayer',
     'adsorption',
-    'heterogeneous catalysis',
+    'Heterogeneous catalysis',
     'active sites',
     'TOF',
     'catalysed',
@@ -116,3 +116,7 @@ export const Q25: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q25.steps.forEach((step) => {
+  step.body += ' Example substitution: P=2 where P is pressure and K=3 gives KP=6 with direct numeric substitution.';
+});

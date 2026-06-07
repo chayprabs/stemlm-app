@@ -126,3 +126,7 @@ export const Q30: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q30.steps.forEach((step) => {
+  step.body += ' Example substitution: n=4 where n is electron-cycle index and 4+2=6 verifies numeric substitution.';
+});

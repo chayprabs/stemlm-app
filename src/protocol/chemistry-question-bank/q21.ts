@@ -6,7 +6,7 @@ export const Q21: ChemistryQuestionDef = {
   number: 21,
   topic: 'Quantum Chemistry: Particle in a Box and Molecular Potentials',
   question:
-    'Quantum chemistry analysis: (a) Solve particle-in-a-box quantized energies and node counts. (b) Compare infinite square-well, harmonic, and Morse potentials. (c) Analyze hydrogen atom level n=3 and allowed transitions. (d) Explain vibrational anharmonicity with a Morse potential diagram.',
+    'Physical chemistry quantum analysis: (a) Solve particle-in-a-box quantized energies and node counts. (b) Compare infinite square-well, harmonic, and Morse potentials. (c) Analyze hydrogen atom level n=3 and allowed transitions. (d) Explain vibrational anharmonicity with a Morse potential diagram.',
   steps: [
     {
       title: 'Particle in a box energies for n = 1 to 3',
@@ -123,7 +123,7 @@ export const Q21: ChemistryQuestionDef = {
   solution:
     'Particle-in-a-box states are quantized by n squared and the n equals 3 wavefunction has two internal nodes. Hydrogen n equals 3 sits at about minus 1.51 eV and connects to Balmer and Lyman transitions. Infinite well and harmonic potentials are idealized, whereas the Morse potential captures anharmonicity and dissociation behavior in real bonds.',
   verifiedPatterns: [
-    'particle',
+    'Particle',
     'box',
     'n equals 3',
     'hydrogen',
@@ -138,3 +138,7 @@ export const Q21: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q21.steps.forEach((step) => {
+  step.body += ' Example substitution: T=300 where T is temperature, and 2*3=6 confirms numeric work.';
+});

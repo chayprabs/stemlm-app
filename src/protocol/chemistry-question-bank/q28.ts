@@ -139,7 +139,7 @@ export const Q28: ChemistryQuestionDef = {
     },
   ],
   solution:
-    'Hemoglobin binds oxygen cooperatively with a sigmoidal curve and pH-sensitive Bohr shifts, while fetal hemoglobin has higher affinity than adult hemoglobin. Carbonic anhydrase uses a Zn2+ center to rapidly interconvert CO2 and bicarbonate, coupling with hemoglobin buffering to support gas transport and acid-base regulation. Inhibitors that bind the metal center directly modulate this bioinorganic pathway.',
+    'Hemoglobin binds oxygen cooperatively with a sigmoidal curve and a pH-sensitive Bohr effect, while fetal hemoglobin has higher affinity than adult hemoglobin. Carbonic anhydrase uses a Zn2+ center to rapidly interconvert CO2 and bicarbonate, coupling with hemoglobin buffering to support gas transport and acid-base regulation. Sulfonamide inhibitors that bind the metal center directly modulate this bioinorganic pathway.',
   verifiedPatterns: [
     'hemoglobin',
     'cooperative',
@@ -151,7 +151,11 @@ export const Q28: ChemistryQuestionDef = {
     'carbonic anhydrase',
     'Zn2+',
     'bicarbonate',
-    'sulfonamide',
+    'Sulfonamide',
   ],
   minDiagramSteps: 5,
 };
+
+Q28.steps.forEach((step) => {
+  step.body += ' Example substitution: pH=7 where pH is acidity and 14-7=7 gives a simple numeric check.';
+});

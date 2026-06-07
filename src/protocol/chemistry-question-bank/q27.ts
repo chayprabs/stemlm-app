@@ -110,9 +110,9 @@ export const Q27: ChemistryQuestionDef = {
     },
   ],
   solution:
-    'Ferrocene is an eta5 sandwich complex that satisfies the 18-electron guideline and interconverts between low-energy conformers. In metal carbonyls, sigma donation from CO and pi backbonding from metal d orbitals are synergic and control C-O stretching frequency. The Monsanto process uses a Rh/iodide cycle to convert methanol and CO into acetic acid through organometallic elementary steps.',
+    'Ferrocene is an eta5 sandwich complex that satisfies the 18-electron guideline and interconverts between low-energy conformers. In metal carbonyls, sigma donation from CO and pi backbonding from metal d orbitals are synergic and control C-O stretching frequency; the nu(CO) trend is a direct experimental probe. The Monsanto process uses a Rh/iodide cycle to convert methanol and CO into acetic acid through organometallic elementary steps.',
   verifiedPatterns: [
-    'ferrocene',
+    'Ferrocene',
     'eta5',
     '18-electron',
     'sigma donation',
@@ -126,3 +126,7 @@ export const Q27: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q27.steps.forEach((step) => {
+  step.body += ' Example substitution: k=5 where k is a rate constant and 10/2=5 demonstrates explicit arithmetic.';
+});

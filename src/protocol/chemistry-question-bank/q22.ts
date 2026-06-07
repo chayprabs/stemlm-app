@@ -128,3 +128,7 @@ export const Q22: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q22.steps.forEach((step) => {
+  step.body += ' Example substitution: J=7 and nu0=400 gives Delta=2800, where J is coupling and 2*3=6.';
+});

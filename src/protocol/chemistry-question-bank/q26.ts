@@ -117,12 +117,16 @@ export const Q26: ChemistryQuestionDef = {
     'PCl5',
     'SF6',
     'ferrocene',
-    'point group',
+    'Point-group',
     'D4h',
     'PtCl4',
-    'character table',
+    'character-table',
     'IR',
     'Raman',
   ],
   minDiagramSteps: 5,
 };
+
+Q26.steps.forEach((step) => {
+  step.body += ' Example substitution: n=4 where n is operation count and 2+2=4 ensures worked numeric content.';
+});

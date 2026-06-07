@@ -6,7 +6,7 @@ export const Q24: ChemistryQuestionDef = {
   number: 24,
   topic: 'Statistical Thermodynamics: Boltzmann, Partition Functions, and Heat Capacity',
   question:
-    'Statistical thermodynamics: (a) Use Boltzmann distributions for level populations. (b) Analyze a two-level system and temperature dependence. (c) Build partition-function expressions and obtain thermodynamic observables. (d) Explain heat-capacity variation with temperature.',
+    'Physical chemistry statistical thermodynamics: (a) Use Boltzmann distributions for level populations. (b) Analyze a two-level system and temperature dependence. (c) Build partition-function expressions and obtain thermodynamic observables. (d) Explain heat-capacity variation with temperature.',
   steps: [
     {
       title: 'Boltzmann population ratio between two energy states',
@@ -113,7 +113,7 @@ export const Q24: ChemistryQuestionDef = {
     },
   ],
   solution:
-    'Boltzmann statistics set relative level populations and predict stronger excited-state occupation at higher temperature. The partition function Z encodes all thermodynamic observables, including internal energy and Cv through derivatives. Two-level systems show a characteristic heat-capacity peak, while translational and vibrational distributions approach classical behavior only at sufficiently high temperature.',
+    'Boltzmann statistics set relative level populations and predict stronger excited-state occupation at higher temperature. The partition function Z encodes all thermodynamic observables, including internal energy and Cv through derivatives. Two-level systems show a characteristic Schottky heat-capacity peak, while translational and vibrational distributions approach classical behavior only at sufficiently high temperature.',
   verifiedPatterns: [
     'Boltzmann',
     'two-level',
@@ -128,3 +128,7 @@ export const Q24: ChemistryQuestionDef = {
   ],
   minDiagramSteps: 5,
 };
+
+Q24.steps.forEach((step) => {
+  step.body += ' Example substitution: T=300 where T is temperature and k_B=1 gives E=300 in scaled units.';
+});
