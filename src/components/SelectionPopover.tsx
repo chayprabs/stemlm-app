@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { IconReply } from './icons';
 import { getController } from '@/src/content/controller';
 import { readPanelSelection } from '@/src/lib/followup-selection';
+import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
 
 interface Sel {
@@ -70,7 +71,19 @@ export function SelectionPopover({
     } catch {
       /* ignore */
     }
-    await getController()?.followUp(current.text, stepTitle, subject);
+    const ctrl = getController();
+    if (!ctrl) {
+      useStore
+        .getState()
+        .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
+      return;
+    }
+    const ok = await ctrl.followUp(current.text, stepTitle, subject);
+    if (!ok) {
+      useStore
+        .getState()
+        .setStatus('error', 'Could not send the follow-up to Gemini. Click in the chat box and try again.');
+    }
   }
 
   const left = sel ? Math.min(Math.max(sel.x - 80, 8), window.innerWidth - 168) : 0;
