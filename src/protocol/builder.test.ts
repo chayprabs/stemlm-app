@@ -13,7 +13,8 @@ import {
   PROTOCOL_FILENAME,
   getDiagramRequirement,
 } from './builder';
-import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
+import coreBalancedTemplate from './core-protocol.md?raw';
+import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT, renderProtocol } from './protocol';
 import { SUBJECTS } from './types';
 
 describe('buildInjectionPrompt', () => {
@@ -40,6 +41,11 @@ describe('buildInjectionPrompt', () => {
     expect(variant).toBe('ultra');
     expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
     expect(prompt).toContain('CS (one move per step)');
+  });
+
+  it('normalizes CRLF in protocol templates so Windows checkouts stay within budget', () => {
+    const crlf = coreBalancedTemplate.replace(/\n/g, '\r\n');
+    expect(renderProtocol(crlf)).toBe(CORE_PROTOCOL);
   });
 
   it('keeps the injected core prompt compact', () => {

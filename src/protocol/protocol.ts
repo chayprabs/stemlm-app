@@ -36,8 +36,10 @@ export const STEP_COUNT_TARGET = '5-12';
  * tokens are injected here from the constants above so the protocol stays the
  * single source of truth for the parser.
  */
-function renderProtocol(template: string): string {
+/** Normalize template text before token substitution (Windows CRLF must not inflate byte budgets). */
+export function renderProtocol(template: string): string {
   return template
+    .replace(/\r\n/g, '\n')
     .replace(/__FENCE__/g, CAPSULE_FENCE_TAG)
     .replace(/__END__/g, CAPSULE_END_TOKEN)
     .replace(/__VER__/g, String(PROTOCOL_VERSION))
