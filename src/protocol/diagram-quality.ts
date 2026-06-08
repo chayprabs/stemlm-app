@@ -31,7 +31,7 @@ const CIRCUIT_QUESTION =
   /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm|kirchhoff|kvl|kcl|thevenin|norton|superposition|mesh|branch|ground|dependent source|current source|label all nodes|consider the circuit|bjt|transistor|amplifier|hybrid|small[- ]signal|op-?amp|mosfet|common[- ]emitter|degeneration)\b/i;
 
 const STEP_NEEDS_DIAGRAM_TITLE =
-  /\b(label|node|ground|kcl|kvl|kirchhoff|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|source|topology|schematic|wiring|phasor|impedance|draw|model|hybrid|small[- ]signal|bjt|transistor|mosfet|amplifier|op-?amp|gain|resistance|bandwidth|stability|feedback|rectifier|diode|free[- ]body|beam|truss|ray diagram|optical|structure|control volume|pathway)\b/i;
+  /\b(label|node|ground|kcl|kvl|kirchhoff|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|source|topology|schematic|wiring|phasor|impedance|draw|sketch|plot|graph|model|hybrid|small[- ]signal|bjt|transistor|mosfet|amplifier|op-?amp|gain|resistance|bandwidth|stability|feedback|rectifier|diode|free[- ]body|fbd|beam|truss|ray diagram|optical|lens|mirror|structure|mechanism|orbital|lewis|energy (?:level|diagram|profile)|spectrum|control volume|pathway|cycle|punnett|pedigree|number line|region|shade|vector field|phase (?:portrait|plane|diagram)|contour|stress|shear|bending moment|sfd|bmd|field (?:line|map|diagram))\b/i;
 
 const TOPOLOGY_STEP_TITLE =
   /\b(label|node|ground|kcl|kvl|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|topology|schematic|draw|model|hybrid|small[- ]signal|bjt|transistor|amplifier|op-?amp)\b/i;
@@ -89,7 +89,12 @@ export function isVisualDenseProblem(capsule: Capsule): boolean {
   if (!VISUAL_SUBJECTS.has(subject)) return false;
   const text = capsuleText(capsule);
   if (CIRCUIT_QUESTION.test(text)) return true;
-  if (subject === 'Physics' && /\b(ray|lens|mirror|free[- ]body|field line|circuit)\b/i.test(text)) {
+  if (
+    subject === 'Physics' &&
+    /\b(ray|lens|mirror|free[- ]body|fbd|field (?:line|map)|circuit|incline|projectile|pulley|tension|trajectory|graph|wave|optical)\b/i.test(
+      text,
+    )
+  ) {
     return true;
   }
   if (subject === 'Civil' && /\b(beam|truss|support|load|shear|moment)\b/i.test(text)) {

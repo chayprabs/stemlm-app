@@ -182,6 +182,99 @@ describe('auditCapsuleDiagrams', () => {
     expect(auditCapsuleDiagrams(capsule)).toContain('diagram_lacks_graphics');
   });
 
+  it('flags a physics free-body step that omits its diagram', () => {
+    const capsule: Capsule = {
+      meta: {
+        version: 1,
+        subject: 'Physics',
+        topic: 'Inclined plane',
+        question: 'A block slides down a frictionless incline; draw the free-body diagram and find a.',
+      },
+      steps: [
+        makeStep({ index: 1, title: 'Draw the free-body diagram', body: 'Forces: weight, normal, friction.' }),
+        makeStep({ index: 2, title: 'Resolve along the incline', body: 'Components of weight.' }),
+        makeStep({ index: 3, title: 'Apply Newton second law', body: 'a = g sin θ.' }),
+      ],
+      solution: 'done',
+      solutionDiagrams: [],
+    };
+    expect(isVisualDenseProblem(capsule)).toBe(true);
+    const issues = auditCapsuleDiagrams(capsule);
+    expect(issues).toContain('missing_initial_circuit');
+    expect(issues).toContain('missing_circuit_diagram');
+  });
+
+  it('flags a math graph step whose SVG is text-only', () => {
+    const capsule: Capsule = {
+      meta: {
+        version: 1,
+        subject: 'Math',
+        topic: 'Curve sketching',
+        question: 'Sketch the graph of f(x)=x^3-3x and mark the critical points.',
+      },
+      steps: [
+        makeStep({
+          index: 1,
+          title: 'Sketch the graph',
+          body: 'Plot intercepts and critical points.',
+          diagram: { type: 'svg', content: '<svg viewBox="0 0 300 180"><text x="10" y="20">graph</text></svg>' },
+        }),
+        makeStep({ index: 2, title: 'Find critical points', body: "f'(x)=3x^2-3=0." }),
+        makeStep({ index: 3, title: 'Classify extrema', body: 'Second derivative test.' }),
+      ],
+      solution: 'done',
+      solutionDiagrams: [],
+    };
+    expect(isVisualDenseProblem(capsule)).toBe(true);
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_lacks_graphics');
+  });
+
+  it('passes a math capsule whose visual step carries a real labeled graph', () => {
+    const capsule: Capsule = {
+      meta: {
+        version: 1,
+        subject: 'Math',
+        topic: 'Curve sketching',
+        question: 'Sketch the graph of f(x)=x^3-3x and shade the region under the curve.',
+      },
+      steps: [
+        makeStep({
+          index: 1,
+          title: 'Sketch the graph and axes',
+          body: 'Plot the curve with labeled axes.',
+          diagram: { type: 'svg', content: RICH_EE_SVG },
+        }),
+        makeStep({ index: 2, title: 'Find critical points', body: "f'(x)=3x^2-3=0 gives x=±1." }),
+        makeStep({ index: 3, title: 'Shade the region', body: 'Region between curve and axis.', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+      ],
+      solution: 'done',
+      solutionDiagrams: [],
+    };
+    expect(isVisualDenseProblem(capsule)).toBe(true);
+    // Real graphics present, sufficient coverage, step-1 diagram present → no issues.
+    expect(auditCapsuleDiagrams(capsule)).toEqual([]);
+  });
+
+  it('flags a biology pathway step that needs but lacks a diagram', () => {
+    const capsule: Capsule = {
+      meta: {
+        version: 1,
+        subject: 'Biology',
+        topic: 'Cellular respiration',
+        question: 'Draw the glycolysis pathway and label each intermediate.',
+      },
+      steps: [
+        makeStep({ index: 1, title: 'Draw the glycolysis pathway', body: 'Glucose to pyruvate.' }),
+        makeStep({ index: 2, title: 'Track ATP yield', body: 'Net 2 ATP.' }),
+        makeStep({ index: 3, title: 'Summarize regulation', body: 'PFK is the control point.' }),
+      ],
+      solution: 'done',
+      solutionDiagrams: [],
+    };
+    expect(isVisualDenseProblem(capsule)).toBe(true);
+    expect(auditCapsuleDiagrams(capsule)).toContain('missing_initial_circuit');
+  });
+
   it('flags chemistry draw/sketch problems as visual-dense', () => {
     const capsule: Capsule = {
       meta: {
