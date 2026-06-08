@@ -99,6 +99,12 @@ export function editorReflectsText(el: HTMLElement, expected: string): boolean {
   if (expected.includes('stemLM instructions')) {
     return got.includes('stemLM instructions') && got.includes('OUTPUT:');
   }
+  if (expected.includes('stemLM follow-up context')) {
+    return (
+      got.includes('stemLM follow-up context') &&
+      (got.includes('stemlm-protocol.txt') || got.includes('Follow the attached'))
+    );
+  }
   const probe = expected.trim().slice(0, 48);
   return probe.length > 0 && got.includes(probe);
 }

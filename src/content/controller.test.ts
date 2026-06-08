@@ -305,6 +305,28 @@ describe('StemController.followUp', () => {
     c.stopWatching();
   });
 
+  it('succeeds with file attach when the protocol chip is visible but the filename line is missing from editor text', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+    const adapter = new MockAdapter();
+    adapter.composerHasAttachments = () => true;
+    adapter.insertPrompt = (text: string, mode: 'replace' | 'append' = 'replace') => {
+      adapter.inserted = text;
+      adapter.editorText =
+        'Ask your question here:\n\n\n--- stemLM follow-up context (do not remove) ---\n> Why is total resistance R1 + R2 here?';
+      return true;
+    };
+    const c = new StemController(adapter);
+
+    const ok = await c.followUp(
+      'Why is total resistance R1 + R2 here?',
+      'Combine series resistors',
+      'Electrical',
+    );
+    expect(ok).toBe(true);
+    expect(adapter.editorText).toContain('stemLM follow-up context');
+    c.stopWatching();
+  });
+
   it('adds a new session for follow-up answers instead of replacing the original', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);

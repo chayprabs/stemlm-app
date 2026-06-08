@@ -117,7 +117,7 @@ export const FIRST_PASS_COMPLETION_REQUIREMENT = [
 /** Blank lines after this label are where the student types their follow-up question. */
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
 
-const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
+export const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
 
 export interface BuildOptions {
   /** 'Auto' => classify from the question; otherwise force this subject. */
@@ -339,14 +339,37 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
   ].join('\n');
 }
 
-/** Composer text for follow-ups — pairs with an attached protocol file on Gemini. */
+/**
+ * Short composer stub for follow-ups — mirrors buildComposerStub. Full diagram
+ * rules and protocol live in the attached file so Gemini Quill does not truncate
+ * the paste (which broke Ask-in-chat verification).
+ */
 export function buildFollowupComposerText(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
-  const block = buildFollowupContextBlock(opt);
-  return block.replace(
-    'Follow the stemLM protocol below exactly.',
+  const selection = normalizeFollowupSelection(opt.selection);
+  const context = opt.stepTitle?.trim()
+    ? ` (from the step "${opt.stepTitle.trim()}")`
+    : '';
+  const lead =
+    opt.intent === 'ask'
+      ? `The student finished the step-by-step solution and will type a follow-up question in the composer above${context}. Use this context when answering:`
+      : `Dig deeper into this specific part of your previous answer${context}:`;
+  const guidance =
+    opt.intent === 'ask'
+      ? 'Answer their follow-up in the same stemLM capsule format — split into atomic @step blocks when the explanation needs multiple moves.'
+      : 'Explain it more thoroughly — split into smaller atomic steps (one move per @step), add any missing intermediate lines, and clarify anything subtle.';
+
+  return [
+    FOLLOWUP_CONTEXT_HEADER,
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
-  );
+    lead,
+    formatQuotedSelection(selection),
+    guidance,
+    `Reply in ONE fenced code block (info string stemlm): @meta … ${STEP_COUNT_TARGET} @step (one atomic move each) … @solution … @end. No prose outside the block.`,
+    STEP_BODY_REMINDER,
+    getDiagramReminder(subject),
+    'Produce the complete capsule in this one reply.',
+  ].join('\n');
 }
 
 /** File-attach follow-up payload (preferred on Gemini — same path as initial injection). */
@@ -354,7 +377,15 @@ export function buildFollowupPayload(opt: FollowupOptions): InjectionPayload {
   const subject = opt.subject ?? 'General';
   const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
   const selection = normalizeFollowupSelection(opt.selection);
-  const content = `${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const content = [
+    CORE_PROTOCOL_BY_VARIANT[variant],
+    '',
+    getDiagramRequirement(subject),
+    '',
+    FIRST_PASS_COMPLETION_REQUIREMENT,
+    '',
+    getPlaybook(subject),
+  ].join('\n');
   return {
     composerText: buildFollowupComposerText({ ...opt, selection, subject, variant }),
     fileContent: content,

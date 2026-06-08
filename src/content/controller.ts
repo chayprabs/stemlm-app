@@ -15,6 +15,7 @@ import {
   buildFollowupPayload,
   FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
+  FOLLOWUP_CONTEXT_HEADER,
   PROTOCOL_FILENAME,
 } from '@/src/protocol/builder';
 import { attachTextFile } from '@/src/lib/file-inject';
@@ -201,11 +202,16 @@ export class StemController {
     const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
     let ok: boolean;
     if (attached.ok) {
+      // Brief pause so Gemini's uploader finishes before we replace composer text.
+      await new Promise((r) => setTimeout(r, 150));
       ok = await this.insertVerifiedPrompt(`${FOLLOWUP_QUESTION_SLOT}${payload.composerText}`, 'replace', {
         fileAttach: true,
+        followUp: true,
       });
     } else {
-      ok = await this.insertVerifiedPrompt(buildFollowupAskInChatPrompt(followOpt));
+      ok = await this.insertVerifiedPrompt(buildFollowupAskInChatPrompt(followOpt), 'replace', {
+        followUp: true,
+      });
     }
 
     if (!ok) {
@@ -237,18 +243,9 @@ export class StemController {
   private async insertVerifiedPrompt(
     prompt: string,
     mode: 'replace' | 'append' = 'replace',
-    opt?: { fileAttach?: boolean },
+    opt?: { fileAttach?: boolean; followUp?: boolean },
   ): Promise<boolean> {
-    const looksComplete = (text: string) => {
-      if (opt?.fileAttach) {
-        return text.includes(PROTOCOL_FILENAME) || text.includes('Follow the attached');
-      }
-      return (
-        text.includes('stemLM instructions') &&
-        text.includes('OUTPUT:') &&
-        !text.includes(PROTOCOL_FILENAME)
-      );
-    };
+    const looksComplete = (text: string) => this.promptLooksComplete(text, opt);
 
     const tryOnce = () => {
       if (!this.adapter.insertPrompt(prompt, mode)) return false;
@@ -256,8 +253,44 @@ export class StemController {
     };
 
     if (tryOnce()) return true;
-    await new Promise((r) => setTimeout(r, 120));
-    return tryOnce();
+    await new Promise((r) => setTimeout(r, opt?.followUp ? 250 : 120));
+    if (tryOnce()) return true;
+    if (opt?.followUp && opt?.fileAttach) {
+      await new Promise((r) => setTimeout(r, 250));
+      return tryOnce();
+    }
+    return false;
+  }
+
+  private promptLooksComplete(
+    text: string,
+    opt?: { fileAttach?: boolean; followUp?: boolean },
+  ): boolean {
+    if (opt?.followUp) {
+      const hasContext =
+        text.includes(FOLLOWUP_CONTEXT_HEADER) || text.includes('stemLM follow-up context');
+      if (!hasContext) return false;
+      if (opt.fileAttach) {
+        return (
+          text.includes(PROTOCOL_FILENAME) ||
+          text.includes('Follow the attached') ||
+          this.adapter.composerHasAttachments()
+        );
+      }
+      return (
+        text.includes('stemLM instructions') &&
+        text.includes('OUTPUT:') &&
+        !text.includes(PROTOCOL_FILENAME)
+      );
+    }
+    if (opt?.fileAttach) {
+      return text.includes(PROTOCOL_FILENAME) || text.includes('Follow the attached');
+    }
+    return (
+      text.includes('stemLM instructions') &&
+      text.includes('OUTPUT:') &&
+      !text.includes(PROTOCOL_FILENAME)
+    );
   }
 
   /** Prefer the chat conversation root over all of document.body. */

@@ -280,6 +280,18 @@ describe('buildFollowupPrompt', () => {
     expect(composer).toContain('> Total resistance is R1 + R2');
     expect(composer).not.toContain('OUTPUT:');
     expect(composer).toContain('No prose outside the block.');
+    // Attach line is near the top so Gemini cannot truncate it away.
+    expect(composer.indexOf(PROTOCOL_FILENAME)).toBeLessThan(composer.indexOf('> Total resistance'));
+  });
+
+  it('keeps the follow-up composer stub compact (full rules ship in the file)', () => {
+    const composer = buildFollowupComposerText({
+      ...opts,
+      intent: 'ask',
+      selection: 'Problem: verify the vector section formula\nFinal step: Verify endpoints\nContext: boundary work',
+    });
+    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(1500);
+    expect(composer).not.toContain('CRITICAL —');
   });
 
   it('buildFollowupPayload pairs composer stub with protocol file content', () => {
@@ -287,6 +299,7 @@ describe('buildFollowupPrompt', () => {
     expect(payload.composerText).toBe(buildFollowupComposerText(opts));
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
+    expect(payload.fileContent).toContain('CRITICAL —');
     expect(payload.subject).toBe('Electrical');
   });
 });
