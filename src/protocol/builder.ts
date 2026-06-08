@@ -104,20 +104,118 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
   return classifySubject(question);
 }
 
-/** Generic diagram rules for non-EE visual subjects (not circuit-specific). */
+/** Generic diagram rules for visual subjects without a dedicated block. */
 export const GENERAL_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on steps that draw, sketch, diagram, or show spatial/chemical/mechanical state.',
-  'Each @diagram shows the state AT THIS STEP only — every named component, bond, load, or label from @body must appear in the SVG.',
+  'CRITICAL — include @diagram type=svg on steps that draw, sketch, diagram, or show spatial/visual state.',
+  'Each @diagram shows the state AT THIS STEP only — every component, force, bond, axis, or label from @body must appear in the SVG.',
   'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols.',
   'Minimum ≥40% of steps carry diagrams on diagram-intensive problems; never text-only SVG.',
 ].join('\n');
 
-/** Subject-specific diagram injection block for Gemini prompts. */
+/** Physics: free-body / ray / field / graph diagrams. */
+export const PHYSICS_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on visual physics steps: free-body diagrams, ray/optics diagrams, field maps, wave/PV/energy-level plots, and graphs.',
+  'FBD: isolate ONE body, draw only its external forces as labeled vectors with axes/angles. OPTICS: optical axis, lens/mirror, F & 2F, object/image arrows, the rays after this surface; label do, di, f, m. FIELDS: direction arrows + charges. GRAPHS: labeled axes, units, ticks, named curve.',
+  'COMPLETENESS: every force, ray, field, or quantity named in @body must appear labeled in that step\'s SVG.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Math: graphs / number lines / regions / vector fields / geometry. */
+export const MATH_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on visual math steps: function graphs, number lines, shaded regions, geometry figures, vector fields, phase portraits, contour/level curves.',
+  'GRAPHS: labeled axes with units/ticks, intercepts, asymptotes, and marked critical points. REGIONS: shade with labeled boundaries. GEOMETRY: label vertices/sides offset from edges. VECTOR FIELD/PHASE PORTRAIT: arrowheads + sample trajectories.',
+  'Omit a diagram on a purely symbolic algebra line; otherwise show the state after THIS move.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Biology: cells / pathways / Punnett / pedigrees / cycles. */
+export const BIOLOGY_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg (or mermaid for linear pathways) on visual biology steps: cells/organelles, anatomy, pathways, cycles, Punnett squares, pedigrees, gels, phylogenies.',
+  'PATHWAYS: consistent flow (left→right or top→bottom); POINTED arrow = activation/flow, BLUNT bar (⊣) = inhibition. Labels adjacent to glyphs; avoid crossing edges and label overlap.',
+  'COMPLETENESS: every structure, species, or step named in @body must appear labeled; show only THIS phase\'s state.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Mechanical: FBD / stress elements / shafts-gears / P-V-T-S. */
+export const MECHANICAL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on visual mechanical steps: free-body diagrams, stress elements/cross-sections, shaft/gear schematics, P-V or T-S plots, flow control volumes.',
+  'FBD: isolate ONE body with labeled external forces/moments and axes. STRESS: draw the member with applied loads, the internal cut, the cross-section with dimensions, and the resulting stress. PLOTS: labeled axes + units.',
+  'COMPLETENESS: every force, moment, dimension, or state named in @body must appear labeled.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Civil: beams / supports / loads / SFD / BMD. */
+export const CIVIL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on visual civil steps: the idealised structure, free-body of reactions, and shear-force (SFD) / bending-moment (BMD) diagrams.',
+  'Show pin (triangle) / roller (circle) supports, reaction arrows, dimensions, and point/distributed loads. SFD: load-jump steps; BMD: positive sagging plotted, labeled x-axis + units; link area-under-shear to moment.',
+  'COMPLETENESS: every support, load, reaction, or section named in @body must appear labeled.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Chemical engineering: PFD / control volume / stream tables. */
+export const CHEMICAL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — include @diagram type=svg on visual chemical-engineering steps: process flow diagrams, control volumes with numbered streams, and equilibrium plots (x-y, T-x-y).',
+  'Draw the unit (mixer/reactor/separator/exchanger) labeled, with numbered inlet/outlet stream arrows; highlight the stream or balance used in THIS step. Equilibrium plots need labeled axes + units.',
+  'COMPLETENESS: every stream, unit, or component named in @body must appear labeled.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
+].join('\n');
+
+/** Subject-specific diagram injection block for Gemini prompts (inline/appendix path). */
 export function getDiagramRequirement(subject: Subject): string {
-  if (subject === 'Electrical') return STEP_DIAGRAM_REQUIREMENT;
-  if (subject === 'Chemistry') return CHEMISTRY_DIAGRAM_REQUIREMENT;
-  return GENERAL_DIAGRAM_REQUIREMENT;
+  switch (subject) {
+    case 'Electrical':
+      return STEP_DIAGRAM_REQUIREMENT;
+    case 'Chemistry':
+      return CHEMISTRY_DIAGRAM_REQUIREMENT;
+    case 'Physics':
+      return PHYSICS_DIAGRAM_REQUIREMENT;
+    case 'Math':
+      return MATH_DIAGRAM_REQUIREMENT;
+    case 'Biology':
+      return BIOLOGY_DIAGRAM_REQUIREMENT;
+    case 'Mechanical':
+      return MECHANICAL_DIAGRAM_REQUIREMENT;
+    case 'Civil':
+      return CIVIL_DIAGRAM_REQUIREMENT;
+    case 'Chemical':
+      return CHEMICAL_DIAGRAM_REQUIREMENT;
+    default:
+      return GENERAL_DIAGRAM_REQUIREMENT;
+  }
 }
+
+/** One-line diagram reminder per subject — keeps the composer stub small. */
+const DIAGRAM_REMINDERS: Record<Subject, string> = {
+  Electrical:
+    'Draw @diagram type=svg on nearly EVERY step: full labeled schematic (every named component, node, ground, source); never text-only or partial.',
+  Chemistry:
+    'Draw @diagram type=svg on visual steps: Lewis/structure, mechanism (curved arrows), MO/energy diagram, or labeled spectrum — every named species labeled.',
+  Physics:
+    'Draw @diagram type=svg on visual steps: free-body / ray / field / graph — label every force, ray, axis (with units).',
+  Math:
+    'Draw @diagram type=svg when visual: graph / number line / region / vector field — labeled axes, intercepts, and critical points.',
+  Biology:
+    'Draw @diagram type=svg (or mermaid for pathways): cell / cycle / Punnett / pedigree — labels adjacent to glyphs, pointed=activation, blunt=inhibition.',
+  CS:
+    'Use mermaid for control flow / state; @diagram type=svg for array / tree / graph / DP-table state AT this step (highlight the current cell). Code as inline `code`, never a fence.',
+  Mechanical:
+    'Draw @diagram type=svg on visual steps: free-body / stress element / P-V — label every force, moment, dimension, and axis.',
+  Civil:
+    'Draw @diagram type=svg on visual steps: structure with supports & loads, then SFD/BMD — labeled reactions, axes, and units.',
+  Chemical:
+    'Draw @diagram type=svg on visual steps: PFD / control volume with numbered streams — label every stream, unit, and component.',
+  General:
+    'Draw @diagram type=svg whenever the problem is spatial/visual — show only this step\'s state, with labeled axes/components offset from lines.',
+};
+
+/** Compact diagram reminder for the short composer stub (full rules ship in the file). */
+export function getDiagramReminder(subject: Subject): string {
+  return DIAGRAM_REMINDERS[subject] ?? DIAGRAM_REMINDERS.General;
+}
+
+/** One-line worked-body reminder for the short composer stub. */
+export const STEP_BODY_REMINDER =
+  'Every @step needs a worked @body: define each symbol, substitute the givens, and compute with units (never a bare formula).';
 
 /** Protocol + one playbook — the contents of the attached .txt file. */
 export function buildProtocolFileContent(opt?: BuildOptions & { question?: string }): {
@@ -144,11 +242,10 @@ export function buildComposerStub(question: string, subject: Subject, opt?: Pick
     head,
     '',
     `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
-    `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
-    STEP_BODY_REQUIREMENT,
-    getDiagramRequirement(subject),
-    FIRST_PASS_COMPLETION_REQUIREMENT,
-    'No prose outside the block.',
+    `Reply in ONE fenced code block (info string stemlm): @meta … ${STEP_COUNT_TARGET} @step (one atomic move each) … @solution … @end. No prose outside the block.`,
+    STEP_BODY_REMINDER,
+    getDiagramReminder(subject),
+    'Make the LAST step a verification (check units + a sanity/limit check). Produce the complete capsule in this one reply.',
   ].join('\n');
 }
 

@@ -55,6 +55,22 @@ describe('buildInjectionPrompt', () => {
     }
   });
 
+  it('ultra variant is deeper than balanced but stays within a usable budget', () => {
+    const balanced = CORE_PROTOCOL_BY_VARIANT.balanced;
+    const ultra = CORE_PROTOCOL_BY_VARIANT.ultra;
+    // Ultra must be the *deeper* variant (longer than balanced), not a compressed one.
+    expect(Buffer.byteLength(ultra, 'utf8')).toBeGreaterThan(Buffer.byteLength(balanced, 'utf8'));
+    // ...but still bounded so it does not break composer usability.
+    expect(Buffer.byteLength(ultra, 'utf8')).toBeLessThanOrEqual(6000);
+    // Ultra adds the explicit depth directives the balanced default does not force.
+    expect(ultra).toContain('VERIFICATION');
+    expect(ultra).toMatch(/DEEP mode/i);
+    // Same structural grammar as balanced (parser depends on these markers).
+    for (const marker of ['@meta', '@step', '@body', '@diagram', '@solution', '@end']) {
+      expect(ultra).toContain(marker);
+    }
+  });
+
   it('handles an empty question gracefully', () => {
     const { prompt } = buildInjectionPrompt('   ');
     expect(prompt).toContain('has not typed a question');
@@ -77,7 +93,7 @@ describe('buildInjectionAppendix', () => {
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
     expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
-    expect(prompt).toContain('CRITICAL — include @diagram type=svg on steps that draw');
+    expect(prompt).toContain('CRITICAL — include @diagram type=svg on visual physics steps');
     expect(prompt).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
@@ -98,10 +114,35 @@ describe('buildInjectionPayload', () => {
     expect(payload.subject).toBe('Electrical');
     expect(payload.composerText).toContain('Solve this circuit');
     expect(payload.composerText).toContain(PROTOCOL_FILENAME);
-    expect(payload.composerText).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
+    // Compact reminders only — full rules ship in the attached protocol file.
+    expect(payload.composerText).toContain('Make the LAST step a verification');
+    expect(payload.composerText).toContain('Draw @diagram type=svg on nearly EVERY step');
     expect(payload.composerText).not.toContain('OUTPUT:');
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
+  });
+
+  it('keeps the composer stub compact (full rules live in the attached file)', () => {
+    // The stub is pasted into the live composer; keep it short so it does not lag
+    // the editor or distract weaker (Flash) models. Detail ships in the .txt file.
+    for (const subject of ['Electrical', 'Chemistry', 'Physics', 'Math', 'Biology'] as const) {
+      const stub = buildComposerStub('A representative question for sizing.', subject);
+      expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(1200);
+    }
+  });
+
+  it('injects the routed subject diagram rules into the inline appendix', () => {
+    const cases: [string, string][] = [
+      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'visual math steps'],
+      ['Explain the Krebs cycle pathway in the mitochondrion', 'visual biology steps'],
+      ['Compute bending stress for this shaft and draw the free-body diagram', 'visual mechanical steps'],
+      ['Draw the SFD and BMD for a simply supported beam with a point load', 'visual civil steps'],
+      ['Mass balance on a mixer with two inlet streams and one outlet', 'visual chemical-engineering steps'],
+    ];
+    for (const [question, marker] of cases) {
+      const { prompt } = buildInjectionAppendix(question);
+      expect(prompt, `appendix for "${question}" should mention "${marker}"`).toContain(marker);
+    }
   });
 
   it('buildComposerStub references the attached filename only', () => {
