@@ -414,7 +414,7 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
     ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
     : '';
   const diagramFix = opt.errorCode && DIAGRAM_REPAIR_CODES.has(opt.errorCode)
-    ? ' ADD or REDRAW every @diagram type=svg to be COMPLETE: electrical — full circuit/hybrid-π with every named component labeled; chemistry — structures/orbitals/mechanisms/spectra with every species and label from @body. No partial fragments. ≥5 SVG primitives + ≥3 labels. Diagram on every visual step.'
+    ? ' ADD or REDRAW every @diagram type=svg to be COMPLETE for its subject — electrical: full circuit/hybrid-π; physics: free-body/ray/field/graph; math: graph/region/vector field; chemistry: structures/orbitals/mechanisms/spectra; biology: cell/pathway/cycle; mechanical/civil/chemical: FBD/SFD-BMD/control volume. Every component, force, axis, bond, or node named in @body MUST appear labeled. No partial fragments. ≥5 SVG primitives + ≥3 labels. Diagram on every visual step.'
     : '';
   return [
     `Your previous stemLM capsule was incomplete or malformed.${reason}`,
