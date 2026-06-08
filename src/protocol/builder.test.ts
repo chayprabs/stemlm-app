@@ -11,6 +11,7 @@ import {
   buildRepairPrompt,
   resolveSubject,
   PROTOCOL_FILENAME,
+  getDiagramRequirement,
 } from './builder';
 import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
 
@@ -77,7 +78,7 @@ describe('buildInjectionAppendix', () => {
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
     expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
-    expect(prompt).toContain('CRITICAL — include @diagram type=svg on steps that draw');
+    expect(prompt).toContain('CRITICAL — physics visual problems MUST include @diagram type=svg');
     expect(prompt).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
@@ -138,6 +139,17 @@ describe('buildInjectionPayload', () => {
 
     expect(payloads[0]).toEqual(payloads[1]);
     expect(payloads[1]).toEqual(payloads[2]);
+  });
+
+  it('includes subject-specific textbook diagram conventions without prompt banks', () => {
+    expect(getDiagramRequirement('Electrical')).toContain('input/signal flow left→right');
+    expect(getDiagramRequirement('Electrical')).toContain('BJT with B/C/E');
+    expect(getDiagramRequirement('Chemistry')).toContain('MO diagrams use AO columns outside');
+    expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
+    expect(getDiagramRequirement('Math')).toContain('origin/ticks/scale');
+    expect(getDiagramRequirement('Biology')).toContain('SBGN-like');
+    expect(getDiagramRequirement('Civil')).toContain('pin/roller/fixed support');
+    expect(getDiagramRequirement('Chemical')).toContain('number every stream');
   });
 });
 

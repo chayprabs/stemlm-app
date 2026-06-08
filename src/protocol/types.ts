@@ -104,7 +104,12 @@ export type ParseWarningCode =
   | 'missing_circuit_diagram'
   | 'insufficient_diagrams'
   | 'diagram_lacks_graphics'
-  | 'diagram_incomplete';
+  | 'diagram_incomplete'
+  | 'diagram_bad_viewbox'
+  | 'diagram_label_collision'
+  | 'diagram_label_over_graphic'
+  | 'diagram_missing_axes'
+  | 'diagram_legend_only';
 
 export type ParseErrorCode =
   | 'no_capsule'
