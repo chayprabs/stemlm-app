@@ -87,6 +87,7 @@ pnpm build          # production build -> .output/chrome-mv3
 pnpm zip            # packaged zip
 pnpm test           # vitest unit/integration tests
 pnpm compile        # tsc type-check
+pnpm eval --file q.md   # offline eval: routing + prompt sizes (external Qs; see docs/eval-rubric.md)
 ```
 
 ### Load the unpacked build
@@ -126,10 +127,12 @@ The model returns one ` ```stemlm ` code block using a line-delimited grammar
 @followup / @solution`, ending with `@end`). We use a delimiter format rather
 than JSON because LaTeX backslashes and inline SVG constantly break JSON, and the
 closing `@end` doubles as the streaming-complete signal. The **core instructions
-live in [`core-protocol.md`](src/protocol/core-protocol.md)** (~2 kB); on Gemini
+live in [`core-protocol.md`](src/protocol/core-protocol.md)** (~4 kB; a deeper
+`ultra` variant in `core-protocol.ultra.md` is selectable in Settings); on Gemini
 they ship inside the attached `stemlm-protocol.txt` plus one short subject
-*playbook* per question. The parser is tolerant (recovers from missing terminators
-and a dropped `@end`) and never throws.
+*playbook* per question (only a compact reminder is pasted into the composer).
+The parser is tolerant (recovers from missing terminators and a dropped `@end`)
+and never throws.
 
 ### Capture is resilient by design
 
@@ -176,7 +179,8 @@ appearing or answers stop being captured, update those selector arrays.
 ## Testing
 
 - **Automated** (`pnpm test`): the tolerant capsule **parser** (golden fixtures
-  incl. SVG/mermaid/tolerant recovery), a 35-case **classifier** table, the
+  incl. SVG/mermaid/tolerant recovery), a representative cross-subject **classifier**
+  table, the per-subject **diagram-quality** audits, the **no-hardcoding** guards, the
   **prompt builder** (file-attach payload split), the **SVG sanitizer**, the
   **Gemini adapter** (DOM-contract fixtures), **file-inject**, the **controller**
   capture loop (stability + answer-started), the **PDF report / print-document
