@@ -7,3 +7,8 @@ stats.html
 .env.local
 .DS_Store
 dist/
+
+# Local evaluation inputs/outputs — never commit question sets, captured answers,
+# or generated eval reports. Keep the QA corpus external to the repo.
+artifacts/
+eval-out/
