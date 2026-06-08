@@ -1,6 +1,11 @@
 /**
  * Guard: the extension must not ship pre-authored solutions, diagram builders,
- * or answer oracles. Gemini generates capsules at runtime.
+ * answer oracles, per-question solvers, or exam question banks. Gemini generates
+ * every capsule at runtime from the user's question + the general protocol +
+ * one subject playbook.
+ *
+ * This is one of only two files allowed to mention the forbidden identifiers
+ * (the other is extension-runtime-no-hardcoding.test.ts).
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -21,36 +26,68 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-const TEST_FILE = /\.test\.(ts|tsx)$/;
-
 const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
   { pattern: /verifiedPatterns\s*:/, label: 'verifiedPatterns answer oracle' },
-  { pattern: /buildChemistryCapsule|buildPhysicsCapsule|buildMathCapsule/, label: 'hardcoded capsule builder' },
-  { pattern: /chemistry-question-bank|physics-question-bank|math-question-bank|biology-question-bank/, label: 'hardcoded question bank import' },
-  { pattern: /verified-answers|question-factory|questions\/year[123]/, label: 'legacy hardcoded EE answer bank' },
-  { pattern: /from ['"].*physics-benchmark/, label: 'physics-benchmark hardcoded bank' },
-  { pattern: /from ['"].*biology-benchmark/, label: 'biology-benchmark hardcoded bank' },
-  { pattern: /from ['"].*math-benchmark/, label: 'math-benchmark hardcoded bank' },
+  {
+    pattern: /buildChemistryCapsule|buildPhysicsCapsule|buildMathCapsule|buildBiologyCapsule/,
+    label: 'hardcoded capsule builder',
+  },
+  {
+    pattern: /question-bank|exam-bank/,
+    label: 'hardcoded question bank import',
+  },
+  {
+    pattern: /verified-answers|question-factory|questions\/year[123]/,
+    label: 'legacy hardcoded EE answer bank',
+  },
+  {
+    pattern: /from ['"].*-benchmark/,
+    label: 'hardcoded benchmark bank import',
+  },
+  {
+    pattern: /from ['"].*\/(?:ee-benchmark|math-numeric-checks|numeric-verify-shared)/,
+    label: 'numeric oracle / EE solver benchmark import',
+  },
+  {
+    pattern: /from ['"].*-prompts(?:\/|['"])/,
+    label: 'exam prompt-bank import',
+  },
+  {
+    pattern: /MATH_NUMERIC_SOLVERS|getMathNumericSolver|EE_SPECS|ALL_EE_QUESTIONS/,
+    label: 'numeric solver / EE spec registry',
+  },
+  {
+    pattern: /\b(?:PHYSICS|CHEMISTRY|MATH|BIOLOGY|ELECTRICAL)_PROMPTS\b/,
+    label: 'exam prompt-bank export',
+  },
   { pattern: /from ['"].*\/chem-svg/, label: 'chem-svg hardcoded diagrams' },
   { pattern: /from ['"].*\/physics-svg/, label: 'physics-svg hardcoded diagrams' },
   { pattern: /from ['"].*\/math-svg/, label: 'math-svg hardcoded diagrams' },
   { pattern: /from ['"].*\/biology-svg/, label: 'biology-svg hardcoded diagrams' },
 ];
 
-const ALLOWED_VERIFIED = new Set([
-  join(PROTOCOL, 'no-hardcoding.test.ts'),
-]);
+/** Only this guard file may contain the forbidden identifiers (as patterns). */
+const ALLOWED_SELF = new Set([join(PROTOCOL, 'no-hardcoding.test.ts')]);
 
-describe('no hardcoded solutions or diagram banks', () => {
+/** Directories that previously held banks/oracles/benchmarks — must stay gone. */
+const FORBIDDEN_DIRS = [
+  'ee-benchmark',
+  'math-numeric-checks',
+  'biology-prompts',
+  'chemistry-prompts',
+  'electrical-prompts',
+  'math-prompts',
+  'physics-prompts',
+];
+
+describe('no hardcoded solutions, oracles, solvers, or exam banks', () => {
   const files = walk(PROTOCOL);
 
   for (const { pattern, label } of FORBIDDEN_PATTERNS) {
     it(`has no ${label} under src/protocol`, () => {
       const hits: string[] = [];
       for (const file of files) {
-        if (ALLOWED_VERIFIED.has(file)) continue;
-        if (file.includes(`${PROTOCOL}/ee-benchmark/`)) continue;
-        if (file.endsWith('ee-benchmark.test.ts')) continue;
+        if (ALLOWED_SELF.has(file)) continue;
         const text = readFileSync(file, 'utf8');
         if (pattern.test(text)) hits.push(file.replace(process.cwd() + '/', ''));
       }
@@ -58,38 +95,19 @@ describe('no hardcoded solutions or diagram banks', () => {
     });
   }
 
-  it('prompt banks contain questions only (no steps/solution fields)', () => {
-    const promptDirs = ['chemistry-prompts', 'physics-prompts', 'math-prompts', 'biology-prompts', 'electrical-prompts'];
-    for (const dir of promptDirs) {
-      const promptsFile = join(PROTOCOL, dir, 'prompts.ts');
-      const text = readFileSync(promptsFile, 'utf8');
-      expect(text).not.toMatch(/"steps"\s*:/);
-      expect(text).not.toMatch(/"solution"\s*:/);
-      expect(text).not.toMatch(/verifiedPatterns/);
-    }
+  it('no exam-bank / numeric-oracle / solver-benchmark directories remain', () => {
+    const present = FORBIDDEN_DIRS.filter((d) => existsSync(join(PROTOCOL, d)));
+    expect(present, `These hardcoded directories must not exist: ${present.join(', ')}`).toEqual([]);
   });
 
-  it('no *-question-bank or hardcoded *-benchmark directories remain', () => {
+  it('no *-question-bank or *-benchmark directories remain', () => {
     const dirs = readdirSync(PROTOCOL).filter(
-      (d) =>
-        d.includes('question-bank') ||
-        (d.endsWith('-benchmark') && d !== 'ee-benchmark'),
+      (d) => d.includes('question-bank') || d.endsWith('-benchmark') || d.endsWith('-prompts'),
     );
     expect(dirs).toEqual([]);
   });
 
-  it('ee-benchmark is solver-driven (no legacy hardcoded answer files)', () => {
-    const eeDir = join(PROTOCOL, 'ee-benchmark');
-    if (!existsSync(eeDir)) return;
-    const legacy = ['verified-answers.ts', 'question-factory.ts', 'define-question.ts'];
-    for (const name of legacy) {
-      expect(existsSync(join(eeDir, name)), `legacy file ${name} must not exist`).toBe(false);
-    }
-    expect(existsSync(join(eeDir, 'pipeline.ts'))).toBe(true);
-    expect(existsSync(join(eeDir, 'solvers', 'index.ts'))).toBe(true);
-  });
-
-  it('no *-svg diagram builder modules remain', () => {
+  it('no *-svg diagram-builder modules remain', () => {
     const svgBuilders = readdirSync(PROTOCOL).filter((f) => f.endsWith('-svg.ts'));
     expect(svgBuilders).toEqual([]);
   });
@@ -108,6 +126,8 @@ describe('no hardcoded solutions or diagram banks', () => {
       /buildChemistryCapsule/,
       /buildPhysicsCapsule/,
       /buildMathCapsule/,
+      /MATH_NUMERIC_SOLVERS/,
+      /EE_SPECS/,
     ];
     for (const file of bundleFiles) {
       const text = readFileSync(file, 'utf8');
@@ -115,19 +135,5 @@ describe('no hardcoded solutions or diagram banks', () => {
         expect(text, `${file} matched ${pattern}`).not.toMatch(pattern);
       }
     }
-  });
-
-  it('math-numeric-checks oracles are test-only (never imported by production protocol modules)', () => {
-    const hits: string[] = [];
-    for (const file of files) {
-      if (TEST_FILE.test(file)) continue;
-      if (file.includes('math-numeric-checks')) continue;
-      if (file.includes('numeric-verify-shared')) continue;
-      const text = readFileSync(file, 'utf8');
-      if (/from ['"].*math-numeric-checks|getMathNumericSolver|MATH_NUMERIC_SOLVERS/.test(text)) {
-        hits.push(file.replace(process.cwd() + '/', ''));
-      }
-    }
-    expect(hits, `Numeric oracles must stay in *.test.* only:\n${hits.join('\n')}`).toEqual([]);
   });
 });
