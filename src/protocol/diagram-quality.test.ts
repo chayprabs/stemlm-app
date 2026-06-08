@@ -31,6 +31,20 @@ function makeCapsule(steps: Step[], question = 'Consider the circuit below with 
   };
 }
 
+function makeSubjectCapsule(subject: Capsule['meta']['subject'], steps: Step[], question: string, topic = 'Visual check'): Capsule {
+  return {
+    meta: {
+      version: 1,
+      subject,
+      topic,
+      question,
+    },
+    steps,
+    solution: 'done',
+    solutionDiagrams: [],
+  };
+}
+
 const MINIMAL_SVG =
   '<svg viewBox="0 0 100 100"><line x1="10" y1="10" x2="90" y2="90" stroke="black"/></svg>';
 
@@ -180,6 +194,134 @@ describe('auditCapsuleDiagrams', () => {
       makeStep({ index: 4, title: 'More KCL', diagram: { type: 'svg', content: RICH_EE_SVG } }),
     ]);
     expect(auditCapsuleDiagrams(capsule)).toContain('diagram_lacks_graphics');
+  });
+
+  it('flags labels placed directly on wires or strokes', () => {
+    const labelOnWire =
+      '<svg viewBox="0 0 300 180">' +
+      '<line x1="30" y1="90" x2="260" y2="90" stroke="black"/>' +
+      '<line x1="260" y1="90" x2="260" y2="130" stroke="black"/>' +
+      '<text x="140" y="90" font-size="14">R1</text>' +
+      '<text x="40" y="70" font-size="14">Vs</text>' +
+      '</svg>';
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Label circuit branch',
+        body: 'Analyze R1 and Vs in the branch.',
+        diagram: { type: 'svg', content: labelOnWire },
+      }),
+      makeStep({ index: 2, title: 'Apply KCL at node A', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+      makeStep({ index: 3, title: 'Apply KVL in loop', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+    ]);
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_label_over_graphic');
+  });
+
+  it('flags overlapping labels before they make the diagram unreadable', () => {
+    const stacked =
+      '<svg viewBox="0 0 300 180">' +
+      '<line x1="30" y1="90" x2="260" y2="90" stroke="black"/>' +
+      '<rect x="80" y="70" width="40" height="20" stroke="black" fill="none"/>' +
+      '<text x="100" y="60" font-size="14">V1</text>' +
+      '<text x="102" y="62" font-size="14">R1</text>' +
+      '<text x="180" y="60" font-size="14">GND</text>' +
+      '</svg>';
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Label all nodes',
+        body: 'Show V1, R1, and GND labels.',
+        diagram: { type: 'svg', content: stacked },
+      }),
+      makeStep({ index: 2, title: 'Apply KCL at node V1', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+      makeStep({ index: 3, title: 'Verify KCL', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+    ]);
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_label_collision');
+  });
+
+  it('flags graph-style diagrams without axis labels', () => {
+    const noAxes =
+      '<svg viewBox="0 0 300 180">' +
+      '<path d="M 30 140 Q 150 30 270 140" stroke="black" fill="none"/>' +
+      '<text x="130" y="40" font-size="14">curve</text>' +
+      '<circle cx="150" cy="90" r="3"/>' +
+      '</svg>';
+    const capsule = makeSubjectCapsule('Math', [
+      makeStep({
+        index: 1,
+        title: 'Sketch the graph of the function',
+        body: 'Plot the curve and mark the vertex.',
+        diagram: { type: 'svg', content: noAxes },
+      }),
+      makeStep({ index: 2, title: 'Read intercepts', body: 'Use the graph.' }),
+      makeStep({ index: 3, title: 'State monotonicity', body: 'Use the graph.' }),
+    ], 'Sketch/plot the graph of y=x^2 and label key points.');
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_missing_axes');
+  });
+
+  it('flags chemistry MO diagrams missing orbital/energy labels', () => {
+    const unlabeledMo =
+      '<svg viewBox="0 0 300 180">' +
+      '<line x1="60" y1="130" x2="110" y2="130" stroke="black"/>' +
+      '<line x1="180" y1="90" x2="230" y2="90" stroke="black"/>' +
+      '<line x1="110" y1="130" x2="180" y2="90" stroke="gray" stroke-dasharray="3 3"/>' +
+      '<text x="40" y="150" font-size="14">N2</text>' +
+      '<text x="210" y="70" font-size="14">level</text>' +
+      '</svg>';
+    const capsule = makeSubjectCapsule('Chemistry', [
+      makeStep({
+        index: 1,
+        title: 'Draw the MO diagram',
+        body: 'Draw molecular orbital energy levels for N2.',
+        diagram: { type: 'svg', content: unlabeledMo },
+      }),
+      makeStep({ index: 2, title: 'Fill electrons', body: 'Use Aufbau filling.' }),
+      makeStep({ index: 3, title: 'Compute bond order', body: 'Use bonding minus antibonding.' }),
+    ], 'Draw the molecular orbital diagram for N2.');
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_missing_axes');
+  });
+
+  it('flags biology pathway diagrams without directed flow and enough labels', () => {
+    const noFlow =
+      '<svg viewBox="0 0 300 180">' +
+      '<rect x="40" y="70" width="60" height="30" stroke="black" fill="none"/>' +
+      '<rect x="180" y="70" width="60" height="30" stroke="black" fill="none"/>' +
+      '<line x1="100" y1="85" x2="180" y2="85" stroke="black"/>' +
+      '<text x="55" y="90" font-size="14">A</text>' +
+      '</svg>';
+    const capsule = makeSubjectCapsule('Biology', [
+      makeStep({
+        index: 1,
+        title: 'Draw the signaling pathway',
+        body: 'Show activation from receptor to kinase.',
+        diagram: { type: 'svg', content: noFlow },
+      }),
+      makeStep({ index: 2, title: 'Explain activation', body: 'Activation flows downstream.' }),
+      makeStep({ index: 3, title: 'Explain inhibition', body: 'Inhibitors reduce activity.' }),
+    ], 'Draw a signaling pathway with activation and inhibition.');
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_incomplete');
+  });
+
+  it('flags legend-only diagrams as incomplete figures', () => {
+    const legendOnly =
+      '<svg viewBox="0 0 300 180">' +
+      '<rect x="20" y="20" width="10" height="10" stroke="black" fill="none"/>' +
+      '<text x="50" y="30" font-size="14">R1 resistor</text>' +
+      '<text x="50" y="55" font-size="14">Vs source</text>' +
+      '<text x="50" y="80" font-size="14">GND ground</text>' +
+      '<text x="50" y="105" font-size="14">I current</text>' +
+      '</svg>';
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Label circuit symbols',
+        body: 'Show R1, Vs, GND, and I.',
+        diagram: { type: 'svg', content: legendOnly },
+      }),
+      makeStep({ index: 2, title: 'Apply KCL at node A', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+      makeStep({ index: 3, title: 'Apply KVL in loop', diagram: { type: 'svg', content: RICH_EE_SVG } }),
+    ]);
+    expect(auditCapsuleDiagrams(capsule)).toContain('diagram_legend_only');
   });
 
   it('flags chemistry draw/sketch problems as visual-dense', () => {

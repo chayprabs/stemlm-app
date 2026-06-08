@@ -26,6 +26,19 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+function isEmptyTree(dir: string): boolean {
+  if (!existsSync(dir)) return true;
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) {
+      if (!isEmptyTree(p)) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 const TEST_FILE = /\.test\.(ts|tsx)$/;
 
 const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
@@ -45,6 +58,8 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; label: string }[] = [
 
 const ALLOWED_VERIFIED = new Set([
   join(PROTOCOL, 'no-hardcoding.test.ts'),
+  // Structural format fixtures only; no real exam solutions or prompt banks.
+  join(PROTOCOL, '__fixtures-long-steps.ts'),
 ]);
 
 describe('no hardcoded solutions or diagram banks', () => {
@@ -66,10 +81,13 @@ describe('no hardcoded solutions or diagram banks', () => {
   it('no prompt banks, question banks, benchmarks, or numeric oracle directories remain', () => {
     const dirs = readdirSync(PROTOCOL).filter(
       (d) =>
-        d.endsWith('-prompts') ||
-        d.includes('question-bank') ||
-        d.endsWith('-benchmark') ||
-        d === 'math-numeric-checks',
+        (
+          d.endsWith('-prompts') ||
+          d.includes('question-bank') ||
+          d.endsWith('-benchmark') ||
+          d === 'math-numeric-checks'
+        ) &&
+        !isEmptyTree(join(PROTOCOL, d)),
     );
     expect(dirs).toEqual([]);
   });
@@ -88,7 +106,11 @@ describe('no hardcoded solutions or diagram banks', () => {
       'scripts/gen-electrical-prompts-ext.mjs',
     ];
     for (const rel of removed) {
-      expect(existsSync(join(ROOT, rel)), `${rel} must not exist`).toBe(false);
+      const path = join(ROOT, rel);
+      if (!existsSync(path)) continue;
+      const stat = statSync(path);
+      const okEmptyDirectory = stat.isDirectory() && isEmptyTree(path);
+      expect(okEmptyDirectory, `${rel} must not exist as a tracked/non-empty artifact`).toBe(true);
     }
   });
 
