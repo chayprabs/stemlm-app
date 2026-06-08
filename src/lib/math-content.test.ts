@@ -118,4 +118,14 @@ describe('prepareMathForRender', () => {
     ]);
   });
 
+  it('wraps inline \\vec commands inside prose exam questions', () => {
+    const q =
+      'Q.5 Three vectors \\vec{P}, \\vec{Q} and \\vec{R} are shown in the figure. Let S be any point on the vector \\vec{R}. The distance between the points P and S is b|\\vec{R}|.';
+    const out = prepareMathForRender(q, 'auto');
+    expect(out).toContain('$\\vec{P}$');
+    expect(out).toContain('$\\vec{Q}$');
+    expect(out).toContain('$|\\vec{R}|$');
+    expect(out).not.toContain('Three vectors \\vec{P}');
+  });
+
 });

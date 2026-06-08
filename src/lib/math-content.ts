@@ -14,7 +14,12 @@ const LATEX_COMMAND =
 const SUBSCRIPT = /[A-Za-z]_\{[^}]+\}|[A-Za-z]_[A-Za-z0-9]/;
 const SUPERSCRIPT = /\^[^{}\s]|\^\{[^}]+\}/;
 const DISPLAY_HINT = /\\begin\s*\{|\\\\|\\frac|\\sum|\\int|\\prod|\\lim|\\displaystyle/;
-const BARE_SNIPPET_CMD = /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf)\b/;
+const BARE_SNIPPET_CMD =
+  /\\(?:frac|dfrac|tfrac|sqrt|text|mathrm|mathbf|vec|hat|bar|tilde|overline|underline)\b/;
+
+const SINGLE_ARG_SNIPPET_CMD =
+  /^\\(?:sqrt|text|mathrm|mathbf|vec|hat|bar|tilde|overline|underline)$/;
+const TWO_ARG_SNIPPET_CMD = /^\\(?:frac|dfrac|tfrac)$/;
 
 /** Sentence openers common in @quickcheck / @body prose (not raw formulas). */
 const PROSE_STARTERS =
@@ -87,10 +92,27 @@ function extractLatexSnippet(src: string, start: number): string | null {
     while (i < src.length && src[i] === ' ') i++;
   }
   if (cmd === '\\sqrt' && args.length === 1) return cmd + args[0]!;
-  if (args.length >= 1 && /^\\(?:frac|dfrac|tfrac|text|mathrm|mathbf)$/.test(cmd)) {
-    return cmd + args.join('');
-  }
+  if (args.length >= 1 && SINGLE_ARG_SNIPPET_CMD.test(cmd)) return cmd + args[0]!;
+  if (args.length >= 2 && TWO_ARG_SNIPPET_CMD.test(cmd)) return cmd + args.join('');
   return null;
+}
+
+/**
+ * Wrap |\\vec{R}| magnitudes before bare \\vec snippets run (otherwise \\vec{R}
+ * inside the bars gets wrapped separately and breaks the delimiter pair).
+ */
+function wrapVectorMagnitudes(text: string): string {
+  const placeholders: string[] = [];
+  const masked = text.replace(/\|(\\vec\{[^}]+\})\|/g, (_m, inner: string) => {
+    const token = `@@STEMLM_VECMAG${placeholders.length}@@`;
+    placeholders.push(`$|${inner}|$`);
+    return token;
+  });
+  const wrapped = wrapBareLatexSnippets(masked);
+  return placeholders.reduce(
+    (out, ph, i) => out.replace(`@@STEMLM_VECMAG${i}@@`, ph),
+    wrapped,
+  );
 }
 
 function countEnglishWords(text: string): number {
@@ -243,7 +265,7 @@ function wrapFragmentsInLine(line: string): string {
   }
 
   if (!hasMathDelimiters(line)) {
-    return wrapBareLatexSnippets(line);
+    return wrapVectorMagnitudes(line);
   }
 
   return splitMathSegments(line)
@@ -260,7 +282,7 @@ function wrapFragmentsInLine(line: string): string {
         const trail = seg.text.match(/\s*$/)?.[0] ?? '';
         return `${lead}${wrapAsMath(trimmed, prefersDisplayMath(trimmed))}${trail}`;
       }
-      return wrapBareLatexSnippets(seg.text);
+      return wrapVectorMagnitudes(seg.text);
     })
     .join('');
 }

@@ -181,6 +181,39 @@ describe('Panel step diagram', () => {
     container.remove();
   });
 
+  it('renders LaTeX vectors in the panel question heading', () => {
+    const session = buildTwoDiagramSession();
+    session.question =
+      'Q.5 Three vectors \\vec{P}, \\vec{Q} and \\vec{R} are shown in the figure. Let S be any point on the vector \\vec{R}.';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    const topic = container.querySelector('.slm-topic');
+    expect(topic?.textContent).toContain('Three vectors');
+    expect(container.querySelector('.slm-topic .katex')).toBeTruthy();
+    expect(container.querySelector('.slm-topic .katex-mathml')).toBeTruthy();
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
   it('moves one step per arrow key press', () => {
     const session = buildTwoDiagramSession();
     const container = document.createElement('div');
