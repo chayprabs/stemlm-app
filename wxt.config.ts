@@ -83,8 +83,11 @@ export default defineConfig({
   }),
   manifest: {
     name: 'stemLM — Structured STEM Study Overlay',
+    short_name: 'stemLM',
     description:
       'Turn Gemini into a guided STEM study workspace: step-by-step solutions, step-synced diagrams, quick-checks, and clean PDF export.',
+    homepage_url: 'https://github.com/chayprabs/stemlm-app',
+    minimum_chrome_version: '116',
     permissions: ['storage', 'tabs'],
     host_permissions: [
       'https://fonts.googleapis.com/*',

@@ -2,7 +2,7 @@
   "name": "stemlm-app",
   "description": "stemLM - a structured STEM learning overlay for Gemini",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/gen-icons.mjs && wxt",
@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
+    "release:chrome": "pnpm verify && pnpm zip",
     "eval": "tsx scripts/eval/run-eval.mjs",
     "postinstall": "wxt prepare"
   },
