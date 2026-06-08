@@ -41,9 +41,11 @@ export const STEP_BODY_REQUIREMENT = [
 export const CHEMISTRY_DIAGRAM_REQUIREMENT = [
   'CRITICAL — chemistry/visual problems MUST include @diagram type=svg on steps that draw, sketch, diagram, or name structures/orbitals/mechanisms/spectra.',
   'Each @diagram shows the chemical state AT THIS STEP: Lewis/line structures, MO energy levels, orbital lobes, Newman/Fischer projections, energy profiles, ICE tables, phase diagrams, unit cells, spectra with labeled peaks, electrochemical cells.',
+  'TEXTBOOK CONVENTIONS: MO diagrams use AO columns outside + MO column center + energy upward + σ/π/σ*/π* labels + electron arrows; reaction-coordinate plots label reactants/products/TS/ΔG‡; spectra/phase/titration plots label axes with units and key peaks/points.',
+  'STRUCTURES: use wedge/dash for 3D geometry, lone-pair dots, charges, resonance arrows, bond angles, orbital phase signs/colors, and nodal-plane labels when relevant.',
   'COMPLETENESS: every species, bond, orbital, electrode, or peak you name in @body MUST appear labeled in that step\'s SVG — partial fragments are invalid.',
   'Step 1 on multi-part problems: overview diagram (energy levels, MO diagram, mechanism outline, or cell schematic).',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols; no text on bonds/curves/axes.',
   'Minimum ≥40% of steps have diagrams on diagram-intensive chemistry problems; never text-only SVG.',
 ].join('\n');
 
@@ -51,6 +53,8 @@ export const CHEMISTRY_DIAGRAM_REQUIREMENT = [
 export const STEP_DIAGRAM_REQUIREMENT = [
   'CRITICAL — electrical/visual problems MUST include @diagram type=svg on nearly EVERY @step (never skip for laziness).',
   'COMPLETENESS: each @diagram must show EVERY component you name in @body for that step — if you write R_C, R_E, r_π, g_m, v_in, collector, load, they MUST all appear labeled in the SVG. Partial fragments are invalid.',
+  'SCHEMATIC STYLE: draw like a textbook schematic — input/signal flow left→right, high potential/VCC at top, ground/reference at bottom, components aligned on a grid, short horizontal labels, no four-way ambiguous junctions, junction dots where wires connect.',
+  'STANDARD SYMBOLS: resistors as zigzag/rectangles, capacitors as parallel plates, inductors as loops, diode with bar/polarity, BJT with B/C/E and emitter arrow, MOSFET with G/D/S/channel, op-amp triangle with +/− and feedback network.',
   'Step 1: FULL original circuit or full small-signal/hybrid-π model (BJT: base B, collector C, emitter E, r_π, g_m v_be source, R_E, R_C to supply, ground, v_in).',
   'BJT/OP-AMP/SMALL-SIGNAL: draw the complete hybrid-π or op-amp schematic — transistor triangle/circle, all resistors (zigzag), controlled current source (diamond/circle+arrow), every node wired. Never show only r_π+RE without R_C and collector.',
   'REQUIRED @diagram on: model drawing, R_in/R_out/gain derivations, KCL/KVL, superposition, Thevenin, source killing, bandwidth/stability — any step mentioning circuit elements.',
@@ -59,6 +63,49 @@ export const STEP_DIAGRAM_REQUIREMENT = [
   'SVG SIZE: use compact viewBox="0 0 300 180" (max ~360×220); font-size 13–15 on every <text>; max ~6 value labels; no "Symbols: …" legend block inside the SVG.',
   'LABELS: name components (R1,L1,Vs,Id); offset text 10px from symbol — never stacked or on wires.',
   'PHASOR: Re/Im at axis ends; real/imag values (18/97, j8/97) at projection foot on dashed line; I1/I2 beside arrowhead not on stroke.',
+].join('\n');
+
+export const PHYSICS_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — physics visual problems MUST include @diagram type=svg on each step that uses a free-body, ray, field, wave, circuit, graph, phase, or state picture.',
+  'FREE-BODY: isolate ONE object as a dot/box; draw only external forces as arrows from its center; label every vector (N, T, f, mg, F); put coordinate axes separately and align axes with an incline when useful.',
+  'OPTICS/RAYS: draw optical axis, lens/mirror surface, F/2F marks, object/image arrows, and principal rays with arrowheads; label do, di, f, m, real/virtual/upright/inverted.',
+  'GRAPHS/FIELDS: label axes with variable + units, draw tick marks or scale cues, label each curve/region directly, show direction arrows on fields/waves/paths, and never place labels on curves or arrows.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px from vectors/curves; no text-only diagrams.',
+].join('\n');
+
+export const MATH_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — math visual problems MUST include @diagram type=svg for graphs, plots, regions, number lines, geometry, vector fields, phase portraits, and transformations.',
+  'GRAPHS: x-axis = independent variable, y-axis = dependent variable; label axes (with units when present), origin/ticks/scale, intercepts/critical points/asymptotes, and each curve or shaded region directly.',
+  'GEOMETRY: use clean points/segments/arcs, angle marks, equal-length marks, dimensions offset from edges, and labels beside—not on—lines.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; no legend-only or text-only figures.',
+].join('\n');
+
+export const BIOLOGY_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — biology visual problems MUST include @diagram type=svg for cells, organelles, anatomy, cycles, pathways, pedigrees, Punnett squares, food webs, gels, and phylogenies.',
+  'PATHWAYS: use consistent SBGN-like glyphs/compartments, left→right or top→bottom flow, pointed arrows for activation/flow and blunt T-bars for inhibition; avoid crossing edges.',
+  'ANATOMY/CELL: label structures inside or adjacent to their glyphs; use short leader lines with dots only when needed; labels and edges must not overlap cells, membranes, arrows, or each other.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; no text-only diagrams.',
+].join('\n');
+
+export const MECHANICAL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — mechanical visual problems MUST include @diagram type=svg for FBDs, stress elements, shafts/gears/pulleys, mechanisms, thermo states, and P–V/T–s plots.',
+  'FBD/STRESS: isolate the body, draw only external forces/moments from the body, label dimensions/loads/supports, show stress blocks/cross-sections with units, and offset labels from edges.',
+  'THERMO/GRAPHS: label axes with variables + units, state points, arrows for process direction, and shaded work/heat regions when relevant.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels.',
+].join('\n');
+
+export const CIVIL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — civil visual problems MUST include @diagram type=svg for beams, trusses, supports, load paths, SFD/BMD, stress blocks, and deflected shapes.',
+  'STRUCTURES: draw standard pin/roller/fixed support symbols, load arrows with magnitudes, dimensions/spans, reaction arrows, section cuts, and member labels; keep labels clear of members.',
+  'SFD/BMD: label x-axis and force/moment units, load jumps, zero crossings, positive sagging convention, and key ordinates.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels.',
+].join('\n');
+
+export const CHEMICAL_DIAGRAM_REQUIREMENT = [
+  'CRITICAL — chemical engineering visual problems MUST include @diagram type=svg for control volumes, PFDs, reactors, separators, columns, exchangers, and phase/equilibrium plots.',
+  'PFD/CV: draw the unit as a labeled box/symbol, number every stream, show flow arrows, total/component flow rates/compositions/units, and highlight the stream or balance used in this step.',
+  'GRAPHS: label axes with variables + units and mark operating/equilibrium points.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels.',
 ].join('\n');
 
 /** Keeps the first model response complete so the app never needs to patch the chat afterward. */
@@ -108,56 +155,9 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
 export const GENERAL_DIAGRAM_REQUIREMENT = [
   'CRITICAL — include @diagram type=svg on steps that draw, sketch, diagram, or show spatial/visual state.',
   'Each @diagram shows the state AT THIS STEP only — every component, force, bond, axis, or label from @body must appear in the SVG.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols.',
+  'Use textbook conventions for the detected subject: clear axes/units for graphs, standard schematic/component symbols for circuits, external-force-only FBDs, and pathway arrows/glyphs for biology.',
+  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives (line/path/circle/rect) + ≥3 text labels; offset labels 10px from symbols/lines; never place text on wires, bonds, axes, vectors, or curves.',
   'Minimum ≥40% of steps carry diagrams on diagram-intensive problems; never text-only SVG.',
-].join('\n');
-
-/** Physics: free-body / ray / field / graph diagrams. */
-export const PHYSICS_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on visual physics steps: free-body diagrams, ray/optics diagrams, field maps, wave/PV/energy-level plots, and graphs.',
-  'FBD: isolate ONE body, draw only its external forces as labeled vectors with axes/angles. OPTICS: optical axis, lens/mirror, F & 2F, object/image arrows, the rays after this surface; label do, di, f, m. FIELDS: direction arrows + charges. GRAPHS: labeled axes, units, ticks, named curve.',
-  'COMPLETENESS: every force, ray, field, or quantity named in @body must appear labeled in that step\'s SVG.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
-].join('\n');
-
-/** Math: graphs / number lines / regions / vector fields / geometry. */
-export const MATH_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on visual math steps: function graphs, number lines, shaded regions, geometry figures, vector fields, phase portraits, contour/level curves.',
-  'GRAPHS: labeled axes with units/ticks, intercepts, asymptotes, and marked critical points. REGIONS: shade with labeled boundaries. GEOMETRY: label vertices/sides offset from edges. VECTOR FIELD/PHASE PORTRAIT: arrowheads + sample trajectories.',
-  'Omit a diagram on a purely symbolic algebra line; otherwise show the state after THIS move.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
-].join('\n');
-
-/** Biology: cells / pathways / Punnett / pedigrees / cycles. */
-export const BIOLOGY_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg (or mermaid for linear pathways) on visual biology steps: cells/organelles, anatomy, pathways, cycles, Punnett squares, pedigrees, gels, phylogenies.',
-  'PATHWAYS: consistent flow (left→right or top→bottom); POINTED arrow = activation/flow, BLUNT bar (⊣) = inhibition. Labels adjacent to glyphs; avoid crossing edges and label overlap.',
-  'COMPLETENESS: every structure, species, or step named in @body must appear labeled; show only THIS phase\'s state.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
-].join('\n');
-
-/** Mechanical: FBD / stress elements / shafts-gears / P-V-T-S. */
-export const MECHANICAL_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on visual mechanical steps: free-body diagrams, stress elements/cross-sections, shaft/gear schematics, P-V or T-S plots, flow control volumes.',
-  'FBD: isolate ONE body with labeled external forces/moments and axes. STRESS: draw the member with applied loads, the internal cut, the cross-section with dimensions, and the resulting stress. PLOTS: labeled axes + units.',
-  'COMPLETENESS: every force, moment, dimension, or state named in @body must appear labeled.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
-].join('\n');
-
-/** Civil: beams / supports / loads / SFD / BMD. */
-export const CIVIL_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on visual civil steps: the idealised structure, free-body of reactions, and shear-force (SFD) / bending-moment (BMD) diagrams.',
-  'Show pin (triangle) / roller (circle) supports, reaction arrows, dimensions, and point/distributed loads. SFD: load-jump steps; BMD: positive sagging plotted, labeled x-axis + units; link area-under-shear to moment.',
-  'COMPLETENESS: every support, load, reaction, or section named in @body must appear labeled.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
-].join('\n');
-
-/** Chemical engineering: PFD / control volume / stream tables. */
-export const CHEMICAL_DIAGRAM_REQUIREMENT = [
-  'CRITICAL — include @diagram type=svg on visual chemical-engineering steps: process flow diagrams, control volumes with numbered streams, and equilibrium plots (x-y, T-x-y).',
-  'Draw the unit (mixer/reactor/separator/exchanger) labeled, with numbered inlet/outlet stream arrows; highlight the stream or balance used in THIS step. Equilibrium plots need labeled axes + units.',
-  'COMPLETENESS: every stream, unit, or component named in @body must appear labeled.',
-  'Each SVG: viewBox="0 0 300 180", font-size 13–15, ≥5 primitives + ≥3 labels; offset labels 10px; never text-only.',
 ].join('\n');
 
 /** Subject-specific diagram injection block for Gemini prompts (inline/appendix path). */

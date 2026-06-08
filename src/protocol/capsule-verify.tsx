@@ -57,17 +57,30 @@ function checkLabelCollisions(svg: string): string[] {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
   const texts = [...doc.querySelectorAll('text')];
   const issues: string[] = [];
+  const boxFor = (el: Element) => {
+    const x = Number(el.getAttribute('x'));
+    const y = Number(el.getAttribute('y'));
+    if (Number.isNaN(x) || Number.isNaN(y)) return null;
+    const size = Number(el.getAttribute('font-size') ?? el.parentElement?.getAttribute('font-size') ?? 14);
+    const fontSize = Number.isFinite(size) && size > 0 ? size : 14;
+    const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const width = Math.max(fontSize * 0.7, text.length * fontSize * 0.55);
+    const height = fontSize * 1.15;
+    const anchor = el.getAttribute('text-anchor') ?? 'start';
+    const x1 = anchor === 'middle' ? x - width / 2 : anchor === 'end' ? x - width : x;
+    const y1 = y - height * 0.72;
+    return { x1, y1, x2: x1 + width, y2: y1 + height, text };
+  };
   for (let i = 0; i < texts.length; i++) {
     for (let j = i + 1; j < texts.length; j++) {
       const a = texts[i]!;
       const b = texts[j]!;
-      const ax = Number(a.getAttribute('x'));
-      const ay = Number(a.getAttribute('y'));
-      const bx = Number(b.getAttribute('x'));
-      const by = Number(b.getAttribute('y'));
-      if (Number.isNaN(ax) || Number.isNaN(ay) || Number.isNaN(bx) || Number.isNaN(by)) continue;
-      if (Math.abs(ax - bx) < 3 && Math.abs(ay - by) < 3) {
-        issues.push(`Labels collide at (${ax},${ay}): "${a.textContent}" and "${b.textContent}"`);
+      const ab = boxFor(a);
+      const bb = boxFor(b);
+      if (!ab || !bb || !ab.text || !bb.text) continue;
+      const overlap = ab.x1 < bb.x2 && ab.x2 > bb.x1 && ab.y1 < bb.y2 && ab.y2 > bb.y1;
+      if (overlap) {
+        issues.push(`Labels overlap: "${ab.text}" and "${bb.text}"`);
       }
     }
   }

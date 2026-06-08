@@ -11,6 +11,7 @@ import {
   buildRepairPrompt,
   resolveSubject,
   PROTOCOL_FILENAME,
+  getDiagramRequirement,
 } from './builder';
 import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
 import { SUBJECTS } from './types';
@@ -94,7 +95,7 @@ describe('buildInjectionAppendix', () => {
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
     expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
-    expect(prompt).toContain('CRITICAL — include @diagram type=svg on visual physics steps');
+    expect(prompt).toContain('CRITICAL — physics visual problems MUST include @diagram type=svg');
     expect(prompt).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).not.toContain('A projectile is launched');
@@ -147,11 +148,11 @@ describe('buildInjectionPayload', () => {
 
   it('injects the routed subject diagram rules into the inline appendix', () => {
     const cases: [string, string][] = [
-      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'visual math steps'],
-      ['Explain the Krebs cycle pathway in the mitochondrion', 'visual biology steps'],
-      ['Compute bending stress for this shaft and draw the free-body diagram', 'visual mechanical steps'],
-      ['Draw the SFD and BMD for a simply supported beam with a point load', 'visual civil steps'],
-      ['Mass balance on a mixer with two inlet streams and one outlet', 'visual chemical-engineering steps'],
+      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'math visual problems'],
+      ['Explain the Krebs cycle pathway in the mitochondrion', 'biology visual problems'],
+      ['Compute bending stress for this shaft and draw the free-body diagram', 'mechanical visual problems'],
+      ['Draw the SFD and BMD for a simply supported beam with a point load', 'civil visual problems'],
+      ['Mass balance on a mixer with two inlet streams and one outlet', 'chemical engineering visual problems'],
     ];
     for (const [question, marker] of cases) {
       const { prompt } = buildInjectionAppendix(question);
@@ -193,6 +194,17 @@ describe('buildInjectionPayload', () => {
 
     expect(payloads[0]).toEqual(payloads[1]);
     expect(payloads[1]).toEqual(payloads[2]);
+  });
+
+  it('includes subject-specific textbook diagram conventions without prompt banks', () => {
+    expect(getDiagramRequirement('Electrical')).toContain('input/signal flow left→right');
+    expect(getDiagramRequirement('Electrical')).toContain('BJT with B/C/E');
+    expect(getDiagramRequirement('Chemistry')).toContain('MO diagrams use AO columns outside');
+    expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
+    expect(getDiagramRequirement('Math')).toContain('origin/ticks/scale');
+    expect(getDiagramRequirement('Biology')).toContain('SBGN-like');
+    expect(getDiagramRequirement('Civil')).toContain('pin/roller/fixed support');
+    expect(getDiagramRequirement('Chemical')).toContain('number every stream');
   });
 });
 
