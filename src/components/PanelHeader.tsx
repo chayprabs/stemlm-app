@@ -2,6 +2,7 @@ import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { sessionQuestionHeading } from '@/src/lib/session-question';
+import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark } from './BrandWordmark';
 import { ExtensionLogo } from './ExtensionLogo';
 import {
@@ -86,7 +87,7 @@ export function PanelHeader({
       {session && (
         <>
           <div className="slm-topic-row">
-            <h1 className="slm-topic">{heading}</h1>
+            <MathMarkdown content={heading} className="slm-topic" />
             <span className="slm-subject-chip">{session.capsule.meta.subject}</span>
           </div>
 
