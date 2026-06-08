@@ -13,6 +13,7 @@ import {
   PROTOCOL_FILENAME,
 } from './builder';
 import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
+import { SUBJECTS } from './types';
 
 describe('buildInjectionPrompt', () => {
   it('includes the question, protocol, and the routed playbook', () => {
@@ -120,6 +121,19 @@ describe('buildInjectionPayload', () => {
     expect(payload.composerText).not.toContain('OUTPUT:');
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
+  });
+
+  it('keeps every subject protocol file within an attachment budget', () => {
+    // The shipped artifact is core protocol + ONE playbook. Keep it bounded so the
+    // attached stemlm-protocol.txt stays small and Flash-friendly.
+    for (const subject of SUBJECTS) {
+      for (const variant of ['balanced', 'ultra'] as const) {
+        const { content } = buildProtocolFileContent({ question: 'sizing', subject, variant });
+        const bytes = Buffer.byteLength(content, 'utf8');
+        const budget = variant === 'ultra' ? 9000 : 8000;
+        expect(bytes, `${subject}/${variant} protocol file is ${bytes} B`).toBeLessThanOrEqual(budget);
+      }
+    }
   });
 
   it('keeps the composer stub compact (full rules live in the attached file)', () => {
