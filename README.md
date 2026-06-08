@@ -207,3 +207,4 @@ appearing or answers stop being captured, update those selector arrays.
 
 _Built as a focused, no-login, no-server study tool. Your questions and answers
 never leave your browser except to Gemini._
+Minor documentation update.
