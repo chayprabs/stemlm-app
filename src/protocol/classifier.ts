@@ -33,7 +33,7 @@ const RULES: Rule[] = [
   {
     subject: 'Chemistry',
     patterns: [
-      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr(y)?|isomer|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|lyman|balmer|paschen|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|electroanalytical|cyclic voltammogram|randles[- ]?sevcik|nyquist|voltammetr|warburg|galvanic|daniell|haber process|grignard|alkali metal|lanthanide|actinide|pericyclic|retrosynth|polymeris|polymeriz|enzyme|biochem|porphyrin|cobalamin|vitamin b|elimination mechanism|\bE[12]\b|E1cb|dehydrohalogenation|newman projection|carbocation|zaitsev|anti[- ]periplanar|physical chemistr|quantum chemistr|particle[- ]in[- ]a[- ]box|morse potential|statistical thermodynam|partition[- ]function|boltzmann|maxwell[- ]bolt|heat[- ]capacit|schottky|surface chemistr|langmuir|adsorption|heterogeneous catalys|isotherm|turnover frequency|computational chemistr|huckel|ab initio|hartree[- ]fock|basis[- ]function|potential energy surface|sto[- ]3g|metal[- ]metal|quadruple bond|wade[- ]mingos|borane|carbonyl cluster|re2cl8|fe3\(co\)12|solid[- ]state|band structure|bragg|debye[- ]?scherrer|\bxrd\b|crystallite|crystal packing|\bfcc\b|\bbcc\b|\bhcp\b|environmental chemistr|industrial chemistr|ozone|chapman|catalytic converter|contact process|\bnox\b|photovoltaic|perovskite|mapbi3|solar cell|nuclear chemistr|nuclide|binding energy|mass defect|nuclear fission|chart of nuclides|u-235|colloid|dlvo|zeta potential|debye length|electrical double layer|\bcmc\b|micell|surfactant|reaction engineering|reaction kinetics|arrhenius|residence time|\brtd\b)\b/i, w: 3 },
+      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr(y)?|isomer|stereochem|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|electroanalytical|voltammetr|galvanic|nernst|haber process|grignard|pericyclic|retrosynth|polymeris|polymeriz|biochem|reaction mechanism|elimination mechanism|substitution mechanism|carbocation|newman projection|physical chemistr|quantum chemistr|statistical thermodynam|partition[- ]function|arrhenius|rate law|reaction (kinetics|engineering)|surface chemistr|langmuir|adsorption|heterogeneous catalys|isotherm|computational chemistr|huckel|ab initio|hartree[- ]fock|nuclear chemistr|nuclide|binding energy|mass defect|nuclear fission|colloid|micell|surfactant)\b/i, w: 3 },
       { re: /\b(h2o|co2|nacl|hcl|naoh|nh3|h2so4|ch4|\\ce|solution|solute|solvent|salt|gas\b)\b/i, w: 2 },
     ],
   },
@@ -148,30 +148,12 @@ export function classifySubject(question: string): Subject {
   const CHEMISTRY_EXAM_OVERRIDE =
     /\b(physical chemistry|quantum chemistry|reaction engineering|born[- ]haber|grignard|stoichiometr|titration curve|electroanalytical|colloid|dlvo|langmuir isotherm|huckel|ab initio|hartree[- ]fock)\b/i;
 
-  if (
-    !CHEMISTRY_EXAM_OVERRIDE.test(text) &&
-    (/\b(biology|physiology|ecology|histology|immunology|virology|genetics|embryogenesis|gametogenesis|microbiome|epigenetics|proteomics|pharmacogenomics|nephron|phylogenetic|gel electrophoresis|western blot|elisa\b|flow cytometry|hardy-?weinberg|punnett|mendel|lac operon|calvin cycle|krebs|glycolysis|endosymbios\w*|homeostasis|speciation|allopatric|crispr|reverse transcriptase|telomerase|sanger sequencing|mrna vaccine|herd immunity|mhc\b|clonal selection|biofilm|quorum sensing|prions?|zooxanthellae|eutrophication|kranz anatomy|cam plant|xylem|phloem|stomatal|photoperiodism|dicot root|hpa axis|prokaryot\w*|eukaryot\w*|mitochondria|chloroplasts?)\b/i.test(
-      text,
-    ) ||
-      /^In (an integrative biology|an advanced integrative biology|histology|renal physiology|cardiovascular biology|respiratory physiology|human digestive biology|synaptic neurobiology|population ecology|community ecology|ecosystem ecology|evolutionary biology|evolutionary speciation biology|microbiology|virology|immunology|adaptive immunity|molecular genetics|gene regulation|molecular biology|genome engineering|cell signalling biology|developmental biology|neurobiology|reproductive biology|plant physiology|seed biology|mycology|protist biology|aquatic ecology|wetland biology|marine biology|invasion ecology|conservation biology|epigenetics|RNA biology|molecular diagnostics|proteomics|cell biology technology|microscopy|stem cell biology|gene therapy|pharmacogenomics|antimicrobial biology|microbial ecology|microbiome biology|molecular pathology|synthetic biology|systems biology|cardiovascular-renal integration|nephrology|hematology|clinical physiology|endocrinology|reproductive endocrinology|gametogenesis|developmental physiology|lymphatic biology|muscle physiology|neurohistology|osmoregulation|photosynthesis biochemistry|plant water relations|plant developmental biology|plant signaling|vascular plant anatomy|CAM plant biology|integumentary biology|connective tissue biology|skeletal biology|hemostasis biology|ecology and biogeography|cancer biology)\b/i.test(
-        text,
-      ) ||
-      /^Using (enzyme kinetic|evolutionary biology|community ecology|population genetics)/i.test(text) ||
-      /^For (population genetics|pea traits)/i.test(text) ||
-      /^Explain (the central dogma|chloroplast|Sanger sequencing|the fluid mosaic|how DNA methylation|miRNA|SDS-PAGE)/i.test(
-        text,
-      ) ||
-      /^Compare (prokaryotic|simple and stratified|skeletal, cardiac|nervous and endocrine)/i.test(text) ||
-      /^Differentiate (global and local)/i.test(text) ||
-      /^Describe (PCR|Sanger|how gut commensals|how CYP450|how DNA methylation|innate immunity)/i.test(
-        text,
-      ) ||
-      /^Construct a (macromolecule|five-species)/i.test(text) ||
-      /^Draw (the aerobic|a replication|the cell-cycle|a reflex)/i.test(text) ||
-      /^Classify (mutation types|common vaccine)/i.test(text) ||
-      /^Map FSH/i.test(text) ||
-      /^Interpret a dicot root/i.test(text))
-  ) {
+  // Biology is recognised by general field/process vocabulary — never by matching
+  // specific exam-question stems. Chemistry exam topics win the tie via the override.
+  const BIOLOGY_FIELD_SIGNAL =
+    /\b(biology|physiolog\w*|ecolog\w*|histolog\w*|immunolog\w*|virolog\w*|microbiolog\w*|genetics|embryogenesis|gametogenesis|microbiome|epigenetics|proteomics|pharmacogenomics|nephron|phylogen\w*|gel electrophoresis|western blot|elisa\b|flow cytometry|hardy-?weinberg|punnett|mendel\w*|lac operon|calvin cycle|krebs|glycolysis|endosymbios\w*|homeostasis|speciation|allopatric|crispr|reverse transcriptase|telomerase|sanger sequencing|mrna vaccine|herd immunity|mhc\b|clonal selection|biofilm|quorum sensing|prions?|zooxanthellae|eutrophication|kranz anatomy|cam plant|xylem|phloem|stomatal|photoperiodism|dicot|hpa axis|prokaryot\w*|eukaryot\w*|mitochondria|chloroplasts?|organelles?|nucleus|ribosomes?|membrane potential|action potential|neuron|synapse|hormone|enzyme)\b/i;
+
+  if (!CHEMISTRY_EXAM_OVERRIDE.test(text) && BIOLOGY_FIELD_SIGNAL.test(text)) {
     return 'Biology';
   }
 

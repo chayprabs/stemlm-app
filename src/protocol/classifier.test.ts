@@ -88,6 +88,13 @@ describe('classifySubject — subject coverage table', () => {
     ['Size the CSTR reactor for this reaction with a control volume', 'Chemical'],
     ['Apply Raoult\'s law for vapor-liquid equilibrium in this flash drum', 'Chemical'],
     ['Mix 100 kg/h of 20 wt% NaCl with 50 kg/h of 5 wt% NaCl in a mixer', 'Chemical'],
+    // Subtopic phrasings (general, not from any bank) for the enriched playbooks
+    ['Solve the first-order linear ODE using an integrating factor', 'Math'],
+    ['Find the equilibrium constant Keq for this reaction at 298 K', 'Chemistry'],
+    ['Determine the E2 elimination product and draw the reaction mechanism', 'Chemistry'],
+    ['Use the Nernst equation to find the cell potential of this galvanic cell', 'Chemistry'],
+    ['Explain how natural selection leads to speciation over generations', 'Biology'],
+    ['Analyze the small-signal voltage gain of a BJT common-emitter amplifier', 'Electrical'],
   ];
 
   it.each(cases)('routes %j → %s', (q, expected) => {
