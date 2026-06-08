@@ -362,10 +362,11 @@ function auditSvgLayout(svg: string, step: Step, capsule: Capsule): ParseWarning
   }
   if (!root) return issues;
 
-  const texts = [...root.querySelectorAll('text')].filter((el) => !el.closest('marker'));
-  const boxes = texts
-    .map((el) => ({ el, box: textBox(el) }))
-    .filter((entry): entry is { el: Element; box: NonNullable<ReturnType<typeof textBox>> } => Boolean(entry.box));
+  const texts: Element[] = [...root.querySelectorAll('text')].filter((el) => !el.closest('marker'));
+  const boxes = texts.flatMap((el) => {
+    const box = textBox(el);
+    return box ? [{ el, box }] : [];
+  });
 
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
