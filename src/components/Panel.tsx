@@ -15,6 +15,7 @@ import { StorageQuotaError } from '@/src/lib/storage-errors';
 import { setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
+import { shortcutActionFromEvent, shortcutLabel } from '@/src/lib/keyboard-shortcuts';
 
 function isArrowKey(key: string) {
   return key === 'ArrowLeft' || key === 'ArrowRight';
@@ -163,6 +164,61 @@ export function Panel() {
     }
   }
 
+  function runShortcutAction(action: ReturnType<typeof shortcutActionFromEvent>): boolean {
+    if (!action || action === 'toggle-panel') return false;
+    if (action === 'toggle-theme') {
+      void onToggleTheme();
+      return true;
+    }
+    if (!session) return false;
+    if (action === 'previous-step') {
+      setView('steps');
+      prevStep();
+      return true;
+    }
+    if (action === 'next-step') {
+      setView('steps');
+      nextStep();
+      return true;
+    }
+    if (action === 'steps-view') {
+      setView('steps');
+      return true;
+    }
+    if (action === 'solution-view') {
+      setView('solution');
+      return true;
+    }
+    if (action === 'toggle-reviewed') {
+      const activeStep = session.capsule.steps[activeStepIndex];
+      if (!activeStep) return false;
+      toggleReviewed(activeStep.id);
+      void trackEvent('step_reviewed', { platform: session.platform });
+      return true;
+    }
+    if (action === 'toggle-save') {
+      void onToggleSave();
+      return true;
+    }
+    if (action === 'export-pdf') {
+      void onExportPdf();
+      return true;
+    }
+    return false;
+  }
+
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onDocumentKeyDown = (e: KeyboardEvent) => {
+      const action = shortcutActionFromEvent(e);
+      if (!runShortcutAction(action)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener('keydown', onDocumentKeyDown, true);
+    return () => document.removeEventListener('keydown', onDocumentKeyDown, true);
+  }, [panelOpen, session, activeStepIndex, view, theme, saved]);
+
   function onPanelPointerDown(e: React.PointerEvent) {
     if (panelRef.current?.contains(e.target as Node)) {
       panelRef.current.focus({ preventScroll: true });
@@ -260,11 +316,15 @@ export function Panel() {
                   className="slm-btn slm-btn-ghost"
                   onClick={prevStep}
                   disabled={activeStepIndex === 0}
-                  aria-label="Previous step"
+                  aria-label={`Previous step (${shortcutLabel('previous-step')})`}
+                  title={`Previous step (${shortcutLabel('previous-step')})`}
                 >
                   <IconChevronLeft /> Prev
                 </button>
-                <span className="slm-stepnav-count" title="Use ← → arrow keys">
+                <span
+                  className="slm-stepnav-count"
+                  title={`Use Left/Right arrows or ${shortcutLabel('previous-step')} / ${shortcutLabel('next-step')}`}
+                >
                   {activeStepIndex + 1} / {total}
                 </span>
                 <button
@@ -272,7 +332,8 @@ export function Panel() {
                   className="slm-btn slm-btn-soft"
                   onClick={nextStep}
                   disabled={activeStepIndex >= total - 1}
-                  aria-label="Next step"
+                  aria-label={`Next step (${shortcutLabel('next-step')})`}
+                  title={`Next step (${shortcutLabel('next-step')})`}
                 >
                   Next <IconChevronRight />
                 </button>
