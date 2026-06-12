@@ -5,6 +5,7 @@ import { OverlayButton } from '@/src/components/OverlayButton';
 import { Panel } from '@/src/components/Panel';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { applySplit, removeSplit } from '@/src/lib/split-screen';
+import { shortcutActionFromEvent } from '@/src/lib/keyboard-shortcuts';
 
 /**
  * Root content-script app: the docked overlay button + the split-screen study
@@ -22,6 +23,17 @@ export default function App() {
   }, [panelOpen, splitRatio, splitDragging]);
 
   useEffect(() => () => removeSplit(), []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (shortcutActionFromEvent(e) !== 'toggle-panel') return;
+      useStore.getState().togglePanel();
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, []);
 
   return (
     <ErrorBoundary>
