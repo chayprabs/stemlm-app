@@ -63,6 +63,14 @@ Civil / Chemical engineering.**
 5. **Recover.** Closed the tab? Click the toolbar icon → **Load conversation**
    rebuilds the workspace from Gemini's saved history. No server, no login.
 
+## Keyboard shortcuts
+
+- `Ctrl+Alt+L` opens or closes the stemLM panel.
+- `Ctrl+Alt+J` / `Ctrl+Alt+K` move to the previous / next step.
+- `Ctrl+Alt+1` / `Ctrl+Alt+2` switch between Steps and Solution.
+- `Ctrl+Alt+M` marks the active step reviewed.
+- `Ctrl+Alt+T`, `Ctrl+Alt+S`, and `Ctrl+Alt+P` toggle theme, save, and export PDF.
+
 ## Supported site
 
 **[gemini.google.com](https://gemini.google.com)** only.

@@ -2,6 +2,7 @@ import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { sessionQuestionHeading } from '@/src/lib/session-question';
+import { shortcutLabel } from '@/src/lib/keyboard-shortcuts';
 import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark } from './BrandWordmark';
 import { ExtensionLogo } from './ExtensionLogo';
@@ -53,6 +54,7 @@ export function PanelHeader({
             type="button"
             className="slm-icon-btn"
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={`${theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} (${shortcutLabel('toggle-theme')})`}
             onClick={onToggleTheme}
           >
             {theme === 'dark' ? <IconSun /> : <IconMoon />}
@@ -62,7 +64,7 @@ export function PanelHeader({
             className="slm-icon-btn"
             aria-label={saved ? 'Remove from saved sessions' : 'Save session'}
             aria-pressed={saved}
-            title={saved ? 'Remove from saved' : 'Save session'}
+            title={`${saved ? 'Remove from saved' : 'Save session'} (${shortcutLabel('toggle-save')})`}
             onClick={onToggleSave}
             disabled={!session}
             data-active={saved ? 'true' : undefined}
@@ -73,12 +75,19 @@ export function PanelHeader({
             type="button"
             className="slm-icon-btn"
             aria-label="Export PDF"
+            title={`Export PDF (${shortcutLabel('export-pdf')})`}
             onClick={onExportPdf}
             disabled={!session}
           >
             <IconPdf />
           </button>
-          <button type="button" className="slm-icon-btn" aria-label="Close panel" onClick={onClose}>
+          <button
+            type="button"
+            className="slm-icon-btn"
+            aria-label="Close panel"
+            title={`Close panel (Esc, ${shortcutLabel('toggle-panel')})`}
+            onClick={onClose}
+          >
             <IconClose />
           </button>
         </div>
@@ -100,6 +109,7 @@ export function PanelHeader({
                 aria-controls="slm-panel-steps"
                 aria-selected={view === 'steps'}
                 className={`slm-tab ${view === 'steps' ? 'is-active' : ''}`}
+                title={`Steps (${shortcutLabel('steps-view')})`}
                 onClick={() => onSetView('steps')}
               >
                 <IconLayers /> Steps
@@ -111,6 +121,7 @@ export function PanelHeader({
                 aria-controls="slm-panel-solution"
                 aria-selected={view === 'solution'}
                 className={`slm-tab ${view === 'solution' ? 'is-active' : ''}`}
+                title={`Solution (${shortcutLabel('solution-view')})`}
                 onClick={() => onSetView('solution')}
               >
                 <IconBook /> Solution

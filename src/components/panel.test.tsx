@@ -66,6 +66,18 @@ function buildTwoDiagramSession(): Session {
   };
 }
 
+function dispatchShortcut(target: EventTarget, key: string) {
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key,
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
 beforeEach(() => {
   saveSessionMock.mockClear();
   deleteSavedSessionMock.mockClear();
@@ -264,6 +276,127 @@ describe('Panel step diagram', () => {
     });
     container.remove();
   });
+
+  it('handles document-level keyboard shortcuts for step navigation and views', async () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+      activeStepIndex: 0,
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    act(() => dispatchShortcut(document, 'k'));
+    expect(useStore.getState().activeStepIndex).toBe(1);
+
+    act(() => dispatchShortcut(document, '2'));
+    expect(useStore.getState().view).toBe('solution');
+
+    act(() => dispatchShortcut(document, 'j'));
+    expect(useStore.getState().view).toBe('steps');
+    expect(useStore.getState().activeStepIndex).toBe(0);
+
+    act(() => dispatchShortcut(document, '2'));
+    expect(useStore.getState().view).toBe('solution');
+    act(() => dispatchShortcut(document, '1'));
+    expect(useStore.getState().view).toBe('steps');
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
+  it('marks the active step reviewed with the keyboard shortcut', async () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    act(() => dispatchShortcut(document, 'm'));
+    expect(useStore.getState().sessions[0]?.reviewedStepIds).toEqual(['s1']);
+
+    act(() => dispatchShortcut(document, 'm'));
+    expect(useStore.getState().sessions[0]?.reviewedStepIds).toEqual([]);
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
+  it('saves with the keyboard shortcut and ignores shortcuts while typing', async () => {
+    const session = buildTwoDiagramSession();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+      activeStepIndex: 0,
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<Panel />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+
+    act(() => dispatchShortcut(input, 'k'));
+    expect(useStore.getState().activeStepIndex).toBe(0);
+
+    await act(async () => {
+      dispatchShortcut(document, 's');
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(saveSessionMock).toHaveBeenCalledOnce();
+
+    input.remove();
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
 });
 
 describe('Panel save toggle', () => {
@@ -315,4 +448,3 @@ describe('Panel save toggle', () => {
     container.remove();
   });
 });
-
