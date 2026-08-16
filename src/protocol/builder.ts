@@ -1,11 +1,13 @@
 /**
  * Builds the text we inject into the chatbot composer.
  *
- *  - buildInjectionPrompt: the student's question + core protocol + ONE subject
- *    playbook (chosen by the classifier or an explicit override).
- *  - buildFollowupPrompt: a quote-reply that drills into a selected part of a
- *    step and asks the model to answer again in the same capsule format, so the
- *    new answer renders below in the panel.
+ * Preferred path: attach stemlm-protocol.txt (core + one playbook) and insert
+ * only a short stub so the chat box stays clean. Inline paste of the protocol
+ * is a last-resort fallback when the host cannot accept a file.
+ *
+ *  - buildInjectionPayload / buildComposerStub: file + short stub
+ *  - buildFollowupPayload: same file attach for dig-deeper / ask-in-chat
+ *  - buildInjectionPrompt / buildFollowupPrompt: compact inline fallback
  */
 import type { Subject } from './types';
 import {
@@ -21,8 +23,25 @@ import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
 
 export { normalizeFollowupSelection };
 
+export const PROTOCOL_FILENAME = 'stemlm-protocol.txt';
+
 export const STEMLM_INSTRUCTIONS_SEP = '\n\n--- stemLM instructions (do not remove) ---\n';
 const SEP = STEMLM_INSTRUCTIONS_SEP;
+
+/** Composer markers used to detect an already-injected protocol (file stub or paste fallback). */
+export const STEMLM_COMPOSER_MARKERS = [
+  '--- stemLM',
+  'stemLM instructions',
+  'Ask your question here:',
+  'stemLM follow-up context',
+  `Follow the attached ${PROTOCOL_FILENAME}`,
+  PROTOCOL_FILENAME,
+] as const;
+
+export function composerTextHasProtocol(text: string): boolean {
+  if (!text) return false;
+  return STEMLM_COMPOSER_MARKERS.some((marker) => text.includes(marker));
+}
 
 /** Repeated on every inject so models cannot skip worked @body blocks. */
 export const STEP_BODY_FORMULA_PATTERN =
@@ -144,8 +163,6 @@ export interface InjectionPayload {
   variant: PromptVariant;
 }
 
-export const PROTOCOL_FILENAME = 'stemlm-protocol.txt';
-
 export function resolveSubject(question: string, opt?: BuildOptions): Subject {
   if (opt?.subject && opt.subject !== 'Auto') return opt.subject;
   return classifySubject(question);
@@ -229,24 +246,51 @@ export function buildProtocolFileContent(opt?: BuildOptions & { question?: strin
   return { content, subject, variant };
 }
 
-/** Short composer stub — user question plus a one-line attach instruction. */
-export function buildComposerStub(question: string, subject: Subject, opt?: Pick<BuildOptions, 'hasImageAttachment'>): string {
+const IMAGE_STUB_LINE =
+  '(Problem image/PDF is attached — transcribe the full question in @meta question:.)';
+
+const COMPOSER_OUTPUT_LINE = `Reply in ONE fenced stemlm block ending @end (@meta … ${STEP_COUNT_TARGET} @step … @solution). No prose outside.`;
+
+export function buildFollowAttachedLine(subject: Subject): string {
+  return `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`;
+}
+
+export interface ComposerStubOptions extends Pick<BuildOptions, 'hasImageAttachment'> {
+  /** When false, do not repeat the question (it is already in the composer). */
+  includeQuestion?: boolean;
+}
+
+/** Short composer stub — question (optional) plus a pointer at the attached file. */
+export function buildComposerStub(
+  question: string,
+  subject: Subject,
+  opt?: ComposerStubOptions,
+): string {
+  const includeQuestion = opt?.includeQuestion !== false;
   const q = (question || '').trim();
-  const head =
-    q.length > 0
-      ? q
-      : opt?.hasImageAttachment
-        ? '(Problem image is attached above — read it and transcribe the full question in @meta question:.)'
-        : '(The student has not typed a question yet — ask them to type one.)';
-  return [
-    head,
-    '',
-    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
-    `Reply in ONE fenced code block (info string stemlm): @meta … ${STEP_COUNT_TARGET} @step (one atomic move each) … @solution … @end. No prose outside the block.`,
-    STEP_BODY_REMINDER,
-    getDiagramReminder(subject),
-    'Make the LAST step a verification (check units + a sanity/limit check). Produce the complete capsule in this one reply.',
-  ].join('\n');
+  const lines: string[] = [];
+
+  if (includeQuestion) {
+    if (q) lines.push(q, '');
+    else if (opt?.hasImageAttachment) lines.push(IMAGE_STUB_LINE, '');
+    else lines.push('(The student has not typed a question yet — ask them to type one.)', '');
+  } else if (!q && opt?.hasImageAttachment) {
+    lines.push(IMAGE_STUB_LINE);
+  }
+
+  lines.push(buildFollowAttachedLine(subject), COMPOSER_OUTPUT_LINE);
+  return lines.join('\n').trim();
+}
+
+/** Stub appended under an existing question / image — never repeats the question. */
+export function buildComposerAppendix(
+  subject: Subject,
+  opt?: Pick<BuildOptions, 'hasImageAttachment'> & { hasQuestion?: boolean },
+): string {
+  return buildComposerStub('', subject, {
+    hasImageAttachment: Boolean(opt?.hasImageAttachment) && !opt?.hasQuestion,
+    includeQuestion: false,
+  });
 }
 
 /** File-attach injection payload (preferred on Gemini). */
@@ -261,18 +305,21 @@ export function buildInjectionPayload(question: string, opt?: BuildOptions): Inj
 }
 
 const IMAGE_QUESTION_PREAMBLE = [
-  'The student pasted a problem image in the composer above (no typed question).',
-  'Read that image carefully and transcribe the full problem statement verbatim in @meta question: (all givens, labels, and parts (a)(b)…).',
+  'The student attached a problem image/PDF (no typed question).',
+  'Read it and transcribe the full problem statement verbatim in @meta question: (all givens, labels, and parts (a)(b)…).',
   'topic: stays a short ≤8-word title only.',
 ].join(' ');
 
-/** Protocol + playbook block only — appended below existing composer content. */
+/**
+ * Last-resort inline paste when the host cannot attach a file.
+ * Core + one playbook only — no duplicated CRITICAL walls (those live in the core).
+ */
 export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${STEP_BODY_REQUIREMENT}\n\n${getDiagramRequirement(subject)}\n\n${FIRST_PASS_COMPLETION_REQUIREMENT}\n\n${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
   return { prompt, subject, variant };
 }
 
@@ -331,10 +378,9 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
     '',
     guidance,
     'Follow the stemLM protocol below exactly.',
-    `Reply in one fenced code block with info string stemlm: @meta … @step (${STEP_COUNT_TARGET}, one atomic move each) … @solution … @end.`,
-    'Every @step needs a non-empty @body: define symbols, substitute givens, compute with units.',
-    getDiagramRequirement(subject),
-    FIRST_PASS_COMPLETION_REQUIREMENT,
+    COMPOSER_OUTPUT_LINE,
+    STEP_BODY_REMINDER,
+    getDiagramReminder(subject),
     'No prose outside the block.',
   ].join('\n');
 }
@@ -361,31 +407,20 @@ export function buildFollowupComposerText(opt: FollowupOptions): string {
 
   return [
     FOLLOWUP_CONTEXT_HEADER,
-    `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`,
+    buildFollowAttachedLine(subject),
     lead,
     formatQuotedSelection(selection),
     guidance,
-    `Reply in ONE fenced code block (info string stemlm): @meta … ${STEP_COUNT_TARGET} @step (one atomic move each) … @solution … @end. No prose outside the block.`,
-    STEP_BODY_REMINDER,
-    getDiagramReminder(subject),
-    'Produce the complete capsule in this one reply.',
+    COMPOSER_OUTPUT_LINE,
   ].join('\n');
 }
 
-/** File-attach follow-up payload (preferred on Gemini — same path as initial injection). */
+/** File-attach follow-up payload (preferred — same protocol file as initial injection). */
 export function buildFollowupPayload(opt: FollowupOptions): InjectionPayload {
   const subject = opt.subject ?? 'General';
   const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
   const selection = normalizeFollowupSelection(opt.selection);
-  const content = [
-    CORE_PROTOCOL_BY_VARIANT[variant],
-    '',
-    getDiagramRequirement(subject),
-    '',
-    FIRST_PASS_COMPLETION_REQUIREMENT,
-    '',
-    getPlaybook(subject),
-  ].join('\n');
+  const { content } = buildProtocolFileContent({ subject, variant });
   return {
     composerText: buildFollowupComposerText({ ...opt, selection, subject, variant }),
     fileContent: content,

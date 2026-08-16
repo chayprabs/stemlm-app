@@ -30,9 +30,9 @@ Civil / Chemical engineering.**
 
 - **One-click Gemini button.** A small circular button that docks beside the
   composer and matches Gemini's light/dark chrome.
-- **Protocol as a file, not a paste.** stemLM attaches `stemlm-protocol.txt`
-  (full instructions + subject playbook) and inserts only a short composer stub —
-  not ~2 KB of inline text.
+- **Protocol as a file, not a paste.** Clicking stemLM attaches `stemlm-protocol.txt`
+  (full instructions + subject playbook) next to any question, image, or PDF already
+  in the composer, and inserts only a short stub — not a wall of inline text.
 - **Reliable Auto subject routing.** A built-in classifier maps your question
   to the closest subject (or pick one yourself) — Auto is the default.
 - **True split screen.** The chat page shrinks to one half and stays fully
@@ -48,8 +48,9 @@ Civil / Chemical engineering.**
 ## How it works
 
 1. **Ask.** Type your question on [gemini.google.com](https://gemini.google.com)
-   and click the small **stemLM** button next to the send button. stemLM attaches
-   `stemlm-protocol.txt` and inserts a short instruction stub (clicking again
+   (or attach a photo/PDF of the problem) and click the small **stemLM** button
+   next to the send button. stemLM attaches `stemlm-protocol.txt` without replacing
+   your existing files, and inserts a short instruction stub (clicking again
    won't add it twice). stemLM auto-detects the subject from your question.
 2. **Structured answer.** The model is instructed to reply in a single
    machine-readable **"capsule"** (one ` ```stemlm ` code block) — far more
@@ -190,7 +191,8 @@ appearing or answers stop being captured, update those selector arrays.
 ### Manual QA checklist (needs a Gemini account)
 
 - [ ] Small stemLM button appears beside the Gemini composer
-- [ ] Type a question → click button → `stemlm-protocol.txt` attaches + short stub appears
+- [ ] Type a question → click button → `stemlm-protocol.txt` attaches + short stub appears (no protocol wall in the chat box)
+- [ ] Attach a problem image or PDF, then click stemLM → protocol file is **added** (image/PDF stays) + short stub
 - [ ] Panel opens **when the answer starts** and splits the screen; chat stays usable
 - [ ] Drag the divider → ratio changes and persists (default 50/50)
 - [ ] Answer is captured into step cards with step-synced diagrams (no stuck spinner)

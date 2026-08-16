@@ -146,11 +146,10 @@ function resetStore() {
 describe('StemController.inject', () => {
   beforeEach(() => {
     resetStore();
-    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
   });
 
   it('uses file attach on an empty composer when upload succeeds', async () => {
-    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
     const adapter = new MockAdapter();
     adapter.editorText = '';
     const c = new StemController(adapter);
@@ -163,26 +162,30 @@ describe('StemController.inject', () => {
     c.stopWatching();
   });
 
-  it('pastes the full protocol prompt into the composer', async () => {
+  it('attaches the protocol file beside an existing question instead of pasting it', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const c = new StemController(adapter);
 
     const ok = await c.inject();
     expect(ok).toBe(true);
+    expect(attachTextFile).toHaveBeenCalledWith(
+      expect.stringContaining('ELECTRICAL'),
+      expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: false }),
+    );
     expect(adapter.editorText).toContain('Solve this circuit');
-    expect(adapter.editorText).toContain('OUTPUT:');
-    expect(adapter.editorText).toContain('ELECTRICAL');
-    expect(adapter.editorText).toContain('stemLM instructions');
-    expect(adapter.editorText).not.toContain('stemlm-protocol.txt');
-    expect(adapter.inserted).toContain('stemLM instructions');
+    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain('Follow the attached');
+    expect(adapter.editorText).not.toContain('OUTPUT:');
+    expect(adapter.editorText).not.toContain('--- stemLM instructions');
+    expect(adapter.inserted).toContain(PROTOCOL_FILENAME);
     expect(adapter.inserted).not.toContain('Solve this circuit');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
     c.stopWatching();
   });
 
-  it('appends the protocol when only an image attachment is present', async () => {
+  it('preserves an existing image/PDF and only adds the protocol file', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = '';
     adapter.composerHasAttachments = () => true;
@@ -190,12 +193,17 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
-    expect(adapter.editorText).toContain('stemLM instructions');
-    expect(adapter.inserted).toContain('stemLM instructions');
+    expect(attachTextFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: true }),
+    );
+    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain('image/PDF');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
     c.stopWatching();
   });
 
-  it('appends the protocol when the composer already has a question', async () => {
+  it('appends a short stub when the composer already has a question', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'What is the horizontal range of this projectile?';
     const c = new StemController(adapter);
@@ -203,9 +211,9 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(adapter.editorText).toMatch(/^What is the horizontal range/);
-    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
     expect(adapter.editorText.indexOf('What is the horizontal range')).toBeLessThan(
-      adapter.editorText.indexOf('stemLM instructions'),
+      adapter.editorText.indexOf(PROTOCOL_FILENAME),
     );
     c.stopWatching();
   });
@@ -218,7 +226,22 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
-    expect(adapter.inserted).toContain('ELECTRICAL');
+    c.stopWatching();
+  });
+
+  it('falls back to a compact inline paste when the host cannot attach a file', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const c = new StemController(adapter);
+
+    const ok = await c.inject();
+    expect(ok).toBe(true);
+    expect(adapter.editorText).toContain('Solve this circuit');
+    expect(adapter.editorText).toContain('OUTPUT:');
+    expect(adapter.editorText).toContain('ELECTRICAL');
+    expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.inserted).not.toContain(PROTOCOL_FILENAME);
     c.stopWatching();
   });
 
@@ -260,7 +283,10 @@ describe('StemController.inject', () => {
 });
 
 describe('StemController.followUp', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+  });
 
   it('sets buttonInjected after a successful follow-up', async () => {
     const adapter = new MockAdapter();
@@ -393,7 +419,10 @@ describe('StemController.loadConversation', () => {
 });
 
 describe('StemController capture', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+  });
 
   it('captures a complete capsule into the store', async () => {
     const adapter = new MockAdapter();

@@ -68,6 +68,16 @@ OUTPUT: stemlm`,
     expect(sessionQuestionHeading(session)).toBe('Find the derivative of x^2');
   });
 
+  it('strips the attached-protocol stub from the composer text', () => {
+    const session = makeSession({
+      question: `Find the derivative of x^2
+
+Follow the attached stemlm-protocol.txt exactly (Math).
+Reply in ONE fenced stemlm block ending @end.`,
+    });
+    expect(sessionQuestionHeading(session)).toBe('Find the derivative of x^2');
+  });
+
   it('falls back to capsule topic when question is empty', () => {
     const session = makeSession({ question: '' });
     expect(sessionQuestionHeading(session)).toBe('RLC impedance at 60 Hz');

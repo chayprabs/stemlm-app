@@ -1,7 +1,10 @@
 /**
  * Attach in-memory text files to a host page's <input type="file"> without
- * opening the OS file picker. Used by the Gemini adapter for protocol injection.
+ * opening the OS file picker. Used to inject stemlm-protocol.txt the same way
+ * a student attaches an image or PDF — additive, so existing uploads stay.
  */
+
+export const PROTOCOL_ATTACHMENT_NAME = 'stemlm-protocol.txt';
 
 const DEFAULT_FILE_INPUT_SELECTORS = [
   'images-files-uploader input[type="file"]',
@@ -29,6 +32,14 @@ export const COMPOSER_ATTACHMENT_SELECTORS = [
   'uploader-file-preview',
 ];
 
+const DEFAULT_DROP_TARGETS = [
+  'images-files-uploader',
+  'rich-textarea',
+  'input-area-v2',
+  '.input-area',
+  'div.ql-editor',
+];
+
 export function createTextFile(content: string, filename: string): File {
   return new File([content], filename, { type: 'text/plain', lastModified: Date.now() });
 }
@@ -49,7 +60,7 @@ function queryButton(selectors: string[]): HTMLElement | null {
   for (const sel of selectors) {
     try {
       const el = document.querySelector<HTMLElement>(sel);
-      if (el) return el;
+      if (el && !opensUploadMenu(el)) return el;
     } catch {
       /* skip */
     }
@@ -57,15 +68,107 @@ function queryButton(selectors: string[]): HTMLElement | null {
   return null;
 }
 
-/** Assign a File to a file input via DataTransfer (never calls input.click()). */
-export function assignFileToInput(input: HTMLInputElement, file: File): boolean {
+/** Gemini's leading + often opens a menu, not a hidden file input. */
+function opensUploadMenu(el: HTMLElement): boolean {
+  const label = `${el.getAttribute('aria-label') ?? ''} ${el.getAttribute('mattooltip') ?? ''}`.toLowerCase();
+  return label.includes('menu');
+}
+
+function elementMentionsFilename(el: Element, filename: string): boolean {
+  const needle = filename.toLowerCase();
+  const stem = needle.replace(/\.[^.]+$/, '');
+  const hay = [
+    el.textContent ?? '',
+    el.getAttribute('aria-label') ?? '',
+    el.getAttribute('title') ?? '',
+    el.getAttribute('alt') ?? '',
+    el.getAttribute('data-name') ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(needle) || (stem.length >= 8 && hay.includes(stem));
+}
+
+/** True when the composer UI already shows a chip/preview for `filename`. */
+export function hasNamedAttachment(
+  filename: string,
+  root: ParentNode = document,
+): boolean {
+  const sels = [
+    ...COMPOSER_ATTACHMENT_SELECTORS,
+    'images-files-uploader',
+    '[class*="chip"]',
+    '[class*="preview"]',
+    '[class*="attachment"]',
+  ];
+  const seen = new Set<Element>();
+  for (const sel of sels) {
+    try {
+      for (const el of root.querySelectorAll(sel)) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        if (elementMentionsFilename(el, filename)) return true;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+/** True when any file/image chip is visible (problem photo, PDF, etc.). */
+export function hasAnyAttachment(root: ParentNode = document): boolean {
+  for (const sel of COMPOSER_ATTACHMENT_SELECTORS) {
+    try {
+      const el = root.querySelector(sel);
+      if (el && (el as HTMLElement).offsetParent !== null) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  const uploader = root.querySelector('images-files-uploader');
+  return Boolean(uploader && uploader.childElementCount > 1);
+}
+
+function existingInputFiles(input: HTMLInputElement): File[] {
+  return input.files ? Array.from(input.files) : [];
+}
+
+/**
+ * Assign a File to a file input via DataTransfer (never calls input.click()).
+ * When `keepExisting` is set, prior FileList entries are preserved so a
+ * problem image/PDF is not replaced by stemlm-protocol.txt.
+ */
+export function assignFileToInput(
+  input: HTMLInputElement,
+  file: File,
+  opt?: { keepExisting?: boolean },
+): boolean {
+  const keepExisting = opt?.keepExisting !== false;
+  const prior = keepExisting
+    ? existingInputFiles(input).filter((f) => f.name !== file.name)
+    : [];
+
+  const fill = (dt: DataTransfer) => {
+    for (const f of prior) dt.items.add(f);
+    dt.items.add(file);
+  };
+
+  if (keepExisting && prior.length > 0) {
+    try {
+      input.multiple = true;
+    } catch {
+      /* some hosts freeze the attribute */
+    }
+  }
+
   try {
     const dt = new DataTransfer();
-    dt.items.add(file);
+    fill(dt);
     input.files = dt.files;
     if (input.files?.length) {
       fireInputChange(input);
-      return true;
+      return Array.from(input.files).some((f) => f.name === file.name);
     }
   } catch {
     /* fall through */
@@ -73,11 +176,12 @@ export function assignFileToInput(input: HTMLInputElement, file: File): boolean 
 
   try {
     const dt = new DataTransfer();
-    dt.items.add(file);
+    fill(dt);
     const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files');
     desc?.set?.call(input, dt.files);
     fireInputChange(input);
-    return (input.files?.length ?? 0) > 0;
+    const files = input.files ? Array.from(input.files) : [];
+    return files.some((f) => f.name === file.name);
   } catch {
     return false;
   }
@@ -88,7 +192,7 @@ function fireInputChange(input: HTMLInputElement): void {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-/** Try drag-drop onto a drop target (works on some hosts). */
+/** Try drag-drop onto a drop target (additive on hosts that accept files). */
 export function tryDropFile(target: HTMLElement, file: File): boolean {
   try {
     const dt = new DataTransfer();
@@ -104,6 +208,23 @@ export function tryDropFile(target: HTMLElement, file: File): boolean {
   }
 }
 
+/** Try pasting a File onto the composer (same path as pasting an image). */
+export function tryPasteFile(target: HTMLElement, file: File): boolean {
+  try {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const evt = new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dt,
+    });
+    target.dispatchEvent(evt);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface FindFileInputOptions {
   fileInputSelectors?: string[];
   uploadButtonSelectors?: string[];
@@ -112,7 +233,8 @@ export interface FindFileInputOptions {
 
 /**
  * Locate a file input — click the host upload button if needed and poll until
- * the input appears (Gemini creates it dynamically).
+ * the input appears (Gemini creates it dynamically). Skips buttons that open
+ * a menu rather than a file picker.
  */
 export async function findFileInput(opt: FindFileInputOptions = {}): Promise<HTMLInputElement | null> {
   const fileSels = opt.fileInputSelectors ?? DEFAULT_FILE_INPUT_SELECTORS;
@@ -139,29 +261,21 @@ export async function findFileInput(opt: FindFileInputOptions = {}): Promise<HTM
 export interface WaitAttachmentOptions {
   attachmentSelectors?: string[];
   timeoutMs?: number;
+  /** When set, wait for THIS filename — not any pre-existing image/PDF chip. */
+  filename?: string;
 }
 
 /** Wait until the UI shows an uploaded file chip/preview. */
 export async function waitForAttachment(opt: WaitAttachmentOptions = {}): Promise<boolean> {
-  const sels = opt.attachmentSelectors ?? COMPOSER_ATTACHMENT_SELECTORS;
+  const filename = opt.filename;
   const timeoutMs = opt.timeoutMs ?? 4000;
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    for (const sel of sels) {
-      try {
-        const el = document.querySelector(sel);
-        if (el && (el as HTMLElement).offsetParent !== null) return true;
-      } catch {
-        /* skip */
-      }
-    }
-    // Gemini uploader custom element with children = file attached
-    const uploader = document.querySelector('images-files-uploader');
-    if (uploader && uploader.childElementCount > 1) return true;
-    await sleep(100);
+    if (filename ? hasNamedAttachment(filename) : hasAnyAttachment()) return true;
+    await sleep(80);
   }
-  return false;
+  return filename ? hasNamedAttachment(filename) : hasAnyAttachment();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -171,40 +285,80 @@ function sleep(ms: number): Promise<void> {
 export interface AttachTextFileOptions extends FindFileInputOptions, WaitAttachmentOptions {
   filename?: string;
   dropTargets?: string[];
+  /**
+   * When true, never replace the file input's FileList (problem image/PDF
+   * already attached). Only additive drop/paste is attempted.
+   */
+  preserveExisting?: boolean;
+  /** Short confirm window for drop/paste so we can fall through quickly. */
+  additiveTimeoutMs?: number;
+}
+
+async function tryAdditiveAttach(
+  file: File,
+  filename: string,
+  targets: string[],
+  timeoutMs: number,
+): Promise<'drop' | 'paste' | null> {
+  const seen = new Set<HTMLElement>();
+  const els: HTMLElement[] = [];
+  for (const sel of targets) {
+    let el: HTMLElement | null = null;
+    try {
+      el = document.querySelector<HTMLElement>(sel);
+    } catch {
+      continue;
+    }
+    if (!el || seen.has(el)) continue;
+    seen.add(el);
+    els.push(el);
+    if (els.length >= 2) break;
+  }
+
+  for (const el of els) {
+    if (tryDropFile(el, file) && (await waitForAttachment({ filename, timeoutMs }))) {
+      return 'drop';
+    }
+    if (tryPasteFile(el, file) && (await waitForAttachment({ filename, timeoutMs }))) {
+      return 'paste';
+    }
+  }
+  return null;
 }
 
 /**
- * Full attach pipeline: find input → assign file → wait for UI confirmation.
- * Optionally tries drop targets first.
+ * Full attach pipeline: prefer additive drop/paste so existing images/PDFs
+ * stay, then (only when the composer is empty of files) assign to the input.
  */
 export async function attachTextFile(
   content: string,
   opt: AttachTextFileOptions = {},
-): Promise<{ ok: boolean; method: 'input' | 'drop' | 'none' }> {
-  const file = createTextFile(content, opt.filename ?? 'stemlm-protocol.txt');
+): Promise<{ ok: boolean; method: 'input' | 'drop' | 'paste' | 'existing' | 'none' }> {
+  const filename = opt.filename ?? PROTOCOL_ATTACHMENT_NAME;
+  if (hasNamedAttachment(filename)) return { ok: true, method: 'existing' };
 
-  const dropTargets = opt.dropTargets ?? [
-    'rich-textarea',
-    'input-area-v2',
-    '.input-area',
-    'div.ql-editor',
-  ];
-  for (const sel of dropTargets) {
-    try {
-      const el = document.querySelector<HTMLElement>(sel);
-      if (el && tryDropFile(el, file)) {
-        if (await waitForAttachment(opt)) return { ok: true, method: 'drop' };
-      }
-    } catch {
-      /* skip */
-    }
+  const file = createTextFile(content, filename);
+  const dropTargets = opt.dropTargets ?? DEFAULT_DROP_TARGETS;
+  const additiveTimeoutMs = opt.additiveTimeoutMs ?? 200;
+  const preserveExisting = opt.preserveExisting ?? hasAnyAttachment();
+
+  const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs);
+  if (additive) return { ok: true, method: additive };
+
+  if (preserveExisting) {
+    // Assigning input.files would replace the student's problem image/PDF.
+    return { ok: false, method: 'none' };
   }
 
   const input = await findFileInput(opt);
   if (!input) return { ok: false, method: 'none' };
 
-  if (!assignFileToInput(input, file)) return { ok: false, method: 'none' };
+  if (!assignFileToInput(input, file, { keepExisting: true })) return { ok: false, method: 'none' };
 
-  const attached = await waitForAttachment(opt);
+  const attached = await waitForAttachment({
+    ...opt,
+    filename,
+    timeoutMs: opt.timeoutMs ?? 4000,
+  });
   return { ok: attached, method: 'input' };
 }

@@ -105,6 +105,9 @@ export function editorReflectsText(el: HTMLElement, expected: string): boolean {
       (got.includes('stemlm-protocol.txt') || got.includes('Follow the attached'))
     );
   }
+  if (expected.includes('stemlm-protocol.txt') || expected.includes('Follow the attached')) {
+    return got.includes('stemlm-protocol.txt') || got.includes('Follow the attached');
+  }
   const probe = expected.trim().slice(0, 48);
   return probe.length > 0 && got.includes(probe);
 }

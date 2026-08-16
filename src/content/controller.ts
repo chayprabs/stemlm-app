@@ -13,6 +13,8 @@ import {
   buildInjectionPrompt,
   buildFollowupAskInChatPrompt,
   buildFollowupPayload,
+  buildComposerAppendix,
+  composerTextHasProtocol,
   FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
   FOLLOWUP_CONTEXT_HEADER,
@@ -98,48 +100,57 @@ export class StemController {
   /** True when the composer already has a question (text and/or image attachment). */
   private composerHasUserContent(): boolean {
     const text = this.adapter.getEditorText().trim();
-    if (text.includes('stemLM instructions')) return false;
-    if (text.length > 0) return true;
+    const question = cleanSessionQuestion(text);
+    if (question.length > 0) return true;
     return this.adapter.composerHasAttachments();
   }
 
-  /** Paste the full protocol prompt into the chat composer. */
+  /** Attach stemlm-protocol.txt and a short stub — never dump the protocol as chat text. */
   async inject(): Promise<boolean> {
     const store = useStore.getState();
     if (store.buttonInjected) return false;
 
     const existing = this.adapter.getEditorText().trim();
-    const hasUserContent = this.composerHasUserContent();
     const hasImageAttachment = this.adapter.composerHasAttachments();
-    const question = existing;
+    const question = cleanSessionQuestion(existing);
+    const hasUserContent = this.composerHasUserContent();
     this.lastQuestion = question;
 
     const variant = store.settings.promptVariant;
     const buildOpt = { variant, hasImageAttachment };
-    let subject: Subject;
-    let ok: boolean;
+    const payload = buildInjectionPayload(question, buildOpt);
+    const subject = payload.subject;
+
+    let ok = false;
     let injectionMethod: 'text' | 'file' = 'text';
 
-    if (hasUserContent) {
-      const built = buildInjectionAppendix(question, buildOpt);
-      subject = built.subject;
-      ok = await this.insertVerifiedPrompt(built.prompt, 'append');
-    } else {
-      const payload = buildInjectionPayload(question, buildOpt);
-      subject = payload.subject;
-      const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
-      if (attached.ok) {
-        ok = await this.insertVerifiedPrompt(payload.composerText, 'replace', { fileAttach: true });
-        if (ok) injectionMethod = 'file';
+    const attached = await attachTextFile(payload.fileContent, {
+      filename: PROTOCOL_FILENAME,
+      preserveExisting: hasImageAttachment,
+    });
+
+    if (attached.ok) {
+      await new Promise((r) => setTimeout(r, 80));
+      const stub = hasUserContent
+        ? buildComposerAppendix(subject, {
+            hasImageAttachment,
+            hasQuestion: question.length > 0,
+          })
+        : payload.composerText;
+      const mode = hasUserContent ? 'append' : 'replace';
+      ok = await this.insertVerifiedPrompt(stub, mode, { fileAttach: true });
+      if (ok) injectionMethod = 'file';
+    }
+
+    if (!ok) {
+      if (hasUserContent) {
+        const built = buildInjectionAppendix(question, buildOpt);
+        ok = await this.insertVerifiedPrompt(built.prompt, 'append');
       } else {
-        ok = false;
-      }
-      if (!ok) {
         const built = buildInjectionPrompt(question, buildOpt);
-        subject = built.subject;
         ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
-        injectionMethod = 'text';
       }
+      injectionMethod = 'text';
     }
 
     if (!ok) {
@@ -237,8 +248,8 @@ export class StemController {
   }
 
   /**
-   * Write `prompt` into the composer and confirm the full protocol is visible
-   * (not the old short file-attach stub). Retries once after a brief pause.
+   * Write `prompt` into the composer and confirm it landed.
+   * File-attach stubs are short; inline fallback still carries the full protocol.
    */
   private async insertVerifiedPrompt(
     prompt: string,
@@ -272,8 +283,7 @@ export class StemController {
       if (!hasContext) return false;
       if (opt.fileAttach) {
         return (
-          text.includes(PROTOCOL_FILENAME) ||
-          text.includes('Follow the attached') ||
+          composerTextHasProtocol(text) ||
           this.adapter.composerHasAttachments()
         );
       }
@@ -284,7 +294,7 @@ export class StemController {
       );
     }
     if (opt?.fileAttach) {
-      return text.includes(PROTOCOL_FILENAME) || text.includes('Follow the attached');
+      return composerTextHasProtocol(text);
     }
     return (
       text.includes('stemLM instructions') &&

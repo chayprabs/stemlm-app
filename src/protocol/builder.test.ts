@@ -4,6 +4,8 @@ import {
   buildInjectionPrompt,
   buildInjectionPayload,
   buildComposerStub,
+  buildComposerAppendix,
+  composerTextHasProtocol,
   buildProtocolFileContent,
   buildFollowupPrompt,
   buildFollowupPayload,
@@ -40,7 +42,7 @@ describe('buildInjectionPrompt', () => {
     });
     expect(variant).toBe('ultra');
     expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
-    expect(prompt).toContain('CS (one move per step)');
+    expect(prompt).toContain('CS: one move/step');
   });
 
   it('normalizes CRLF in protocol templates so Windows checkouts stay within budget', () => {
@@ -84,7 +86,7 @@ describe('buildInjectionPrompt', () => {
     expect(prompt).toContain('has not typed a question');
   });
 
-  it('pastes the full protocol inline — never the old file-attach stub', () => {
+  it('is a last-resort inline paste without the file-attach stub', () => {
     const { prompt } = buildInjectionPrompt('');
     expect(prompt).toContain('stemLM instructions');
     expect(prompt).toContain('OUTPUT:');
@@ -100,16 +102,17 @@ describe('buildInjectionAppendix', () => {
     );
     expect(subject).toBe('Physics');
     expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
-    expect(prompt).toContain('CRITICAL — every @step MUST have a non-empty @body');
-    expect(prompt).toContain('CRITICAL — physics visual problems MUST include @diagram type=svg');
-    expect(prompt).toContain('FIRST PASS ONLY: produce the complete corrected capsule now');
+    expect(prompt).toContain('CRITICAL');
+    expect(prompt).toContain('non-empty @body');
+    expect(prompt).toContain('FIRST PASS');
     expect(prompt).toContain('OUTPUT:');
+    expect(prompt).toContain('PHYSICS:');
     expect(prompt).not.toContain('A projectile is launched');
   });
 
   it('asks the model to transcribe the image when the composer has no text', () => {
     const { prompt } = buildInjectionAppendix('', { hasImageAttachment: true });
-    expect(prompt).toContain('problem image');
+    expect(prompt).toContain('problem image/PDF');
     expect(prompt).toContain('@meta question:');
   });
 });
@@ -122,12 +125,12 @@ describe('buildInjectionPayload', () => {
     expect(payload.subject).toBe('Electrical');
     expect(payload.composerText).toContain('Solve this circuit');
     expect(payload.composerText).toContain(PROTOCOL_FILENAME);
-    // Compact reminders only — full rules ship in the attached protocol file.
-    expect(payload.composerText).toContain('Make the LAST step a verification');
-    expect(payload.composerText).toContain('Draw @diagram type=svg on nearly EVERY step');
+    expect(payload.composerText).toContain('Follow the attached');
+    expect(payload.composerText).toContain('ONE fenced stemlm block');
     expect(payload.composerText).not.toContain('OUTPUT:');
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
+    expect(payload.fileContent).toContain('CRITICAL');
   });
 
   it('keeps every subject protocol file within an attachment budget', () => {
@@ -137,7 +140,7 @@ describe('buildInjectionPayload', () => {
       for (const variant of ['balanced', 'ultra'] as const) {
         const { content } = buildProtocolFileContent({ question: 'sizing', subject, variant });
         const bytes = Buffer.byteLength(content, 'utf8');
-        const budget = variant === 'ultra' ? 9000 : 8000;
+        const budget = variant === 'ultra' ? 7500 : 6500;
         expect(bytes, `${subject}/${variant} protocol file is ${bytes} B`).toBeLessThanOrEqual(budget);
       }
     }
@@ -148,21 +151,24 @@ describe('buildInjectionPayload', () => {
     // the editor or distract weaker (Flash) models. Detail ships in the .txt file.
     for (const subject of ['Electrical', 'Chemistry', 'Physics', 'Math', 'Biology'] as const) {
       const stub = buildComposerStub('A representative question for sizing.', subject);
-      expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(1200);
+      expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(700);
     }
   });
 
-  it('injects the routed subject diagram rules into the inline appendix', () => {
+  it('puts subject playbooks in the attached file, not a duplicated diagram wall', () => {
     const cases: [string, string][] = [
-      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'math visual problems'],
-      ['Explain the Krebs cycle pathway in the mitochondrion', 'biology visual problems'],
-      ['Compute bending stress for this shaft and draw the free-body diagram', 'mechanical visual problems'],
-      ['Draw the SFD and BMD for a simply supported beam with a point load', 'civil visual problems'],
-      ['Mass balance on a mixer with two inlet streams and one outlet', 'chemical engineering visual problems'],
+      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'MATH:'],
+      ['Explain the Krebs cycle pathway in the mitochondrion', 'BIOLOGY:'],
+      ['Compute bending stress for this shaft and draw the free-body diagram', 'MECHANICAL:'],
+      ['Draw the SFD and BMD for a simply supported beam with a point load', 'CIVIL:'],
+      ['Mass balance on a mixer with two inlet streams and one outlet', 'CHEMICAL ENG:'],
     ];
     for (const [question, marker] of cases) {
-      const { prompt } = buildInjectionAppendix(question);
-      expect(prompt, `appendix for "${question}" should mention "${marker}"`).toContain(marker);
+      const { fileContent, subject } = buildInjectionPayload(question);
+      expect(fileContent, `protocol file for "${question}" should mention "${marker}"`).toContain(marker);
+      expect(fileContent).toContain('OUTPUT:');
+      expect(buildComposerAppendix(subject)).toContain(PROTOCOL_FILENAME);
+      expect(buildComposerAppendix(subject)).not.toContain('OUTPUT:');
     }
   });
 
@@ -179,7 +185,7 @@ describe('buildInjectionPayload', () => {
       subject: 'CS',
     });
     expect(subject).toBe('CS');
-    expect(content).toContain('CS (one move per step)');
+    expect(content).toContain('CS: one move/step');
     expect(content).toContain('OUTPUT:');
   });
 
@@ -279,7 +285,7 @@ describe('buildFollowupPrompt', () => {
     expect(composer).toContain(PROTOCOL_FILENAME);
     expect(composer).toContain('> Total resistance is R1 + R2');
     expect(composer).not.toContain('OUTPUT:');
-    expect(composer).toContain('No prose outside the block.');
+    expect(composer).toContain('No prose outside.');
     // Attach line is near the top so Gemini cannot truncate it away.
     expect(composer.indexOf(PROTOCOL_FILENAME)).toBeLessThan(composer.indexOf('> Total resistance'));
   });
@@ -290,8 +296,8 @@ describe('buildFollowupPrompt', () => {
       intent: 'ask',
       selection: 'Problem: verify the vector section formula\nFinal step: Verify endpoints\nContext: boundary work',
     });
-    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(1500);
-    expect(composer).not.toContain('CRITICAL —');
+    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(1200);
+    expect(composer).not.toContain('CRITICAL');
   });
 
   it('buildFollowupPayload pairs composer stub with protocol file content', () => {
@@ -299,8 +305,32 @@ describe('buildFollowupPrompt', () => {
     expect(payload.composerText).toBe(buildFollowupComposerText(opts));
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
-    expect(payload.fileContent).toContain('CRITICAL —');
+    expect(payload.fileContent).toContain('CRITICAL');
     expect(payload.subject).toBe('Electrical');
+  });
+});
+
+describe('composer stubs', () => {
+  it('appends a short file pointer without repeating the question', () => {
+    const stub = buildComposerAppendix('Physics', { hasQuestion: true });
+    expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).toContain('(Physics)');
+    expect(stub).not.toContain('OUTPUT:');
+    expect(stub).not.toContain('has not typed');
+    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(280);
+    expect(composerTextHasProtocol(stub)).toBe(true);
+  });
+
+  it('mentions an attached image/PDF when that is the only prompt', () => {
+    const stub = buildComposerAppendix('General', { hasImageAttachment: true, hasQuestion: false });
+    expect(stub).toContain('image/PDF');
+    expect(stub).toContain(PROTOCOL_FILENAME);
+  });
+
+  it('detects both file-stub and inline-paste protocol markers', () => {
+    expect(composerTextHasProtocol('Follow the attached stemlm-protocol.txt exactly (Math).')).toBe(true);
+    expect(composerTextHasProtocol('--- stemLM instructions (do not remove) ---')).toBe(true);
+    expect(composerTextHasProtocol('Find the range of a projectile')).toBe(false);
   });
 });
 
