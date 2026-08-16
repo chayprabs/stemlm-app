@@ -31,10 +31,11 @@ Civil / Chemical engineering.**
 - **One-click Gemini button.** A small circular button that docks beside the
   composer and matches Gemini's light/dark chrome.
 - **Protocol as a file, not a paste.** Clicking stemLM attaches `stemlm-protocol.txt`
-  (full instructions + subject playbook) next to any question, image, or PDF already
-  in the composer, and inserts only a short stub — not a wall of inline text.
-- **Reliable Auto subject routing.** A built-in classifier maps your question
-  to the closest subject (or pick one yourself) — Auto is the default.
+  (full instructions + **every** subject playbook) next to any question, image, or PDF
+  already in the composer, and inserts only a short stub — not a wall of inline text.
+- **The model picks the subject.** The attached file is the same for every question.
+  The model sets `@meta subject:` from the problem and applies that playbook. There
+  is no subject picker on the button.
 - **True split screen.** The chat page shrinks to one half and stays fully
   responsive; the study panel takes the other half. **Drag the divider to
   resize** — your ratio is remembered (default 50/50).
@@ -51,7 +52,8 @@ Civil / Chemical engineering.**
    (or attach a photo/PDF of the problem) and click the small **stemLM** button
    next to the send button. stemLM attaches `stemlm-protocol.txt` without replacing
    your existing files, and inserts a short instruction stub (clicking again
-   won't add it twice). stemLM auto-detects the subject from your question.
+   won't add it twice). The attached file includes every subject playbook; the
+   model infers the subject from the problem (there is no subject picker).
 2. **Structured answer.** The model is instructed to reply in a single
    machine-readable **"capsule"** (one ` ```stemlm ` code block) — far more
    reliable to read back from the page than scraping prose.
@@ -130,9 +132,10 @@ than JSON because LaTeX backslashes and inline SVG constantly break JSON, and th
 closing `@end` doubles as the streaming-complete signal. The **core instructions
 live in [`core-protocol.md`](src/protocol/core-protocol.md)** (~4 kB; a deeper
 `ultra` variant in `core-protocol.ultra.md` is selectable in Settings); on Gemini
-they ship inside the attached `stemlm-protocol.txt` plus one short subject
-*playbook* per question (only a compact reminder is pasted into the composer).
-The parser is tolerant (recovers from missing terminators and a dropped `@end`)
+they ship inside the attached `stemlm-protocol.txt` together with **every**
+subject playbook. The model sets `@meta subject:` from the problem and applies
+that section only (a compact reminder is pasted into the composer). The parser
+is tolerant (recovers from missing terminators and a dropped `@end`)
 and never throws.
 
 ### Capture is resilient by design
@@ -154,7 +157,7 @@ flow/sequence/state). The PDF embeds the same SVG as vector — no raster images
 
 Theme (Auto / Light / Dark — Auto follows your system), **share sessions across
 tabs** (off by default → each tab is an independent workspace), open-on-answer,
-default subject routing, split ratio (drag to set), and analytics opt-out.
+prompt variant (balanced / ultra), split ratio (drag to set), and analytics opt-out.
 
 ## Analytics — endpoints wired, credentials are yours to add later
 

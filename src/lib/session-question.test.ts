@@ -72,7 +72,7 @@ OUTPUT: stemlm`,
     const session = makeSession({
       question: `Find the derivative of x^2
 
-Follow the attached stemlm-protocol.txt exactly (Math).
+Follow the attached stemlm-protocol.txt exactly. Infer the subject from the problem and apply that playbook in the file.
 Reply in ONE fenced stemlm block ending @end.`,
     });
     expect(sessionQuestionHeading(session)).toBe('Find the derivative of x^2');

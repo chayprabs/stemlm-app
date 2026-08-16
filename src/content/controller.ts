@@ -132,7 +132,7 @@ export class StemController {
     if (attached.ok) {
       await new Promise((r) => setTimeout(r, 80));
       const stub = hasUserContent
-        ? buildComposerAppendix(subject, {
+        ? buildComposerAppendix({
             hasImageAttachment,
             hasQuestion: question.length > 0,
           })

@@ -1,10 +1,9 @@
 /**
- * Subject playbooks. The builder appends exactly ONE of these to the core
- * protocol (chosen by the classifier or the user's override). Each gives the
- * model subject-specific guidance on atomic intermediate steps and what each
- * step's diagram should depict. Keep these dense — they ship in stemlm-protocol.txt.
+ * Subject playbooks. stemlm-protocol.txt always ships ALL of them so the model
+ * can pick the matching section from the problem (no subject picker; classifier
+ * is analytics-only and must not pin the protocol to one subject).
  */
-import type { Subject } from './types';
+import { SUBJECTS, type Subject } from './types';
 
 export const PLAYBOOKS: Record<Subject, string> = {
   Physics: `PHYSICS: one move/step; @body on every step (define symbols, substitute givens, compute with units). knowns → unknowns → principle → SVG of THIS state → governing eq (symbols only) → one substitution → isolate → number+units → check.
@@ -49,4 +48,12 @@ SVG THIS step: PFD/CV box, numbered inlet/outlet arrows, unit labeled (mixer/rea
 
 export function getPlaybook(subject: Subject): string {
   return PLAYBOOKS[subject] ?? PLAYBOOKS.General;
+}
+
+/** Header that tells the model to choose one section — never invent a subject. */
+export const UNIVERSAL_PLAYBOOK_HEADER = `SUBJECT ROUTING: from the problem (text/image/PDF), set @meta subject: to exactly one of ${SUBJECTS.join('|')}. Apply ONLY that section below; ignore the others. Mixed problems → the dominant subject. Never invent a subject name.`;
+
+/** Every subject playbook, for the attached protocol file. */
+export function getUniversalPlaybook(): string {
+  return `${UNIVERSAL_PLAYBOOK_HEADER}\n\n${SUBJECTS.map((s) => PLAYBOOKS[s]).join('\n\n')}`;
 }

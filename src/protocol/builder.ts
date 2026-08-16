@@ -1,9 +1,9 @@
 /**
  * Builds the text we inject into the chatbot composer.
  *
- * Preferred path: attach stemlm-protocol.txt (core + one playbook) and insert
- * only a short stub so the chat box stays clean. Inline paste of the protocol
- * is a last-resort fallback when the host cannot accept a file.
+ * Preferred path: attach stemlm-protocol.txt (core + every subject playbook)
+ * and insert only a short stub so the chat box stays clean. The model infers
+ * the subject from the problem. Inline paste is a last-resort fallback.
  *
  *  - buildInjectionPayload / buildComposerStub: file + short stub
  *  - buildFollowupPayload: same file attach for dig-deeper / ask-in-chat
@@ -17,7 +17,7 @@ import {
   STEP_COUNT_TARGET,
   type PromptVariant,
 } from './protocol';
-import { getPlaybook } from './playbooks';
+import { getUniversalPlaybook } from './playbooks';
 import { classifySubject } from './classifier';
 import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
 
@@ -157,7 +157,7 @@ export interface BuildResult {
 export interface InjectionPayload {
   /** Short text shown in the composer (question + brief instruction). */
   composerText: string;
-  /** Full protocol + playbook — attached as stemlm-protocol.txt, not pasted. */
+  /** Full protocol + every subject playbook — attached as stemlm-protocol.txt. */
   fileContent: string;
   subject: Subject;
   variant: PromptVariant;
@@ -234,7 +234,7 @@ export function getDiagramReminder(subject: Subject): string {
 export const STEP_BODY_REMINDER =
   'Every @step needs a worked @body: define each symbol, substitute the givens, and compute with units (never a bare formula).';
 
-/** Protocol + one playbook — the contents of the attached .txt file. */
+/** Protocol + every subject playbook — the contents of the attached .txt file. */
 export function buildProtocolFileContent(opt?: BuildOptions & { question?: string }): {
   content: string;
   subject: Subject;
@@ -242,7 +242,7 @@ export function buildProtocolFileContent(opt?: BuildOptions & { question?: strin
 } {
   const subject = resolveSubject(opt?.question ?? '', opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
-  const content = `${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const content = `${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getUniversalPlaybook()}`;
   return { content, subject, variant };
 }
 
@@ -251,8 +251,8 @@ const IMAGE_STUB_LINE =
 
 const COMPOSER_OUTPUT_LINE = `Reply in ONE fenced stemlm block ending @end (@meta … ${STEP_COUNT_TARGET} @step … @solution). No prose outside.`;
 
-export function buildFollowAttachedLine(subject: Subject): string {
-  return `Follow the attached ${PROTOCOL_FILENAME} exactly (${subject}).`;
+export function buildFollowAttachedLine(): string {
+  return `Follow the attached ${PROTOCOL_FILENAME} exactly. Infer the subject from the problem and apply that playbook in the file.`;
 }
 
 export interface ComposerStubOptions extends Pick<BuildOptions, 'hasImageAttachment'> {
@@ -261,11 +261,7 @@ export interface ComposerStubOptions extends Pick<BuildOptions, 'hasImageAttachm
 }
 
 /** Short composer stub — question (optional) plus a pointer at the attached file. */
-export function buildComposerStub(
-  question: string,
-  subject: Subject,
-  opt?: ComposerStubOptions,
-): string {
+export function buildComposerStub(question: string, opt?: ComposerStubOptions): string {
   const includeQuestion = opt?.includeQuestion !== false;
   const q = (question || '').trim();
   const lines: string[] = [];
@@ -278,16 +274,15 @@ export function buildComposerStub(
     lines.push(IMAGE_STUB_LINE);
   }
 
-  lines.push(buildFollowAttachedLine(subject), COMPOSER_OUTPUT_LINE);
+  lines.push(buildFollowAttachedLine(), COMPOSER_OUTPUT_LINE);
   return lines.join('\n').trim();
 }
 
 /** Stub appended under an existing question / image — never repeats the question. */
 export function buildComposerAppendix(
-  subject: Subject,
   opt?: Pick<BuildOptions, 'hasImageAttachment'> & { hasQuestion?: boolean },
 ): string {
-  return buildComposerStub('', subject, {
+  return buildComposerStub('', {
     hasImageAttachment: Boolean(opt?.hasImageAttachment) && !opt?.hasQuestion,
     includeQuestion: false,
   });
@@ -297,7 +292,7 @@ export function buildComposerAppendix(
 export function buildInjectionPayload(question: string, opt?: BuildOptions): InjectionPayload {
   const { content, subject, variant } = buildProtocolFileContent({ ...opt, question });
   return {
-    composerText: buildComposerStub(question, subject, opt),
+    composerText: buildComposerStub(question, opt),
     fileContent: content,
     subject,
     variant,
@@ -312,14 +307,14 @@ const IMAGE_QUESTION_PREAMBLE = [
 
 /**
  * Last-resort inline paste when the host cannot attach a file.
- * Core + one playbook only — no duplicated CRITICAL walls (those live in the core).
+ * Same universal payload as the file (core + every subject playbook).
  */
 export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getUniversalPlaybook()}`;
   return { prompt, subject, variant };
 }
 
@@ -407,7 +402,7 @@ export function buildFollowupComposerText(opt: FollowupOptions): string {
 
   return [
     FOLLOWUP_CONTEXT_HEADER,
-    buildFollowAttachedLine(subject),
+    buildFollowAttachedLine(),
     lead,
     formatQuotedSelection(selection),
     guidance,
@@ -437,7 +432,7 @@ export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
   const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
   const context = buildFollowupContextBlock({ ...opt, subject, variant });
-  const appendix = `${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getPlaybook(subject)}`;
+  const appendix = `${SEP}${CORE_PROTOCOL_BY_VARIANT[variant]}\n\n${getUniversalPlaybook()}`;
   return `${FOLLOWUP_QUESTION_SLOT}${context}${appendix}`;
 }
 

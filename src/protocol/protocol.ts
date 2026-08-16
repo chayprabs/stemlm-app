@@ -12,7 +12,8 @@
  * signal.
  *
  * Keep this tight: it is sent on every question. Subject-specific guidance is
- * appended separately by the builder (one playbook at a time) for token economy.
+ * the full playbook set in the attached file; the model picks the matching
+ * section from the problem (no subject picker).
  */
 
 import coreBalancedTemplate from './core-protocol.md?raw';

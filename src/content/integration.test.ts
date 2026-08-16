@@ -128,7 +128,8 @@ describe('integration: Gemini adapter + controller capture', () => {
     expect(ok).toBe(true);
 
     const injected = geminiAdapter.getEditorText();
-    expect(injected).toContain('(Chemistry)');
+    expect(injected).toContain('Infer the subject from the problem');
+    expect(injected).not.toContain('(Chemistry)');
     expect(injected).toContain(PROTOCOL_FILENAME);
     expect(injected).not.toContain('OUTPUT:');
     expect(injected).not.toContain('mhchem');

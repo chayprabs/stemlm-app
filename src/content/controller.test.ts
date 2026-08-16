@@ -170,12 +170,14 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(attachTextFile).toHaveBeenCalledWith(
-      expect.stringContaining('ELECTRICAL'),
+      expect.stringMatching(/ELECTRICAL[\s\S]*PHYSICS:|PHYSICS:[\s\S]*ELECTRICAL/),
       expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: false }),
     );
     expect(adapter.editorText).toContain('Solve this circuit');
     expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
     expect(adapter.editorText).toContain('Follow the attached');
+    expect(adapter.editorText).toContain('Infer the subject from the problem');
+    expect(adapter.editorText).not.toContain('(Electrical)');
     expect(adapter.editorText).not.toContain('OUTPUT:');
     expect(adapter.editorText).not.toContain('--- stemLM instructions');
     expect(adapter.inserted).toContain(PROTOCOL_FILENAME);
@@ -218,7 +220,7 @@ describe('StemController.inject', () => {
     c.stopWatching();
   });
 
-  it('auto-classifies the subject from the question text', async () => {
+  it('attaches a universal protocol file so every subject is available', async () => {
     const question = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const adapter = new MockAdapter();
     adapter.editorText = question;
@@ -226,6 +228,20 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
+    expect(attachTextFile).toHaveBeenCalledWith(
+      expect.stringContaining('ELECTRICAL'),
+      expect.any(Object),
+    );
+    const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
+    expect(file).toContain('PHYSICS:');
+    expect(file).toContain('CHEMISTRY:');
+    expect(file).toContain('MATH:');
+    expect(file).toContain('BIOLOGY:');
+    expect(file).toContain('MECHANICAL:');
+    expect(file).toContain('CIVIL:');
+    expect(file).toContain('CHEMICAL ENG:');
+    expect(adapter.inserted).not.toContain('(Electrical)');
+    expect(adapter.inserted).toContain('Infer the subject from the problem');
     c.stopWatching();
   });
 
@@ -240,6 +256,8 @@ describe('StemController.inject', () => {
     expect(adapter.editorText).toContain('Solve this circuit');
     expect(adapter.editorText).toContain('OUTPUT:');
     expect(adapter.editorText).toContain('ELECTRICAL');
+    expect(adapter.editorText).toContain('PHYSICS:');
+    expect(adapter.editorText).toContain('CHEMISTRY:');
     expect(adapter.editorText).toContain('stemLM instructions');
     expect(adapter.inserted).not.toContain(PROTOCOL_FILENAME);
     c.stopWatching();
