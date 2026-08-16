@@ -140,16 +140,14 @@ export class StemController {
       const mode = hasUserContent ? 'append' : 'replace';
       ok = await this.insertVerifiedPrompt(stub, mode, { fileAttach: true });
       if (ok) injectionMethod = 'file';
-    }
-
-    if (!ok) {
-      if (hasUserContent) {
-        const built = buildInjectionAppendix(question, buildOpt);
-        ok = await this.insertVerifiedPrompt(built.prompt, 'append');
-      } else {
-        const built = buildInjectionPrompt(question, buildOpt);
-        ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
-      }
+      // File already on the composer — never dump the protocol wall as well.
+    } else if (hasUserContent) {
+      const built = buildInjectionAppendix(question, buildOpt);
+      ok = await this.insertVerifiedPrompt(built.prompt, 'append');
+      injectionMethod = 'text';
+    } else {
+      const built = buildInjectionPrompt(question, buildOpt);
+      ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
       injectionMethod = 'text';
     }
 

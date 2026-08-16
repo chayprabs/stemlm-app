@@ -298,6 +298,29 @@ describe('StemController.inject', () => {
     expect(useStore.getState().status).toBe('error');
     c.stopWatching();
   });
+
+  it('does not paste the protocol wall when the file attached but the stub insert fails', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const inserted: string[] = [];
+    adapter.insertPrompt = (text: string, mode: 'replace' | 'append' = 'replace') => {
+      inserted.push(text);
+      adapter.inserted = text;
+      return false;
+    };
+    const c = new StemController(adapter);
+
+    expect(await c.inject()).toBe(false);
+    expect(inserted.length).toBeGreaterThan(0);
+    for (const text of inserted) {
+      expect(text).toContain(PROTOCOL_FILENAME);
+      expect(text).not.toContain('--- stemLM instructions');
+      expect(text).not.toContain('OUTPUT:');
+    }
+    expect(adapter.editorText).toBe('Solve this circuit with a 12V source and resistor (Kirchhoff)');
+    expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
 });
 
 describe('StemController.followUp', () => {
@@ -368,6 +391,13 @@ describe('StemController.followUp', () => {
     );
     expect(ok).toBe(true);
     expect(adapter.editorText).toContain('stemLM follow-up context');
+    const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
+    expect(file).toContain('SUBJECT ROUTING');
+    expect(file).toContain('PHYSICS:');
+    expect(file).toContain('ELECTRICAL:');
+    expect(file).toContain('CHEMICAL ENG:');
+    expect(adapter.inserted).toContain('Follow the attached');
+    expect(adapter.inserted).not.toContain('--- stemLM instructions');
     c.stopWatching();
   });
 

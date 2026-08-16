@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { detectAdapter, adapterById } from './detect';
 import { geminiAdapter } from './gemini';
-import { buildInjectionPrompt } from '@/src/protocol/builder';
+import { buildComposerStub, buildInjectionPrompt } from '@/src/protocol/builder';
 import {
   appendEditorText,
   createAdapter,
@@ -291,5 +291,15 @@ describe('editorReflectsText', () => {
     const { prompt } = buildInjectionPrompt('derivative of x^2');
     setEditorText(el, prompt);
     expect(editorReflectsText(el, prompt)).toBe(true);
+  });
+
+  it('treats the short file-attach stub as complete without the paste wall', () => {
+    setBody('<div id="ed" contenteditable="true"></div>');
+    const el = document.getElementById('ed')!;
+    const stub = buildComposerStub('derivative of x^2');
+    setEditorText(el, stub);
+    expect(editorReflectsText(el, stub)).toBe(true);
+    expect(getEditorTextOf(el)).not.toContain('stemLM instructions');
+    expect(getEditorTextOf(el)).not.toContain('OUTPUT:');
   });
 });
