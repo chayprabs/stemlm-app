@@ -24,7 +24,14 @@ export function resolveSessionQuestion(session: Session): string {
 }
 
 function stripInjectedNoise(text: string): string {
-  const markers = ['--- stemLM', 'stemLM instructions', 'Ask your question here:'];
+  const markers = [
+    '--- stemLM',
+    'stemLM instructions',
+    'Ask your question here:',
+    'stemLM follow-up context',
+    'Follow the attached stemlm-protocol.txt',
+    'stemlm-protocol.txt',
+  ];
   let cut = text.length;
   for (const marker of markers) {
     const idx = text.indexOf(marker);

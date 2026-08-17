@@ -12,7 +12,8 @@
  * signal.
  *
  * Keep this tight: it is sent on every question. Subject-specific guidance is
- * appended separately by the builder (one playbook at a time) for token economy.
+ * the full playbook set in the attached file; the model picks the matching
+ * section from the problem (no subject picker).
  */
 
 import coreBalancedTemplate from './core-protocol.md?raw';
@@ -30,11 +31,10 @@ export const STEP_COUNT_MAX = 12;
 export const STEP_COUNT_TARGET = '5-12';
 
 /**
- * The core protocol text lives in `core-protocol.md` (a compact ~1.7 kB file,
- * imported raw) so the prompt we paste into the chat composer stays small — a
- * giant inline paste laggs the composer and clutters the chat. The structural
- * tokens are injected here from the constants above so the protocol stays the
- * single source of truth for the parser.
+ * The core protocol text lives in `core-protocol.md` (a compact file,
+ * imported raw) so the prompt we attach as stemlm-protocol.txt stays small.
+ * The structural tokens are injected here from the constants above so the
+ * protocol stays the single source of truth for the parser.
  */
 /** Normalize template text before token substitution (Windows CRLF must not inflate byte budgets). */
 export function renderProtocol(template: string): string {

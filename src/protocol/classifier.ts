@@ -1,10 +1,10 @@
 /**
  * Lightweight client-side subject classifier.
  *
- * Used purely to pick ONE playbook to inject (token economy) — the model is
- * still told to re-classify and adapt if we guessed wrong, so a miss is never
- * fatal. Heuristic scoring over keyword/regex signals; ties resolve to the
- * higher-priority subject, and a weak signal falls back to General.
+ * Analytics / session metadata only. The attached protocol file is universal
+ * (every subject playbook) so a classifier miss cannot starve the model of the
+ * right conventions. Heuristic scoring over keyword/regex signals; ties resolve
+ * to the higher-priority subject, and a weak signal falls back to General.
  */
 import type { Subject } from './types';
 

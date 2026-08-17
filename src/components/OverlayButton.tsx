@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
+import { composerTextHasProtocol } from '@/src/protocol/builder';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
 import { IconCheck, StemMark } from './icons';
@@ -161,7 +162,7 @@ export function OverlayButton() {
         return;
       }
       const last = ctrl.getLastQuestion().trim();
-      const hasProtocol = text.includes('stemLM instructions');
+      const hasProtocol = composerTextHasProtocol(text);
       if (!hasProtocol && last.length > 0 && text !== last) {
         ctrl.resetInjection();
       }

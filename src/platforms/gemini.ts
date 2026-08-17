@@ -3,8 +3,8 @@ import type { AdapterConfig } from './types';
 
 /**
  * Gemini (gemini.google.com).
- * Composer is a Quill editor inside <rich-textarea>; the full stemLM protocol
- * is pasted inline into the chat box.
+ * Composer is a Quill editor inside <rich-textarea>. stemLM attaches
+ * stemlm-protocol.txt (same as an image/PDF) and inserts only a short stub.
  */
 const config: AdapterConfig = {
   id: 'gemini',
