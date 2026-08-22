@@ -6,7 +6,8 @@ import { detectAdapter } from '@/src/platforms/detect';
 import { composerTextHasProtocol } from '@/src/protocol/builder';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
-import { IconCheck, StemMark } from './icons';
+import { IconCheck } from './icons';
+import { ExtensionLogo } from './ExtensionLogo';
 
 const BTN_SIZE = 36;
 const SLOT_GAP = _composerSlotGap;
@@ -213,7 +214,7 @@ export function OverlayButton() {
       title={title}
       aria-label={title}
     >
-      {injected ? <IconCheck width={14} height={14} /> : <StemMark width={14} height={14} />}
+      {injected ? <IconCheck width={14} height={14} /> : <ExtensionLogo size={14} />}
     </button>
   );
 

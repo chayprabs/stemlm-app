@@ -28,7 +28,7 @@ export function QuickCheck({
       {!revealed ? (
         <button
           type="button"
-          className="slm-btn slm-btn-ghost slm-quickcheck-reveal"
+          className="slm-quickcheck-reveal"
           onClick={() => {
             setRevealed(true);
             void trackEvent('quickcheck_revealed', { platform });

@@ -10,6 +10,7 @@ import { initController, getController } from '@/src/content/controller';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
 import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
+import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
 import { trackEvent } from '@/src/lib/analytics';
 import {
   loadMirroredSessions,
@@ -211,6 +212,7 @@ export default defineContentScript({
         useStore.getState().setTheme(theme);
       }
     });
+    const stopToolbarWatch = watchAndApplyToolbarIcon();
 
     let lastSettings = settings;
     const stopSettingsWatch = onSettingsChanged((next) => {
@@ -252,6 +254,7 @@ export default defineContentScript({
       removeComposerSlot();
       getController()?.stopWatching();
       stopSystemWatch();
+      stopToolbarWatch();
       stopSettingsWatch();
       stopMirrorWatch();
       try {

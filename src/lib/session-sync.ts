@@ -44,7 +44,7 @@ export function mergeMirroredSessions(local: Session[], incoming: Session[]): Se
 }
 
 export function sessionsMirrorFingerprint(sessions: Session[]): string {
-  return sessions.map((s) => `${s.id}:${s.updatedAt}:${s.reviewedStepIds.length}`).join('|');
+  return sessions.map((s) => `${s.id}:${s.updatedAt}`).join('|');
 }
 
 export async function mirrorActiveSessions(sessions: Session[]): Promise<void> {

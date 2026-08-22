@@ -177,7 +177,6 @@ export async function verifyCapsule(
       platform: 'gemini',
       question: opt.question ?? capsule.meta.question ?? '',
       capsule,
-      reviewedStepIds: [],
       raw,
     };
     const diagramSvg: Record<string, string> = {};
@@ -186,7 +185,9 @@ export async function verifyCapsule(
       if (resolved) diagramSvg[d.key] = resolved;
     }
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
-    if (!html.includes('slm-report-mark')) errors.push('Report render missing report mark');
+    if (!html.includes('slm-report-wordmark') || !html.includes('<path') || html.includes('slm-wordmark-lm')) {
+      errors.push('Report render missing outlined lockup');
+    }
     const doc = buildReportDocument(session, diagramSvg);
     if (!/<!doctype\s+html/i.test(doc)) errors.push('PDF document build failed');
   } catch (e) {

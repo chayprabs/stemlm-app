@@ -7,7 +7,12 @@ vi.mock('./mermaid', () => ({
   ),
 }));
 
-import { normalizeDiagramSource, resolveDiagramSvg } from './resolve-diagram';
+import {
+  compileDiagram,
+  normalizeDiagramSource,
+  presentCompiledDiagram,
+  resolveDiagramSvg,
+} from './resolve-diagram';
 
 describe('normalizeDiagramSource', () => {
   it('strips markdown fences', () => {
@@ -69,6 +74,27 @@ describe('resolveDiagramSvg', () => {
     expect(svg).toMatch(/style=|fill=|stroke=/i);
   });
 
+  it('compiles type=plot through the real resolve path with graphic shapes', async () => {
+    const svg = await resolveDiagramSvg(
+      {
+        type: 'plot',
+        content: [
+          'fn: 1.5*t^2 - 2*t',
+          'var: t',
+          'domain: 0 10',
+          'xlabel: t (s)',
+          'ylabel: alpha',
+          'eq: \\alpha(t)=1.5t^{2}-2t',
+        ].join('\n'),
+      },
+      'light',
+      'step',
+    );
+    expect(svg).toContain('<svg');
+    expect(svg).toMatch(/<(polyline|path|line)\b/i);
+    expect(svg).toContain('t (s)');
+  });
+
   it('uses print profile bounds for PDF export', async () => {
     const svg = await resolveDiagramSvg(
       {
@@ -80,5 +106,23 @@ describe('resolveDiagramSvg', () => {
     );
     expect(svg).toContain('width="480"');
     expect(svg).toContain('height="240"');
+  });
+
+  it('compiles once without theme; presentCompiledDiagram recolors without compiling', async () => {
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="40" y2="10" stroke="#333" stroke-width="2"/><text x="1" y="10">probe</text></svg>',
+    };
+    const compiled = await compileDiagram(diagram, 'step');
+    expect(compiled.svg).toContain('<svg');
+    expect(compiled.svg).not.toContain('data-stemlm-theme');
+
+    const dark = presentCompiledDiagram(compiled, 'dark', 'step');
+    const light = presentCompiledDiagram(compiled, 'light', 'step');
+    expect(dark.svg).toContain('data-stemlm-theme="dark"');
+    expect(light.svg).toContain('data-stemlm-theme="light"');
+    expect(dark.svg).toContain('IBM Plex Sans');
+    expect(light.svg).toContain('IBM Plex Sans');
   });
 });

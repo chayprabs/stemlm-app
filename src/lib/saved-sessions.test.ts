@@ -14,9 +14,10 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
-const { exportSessionPdfMock, tabsCreateMock } = vi.hoisted(() => ({
+const { exportSessionPdfMock, tabsCreateMock, tabsSendMessageMock } = vi.hoisted(() => ({
   exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
   tabsCreateMock: vi.fn(async () => ({ id: 1 })),
+  tabsSendMessageMock: vi.fn(async () => ({ ok: true })),
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -26,6 +27,7 @@ vi.mock('wxt/browser', () => ({
     },
     tabs: {
       create: tabsCreateMock,
+      sendMessage: tabsSendMessageMock,
     },
     runtime: {
       getURL: (path: string) => `chrome-extension://test${path}`,
@@ -45,6 +47,7 @@ import {
   deleteSavedSession,
   isSessionSaved,
   downloadSavedSessionPdf,
+  refreshSavedSession,
   sessionToSnapshot,
   snapshotToSession,
   normalizeStoredSession,
@@ -74,7 +77,6 @@ function makeSession(overrides: Partial<Session> & { id: string }): Session {
       solution: 'x = 1',
       solutionDiagrams: [],
     },
-    reviewedStepIds: overrides.reviewedStepIds ?? [],
     raw: overrides.raw ?? 'raw',
   };
 }
@@ -226,6 +228,47 @@ describe('saved-sessions', () => {
       expect(stored[0]?.savedAt).toBe(9_000);
     });
 
+    it('overwrites the stored solution and steps with the latest capsule', async () => {
+      await saveSession(
+        makeSession({
+          id: 'dup',
+          question: 'Find x',
+          capsule: {
+            meta: { version: 1, subject: 'Math', topic: 'Algebra' },
+            steps: [{ id: 'step-1', index: 1, title: 'Guess', body: 'try x = 1' }],
+            solution: 'x = 1',
+            solutionDiagrams: [],
+          },
+        }),
+      );
+
+      await saveSession(
+        makeSession({
+          id: 'dup',
+          question: 'Find x',
+          capsule: {
+            meta: { version: 1, subject: 'Math', topic: 'Algebra' },
+            steps: [
+              { id: 'step-1', index: 1, title: 'Write the equation', body: 'x + 1 = 43' },
+              { id: 'step-2', index: 2, title: 'Isolate x', body: 'x = 42' },
+            ],
+            solution: 'x = 42',
+            solutionDiagrams: [],
+          },
+        }),
+      );
+
+      const stored = storedSnapshots() as Array<{
+        id: string;
+        solution: string;
+        steps: Array<{ title: string }>;
+      }>;
+      expect(stored).toHaveLength(1);
+      expect(stored[0]?.id).toBe('dup');
+      expect(stored[0]?.solution).toBe('x = 42');
+      expect(stored[0]?.steps.map((s) => s.title)).toEqual(['Write the equation', 'Isolate x']);
+    });
+
     it('enforces the MAX_SAVED limit of 100 sessions', async () => {
       const existing = Array.from({ length: 100 }, (_, i) => ({
         ...sessionToSnapshot(makeSession({ id: `s-${i}` })),
@@ -269,6 +312,87 @@ describe('saved-sessions', () => {
     });
   });
 
+  describe('refreshSavedSession', () => {
+    it('overwrites an already-saved snapshot with the latest capsule', async () => {
+      await saveSession(
+        makeSession({
+          id: 'keep',
+          question: 'Find the current',
+          capsule: {
+            meta: { version: 1, subject: 'Electrical', topic: 'Ohm' },
+            steps: [{ id: 'step-1', index: 1, title: 'Draft', body: 'I = V/R?' }],
+            solution: 'I = 1 A',
+            solutionDiagrams: [],
+          },
+        }),
+      );
+
+      const ok = await refreshSavedSession(
+        makeSession({
+          id: 'keep',
+          question: 'Find the current',
+          capsule: {
+            meta: { version: 1, subject: 'Electrical', topic: 'Ohm' },
+            steps: [{ id: 'step-1', index: 1, title: 'Ohm’s law', body: 'I = V/R' }],
+            solution: 'I = 2 A',
+            solutionDiagrams: [],
+          },
+        }),
+      );
+
+      expect(ok).toBe(true);
+      const found = await getSavedSession('keep');
+      expect(found?.solution).toBe('I = 2 A');
+      expect(found?.steps[0]?.title).toBe('Ohm’s law');
+      expect(await getSavedSessions()).toHaveLength(1);
+    });
+
+    it('does not create a snapshot when the id is not saved', async () => {
+      expect(await refreshSavedSession(makeSession({ id: 'ghost' }))).toBe(false);
+      expect(await getSavedSessions()).toEqual([]);
+    });
+
+    it('does not resurrect a snapshot when delete runs during an in-flight refresh write', async () => {
+      await saveSession(makeSession({ id: 'keep', question: 'Keep me?' }));
+
+      let releaseWrite = () => {};
+      const holdWrite = new Promise<void>((resolve) => {
+        releaseWrite = resolve;
+      });
+      let notifyHeld = () => {};
+      const held = new Promise<void>((resolve) => {
+        notifyHeld = resolve;
+      });
+
+      mockLocalStorage.set.mockImplementation(async (items: Record<string, unknown>) => {
+        const list = items[SAVED_SESSIONS_KEY];
+        if (Array.isArray(list) && list.some((row) => (row as { id?: string }).id === 'keep')) {
+          notifyHeld();
+          await holdWrite;
+        }
+        Object.assign(storageData, items);
+      });
+
+      try {
+        const pendingRefresh = refreshSavedSession(
+          makeSession({ id: 'keep', question: 'Resurrect?' }),
+        );
+        await held;
+        const pendingDelete = deleteSavedSession('keep');
+        releaseWrite();
+        await pendingRefresh;
+        await pendingDelete;
+        expect(await getSavedSession('keep')).toBeUndefined();
+        expect(await isSessionSaved('keep')).toBe(false);
+      } finally {
+        releaseWrite();
+        mockLocalStorage.set.mockImplementation(async (items: Record<string, unknown>) => {
+          Object.assign(storageData, items);
+        });
+      }
+    });
+  });
+
   describe('downloadSavedSessionPdf', () => {
     it('opens the saved-pdf export tab for a stored snapshot', async () => {
       seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
@@ -280,6 +404,12 @@ describe('saved-sessions', () => {
         expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=lib-1') }),
       );
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
+      expect(tabsSendMessageMock).not.toHaveBeenCalled();
+      const created = (tabsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
+      const url = String(created?.url ?? '');
+      expect(url).not.toMatch(/gemini\.google/);
+      expect(url).not.toContain('stemlm:load-conversation');
+      expect(url).not.toContain('stemlm:open-panel');
     });
 
     it('returns failed when the id is missing', async () => {

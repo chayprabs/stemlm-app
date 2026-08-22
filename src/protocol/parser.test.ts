@@ -416,3 +416,139 @@ describe('atomic step guidance', () => {
     expect(step.body).toContain('0.05');
   });
 });
+
+function miniCapsule(diagramOpen: string, body: string): string {
+  return [
+    '@meta',
+    'subject: Math',
+    'topic: Spec parse',
+    '@endmeta',
+    '@step',
+    'title: Draw the figure',
+    '@body',
+    'Named objects appear as ids.',
+    '@endbody',
+    diagramOpen,
+    body,
+    '@enddiagram',
+    '@endstep',
+    '@solution',
+    'done',
+    '@endsolution',
+    '@end',
+  ].join('\n');
+}
+
+describe('parse @diagram spec families', () => {
+  it('preserves type=plot and is not malformed when fn: is present', () => {
+    const r = parseCapsule(
+      miniCapsule(
+        '@diagram type=plot',
+        [
+          'fn: 1.5*t^2 - 2*t',
+          'var: t',
+          'domain: 0 10',
+          'xlabel: t (s)',
+          'ylabel: \\alpha (rad/s^2)',
+          'point: 10, 130',
+          'eq: \\alpha(t)=1.5t^{2}-2t',
+          'caption: kinematics',
+        ].join('\n'),
+      ),
+    );
+    const d = r.capsule!.steps[0]!.diagram!;
+    expect(d.type).toBe('plot');
+    expect(r.warningCodes).not.toContain('malformed_diagram');
+    expect(d.caption).toBe('kinematics');
+    expect(d.content).toContain('fn: 1.5*t^2 - 2*t');
+  });
+
+  it('flags type=plot without fn/data/peaks/poles as malformed_diagram', () => {
+    const r = parseCapsule(miniCapsule('@diagram type=plot', 'xlabel: t\nylabel: y'));
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('plot');
+    expect(r.warningCodes).toContain('malformed_diagram');
+  });
+
+  it('preserves type=chem.smiles (does not become chem)', () => {
+    const r = parseCapsule(miniCapsule('@diagram type=chem.smiles', 'smiles: CC(=O)O'));
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('chem.smiles');
+    expect(r.warningCodes).not.toContain('malformed_diagram');
+  });
+
+  it('accepts hyphen alias chem-smiles as chem.smiles', () => {
+    const r = parseCapsule(miniCapsule('@diagram type=chem-smiles', 'smiles: CCO'));
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('chem.smiles');
+  });
+
+  it('preserves type=circuit netlist', () => {
+    const r = parseCapsule(
+      miniCapsule(
+        '@diagram type=circuit',
+        ['std: ieee', 'V1: n_in 0 DC 12', 'R1: n_in n_a 4k', 'R2: n_a 0 6k', 'RL: n_a 0 2k'].join('\n'),
+      ),
+    );
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('circuit');
+    expect(r.warningCodes).not.toContain('malformed_diagram');
+  });
+
+  it('preserves type=scene FBD', () => {
+    const r = parseCapsule(
+      miniCapsule(
+        '@diagram type=scene',
+        ['kind: fbd', 'body: block', 'incline_deg: 30', 'force: mg down weight'].join('\n'),
+      ),
+    );
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('scene');
+  });
+
+  it('preserves type=table ICE', () => {
+    const r = parseCapsule(
+      miniCapsule(
+        '@diagram type=table',
+        ['kind: ice', 'species: N2, H2, NH3', 'I: 1, 3, 0', 'C: -x, -3x, +2x', 'E: 1-x, 3-3x, 2x'].join('\n'),
+      ),
+    );
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('table');
+  });
+
+  it('preserves type=graph nodes/edges', () => {
+    const r = parseCapsule(
+      miniCapsule(
+        '@diagram type=graph',
+        ['rankdir: LR', 'node: A hexokinase', 'node: B glucose', 'edge: B A consumption'].join('\n'),
+      ),
+    );
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('graph');
+  });
+
+  it('keeps type=svg hatch with <svg', () => {
+    const r = parseCapsule(
+      miniCapsule('@diagram type=svg', '<svg viewBox="0 0 10 10"><circle r="1"/></svg>'),
+    );
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('svg');
+    expect(r.warningCodes).not.toContain('malformed_diagram');
+  });
+
+  it('does not collapse unknown type=notafamily to svg', () => {
+    const r = parseCapsule(miniCapsule('@diagram type=notafamily', 'foo: bar'));
+    expect(r.capsule!.steps[0]!.diagram!.type).toBe('notafamily');
+    expect(r.warningCodes).toContain('unknown_diagram_type');
+  });
+
+  it('malforms a non-svg spec that contains raw <svg', () => {
+    const r = parseCapsule(
+      miniCapsule('@diagram type=plot', 'fn: x\n<svg viewBox="0 0 1 1"></svg>'),
+    );
+    expect(r.warningCodes).toContain('malformed_diagram');
+  });
+
+  it('preserves leftover hybridpi / sfd-bmd tokens', () => {
+    const hp = parseCapsule(
+      miniCapsule('@diagram type=hybridpi', 'rpi: 1k\ngm: 50m\nRE: 270\nRC: 2.2k'),
+    );
+    expect(hp.capsule!.steps[0]!.diagram!.type).toBe('hybridpi');
+    const sfd = parseCapsule(miniCapsule('@diagram type=sfd-bmd', 'L: 8\nV: 0 1; 8 1'));
+    expect(sfd.capsule!.steps[0]!.diagram!.type).toBe('sfd');
+  });
+});
+

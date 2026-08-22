@@ -14,7 +14,7 @@ describe('split-screen', () => {
     applySplit(0.5, false);
     expect(document.documentElement.classList.contains('stemlm-split')).toBe(true);
     const style = document.getElementById(SPLIT_STYLE_ID);
-    expect(style?.textContent).toContain('width: 50vw');
+    expect(style?.textContent).toContain('calc(50vw - 8px)');
     expect(style?.textContent).toContain('transition: width 0.28s');
   });
 

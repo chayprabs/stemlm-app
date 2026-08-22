@@ -3,22 +3,19 @@ import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { sessionQuestionHeading } from '@/src/lib/session-question';
 import { MathMarkdown } from './MathMarkdown';
-import { BrandWordmark } from './BrandWordmark';
-import { ExtensionLogo } from './ExtensionLogo';
+import { BrandWordmark, themeToBrandVariant } from './brand';
 import {
   IconBook,
   IconClose,
   IconLayers,
-  IconMoon,
   IconPdf,
   IconSave,
-  IconSun,
+  IconTheme,
 } from './icons';
 
 export function PanelHeader({
   session,
   view,
-  reviewedCount,
   theme,
   saved,
   onSetView,
@@ -29,7 +26,6 @@ export function PanelHeader({
 }: {
   session: Session | undefined;
   view: PanelView;
-  reviewedCount: number;
   theme: ResolvedTheme;
   saved: boolean;
   onSetView: (v: PanelView) => void;
@@ -38,28 +34,31 @@ export function PanelHeader({
   onClose: () => void;
   onToggleTheme: () => void;
 }) {
-  const total = session?.capsule.steps.length ?? 0;
   const heading = session ? sessionQuestionHeading(session) : '';
 
   return (
     <header className="slm-header">
-      <div className="slm-header-top">
+      <div className="slm-header-bar slm-header-top">
         <div className="slm-brand">
-          <ExtensionLogo size={26} />
-          <BrandWordmark className="slm-brand-name" />
+          <BrandWordmark
+            key={themeToBrandVariant(theme)}
+            className="slm-brand-name"
+            variant={themeToBrandVariant(theme)}
+          />
         </div>
         <div className="slm-header-actions">
           <button
             type="button"
-            className="slm-icon-btn"
+            className={`slm-icon-btn slm-theme-btn ${theme === 'dark' ? 'is-dark' : ''}`}
             aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
             onClick={onToggleTheme}
           >
-            {theme === 'dark' ? <IconSun /> : <IconMoon />}
+            <IconTheme />
           </button>
           <button
             type="button"
-            className="slm-icon-btn"
+            className="slm-icon-btn slm-icon-btn--save"
             aria-label={saved ? 'Remove from saved sessions' : 'Save session'}
             aria-pressed={saved}
             title={saved ? 'Remove from saved' : 'Save session'}
@@ -67,31 +66,35 @@ export function PanelHeader({
             disabled={!session}
             data-active={saved ? 'true' : undefined}
           >
-            <IconSave />
+            <span className="slm-save-glyph">
+              <IconSave />
+            </span>
           </button>
           <button
             type="button"
             className="slm-icon-btn"
             aria-label="Export PDF"
+            title="Export PDF"
             onClick={onExportPdf}
             disabled={!session}
           >
-            <IconPdf />
+            <IconPdf width={18} height={18} />
           </button>
-          <button type="button" className="slm-icon-btn" aria-label="Close panel" onClick={onClose}>
-            <IconClose />
+          <button
+            type="button"
+            className="slm-icon-btn slm-icon-btn--close"
+            aria-label="Close panel"
+            title="Close panel"
+            onClick={onClose}
+          >
+            <IconClose width={18} height={18} />
           </button>
         </div>
       </div>
 
       {session && (
         <>
-          <div className="slm-topic-row">
-            <MathMarkdown content={heading} className="slm-topic" />
-            <span className="slm-subject-chip">{session.capsule.meta.subject}</span>
-          </div>
-
-          <div className="slm-header-bottom">
+          <div className="slm-header-nav slm-header-bottom">
             <div className="slm-tabs" role="tablist" aria-label="Study view">
               <button
                 type="button"
@@ -116,11 +119,15 @@ export function PanelHeader({
                 <IconBook /> Solution
               </button>
             </div>
-            {view === 'steps' && total > 0 && (
-              <span className="slm-progress-count">
-                {reviewedCount}/{total} reviewed
-              </span>
-            )}
+          </div>
+
+          <div className="slm-header-title slm-topic-row">
+            <span className="slm-question-icon" aria-hidden="true">
+              Q.
+            </span>
+            <div className="slm-topic-scroll">
+              <MathMarkdown content={heading} className="slm-topic" />
+            </div>
           </div>
         </>
       )}

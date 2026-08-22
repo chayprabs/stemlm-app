@@ -169,6 +169,23 @@ describe('buildInjectionPayload', () => {
     expect(b.content).toBe(c.content);
   });
 
+  it('teaches typed specs and does not instruct SVG coordinate craft', () => {
+    const { content } = buildProtocolFileContent({ question: 'sizing' });
+    expect(content).toContain('type=plot');
+    expect(content).toContain('type=circuit');
+    expect(content).toContain('chem.smiles');
+    expect(content).toMatch(/Never emit <svg>|Never <svg>|never emit <svg>/i);
+    expect(content).not.toMatch(/viewBox="0 0 300 180"/);
+    expect(content).not.toMatch(/prefer \*\*0 0 300 180\*\*/);
+    expect(content).not.toMatch(/@diagram type=svg/);
+    expect(content).not.toMatch(/stroke-width 2/);
+    const stub = buildComposerStub('A kinematics graph question.');
+    expect(stub).toMatch(/SPEC/i);
+    expect(stub).not.toContain('viewBox');
+    expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
+    expect(getDiagramRequirement('Electrical')).not.toContain('viewBox="0 0 300 180"');
+  });
+
   it('keeps the composer stub compact (full rules live in the attached file)', () => {
     const stub = buildComposerStub('A representative question for sizing.');
     expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(700);
@@ -235,14 +252,14 @@ describe('buildInjectionPayload', () => {
   });
 
   it('includes subject-specific textbook diagram conventions without prompt banks', () => {
-    expect(getDiagramRequirement('Electrical')).toContain('input/signal flow left→right');
-    expect(getDiagramRequirement('Electrical')).toContain('BJT with B/C/E');
-    expect(getDiagramRequirement('Chemistry')).toContain('MO diagrams use AO columns outside');
+    expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
+    expect(getDiagramRequirement('Electrical')).toContain('type=circuit');
+    expect(getDiagramRequirement('Chemistry')).toContain('chem.smiles');
     expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
-    expect(getDiagramRequirement('Math')).toContain('origin/ticks/scale');
-    expect(getDiagramRequirement('Biology')).toContain('SBGN-like');
-    expect(getDiagramRequirement('Civil')).toContain('pin/roller/fixed support');
-    expect(getDiagramRequirement('Chemical')).toContain('number every stream');
+    expect(getDiagramRequirement('Math')).toContain('type=plot');
+    expect(getDiagramRequirement('Biology')).toContain('Punnett');
+    expect(getDiagramRequirement('Civil')).toContain('type=sfd');
+    expect(getDiagramRequirement('Chemical')).toContain('mccabe');
   });
 });
 

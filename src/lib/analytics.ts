@@ -81,7 +81,6 @@ export type StemLmEvent =
   | 'panel_opened'
   | 'question_asked'
   | 'question_solved'
-  | 'step_reviewed'
   | 'quickcheck_revealed'
   | 'followup_used'
   | 'session_saved'

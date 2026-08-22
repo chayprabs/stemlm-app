@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>stemlm — identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#0E1013; --accent:#FF6B2C; --paper:#FAF8F4; --rule:#DED8CE; --mute:#8C877E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+         font-family:Manrope,system-ui,sans-serif; -webkit-font-smoothing:antialiased;
+         background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);
+         background-size:56px 56px; background-position:-1px -1px; }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 32px 120px; }
+  .card { background:var(--paper); border:1px solid var(--rule); }
+  header { padding:96px 0 56px; }
+  .kicker { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.22em;
+             text-transform:uppercase; color:var(--mute); }
+  h1 { font-size:clamp(40px,7vw,76px); line-height:.95; letter-spacing:-.045em; font-weight:800; margin:20px 0 0; }
+  h1 em { font-style:normal; color:var(--accent); }
+  .lede { max-width:52ch; font-size:17px; line-height:1.6; color:#3A3833; margin-top:22px; }
+  section { padding:52px 0; border-top:1px solid var(--rule); }
+  h2 { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.22em;
+        text-transform:uppercase; color:var(--mute); font-weight:500; margin:0 0 28px; }
+  .hero { padding:64px 48px; display:flex; justify-content:center; align-items:center; }
+  .hero svg { width:min(520px,80%); }
+  .reads { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1px;
+            background:var(--rule); border:1px solid var(--rule); }
+  .read { background:var(--paper); padding:28px 24px; }
+  .read b { display:block; font-size:15px; letter-spacing:-.01em; margin-bottom:8px; }
+  .read p { margin:0; font-size:14px; line-height:1.6; color:#57534B; }
+  .read span { font-family:'JetBrains Mono',monospace; font-size:26px; color:var(--accent); display:block; margin-bottom:14px; }
+  .split { display:grid; grid-template-columns:300px 1fr; gap:40px; align-items:center; }
+  .grid { width:280px; display:block; }
+  .specs { font-family:'JetBrains Mono',monospace; font-size:13px; line-height:2.1; color:#57534B; }
+  .specs b { color:var(--ink); font-weight:500; }
+  .row { display:flex; flex-wrap:wrap; gap:1px; background:var(--rule); border:1px solid var(--rule); }
+  .cell { background:var(--paper); padding:32px; flex:1 1 200px; display:flex; flex-direction:column;
+           align-items:center; justify-content:center; gap:22px; min-height:170px; }
+  .cell.dark { background:var(--ink); }
+  .cell.orange { background:var(--accent); }
+  .tag { font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em;
+          text-transform:uppercase; color:var(--mute); }
+  .cell.dark .tag { color:#6E6960; }
+  .cell.orange .tag { color:#7A2E08; }
+  .sizes { display:flex; align-items:flex-end; gap:36px; flex-wrap:wrap; }
+  .sizes figure { margin:0; text-align:center; }
+  .sizes figcaption { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--mute); margin-top:14px; }
+  .pal { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1px; background:var(--rule);
+          border:1px solid var(--rule); }
+  .sw { background:var(--paper); padding:0 0 20px; }
+  .chip { height:104px; }
+  .sw .n { font-weight:700; font-size:15px; padding:16px 20px 2px; }
+  .sw .h { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent); padding:0 20px 6px; }
+  .sw .d { font-size:13px; color:#57534B; padding:0 20px; line-height:1.5; }
+  .rules { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--rule); border:1px solid var(--rule); }
+  .rules div { background:var(--paper); padding:26px 24px; font-size:14px; line-height:1.65; color:#57534B; }
+  .rules b { display:block; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.14em;
+              text-transform:uppercase; margin-bottom:10px; }
+  .yes b { color:#1B8A4B; } .no b { color:#C8391F; }
+  ul.files { list-style:none; padding:0; margin:0; font-family:'JetBrains Mono',monospace; font-size:13px; }
+  ul.files li { display:flex; justify-content:space-between; gap:24px; padding:11px 0; border-bottom:1px solid var(--rule); color:#57534B; }
+  ul.files li b { color:var(--ink); font-weight:500; }
+  footer { padding:44px 0; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--mute); }
+  @media (max-width:760px) { .split { grid-template-columns:1fr; } .rules { grid-template-columns:1fr; } }
+</style></head><body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">stemlm · visual identity · v1</div>
+  <h1>Therefore<em>.</em></h1>
+  <p class="lede">Three marks that mean three things at once — a chat's typing dots, mathematics' <strong>&there4;</strong> ("therefore"), and a boxed final answer sitting on top of the work that earned it.</p>
+</header>
+
+<section>
+  <div class="card hero"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226.7 64" fill="none" role="img" aria-label="stemlm" style="width:min(520px,80%)">
+  <title>stemlm</title>
+  <g transform="translate(-5.0,0)"><circle cx="18" cy="45" r="7" fill="#0E1013"/><circle cx="46" cy="45" r="7" fill="#0E1013"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+  <g transform="translate(63.00,51) scale(0.0215)"><path d="M562.00 30.00Q358.00 30.00 232.50 -62.50Q107.00 -155.00 80.00 -324.00L358.00 -366.00Q375.00 -290.00 433.50 -247.00Q492.00 -204.00 582.00 -204.00Q656.00 -204.00 696.00 -232.50Q736.00 -261.00 736.00 -312.00Q736.00 -344.00 720.00 -363.50Q704.00 -383.00 648.50 -402.00Q593.00 -421.00 476.00 -452.00Q344.00 -486.00 265.00 -528.00Q186.00 -570.00 151.00 -628.50Q116.00 -687.00 116.00 -770.00Q116.00 -874.00 169.00 -950.50Q222.00 -1027.00 318.50 -1068.50Q415.00 -1110.00 546.00 -1110.00Q673.00 -1110.00 771.00 -1071.00Q869.00 -1032.00 929.50 -960.00Q990.00 -888.00 1004.00 -790.00L726.00 -740.00Q719.00 -800.00 674.00 -835.00Q629.00 -870.00 552.00 -876.00Q477.00 -881.00 431.50 -856.00Q386.00 -831.00 386.00 -784.00Q386.00 -756.00 405.50 -737.00Q425.00 -718.00 486.50 -698.00Q548.00 -678.00 674.00 -646.00Q797.00 -614.00 871.50 -571.50Q946.00 -529.00 980.00 -469.50Q1014.00 -410.00 1014.00 -326.00Q1014.00 -160.00 894.00 -65.00Q774.00 30.00 562.00 30.00Z M1858.00 0.00Q1746.00 21.00 1638.50 18.50Q1531.00 16.00 1446.50 -19.50Q1362.00 -55.00 1318.00 -134.00Q1278.00 -208.00 1276.00 -284.50Q1274.00 -361.00 1274.00 -458.00V-1380.00H1546.00V-474.00Q1546.00 -411.00 1547.50 -360.50Q1549.00 -310.00 1568.00 -280.00Q1604.00 -223.00 1683.00 -218.00Q1762.00 -213.00 1858.00 -226.00ZM1090.00 -870.00V-1080.00H1858.00V-870.00Z M2576.00 30.00Q2410.00 30.00 2283.50 -41.50Q2157.00 -113.00 2085.50 -238.50Q2014.00 -364.00 2014.00 -526.00Q2014.00 -703.00 2084.00 -834.00Q2154.00 -965.00 2277.00 -1037.50Q2400.00 -1110.00 2560.00 -1110.00Q2730.00 -1110.00 2849.00 -1030.00Q2968.00 -950.00 3025.00 -805.00Q3082.00 -660.00 3065.00 -464.00H2796.00V-564.00Q2796.00 -729.00 2743.50 -801.50Q2691.00 -874.00 2572.00 -874.00Q2433.00 -874.00 2367.50 -789.50Q2302.00 -705.00 2302.00 -540.00Q2302.00 -389.00 2367.50 -306.50Q2433.00 -224.00 2560.00 -224.00Q2640.00 -224.00 2697.00 -259.00Q2754.00 -294.00 2784.00 -360.00L3056.00 -282.00Q2995.00 -134.00 2863.50 -52.00Q2732.00 30.00 2576.00 30.00ZM2218.00 -464.00V-666.00H2934.00V-464.00Z M4566.00 0.00V-638.00Q4566.00 -745.00 4515.50 -804.50Q4465.00 -864.00 4376.00 -864.00Q4319.00 -864.00 4277.00 -837.50Q4235.00 -811.00 4211.50 -763.50Q4188.00 -716.00 4188.00 -654.00L4074.00 -730.00Q4074.00 -841.00 4126.50 -926.00Q4179.00 -1011.00 4267.50 -1058.50Q4356.00 -1106.00 4464.00 -1106.00Q4649.00 -1106.00 4743.50 -996.50Q4838.00 -887.00 4838.00 -710.00V0.00ZM3264.00 0.00V-1080.00H3504.00V-722.00H3538.00V0.00ZM3916.00 0.00V-638.00Q3916.00 -745.00 3865.50 -804.50Q3815.00 -864.00 3726.00 -864.00Q3641.00 -864.00 3589.50 -805.50Q3538.00 -747.00 3538.00 -654.00L3424.00 -734.00Q3424.00 -840.00 3477.00 -924.00Q3530.00 -1008.00 3619.50 -1057.00Q3709.00 -1106.00 3820.00 -1106.00Q3947.00 -1106.00 4028.50 -1052.00Q4110.00 -998.00 4149.00 -908.00Q4188.00 -818.00 4188.00 -710.00V0.00Z M5094.00 0.00V-1470.00H5366.00V0.00Z M6942.00 0.00V-638.00Q6942.00 -745.00 6891.50 -804.50Q6841.00 -864.00 6752.00 -864.00Q6695.00 -864.00 6653.00 -837.50Q6611.00 -811.00 6587.50 -763.50Q6564.00 -716.00 6564.00 -654.00L6450.00 -730.00Q6450.00 -841.00 6502.50 -926.00Q6555.00 -1011.00 6643.50 -1058.50Q6732.00 -1106.00 6840.00 -1106.00Q7025.00 -1106.00 7119.50 -996.50Q7214.00 -887.00 7214.00 -710.00V0.00ZM5640.00 0.00V-1080.00H5880.00V-722.00H5914.00V0.00ZM6292.00 0.00V-638.00Q6292.00 -745.00 6241.50 -804.50Q6191.00 -864.00 6102.00 -864.00Q6017.00 -864.00 5965.50 -805.50Q5914.00 -747.00 5914.00 -654.00L5800.00 -734.00Q5800.00 -840.00 5853.00 -924.00Q5906.00 -1008.00 5995.50 -1057.00Q6085.00 -1106.00 6196.00 -1106.00Q6323.00 -1106.00 6404.50 -1052.00Q6486.00 -998.00 6525.00 -908.00Q6564.00 -818.00 6564.00 -710.00V0.00Z" fill="#0E1013"/></g>
+</svg>
+</div>
+</section>
+
+<section>
+  <h2>The idea</h2>
+  <div class="reads">
+    <div class="read"><span>• • •</span><b>The typing indicator</b><p>Every AI chat renders three dots while it thinks. stemlm lives inside those chats, so the identity starts where the product does.</p></div>
+    <div class="read"><span>&there4;</span><b>Therefore</b><p>The same three dots, rearranged, are the oldest notation in mathematics for <em>a conclusion follows</em>. Every worked solution ends with it.</p></div>
+    <div class="read"><span>&#9633;</span><b>The boxed answer</b><p>The apex is squared off, not round. Students box the final answer; the mark boxes it too, and puts it above the reasoning.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Construction</h2>
+  <div class="split">
+    <div><svg viewBox="-4 -4 72 72" class="grid">
+  <defs><pattern id="p" width="8" height="8" patternUnits="userSpaceOnUse">
+    <path d="M8 0H0V8" fill="none" stroke="#0E1013" stroke-width="0.35" opacity=".13"/></pattern></defs>
+  <rect x="-4" y="-4" width="72" height="72" fill="url(#p)"/>
+  <line x1="32" y1="-4" x2="32" y2="68" stroke="#FF6B2C" stroke-width=".4" opacity=".45"/>
+  <line x1="-4" y1="45" x2="68" y2="45" stroke="#FF6B2C" stroke-width=".4" opacity=".45"/>
+  <path d="M18 45 L32 22 L46 45 Z" fill="none" stroke="#FF6B2C" stroke-width=".5" stroke-dasharray="2 2" opacity=".8"/>
+  <circle cx="18" cy="45" r="7" fill="#0E1013"/>
+  <circle cx="46" cy="45" r="7" fill="#0E1013"/>
+  <rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/>
+  <text x="32" y="53.5" font-size="3" fill="#0E1013" opacity=".55" text-anchor="middle"
+        font-family="ui-monospace,monospace">28</text>
+  <text x="34.5" y="34" font-size="3" fill="#0E1013" opacity=".55"
+        font-family="ui-monospace,monospace">23</text>
+</svg></div>
+    <div class="specs">
+      Grid <b>64 &times; 64</b><br/>
+      Dot radius <b>7</b> &nbsp;·&nbsp; baseline <b>y 45</b><br/>
+      Dot separation <b>28</b> &nbsp;·&nbsp; apex rise <b>23</b><br/>
+      Apex square <b>14 &times; 14</b>, corner <b>4.2</b><br/>
+      Apex mass runs ~12% over the dots — it is the answer, so it carries slightly more weight.<br/>
+      Clear space on all sides <b>= one dot diameter (14)</b>.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Motion — the mark solving itself</h2>
+  <div class="row">
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"
+     fill="none" role="img" aria-label="stemlm" style="height:88px">
+  <title>stemlm — thinking resolves into therefore</title>
+
+  <!-- left premise -->
+  <circle cx="12" cy="45" r="7" fill="#0E1013">
+    <animate attributeName="cy" values="45;40;45;45;45" keyTimes="0;0.05;0.11;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1;0 0 1 1;0 0 1 1" repeatCount="indefinite"/>
+    <animate attributeName="cx" values="12;12;18;18;12" keyTimes="0;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- right premise -->
+  <circle cx="52" cy="45" r="7" fill="#0E1013">
+    <animate attributeName="cy" values="45;45;40;45;45;45" keyTimes="0;0.09;0.14;0.20;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;.4 0 .2 1;0 0 1 1;0 0 1 1" repeatCount="indefinite"/>
+    <animate attributeName="cx" values="52;52;46;46;52" keyTimes="0;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- the conclusion: rises, squares off, lights up -->
+  <rect x="25" y="38" width="14" height="14" rx="7" fill="#0E1013">
+    <animate attributeName="y" values="38;33;38;38;15;15;38" keyTimes="0;0.07;0.13;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="7;7;4.2;4.2;7" keyTimes="0;0.42;0.58;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+    <animate attributeName="fill" values="#0E1013;#0E1013;#FF6B2C;#FF6B2C;#0E1013"
+             keyTimes="0;0.42;0.58;0.9;1" dur="3.6s" repeatCount="indefinite"/>
+  </rect>
+</svg>
+<span class="tag">thinking &rarr; therefore</span></div>
+    <div class="cell dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"
+     fill="none" role="img" aria-label="stemlm" style="height:88px">
+  <title>stemlm — thinking resolves into therefore</title>
+
+  <!-- left premise -->
+  <circle cx="12" cy="45" r="7" fill="#FFFFFF">
+    <animate attributeName="cy" values="45;40;45;45;45" keyTimes="0;0.05;0.11;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1;0 0 1 1;0 0 1 1" repeatCount="indefinite"/>
+    <animate attributeName="cx" values="12;12;18;18;12" keyTimes="0;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- right premise -->
+  <circle cx="52" cy="45" r="7" fill="#FFFFFF">
+    <animate attributeName="cy" values="45;45;40;45;45;45" keyTimes="0;0.09;0.14;0.20;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;.4 0 .2 1;0 0 1 1;0 0 1 1" repeatCount="indefinite"/>
+    <animate attributeName="cx" values="52;52;46;46;52" keyTimes="0;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- the conclusion: rises, squares off, lights up -->
+  <rect x="25" y="38" width="14" height="14" rx="7" fill="#FFFFFF">
+    <animate attributeName="y" values="38;33;38;38;15;15;38" keyTimes="0;0.07;0.13;0.36;0.52;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines=".4 0 .2 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="7;7;4.2;4.2;7" keyTimes="0;0.42;0.58;0.9;1" dur="3.6s"
+             calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.4 0 .2 1" repeatCount="indefinite"/>
+    <animate attributeName="fill" values="#FFFFFF;#FFFFFF;#FF6B2C;#FF6B2C;#FFFFFF"
+             keyTimes="0;0.42;0.58;0.9;1" dur="3.6s" repeatCount="indefinite"/>
+  </rect>
+</svg>
+<span class="tag">on dark</span></div>
+    <div class="cell"><div style="font-size:14px;line-height:1.65;color:#57534B;text-align:left">The middle dot never moves sideways — the typing row and the <strong>&there4;</strong> share the same three x‑positions. It simply rises, squares off, and lights up. Use it as the loading state inside the extension.</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Lockups</h2>
+  <div class="row">
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226.7 64" fill="none" role="img" aria-label="stemlm" style="width:200px">
+  <title>stemlm</title>
+  <g transform="translate(-5.0,0)"><circle cx="18" cy="45" r="7" fill="#0E1013"/><circle cx="46" cy="45" r="7" fill="#0E1013"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+  <g transform="translate(63.00,51) scale(0.0215)"><path d="M562.00 30.00Q358.00 30.00 232.50 -62.50Q107.00 -155.00 80.00 -324.00L358.00 -366.00Q375.00 -290.00 433.50 -247.00Q492.00 -204.00 582.00 -204.00Q656.00 -204.00 696.00 -232.50Q736.00 -261.00 736.00 -312.00Q736.00 -344.00 720.00 -363.50Q704.00 -383.00 648.50 -402.00Q593.00 -421.00 476.00 -452.00Q344.00 -486.00 265.00 -528.00Q186.00 -570.00 151.00 -628.50Q116.00 -687.00 116.00 -770.00Q116.00 -874.00 169.00 -950.50Q222.00 -1027.00 318.50 -1068.50Q415.00 -1110.00 546.00 -1110.00Q673.00 -1110.00 771.00 -1071.00Q869.00 -1032.00 929.50 -960.00Q990.00 -888.00 1004.00 -790.00L726.00 -740.00Q719.00 -800.00 674.00 -835.00Q629.00 -870.00 552.00 -876.00Q477.00 -881.00 431.50 -856.00Q386.00 -831.00 386.00 -784.00Q386.00 -756.00 405.50 -737.00Q425.00 -718.00 486.50 -698.00Q548.00 -678.00 674.00 -646.00Q797.00 -614.00 871.50 -571.50Q946.00 -529.00 980.00 -469.50Q1014.00 -410.00 1014.00 -326.00Q1014.00 -160.00 894.00 -65.00Q774.00 30.00 562.00 30.00Z M1858.00 0.00Q1746.00 21.00 1638.50 18.50Q1531.00 16.00 1446.50 -19.50Q1362.00 -55.00 1318.00 -134.00Q1278.00 -208.00 1276.00 -284.50Q1274.00 -361.00 1274.00 -458.00V-1380.00H1546.00V-474.00Q1546.00 -411.00 1547.50 -360.50Q1549.00 -310.00 1568.00 -280.00Q1604.00 -223.00 1683.00 -218.00Q1762.00 -213.00 1858.00 -226.00ZM1090.00 -870.00V-1080.00H1858.00V-870.00Z M2576.00 30.00Q2410.00 30.00 2283.50 -41.50Q2157.00 -113.00 2085.50 -238.50Q2014.00 -364.00 2014.00 -526.00Q2014.00 -703.00 2084.00 -834.00Q2154.00 -965.00 2277.00 -1037.50Q2400.00 -1110.00 2560.00 -1110.00Q2730.00 -1110.00 2849.00 -1030.00Q2968.00 -950.00 3025.00 -805.00Q3082.00 -660.00 3065.00 -464.00H2796.00V-564.00Q2796.00 -729.00 2743.50 -801.50Q2691.00 -874.00 2572.00 -874.00Q2433.00 -874.00 2367.50 -789.50Q2302.00 -705.00 2302.00 -540.00Q2302.00 -389.00 2367.50 -306.50Q2433.00 -224.00 2560.00 -224.00Q2640.00 -224.00 2697.00 -259.00Q2754.00 -294.00 2784.00 -360.00L3056.00 -282.00Q2995.00 -134.00 2863.50 -52.00Q2732.00 30.00 2576.00 30.00ZM2218.00 -464.00V-666.00H2934.00V-464.00Z M4566.00 0.00V-638.00Q4566.00 -745.00 4515.50 -804.50Q4465.00 -864.00 4376.00 -864.00Q4319.00 -864.00 4277.00 -837.50Q4235.00 -811.00 4211.50 -763.50Q4188.00 -716.00 4188.00 -654.00L4074.00 -730.00Q4074.00 -841.00 4126.50 -926.00Q4179.00 -1011.00 4267.50 -1058.50Q4356.00 -1106.00 4464.00 -1106.00Q4649.00 -1106.00 4743.50 -996.50Q4838.00 -887.00 4838.00 -710.00V0.00ZM3264.00 0.00V-1080.00H3504.00V-722.00H3538.00V0.00ZM3916.00 0.00V-638.00Q3916.00 -745.00 3865.50 -804.50Q3815.00 -864.00 3726.00 -864.00Q3641.00 -864.00 3589.50 -805.50Q3538.00 -747.00 3538.00 -654.00L3424.00 -734.00Q3424.00 -840.00 3477.00 -924.00Q3530.00 -1008.00 3619.50 -1057.00Q3709.00 -1106.00 3820.00 -1106.00Q3947.00 -1106.00 4028.50 -1052.00Q4110.00 -998.00 4149.00 -908.00Q4188.00 -818.00 4188.00 -710.00V0.00Z M5094.00 0.00V-1470.00H5366.00V0.00Z M6942.00 0.00V-638.00Q6942.00 -745.00 6891.50 -804.50Q6841.00 -864.00 6752.00 -864.00Q6695.00 -864.00 6653.00 -837.50Q6611.00 -811.00 6587.50 -763.50Q6564.00 -716.00 6564.00 -654.00L6450.00 -730.00Q6450.00 -841.00 6502.50 -926.00Q6555.00 -1011.00 6643.50 -1058.50Q6732.00 -1106.00 6840.00 -1106.00Q7025.00 -1106.00 7119.50 -996.50Q7214.00 -887.00 7214.00 -710.00V0.00ZM5640.00 0.00V-1080.00H5880.00V-722.00H5914.00V0.00ZM6292.00 0.00V-638.00Q6292.00 -745.00 6241.50 -804.50Q6191.00 -864.00 6102.00 -864.00Q6017.00 -864.00 5965.50 -805.50Q5914.00 -747.00 5914.00 -654.00L5800.00 -734.00Q5800.00 -840.00 5853.00 -924.00Q5906.00 -1008.00 5995.50 -1057.00Q6085.00 -1106.00 6196.00 -1106.00Q6323.00 -1106.00 6404.50 -1052.00Q6486.00 -998.00 6525.00 -908.00Q6564.00 -818.00 6564.00 -710.00V0.00Z" fill="#0E1013"/></g>
+</svg>
+<span class="tag">primary</span></div>
+    <div class="cell dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226.7 64" fill="none" role="img" aria-label="stemlm" style="width:200px">
+  <title>stemlm</title>
+  <g transform="translate(-5.0,0)"><circle cx="18" cy="45" r="7" fill="#FFFFFF"/><circle cx="46" cy="45" r="7" fill="#FFFFFF"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+  <g transform="translate(63.00,51) scale(0.0215)"><path d="M562.00 30.00Q358.00 30.00 232.50 -62.50Q107.00 -155.00 80.00 -324.00L358.00 -366.00Q375.00 -290.00 433.50 -247.00Q492.00 -204.00 582.00 -204.00Q656.00 -204.00 696.00 -232.50Q736.00 -261.00 736.00 -312.00Q736.00 -344.00 720.00 -363.50Q704.00 -383.00 648.50 -402.00Q593.00 -421.00 476.00 -452.00Q344.00 -486.00 265.00 -528.00Q186.00 -570.00 151.00 -628.50Q116.00 -687.00 116.00 -770.00Q116.00 -874.00 169.00 -950.50Q222.00 -1027.00 318.50 -1068.50Q415.00 -1110.00 546.00 -1110.00Q673.00 -1110.00 771.00 -1071.00Q869.00 -1032.00 929.50 -960.00Q990.00 -888.00 1004.00 -790.00L726.00 -740.00Q719.00 -800.00 674.00 -835.00Q629.00 -870.00 552.00 -876.00Q477.00 -881.00 431.50 -856.00Q386.00 -831.00 386.00 -784.00Q386.00 -756.00 405.50 -737.00Q425.00 -718.00 486.50 -698.00Q548.00 -678.00 674.00 -646.00Q797.00 -614.00 871.50 -571.50Q946.00 -529.00 980.00 -469.50Q1014.00 -410.00 1014.00 -326.00Q1014.00 -160.00 894.00 -65.00Q774.00 30.00 562.00 30.00Z M1858.00 0.00Q1746.00 21.00 1638.50 18.50Q1531.00 16.00 1446.50 -19.50Q1362.00 -55.00 1318.00 -134.00Q1278.00 -208.00 1276.00 -284.50Q1274.00 -361.00 1274.00 -458.00V-1380.00H1546.00V-474.00Q1546.00 -411.00 1547.50 -360.50Q1549.00 -310.00 1568.00 -280.00Q1604.00 -223.00 1683.00 -218.00Q1762.00 -213.00 1858.00 -226.00ZM1090.00 -870.00V-1080.00H1858.00V-870.00Z M2576.00 30.00Q2410.00 30.00 2283.50 -41.50Q2157.00 -113.00 2085.50 -238.50Q2014.00 -364.00 2014.00 -526.00Q2014.00 -703.00 2084.00 -834.00Q2154.00 -965.00 2277.00 -1037.50Q2400.00 -1110.00 2560.00 -1110.00Q2730.00 -1110.00 2849.00 -1030.00Q2968.00 -950.00 3025.00 -805.00Q3082.00 -660.00 3065.00 -464.00H2796.00V-564.00Q2796.00 -729.00 2743.50 -801.50Q2691.00 -874.00 2572.00 -874.00Q2433.00 -874.00 2367.50 -789.50Q2302.00 -705.00 2302.00 -540.00Q2302.00 -389.00 2367.50 -306.50Q2433.00 -224.00 2560.00 -224.00Q2640.00 -224.00 2697.00 -259.00Q2754.00 -294.00 2784.00 -360.00L3056.00 -282.00Q2995.00 -134.00 2863.50 -52.00Q2732.00 30.00 2576.00 30.00ZM2218.00 -464.00V-666.00H2934.00V-464.00Z M4566.00 0.00V-638.00Q4566.00 -745.00 4515.50 -804.50Q4465.00 -864.00 4376.00 -864.00Q4319.00 -864.00 4277.00 -837.50Q4235.00 -811.00 4211.50 -763.50Q4188.00 -716.00 4188.00 -654.00L4074.00 -730.00Q4074.00 -841.00 4126.50 -926.00Q4179.00 -1011.00 4267.50 -1058.50Q4356.00 -1106.00 4464.00 -1106.00Q4649.00 -1106.00 4743.50 -996.50Q4838.00 -887.00 4838.00 -710.00V0.00ZM3264.00 0.00V-1080.00H3504.00V-722.00H3538.00V0.00ZM3916.00 0.00V-638.00Q3916.00 -745.00 3865.50 -804.50Q3815.00 -864.00 3726.00 -864.00Q3641.00 -864.00 3589.50 -805.50Q3538.00 -747.00 3538.00 -654.00L3424.00 -734.00Q3424.00 -840.00 3477.00 -924.00Q3530.00 -1008.00 3619.50 -1057.00Q3709.00 -1106.00 3820.00 -1106.00Q3947.00 -1106.00 4028.50 -1052.00Q4110.00 -998.00 4149.00 -908.00Q4188.00 -818.00 4188.00 -710.00V0.00Z M5094.00 0.00V-1470.00H5366.00V0.00Z M6942.00 0.00V-638.00Q6942.00 -745.00 6891.50 -804.50Q6841.00 -864.00 6752.00 -864.00Q6695.00 -864.00 6653.00 -837.50Q6611.00 -811.00 6587.50 -763.50Q6564.00 -716.00 6564.00 -654.00L6450.00 -730.00Q6450.00 -841.00 6502.50 -926.00Q6555.00 -1011.00 6643.50 -1058.50Q6732.00 -1106.00 6840.00 -1106.00Q7025.00 -1106.00 7119.50 -996.50Q7214.00 -887.00 7214.00 -710.00V0.00ZM5640.00 0.00V-1080.00H5880.00V-722.00H5914.00V0.00ZM6292.00 0.00V-638.00Q6292.00 -745.00 6241.50 -804.50Q6191.00 -864.00 6102.00 -864.00Q6017.00 -864.00 5965.50 -805.50Q5914.00 -747.00 5914.00 -654.00L5800.00 -734.00Q5800.00 -840.00 5853.00 -924.00Q5906.00 -1008.00 5995.50 -1057.00Q6085.00 -1106.00 6196.00 -1106.00Q6323.00 -1106.00 6404.50 -1052.00Q6486.00 -998.00 6525.00 -908.00Q6564.00 -818.00 6564.00 -710.00V0.00Z" fill="#FFFFFF"/></g>
+</svg>
+<span class="tag">dark surface</span></div>
+  </div>
+  <div class="row" style="margin-top:1px">
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226.7 64" fill="none" role="img" aria-label="stemlm" style="width:200px">
+  <title>stemlm</title>
+  <g transform="translate(-5.0,0)"><circle cx="18" cy="45" r="7" fill="#0E1013"/><circle cx="46" cy="45" r="7" fill="#0E1013"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#0E1013"/></g>
+  <g transform="translate(63.00,51) scale(0.0215)"><path d="M562.00 30.00Q358.00 30.00 232.50 -62.50Q107.00 -155.00 80.00 -324.00L358.00 -366.00Q375.00 -290.00 433.50 -247.00Q492.00 -204.00 582.00 -204.00Q656.00 -204.00 696.00 -232.50Q736.00 -261.00 736.00 -312.00Q736.00 -344.00 720.00 -363.50Q704.00 -383.00 648.50 -402.00Q593.00 -421.00 476.00 -452.00Q344.00 -486.00 265.00 -528.00Q186.00 -570.00 151.00 -628.50Q116.00 -687.00 116.00 -770.00Q116.00 -874.00 169.00 -950.50Q222.00 -1027.00 318.50 -1068.50Q415.00 -1110.00 546.00 -1110.00Q673.00 -1110.00 771.00 -1071.00Q869.00 -1032.00 929.50 -960.00Q990.00 -888.00 1004.00 -790.00L726.00 -740.00Q719.00 -800.00 674.00 -835.00Q629.00 -870.00 552.00 -876.00Q477.00 -881.00 431.50 -856.00Q386.00 -831.00 386.00 -784.00Q386.00 -756.00 405.50 -737.00Q425.00 -718.00 486.50 -698.00Q548.00 -678.00 674.00 -646.00Q797.00 -614.00 871.50 -571.50Q946.00 -529.00 980.00 -469.50Q1014.00 -410.00 1014.00 -326.00Q1014.00 -160.00 894.00 -65.00Q774.00 30.00 562.00 30.00Z M1858.00 0.00Q1746.00 21.00 1638.50 18.50Q1531.00 16.00 1446.50 -19.50Q1362.00 -55.00 1318.00 -134.00Q1278.00 -208.00 1276.00 -284.50Q1274.00 -361.00 1274.00 -458.00V-1380.00H1546.00V-474.00Q1546.00 -411.00 1547.50 -360.50Q1549.00 -310.00 1568.00 -280.00Q1604.00 -223.00 1683.00 -218.00Q1762.00 -213.00 1858.00 -226.00ZM1090.00 -870.00V-1080.00H1858.00V-870.00Z M2576.00 30.00Q2410.00 30.00 2283.50 -41.50Q2157.00 -113.00 2085.50 -238.50Q2014.00 -364.00 2014.00 -526.00Q2014.00 -703.00 2084.00 -834.00Q2154.00 -965.00 2277.00 -1037.50Q2400.00 -1110.00 2560.00 -1110.00Q2730.00 -1110.00 2849.00 -1030.00Q2968.00 -950.00 3025.00 -805.00Q3082.00 -660.00 3065.00 -464.00H2796.00V-564.00Q2796.00 -729.00 2743.50 -801.50Q2691.00 -874.00 2572.00 -874.00Q2433.00 -874.00 2367.50 -789.50Q2302.00 -705.00 2302.00 -540.00Q2302.00 -389.00 2367.50 -306.50Q2433.00 -224.00 2560.00 -224.00Q2640.00 -224.00 2697.00 -259.00Q2754.00 -294.00 2784.00 -360.00L3056.00 -282.00Q2995.00 -134.00 2863.50 -52.00Q2732.00 30.00 2576.00 30.00ZM2218.00 -464.00V-666.00H2934.00V-464.00Z M4566.00 0.00V-638.00Q4566.00 -745.00 4515.50 -804.50Q4465.00 -864.00 4376.00 -864.00Q4319.00 -864.00 4277.00 -837.50Q4235.00 -811.00 4211.50 -763.50Q4188.00 -716.00 4188.00 -654.00L4074.00 -730.00Q4074.00 -841.00 4126.50 -926.00Q4179.00 -1011.00 4267.50 -1058.50Q4356.00 -1106.00 4464.00 -1106.00Q4649.00 -1106.00 4743.50 -996.50Q4838.00 -887.00 4838.00 -710.00V0.00ZM3264.00 0.00V-1080.00H3504.00V-722.00H3538.00V0.00ZM3916.00 0.00V-638.00Q3916.00 -745.00 3865.50 -804.50Q3815.00 -864.00 3726.00 -864.00Q3641.00 -864.00 3589.50 -805.50Q3538.00 -747.00 3538.00 -654.00L3424.00 -734.00Q3424.00 -840.00 3477.00 -924.00Q3530.00 -1008.00 3619.50 -1057.00Q3709.00 -1106.00 3820.00 -1106.00Q3947.00 -1106.00 4028.50 -1052.00Q4110.00 -998.00 4149.00 -908.00Q4188.00 -818.00 4188.00 -710.00V0.00Z M5094.00 0.00V-1470.00H5366.00V0.00Z M6942.00 0.00V-638.00Q6942.00 -745.00 6891.50 -804.50Q6841.00 -864.00 6752.00 -864.00Q6695.00 -864.00 6653.00 -837.50Q6611.00 -811.00 6587.50 -763.50Q6564.00 -716.00 6564.00 -654.00L6450.00 -730.00Q6450.00 -841.00 6502.50 -926.00Q6555.00 -1011.00 6643.50 -1058.50Q6732.00 -1106.00 6840.00 -1106.00Q7025.00 -1106.00 7119.50 -996.50Q7214.00 -887.00 7214.00 -710.00V0.00ZM5640.00 0.00V-1080.00H5880.00V-722.00H5914.00V0.00ZM6292.00 0.00V-638.00Q6292.00 -745.00 6241.50 -804.50Q6191.00 -864.00 6102.00 -864.00Q6017.00 -864.00 5965.50 -805.50Q5914.00 -747.00 5914.00 -654.00L5800.00 -734.00Q5800.00 -840.00 5853.00 -924.00Q5906.00 -1008.00 5995.50 -1057.00Q6085.00 -1106.00 6196.00 -1106.00Q6323.00 -1106.00 6404.50 -1052.00Q6486.00 -998.00 6525.00 -908.00Q6564.00 -818.00 6564.00 -710.00V0.00Z" fill="#0E1013"/></g>
+</svg>
+<span class="tag">single colour</span></div>
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 226.7 64" fill="none" role="img" aria-label="stemlm" style="width:200px">
+  <title>stemlm</title>
+  <g transform="translate(-5.0,0)"><circle cx="18" cy="45" r="7" fill="#0E1013"/><circle cx="46" cy="45" r="7" fill="#0E1013"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+  <g transform="translate(63.00,51) scale(0.0215)"><path d="M562.00 30.00Q358.00 30.00 232.50 -62.50Q107.00 -155.00 80.00 -324.00L358.00 -366.00Q375.00 -290.00 433.50 -247.00Q492.00 -204.00 582.00 -204.00Q656.00 -204.00 696.00 -232.50Q736.00 -261.00 736.00 -312.00Q736.00 -344.00 720.00 -363.50Q704.00 -383.00 648.50 -402.00Q593.00 -421.00 476.00 -452.00Q344.00 -486.00 265.00 -528.00Q186.00 -570.00 151.00 -628.50Q116.00 -687.00 116.00 -770.00Q116.00 -874.00 169.00 -950.50Q222.00 -1027.00 318.50 -1068.50Q415.00 -1110.00 546.00 -1110.00Q673.00 -1110.00 771.00 -1071.00Q869.00 -1032.00 929.50 -960.00Q990.00 -888.00 1004.00 -790.00L726.00 -740.00Q719.00 -800.00 674.00 -835.00Q629.00 -870.00 552.00 -876.00Q477.00 -881.00 431.50 -856.00Q386.00 -831.00 386.00 -784.00Q386.00 -756.00 405.50 -737.00Q425.00 -718.00 486.50 -698.00Q548.00 -678.00 674.00 -646.00Q797.00 -614.00 871.50 -571.50Q946.00 -529.00 980.00 -469.50Q1014.00 -410.00 1014.00 -326.00Q1014.00 -160.00 894.00 -65.00Q774.00 30.00 562.00 30.00Z M1858.00 0.00Q1746.00 21.00 1638.50 18.50Q1531.00 16.00 1446.50 -19.50Q1362.00 -55.00 1318.00 -134.00Q1278.00 -208.00 1276.00 -284.50Q1274.00 -361.00 1274.00 -458.00V-1380.00H1546.00V-474.00Q1546.00 -411.00 1547.50 -360.50Q1549.00 -310.00 1568.00 -280.00Q1604.00 -223.00 1683.00 -218.00Q1762.00 -213.00 1858.00 -226.00ZM1090.00 -870.00V-1080.00H1858.00V-870.00Z M2576.00 30.00Q2410.00 30.00 2283.50 -41.50Q2157.00 -113.00 2085.50 -238.50Q2014.00 -364.00 2014.00 -526.00Q2014.00 -703.00 2084.00 -834.00Q2154.00 -965.00 2277.00 -1037.50Q2400.00 -1110.00 2560.00 -1110.00Q2730.00 -1110.00 2849.00 -1030.00Q2968.00 -950.00 3025.00 -805.00Q3082.00 -660.00 3065.00 -464.00H2796.00V-564.00Q2796.00 -729.00 2743.50 -801.50Q2691.00 -874.00 2572.00 -874.00Q2433.00 -874.00 2367.50 -789.50Q2302.00 -705.00 2302.00 -540.00Q2302.00 -389.00 2367.50 -306.50Q2433.00 -224.00 2560.00 -224.00Q2640.00 -224.00 2697.00 -259.00Q2754.00 -294.00 2784.00 -360.00L3056.00 -282.00Q2995.00 -134.00 2863.50 -52.00Q2732.00 30.00 2576.00 30.00ZM2218.00 -464.00V-666.00H2934.00V-464.00Z M4566.00 0.00V-638.00Q4566.00 -745.00 4515.50 -804.50Q4465.00 -864.00 4376.00 -864.00Q4319.00 -864.00 4277.00 -837.50Q4235.00 -811.00 4211.50 -763.50Q4188.00 -716.00 4188.00 -654.00L4074.00 -730.00Q4074.00 -841.00 4126.50 -926.00Q4179.00 -1011.00 4267.50 -1058.50Q4356.00 -1106.00 4464.00 -1106.00Q4649.00 -1106.00 4743.50 -996.50Q4838.00 -887.00 4838.00 -710.00V0.00ZM3264.00 0.00V-1080.00H3504.00V-722.00H3538.00V0.00ZM3916.00 0.00V-638.00Q3916.00 -745.00 3865.50 -804.50Q3815.00 -864.00 3726.00 -864.00Q3641.00 -864.00 3589.50 -805.50Q3538.00 -747.00 3538.00 -654.00L3424.00 -734.00Q3424.00 -840.00 3477.00 -924.00Q3530.00 -1008.00 3619.50 -1057.00Q3709.00 -1106.00 3820.00 -1106.00Q3947.00 -1106.00 4028.50 -1052.00Q4110.00 -998.00 4149.00 -908.00Q4188.00 -818.00 4188.00 -710.00V0.00Z" fill="#0E1013"/></g>
+  <g transform="translate(170.11,51) scale(0.0215)"><path d="M160.00 0.00V-1470.00H432.00V0.00Z M2008.00 0.00V-638.00Q2008.00 -745.00 1957.50 -804.50Q1907.00 -864.00 1818.00 -864.00Q1761.00 -864.00 1719.00 -837.50Q1677.00 -811.00 1653.50 -763.50Q1630.00 -716.00 1630.00 -654.00L1516.00 -730.00Q1516.00 -841.00 1568.50 -926.00Q1621.00 -1011.00 1709.50 -1058.50Q1798.00 -1106.00 1906.00 -1106.00Q2091.00 -1106.00 2185.50 -996.50Q2280.00 -887.00 2280.00 -710.00V0.00ZM706.00 0.00V-1080.00H946.00V-722.00H980.00V0.00ZM1358.00 0.00V-638.00Q1358.00 -745.00 1307.50 -804.50Q1257.00 -864.00 1168.00 -864.00Q1083.00 -864.00 1031.50 -805.50Q980.00 -747.00 980.00 -654.00L866.00 -734.00Q866.00 -840.00 919.00 -924.00Q972.00 -1008.00 1061.50 -1057.00Q1151.00 -1106.00 1262.00 -1106.00Q1389.00 -1106.00 1470.50 -1052.00Q1552.00 -998.00 1591.00 -908.00Q1630.00 -818.00 1630.00 -710.00V0.00Z" fill="#9A958D"/></g>
+</svg>
+<span class="tag">split — separates stem / lm</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Icon &amp; extension</h2>
+  <div class="row">
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:84px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#0E1013"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FF6B2C"/>
+</svg>
+<span class="tag">primary icon</span></div>
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:84px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#FF6B2C"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FFFFFF"/>
+</svg>
+<span class="tag">alternate</span></div>
+    <div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:76px">
+  <title>stemlm</title>
+  <g><circle cx="18" cy="45" r="7" fill="#0E1013"/><circle cx="46" cy="45" r="7" fill="#0E1013"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+</svg>
+<span class="tag">bare mark</span></div>
+    <div class="cell dark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:76px">
+  <title>stemlm</title>
+  <g><circle cx="18" cy="45" r="7" fill="#FFFFFF"/><circle cx="46" cy="45" r="7" fill="#FFFFFF"/><rect x="25" y="15" width="14" height="14" rx="4.2" fill="#FF6B2C"/></g>
+</svg>
+<span class="tag">bare, inverse</span></div>
+  </div>
+  <div style="margin-top:36px" class="sizes">
+    <figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:128px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#0E1013"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FF6B2C"/>
+</svg>
+<figcaption>128</figcaption></figure>
+    <figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:48px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#0E1013"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FF6B2C"/>
+</svg>
+<figcaption>48</figcaption></figure>
+    <figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:32px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#0E1013"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FF6B2C"/>
+</svg>
+<figcaption>32</figcaption></figure>
+    <figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="stemlm" style="height:16px">
+  <title>stemlm</title>
+  <rect width="64" height="64" rx="14.5" fill="#0E1013"/>
+  <circle cx="18" cy="44" r="7.4" fill="#FFFFFF"/><circle cx="46" cy="44" r="7.4" fill="#FFFFFF"/><rect x="24.7" y="14.7" width="14.6" height="14.6" rx="4.4" fill="#FF6B2C"/>
+</svg>
+<figcaption>16 — toolbar</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Palette</h2>
+  <div class="pal">
+    <div class="sw"><div class="chip" style="background:#0E1013"></div><div class="n">Ink</div><div class="h">#0E1013</div><div class="d">Text, dots, primary surface</div></div><div class="sw"><div class="chip" style="background:#FF6B2C"></div><div class="n">Signal</div><div class="h">#FF6B2C</div><div class="d">The answer. Never more than one element</div></div><div class="sw"><div class="chip" style="background:#FAF8F4"></div><div class="n">Paper</div><div class="h">#FAF8F4</div><div class="d">Default background</div></div><div class="sw"><div class="chip" style="background:#9A958D"></div><div class="n">Graphite</div><div class="h">#9A958D</div><div class="d">Secondary type, 'lm' in split lockup</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Rules</h2>
+  <div class="rules">
+    <div class="yes"><b>Do</b>Keep the triangle exactly as drawn. Let it breathe — one dot diameter of clear space minimum. Use Signal on the apex only; it is the one element allowed to be loud.</div>
+    <div class="no"><b>Don't</b>Rotate or reflect it — an upside-down &there4; is &bsol;&there4; "because", which means the opposite. Don't add outlines, gradients or shadows. Don't colour the two lower dots.</div>
+    <div class="yes"><b>Do</b>Use the tile icon anywhere below 32px. The bare mark needs ~40px to hold together.</div>
+    <div class="no"><b>Don't</b>Set the wordmark in anything but Manrope ExtraBold at &minus;1.2% tracking, and don't stretch the lockup.</div>
+  </div>
+</section>
+
+<section>
+  <h2>Files</h2>
+  <ul class="files">
+    <li><b>stemlm-logo.svg</b><span>primary horizontal lockup</span></li>
+    <li><b>stemlm-logo-dark.svg</b><span>lockup for dark surfaces</span></li>
+    <li><b>stemlm-logo-mono.svg</b><span>single-colour lockup — print, stamps, embroidery</span></li>
+    <li><b>stemlm-logo-split.svg</b><span>lockup with 'lm' set in graphite</span></li>
+    <li><b>stemlm-mark.svg / -mono / -inverse</b><span>bare mark, 64&times;64</span></li>
+    <li><b>stemlm-mark-animated.svg / -inverse</b><span>looping SMIL — loading state</span></li>
+    <li><b>stemlm-icon.svg / -accent.svg</b><span>rounded-tile app icon masters</span></li>
+    <li><b>icon16 / 32 / 48 / 128.png</b><span>Chrome extension manifest icons</span></li>
+  </ul>
+</section>
+
+<footer>Wordmark set in Manrope ExtraBold (SIL Open Font License 1.1) and converted to outlines — no font dependency in any file.</footer>
+</div></body></html>

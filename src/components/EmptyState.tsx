@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { IconLayers } from './icons';
-import { ExtensionLogo } from './ExtensionLogo';
 import { getController } from '@/src/content/controller';
 
 export function EmptyState() {
@@ -13,12 +12,15 @@ export function EmptyState() {
 
   return (
     <div className="slm-empty">
-      <div className="slm-empty-mark">
-        <ExtensionLogo size={20} />
+      <div className="slm-empty-preview" aria-hidden="true">
+        <div className="slm-empty-preview-bar" />
+        <div className="slm-empty-preview-line" />
+        <div className="slm-empty-preview-line slm-empty-preview-line--short" />
+        <div className="slm-empty-preview-block" />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
       <p className="slm-empty-text">
-        Type your question in Gemini, then tap stemLM beside send.
+        Type a question in the chat, then tap stemLM beside send.
       </p>
       <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
         <IconLayers /> Load from conversation

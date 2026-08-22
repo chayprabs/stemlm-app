@@ -10,7 +10,6 @@ function makeSession(id: string): Session {
     platform: 'gemini',
     question: 'Q',
     raw: 'long raw capsule text',
-    reviewedStepIds: [],
     capsule: {
       meta: { version: 1, subject: 'Math', topic: 'T' },
       steps: [],

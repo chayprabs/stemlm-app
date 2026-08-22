@@ -1,6 +1,7 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
 import { trackEvent } from '@/src/lib/analytics';
+import { applyToolbarIconInBackground, isToolbarIconMessage } from '@/src/lib/toolbar-icon';
 
 /**
  * stemLM background service worker.
@@ -16,6 +17,11 @@ export default defineBackground(() => {
     if (details.reason === 'install') {
       void trackEvent('extension_installed', {});
     }
+  });
+
+  browser.runtime.onMessage.addListener((msg: unknown) => {
+    if (!isToolbarIconMessage(msg)) return;
+    void applyToolbarIconInBackground(msg.theme);
   });
 
   self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {

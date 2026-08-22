@@ -1,0 +1,149 @@
+/*
+ * stemLM surfaces — host-neutral chatbot/artifact language.
+ * Sits beside ChatGPT, Claude, Gemini, and Grok without copying a vendor skin.
+ * Light: cool paper + ink. Dark: Claude-canvas #151515 + inverse ink.
+ * --slm-accent is brand-only (logo, wordmark, inject). Panel chrome uses --slm-solid.
+ * --slm-signal is the therefore-mark orange (save fill, brand apex).
+ */
+
+@property --slm-bg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
+@property --slm-bg-subtle { syntax: '<color>'; inherits: true; initial-value: #efefef; }
+@property --slm-bg-elevated { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --slm-bg-muted { syntax: '<color>'; inherits: true; initial-value: #e8e8e8; }
+@property --slm-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
+@property --slm-border-subtle { syntax: '<color>'; inherits: true; initial-value: #ebebed; }
+@property --slm-fg { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-fg-muted { syntax: '<color>'; inherits: true; initial-value: #5c5c63; }
+@property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #8a8a92; }
+@property --slm-accent { syntax: '<color>'; inherits: true; initial-value: #0e7c76; }
+@property --slm-accent-hover { syntax: '<color>'; inherits: true; initial-value: #0b6863; }
+@property --slm-accent-fg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
+@property --slm-accent-soft { syntax: '<color>'; inherits: true; initial-value: #e6f3f2; }
+@property --slm-accent-dim { syntax: '<color>'; inherits: true; initial-value: #e6f3f2; }
+@property --slm-solid { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-solid-hover { syntax: '<color>'; inherits: true; initial-value: #2c2c2c; }
+@property --slm-solid-fg { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
+@property --slm-amber { syntax: '<color>'; inherits: true; initial-value: #b45309; }
+@property --slm-amber-dim { syntax: '<color>'; inherits: true; initial-value: #f3eadb; }
+@property --slm-success { syntax: '<color>'; inherits: true; initial-value: #17803d; }
+@property --slm-success-soft { syntax: '<color>'; inherits: true; initial-value: #e4f3e9; }
+@property --slm-warning { syntax: '<color>'; inherits: true; initial-value: #b45309; }
+@property --slm-error { syntax: '<color>'; inherits: true; initial-value: #dc2626; }
+@property --slm-formula-bg { syntax: '<color>'; inherits: true; initial-value: #efefef; }
+@property --slm-formula-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
+@property --slm-formula-fg { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-ring { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-signal { syntax: '<color>'; inherits: true; initial-value: #ff6b2c; }
+
+:where([data-stemlm-theme]),
+[data-stemlm-theme],
+:host([data-stemlm-theme]) {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  --slm-panel-inset: 8px;
+  --slm-panel-radius: 12px;
+
+  --slm-bg: #f5f5f5;
+  --slm-bg-subtle: #efefef;
+  --slm-bg-elevated: #ffffff;
+  --slm-bg-muted: #e8e8e8;
+  --slm-border: #e2e2e4;
+  --slm-border-subtle: #ebebed;
+  --slm-fg: #171717;
+  --slm-fg-muted: #5c5c63;
+  --slm-fg-subtle: #8a8a92;
+  --slm-accent: #0e7c76;
+  --slm-accent-hover: #0b6863;
+  --slm-accent-fg: #f5f5f5;
+  --slm-accent-soft: #0e7c7614;
+  --slm-accent-dim: #0e7c7614;
+  --slm-solid: #171717;
+  --slm-solid-hover: #2c2c2c;
+  --slm-solid-fg: #fafafa;
+  --slm-amber: #b45309;
+  --slm-amber-dim: #b4530914;
+  --slm-success: #17803d;
+  --slm-success-soft: #17803d16;
+  --slm-warning: #b45309;
+  --slm-error: #dc2626;
+  --slm-formula-bg: #efefef;
+  --slm-formula-border: #e2e2e4;
+  --slm-formula-fg: #171717;
+  --slm-ring: #171717;
+  --slm-signal: #ff6b2c;
+  --slm-shadow: 0 8px 28px rgba(15, 15, 18, 0.12);
+  --slm-theme-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --slm-theme-duration: 160ms;
+  transition:
+    --slm-bg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-bg-subtle var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-bg-elevated var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-bg-muted var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-border var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-border-subtle var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-fg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-fg-muted var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-fg-subtle var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-accent var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-accent-hover var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-accent-fg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-accent-soft var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-accent-dim var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-solid var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-solid-hover var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-solid-fg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-amber var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-amber-dim var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-success var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-success-soft var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-formula-bg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-formula-border var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-formula-fg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-ring var(--slm-theme-duration) var(--slm-theme-ease);
+}
+
+[data-stemlm-theme='dark'],
+:host([data-stemlm-theme='dark']) {
+  --slm-bg: #151515;
+  --slm-bg-subtle: #121212;
+  --slm-bg-elevated: #1c1c1c;
+  --slm-bg-muted: #222222;
+  --slm-border: #2a2a2a;
+  --slm-border-subtle: #242424;
+  --slm-fg: #ededed;
+  --slm-fg-muted: #a3a3a3;
+  --slm-fg-subtle: #7a7a7a;
+  --slm-accent: #3dcdc4;
+  --slm-accent-hover: #5ed9d1;
+  --slm-accent-fg: #141416;
+  --slm-accent-soft: #3dcdc428;
+  --slm-accent-dim: #3dcdc418;
+  --slm-solid: #ededed;
+  --slm-solid-hover: #e4e4e7;
+  --slm-solid-fg: #171717;
+  --slm-amber: #f5b942;
+  --slm-amber-dim: #f5b9421c;
+  --slm-success: #4ade80;
+  --slm-success-soft: #4ade8020;
+  --slm-formula-bg: #111111;
+  --slm-formula-border: #2a2a2a;
+  --slm-formula-fg: #ededed;
+  --slm-ring: #ededed;
+  --slm-signal: #ff6b2c;
+  --slm-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where([data-stemlm-theme]),
+  [data-stemlm-theme],
+  :host([data-stemlm-theme]) {
+    transition: none;
+  }
+}

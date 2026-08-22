@@ -24,9 +24,7 @@ export function FollowupBar({
   const [copied, setCopied] = useState(false);
   const promptVariant = useStore((s) => s.settings.promptVariant);
   const isAsk = intent === 'ask';
-  const displayFollowup = isAsk
-    ? 'Ask anything about this problem — type your question in Gemini after clicking.'
-    : stripProtocolMarkers(followup);
+  const displayFollowup = isAsk ? null : stripProtocolMarkers(followup);
 
   function buildPrompt() {
     return buildFollowupPrompt({
@@ -67,14 +65,16 @@ export function FollowupBar({
   }
 
   return (
-    <div className="slm-followup">
-      <span className="slm-followup-label">{isAsk ? 'Ask in chat' : 'Dig deeper'}</span>
-      <p className="slm-followup-text">{displayFollowup}</p>
+    <div className={`slm-followup ${isAsk ? 'slm-followup--ask' : 'slm-followup--deeper'}`}>
+      <div className="slm-followup-copyblock">
+        <span className="slm-followup-label">{isAsk ? 'Ask in chat' : 'Dig deeper'}</span>
+        {displayFollowup && <p className="slm-followup-text">{displayFollowup}</p>}
+      </div>
       <div className="slm-followup-actions">
-        <button type="button" className="slm-btn slm-btn-ghost" onClick={copy}>
-          <IconCopy /> {copied ? 'Copied' : 'Copy prompt'}
+        <button type="button" className="slm-followup-action" onClick={copy}>
+          <IconCopy /> {copied ? 'Copied' : 'Copy'}
         </button>
-        <button type="button" className="slm-btn slm-btn-soft" onClick={() => void ask()}>
+        <button type="button" className="slm-followup-action slm-followup-action--ask" onClick={() => void ask()}>
           <IconReply /> Ask in chat
         </button>
       </div>

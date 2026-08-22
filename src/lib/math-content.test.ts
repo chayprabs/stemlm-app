@@ -128,4 +128,39 @@ describe('prepareMathForRender', () => {
     expect(out).not.toContain('Three vectors \\vec{P}');
   });
 
+  it('wraps bare Greek and exponent tokens in mixed-prose problems', () => {
+    const q =
+      'A particle is rotating in a circular path and at any instant its motion can be described as \\theta = 5t^4/40 - t^3/3. The angular acceleration of the particle after 10 seconds is ______ rad/s^2.';
+    const out = prepareMathForRender(q, 'auto');
+    expect(out).toContain('$\\theta$');
+    expect(out).toContain('$5t^4$');
+    expect(out).toContain('$t^3$');
+    expect(out).toContain('$s^2$');
+    expect(out).not.toContain('described as \\theta');
+    expect(out).not.toMatch(/^\$\$/);
+    expect(prepareMathForRender(out, 'auto')).toBe(out);
+  });
+
+  it('does not wrap ordinary English sentences that only mention V_C', () => {
+    const a =
+      "Because Ohm's law states current is the potential difference divided by resistance, and the potential at C minus the potential at D is V_C - V_D, so I = (V_C - V_D)/24Ω.";
+    const out = prepareMathForRender(a, 'auto');
+    expect(out).toContain('V_C');
+    expect(out).not.toMatch(/\$V_C\$/);
+    expect(out).not.toMatch(/^\$Because/);
+    expect(out).toContain("Because Ohm's law states");
+  });
+
+  it('does not re-wrap Greek inside an already-delimited \\frac snippet', () => {
+    const fracOmega = prepareMathForRender('where Z_C = \\frac{1}{j\\omega C} in series', 'auto');
+    expect(fracOmega).toContain('$\\frac{1}{j\\omega C}$');
+    expect(fracOmega).not.toContain('$\\omega$');
+    expect(fracOmega).not.toContain('$$\\omega$$');
+
+    const fracTheta = prepareMathForRender('the angle is \\frac{\\theta}{2} radians', 'auto');
+    expect(fracTheta).toContain('$\\frac{\\theta}{2}$');
+    expect(fracTheta).not.toContain('$\\theta$');
+    expect(fracTheta).not.toContain('$$\\theta$$');
+  });
+
 });

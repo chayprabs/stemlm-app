@@ -9,6 +9,8 @@ import {
   getDisplayScale,
   parseViewBox as parseViewBoxDims,
 } from './diagram-bounds';
+import { samplePathD } from './figure/geom';
+import { FONT_SANS_SVG } from './fonts';
 
 const LATEX_IN_TEXT: [RegExp, string][] = [
   [/\\\s*Omega\b/gi, 'Ω'],
@@ -476,36 +478,7 @@ function isAxisLine(wire: WireSegment, vb: ViewBoxRect): boolean {
 }
 
 function pathLineSegments(d: string): WireSegment[] {
-  const segments: WireSegment[] = [];
-  let cx = 0;
-  let cy = 0;
-  const re = /([MLml])\s*([^MLml]*)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(d))) {
-    const cmd = match[1]!;
-    const nums = (match[2] ?? '')
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number)
-      .filter((n) => Number.isFinite(n));
-    if (cmd === 'M' || cmd === 'm') {
-      if (nums.length >= 2) {
-        cx = cmd === 'M' ? nums[0]! : cx + nums[0]!;
-        cy = cmd === 'M' ? nums[1]! : cy + nums[1]!;
-      }
-      continue;
-    }
-    if (cmd === 'L' || cmd === 'l') {
-      for (let i = 0; i + 1 < nums.length; i += 2) {
-        const nx = cmd === 'L' ? nums[i]! : cx + nums[i]!;
-        const ny = cmd === 'L' ? nums[i + 1]! : cy + nums[i + 1]!;
-        segments.push({ x1: cx, y1: cy, x2: nx, y2: ny });
-        cx = nx;
-        cy = ny;
-      }
-    }
-  }
-  return segments;
+  return samplePathD(d);
 }
 
 function collectGraphicSegments(root: Element, vb: ViewBoxRect): WireSegment[] {
@@ -714,7 +687,7 @@ function decodeTextNodes(svg: string): string {
       const decoded = decodeSvgText(content);
       let nextAttrs = attrs;
       if (!/\bfont-family\s*=/i.test(nextAttrs)) {
-        nextAttrs += ' font-family="Inter, ui-sans-serif, system-ui, sans-serif"';
+        nextAttrs += ` font-family="${FONT_SANS_SVG}"`;
       }
       if (!/\bfont-size\s*=/i.test(nextAttrs)) {
         nextAttrs += ' font-size="14"';

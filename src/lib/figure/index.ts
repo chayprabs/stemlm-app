@@ -1,0 +1,10 @@
+export type { Overlay, CompileResult, Scene } from './types';
+export { compileDiagramSpec } from './compile';
+export { canonicalizeDiagramType, lookupFamily, FAMILY_CATALOG, CATALOG_LEFTOVER_TOKENS, catalogTokens, isRefuseType, isKnownDiagramType, familyRequiredMissing, hasKeyValueLine } from './catalog';
+export { parseSpec, specGet, specIds } from './spec';
+export { evaluateExpr, compileExpr, ExprError } from './pratt';
+export { layoutScene, labelHitsStrokes, overlaysFromLayout } from './slk';
+export { renderOverlayHtml, overlayStyle, overlayStyleAttr } from './overlay';
+export { leftoverRegistered, LEFTOVER_TABLE } from './leftovers';
+export { samplePathD } from './geom';
+export { evaluatePlotFn } from './engines/plot';

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Report, collectDiagrams, diagramKey } from './Report';
 import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
-import { resolveDiagramSvg } from '@/src/lib/resolve-diagram';
+import { resolveDiagram, resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { parse } from '@/src/protocol/parser';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
@@ -16,7 +16,6 @@ function buildSession(): Session {
     platform: 'gemini',
     question: 'What is the current?',
     capsule: result.capsule!,
-    reviewedStepIds: [],
     raw: '',
   };
 }
@@ -39,13 +38,20 @@ describe('Report renderToStaticMarkup', () => {
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
     expect(html).toContain('stemLM');
-    expect(html).toContain('slm-report-mark');
+    expect(html).toContain('slm-report-wordmark');
+    expect(html).not.toContain('slm-wordmark-lm');
+    expect(html).toContain('<path');
+    const wordmark = html.slice(
+      html.indexOf('slm-report-wordmark'),
+      html.indexOf('</header>'),
+    );
+    expect(wordmark.match(/<circle/g)?.length).toBe(2);
     expect(html).not.toMatch(/Jun \d+, \d{4}/);
     expect(html).toContain('slm-report-label">Q'); // question label
     expect(html).toContain('What is the current?'); // the full question
     expect(html).toContain('slm-report-label">Answer'); // answer label
     expect(html).toContain('Label the circuit'); // step title
-    expect(html).toContain('Solution'); // full solution subheading
+    expect(html).not.toContain('slm-report-solution');
     expect(html).toContain('s1'); // step diagram injected (vector svg)
     // KaTeX rendered the formula (with MathML for font-independent printing)
     expect(html).toContain('katex');
@@ -87,12 +93,41 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(doc).not.toContain('html2canvas');
   });
 
-  it('print styles target A4 and extension brand tokens', () => {
+  it('includes vector SVG and KaTeX/MathML overlays for a compiled plot spec', async () => {
+    const plot = {
+      type: 'plot',
+      content: [
+        'fn: 1.5*t^2 - 2*t',
+        'var: t',
+        'domain: 0 10',
+        'xlabel: t (s)',
+        'eq: \\alpha(t)=1.5t^{2}-2t',
+      ].join('\n'),
+    };
+    const resolved = await resolveDiagram(plot, 'light', 'print');
+    const session = buildSession();
+    session.capsule.steps[0]!.diagram = plot;
+    const html = buildReportDocument(session, { [diagramKey('step', 1)]: resolved.svg }, {
+      [diagramKey('step', 1)]: resolved.overlays,
+    });
+    expect(html).toContain('<svg');
+    expect(html).toMatch(/<(polyline|path|line)\b/i);
+    expect(html).not.toContain('foreignObject');
+    expect(html).not.toContain('<script');
+    expect(html).not.toMatch(/<image\b/i);
+    expect(html).toMatch(/katex|mathml|<math/i);
+  });
+
+  it('print styles target A4 and current light reading tokens', () => {
     expect(printStyles()).toContain('@page');
     expect(printStyles()).toContain('A4');
-    expect(printStyles()).toContain('#0ea5a0');
-    expect(printStyles()).toContain('Inter');
-    expect(printStyles()).toContain('JetBrains Mono');
+    expect(printStyles()).toContain('#171717');
+    expect(printStyles()).toContain('#efefef');
+    expect(printStyles()).not.toContain('#0ea5a0');
+    expect(printStyles()).toContain('IBM Plex Sans');
+    expect(printStyles()).toContain('IBM Plex Mono');
+    expect(printStyles()).not.toContain('Inter');
+    expect(printStyles()).not.toContain('JetBrains Mono');
     expect(printStyles()).toContain('max-width:125mm');
     expect(printStyles()).toContain('max-height:72mm');
   });
@@ -130,7 +165,6 @@ describe('buildReportDocument (vector print PDF)', () => {
         solution: 'Y_total',
         solutionDiagrams: [],
       },
-      reviewedStepIds: [],
       raw: '',
     };
     const doc = buildReportDocument(session, { [diagramKey('step', 1)]: svg });

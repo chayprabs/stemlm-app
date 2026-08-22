@@ -54,7 +54,6 @@ export interface StoreState {
   setActiveStep: (index: number) => void;
   nextStep: () => void;
   prevStep: () => void;
-  toggleReviewed: (stepId: string) => void;
   resetSessions: () => void;
 }
 
@@ -110,21 +109,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   nextStep: () => get().setActiveStep(get().activeStepIndex + 1),
   prevStep: () => get().setActiveStep(get().activeStepIndex - 1),
-
-  toggleReviewed: (stepId) =>
-    set((s) => ({
-      sessions: s.sessions.map((sess) => {
-        if (sess.id !== s.activeSessionId) return sess;
-        const has = sess.reviewedStepIds.includes(stepId);
-        return {
-          ...sess,
-          updatedAt: Date.now(),
-          reviewedStepIds: has
-            ? sess.reviewedStepIds.filter((id) => id !== stepId)
-            : [...sess.reviewedStepIds, stepId],
-        };
-      }),
-    })),
 
   resetSessions: () =>
     set({ sessions: [], activeSessionId: undefined, activeStepIndex: 0, status: 'idle' }),

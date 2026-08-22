@@ -9,12 +9,18 @@ import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
 import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
-import { IconChevronLeft, IconChevronRight } from './icons';
-import { saveSession, deleteSavedSession, isSessionSaved } from '@/src/lib/saved-sessions';
+import { IconNavNext, IconNavPrev } from './icons';
+import {
+  saveSession,
+  deleteSavedSession,
+  isSessionSaved,
+  refreshSavedSession,
+} from '@/src/lib/saved-sessions';
 import { StorageQuotaError } from '@/src/lib/storage-errors';
 import { setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
+import { applyTheme } from '@/src/lib/theme';
 
 function isArrowKey(key: string) {
   return key === 'ArrowLeft' || key === 'ArrowRight';
@@ -42,13 +48,11 @@ export function Panel() {
     theme,
     sessions,
     activeStepIndex,
-    settings,
     closePanel,
     setView,
     setActiveStep,
     nextStep,
     prevStep,
-    toggleReviewed,
     setActiveSession,
     setSettings: setStoreSettings,
     setTheme,
@@ -57,26 +61,42 @@ export function Panel() {
   const session = useActiveSession();
   const [saved, setSaved] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
+  /** Ignore in-flight isSessionSaved results after a session switch or Save toggle. */
+  const saveEpoch = useRef(0);
 
   useEffect(() => {
     if (!session) {
       setSaved(false);
       return;
     }
-    const id = session.id;
+    const current = session;
+    const epoch = ++saveEpoch.current;
     let cancelled = false;
-    void isSessionSaved(id).then((value) => {
-      if (!cancelled) setSaved(value);
-    });
+    void (async () => {
+      const already = await isSessionSaved(current.id);
+      if (cancelled || epoch !== saveEpoch.current) return;
+      setSaved(already);
+      if (!already) return;
+      try {
+        await refreshSavedSession(current);
+      } catch {
+        /* keep the previous snapshot if auto-refresh fails */
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [session?.id]);
+  }, [session]);
 
   // Focus the panel when it opens so keyboard nav works immediately.
   useEffect(() => {
     if (panelOpen) panelRef.current?.focus({ preventScroll: true });
   }, [panelOpen]);
+
+  useEffect(() => {
+    const el = panelRef.current;
+    if (el) applyTheme(el, theme);
+  }, [theme, panelOpen]);
 
   // Make the panel responsive to its own (variable) width: tag it narrow/mid/
   // wide so CSS can adapt layout density independent of the viewport.
@@ -96,9 +116,9 @@ export function Panel() {
 
   const total = session?.capsule.steps.length ?? 0;
   const step = session?.capsule.steps[activeStepIndex];
-  const reviewedCount = session?.reviewedStepIds.length ?? 0;
   async function onToggleSave() {
     if (!session) return;
+    saveEpoch.current += 1;
     try {
       if (saved) {
         await deleteSavedSession(session.id);
@@ -173,6 +193,7 @@ export function Panel() {
     <motion.aside
       ref={panelRef}
       className="slm-panel"
+      data-stemlm-theme={theme}
       style={{ width: `${(splitRatio * 100).toFixed(3)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
@@ -188,7 +209,6 @@ export function Panel() {
       <PanelHeader
         session={session}
         view={view}
-        reviewedCount={reviewedCount}
         theme={theme}
         saved={saved}
         onSetView={setView}
@@ -224,7 +244,7 @@ export function Panel() {
       )}
 
       <div className="slm-body">
-        {status === 'loading' && !session && <Loading />}
+        {status === 'loading' && !session && <Loading theme={theme} />}
 
         {!session && status !== 'loading' && <EmptyState />}
 
@@ -234,56 +254,54 @@ export function Panel() {
               <StepList
                 steps={session.capsule.steps}
                 activeIndex={activeStepIndex}
-                reviewedIds={session.reviewedStepIds}
                 onSelect={setActiveStep}
               />
               <div className="slm-steps-detail">
-              <AnimatePresence mode="wait">
-                {step && (
-                  <StepCard
-                    key={step.id}
-                    session={session}
-                    index={activeStepIndex}
-                    theme={theme}
-                    reviewed={session.reviewedStepIds.includes(step.id)}
-                    onToggleReviewed={() => {
-                      toggleReviewed(step.id);
-                      void trackEvent('step_reviewed', { platform: session.platform });
-                    }}
-                  />
-                )}
-              </AnimatePresence>
+                <div className="slm-read">
+                  <AnimatePresence mode="wait">
+                    {step && (
+                      <StepCard
+                        key={step.id}
+                        session={session}
+                        index={activeStepIndex}
+                        theme={theme}
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
 
-              <footer className="slm-stepnav slm-stepnav--sticky">
-                <button
-                  type="button"
-                  className="slm-btn slm-btn-ghost"
-                  onClick={prevStep}
-                  disabled={activeStepIndex === 0}
-                  aria-label="Previous step"
-                >
-                  <IconChevronLeft /> Prev
-                </button>
-                <span className="slm-stepnav-count" title="Use ← → arrow keys">
-                  {activeStepIndex + 1} / {total}
-                </span>
-                <button
-                  type="button"
-                  className="slm-btn slm-btn-soft"
-                  onClick={nextStep}
-                  disabled={activeStepIndex >= total - 1}
-                  aria-label="Next step"
-                >
-                  Next <IconChevronRight />
-                </button>
-              </footer>
+                <footer className="slm-stepnav slm-stepnav--overlay" aria-label="Step navigation">
+                  <button
+                    type="button"
+                    className="slm-stepnav-btn"
+                    onClick={prevStep}
+                    disabled={activeStepIndex === 0}
+                    aria-label="Previous step"
+                  >
+                    <IconNavPrev /> Prev
+                  </button>
+                  <button
+                    type="button"
+                    className="slm-stepnav-btn"
+                    onClick={nextStep}
+                    disabled={activeStepIndex >= total - 1}
+                    aria-label="Next step"
+                  >
+                    Next <IconNavNext />
+                  </button>
+                </footer>
               </div>
             </div>
           </div>
         )}
 
         {session && view === 'solution' && (
-          <div role="tabpanel" id="slm-panel-solution" aria-labelledby="slm-tab-solution">
+          <div
+            className="slm-solution-wrap"
+            role="tabpanel"
+            id="slm-panel-solution"
+            aria-labelledby="slm-tab-solution"
+          >
             <SolutionView session={session} theme={theme} />
           </div>
         )}

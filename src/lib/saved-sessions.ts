@@ -6,6 +6,7 @@
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { exportSessionPdf, type PdfExportResult } from './pdf';
+import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
 export const SAVED_SESSIONS_KEY = 'stemlm_saved_sessions';
@@ -72,11 +73,9 @@ async function writeSavedSessions(sessions: SavedSessionSnapshot[]): Promise<Sav
 }
 
 export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
-  const question =
-    (session.question || session.capsule.meta.question || session.capsule.meta.topic || '').trim();
   return {
     id: session.id,
-    question,
+    question: resolveSessionQuestion(session),
     savedAt: Date.now(),
     platform: 'gemini',
     meta: session.capsule.meta,
@@ -95,7 +94,6 @@ export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
     platform: snapshot.platform,
     question: snapshot.question,
     raw: '',
-    reviewedStepIds: [],
     capsule: {
       meta: snapshot.meta,
       steps: snapshot.steps ?? [],
@@ -114,7 +112,7 @@ function isCapsuleMeta(value: unknown): value is CapsuleMeta {
 function isDiagram(value: unknown): value is Diagram {
   if (!value || typeof value !== 'object') return false;
   const d = value as Diagram;
-  return (d.type === 'svg' || d.type === 'mermaid') && typeof d.content === 'string';
+  return typeof d.type === 'string' && d.type.length > 0 && typeof d.content === 'string';
 }
 
 function isStep(value: unknown): value is Step {
@@ -184,19 +182,56 @@ export async function getSavedSession(id: string): Promise<SavedSessionSnapshot 
   return (await getSavedSessions()).find((s) => s.id === id);
 }
 
+/**
+ * Serialize save / refresh / delete so each read-modify-write finishes before
+ * the next starts. A refresh that already read a list cannot interleave with
+ * delete and resurrect a snapshot.
+ */
+let mutationQueue: Promise<void> = Promise.resolve();
+
+function enqueueMutation<T>(op: () => Promise<T>): Promise<T> {
+  const run = mutationQueue.then(op, op);
+  mutationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export async function saveSession(session: Session): Promise<SaveSessionResult> {
-  const list = await readSavedSessions();
-  const snapshot = sessionToSnapshot(session);
-  const idx = list.findIndex((s) => s.id === snapshot.id);
-  const next = [...list];
-  if (idx >= 0) next[idx] = snapshot;
-  else next.unshift(snapshot);
-  return writeSavedSessions(next);
+  return enqueueMutation(async () => {
+    const list = await readSavedSessions();
+    const snapshot = sessionToSnapshot(session);
+    const idx = list.findIndex((s) => s.id === snapshot.id);
+    const next = [...list];
+    if (idx >= 0) next[idx] = snapshot;
+    else next.unshift(snapshot);
+    return writeSavedSessions(next);
+  });
+}
+
+/**
+ * If this session id is already saved, overwrite that snapshot with the latest
+ * captured capsule. Returns false when the id is not in the library (does not
+ * create a new save).
+ */
+export async function refreshSavedSession(session: Session): Promise<boolean> {
+  return enqueueMutation(async () => {
+    const list = await readSavedSessions();
+    const idx = list.findIndex((s) => s.id === session.id);
+    if (idx < 0) return false;
+    const next = [...list];
+    next[idx] = sessionToSnapshot(session);
+    await writeSavedSessions(next);
+    return true;
+  });
 }
 
 export async function deleteSavedSession(id: string): Promise<void> {
-  const list = (await readSavedSessions()).filter((s) => s.id !== id);
-  await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: list });
+  return enqueueMutation(async () => {
+    const list = (await readSavedSessions()).filter((s) => s.id !== id);
+    await browser.storage.local.set({ [SAVED_SESSIONS_KEY]: list });
+  });
 }
 
 /**

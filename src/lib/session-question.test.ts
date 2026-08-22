@@ -9,7 +9,6 @@ function makeSession(overrides: Partial<Session> & { question?: string }): Sessi
     updatedAt: 0,
     platform: 'gemini',
     question: overrides.question ?? '',
-    reviewedStepIds: [],
     raw: '',
     capsule: {
       meta: { version: 1, subject: 'Electrical', topic: 'RLC impedance at 60 Hz' },

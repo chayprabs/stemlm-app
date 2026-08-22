@@ -97,6 +97,38 @@ function extractLatexSnippet(src: string, start: number): string | null {
   return null;
 }
 
+/** Zero-arg commands that models drop into prose without $ delimiters. */
+const ZERO_ARG_CMD =
+  /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|partial|nabla|ell|hbar|cdot|times|approx|neq|leq|geq|pm|mp)\b(?:\^\{[^}]+\}|\^[A-Za-z0-9])?/g;
+
+/** `t^4`, `s^2`, `5t^4` — markdown otherwise renders a tiny <sup>. */
+const SUPER_TOKEN =
+  /(?<![A-Za-z0-9$\\])(\d*[A-Za-z][A-Za-z0-9]*)(\^\{[^}]+\}|\^[A-Za-z0-9])/g;
+
+function wrapZeroArgLatexCommands(text: string): string {
+  return text.replace(ZERO_ARG_CMD, (cmd, offset: number) => {
+    if (offset > 0 && text[offset - 1] === '\\') return cmd;
+    return `$${cmd}$`;
+  });
+}
+
+function wrapSuperscriptTokens(text: string): string {
+  return text.replace(SUPER_TOKEN, (token, _id: string, _exp: string, offset: number) => {
+    if (offset > 0 && text[offset - 1] === '$') return token;
+    return `$${token}$`;
+  });
+}
+
+function wrapBareMathInProse(text: string): string {
+  const withSnippets = wrapBareLatexSnippets(text);
+  return splitMathSegments(withSnippets)
+    .map((seg) => {
+      if (seg.math) return seg.text;
+      return wrapSuperscriptTokens(wrapZeroArgLatexCommands(seg.text));
+    })
+    .join('');
+}
+
 /**
  * Wrap |\\vec{R}| magnitudes before bare \\vec snippets run (otherwise \\vec{R}
  * inside the bars gets wrapped separately and breaks the delimiter pair).
@@ -108,7 +140,7 @@ function wrapVectorMagnitudes(text: string): string {
     placeholders.push(`$|${inner}|$`);
     return token;
   });
-  const wrapped = wrapBareLatexSnippets(masked);
+  const wrapped = wrapBareMathInProse(masked);
   return placeholders.reduce(
     (out, ph, i) => out.replace(`@@STEMLM_VECMAG${i}@@`, ph),
     wrapped,

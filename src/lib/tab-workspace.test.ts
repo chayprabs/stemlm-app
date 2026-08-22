@@ -41,7 +41,6 @@ function sampleSession(id: string): Session {
     updatedAt: 0,
     platform: 'gemini',
     question: 'q',
-    reviewedStepIds: [],
     raw: 'raw',
     capsule: {
       meta: { version: 1, subject: 'Math', topic: 'Topic' },

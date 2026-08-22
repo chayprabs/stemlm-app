@@ -52,7 +52,7 @@ export async function scoreRaw(raw: string, theme: ResolvedTheme = 'light'): Pro
     if (diagram.type === 'svg') {
       const clean = sanitizeSvg(extractSvg(diagram.content));
       if (!svgParses(clean)) svgValid = 0;
-    } else {
+    } else if (diagram.type === 'mermaid') {
       try {
         const rendered = await renderMermaid(diagram.content, theme);
         const clean = sanitizeSvg(extractSvg(rendered));

@@ -24,7 +24,6 @@ describe('buildLastStepFollowupSelection', () => {
       updatedAt: 0,
       platform: 'gemini',
       question: 'Find the RLC impedance at 60 Hz.',
-      reviewedStepIds: [],
       raw: '',
       capsule: {
         meta: { version: 1, subject: 'Electrical', topic: 'RLC impedance' },

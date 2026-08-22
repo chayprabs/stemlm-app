@@ -13,7 +13,6 @@ function longSession(): Session {
     platform: 'gemini',
     question: 'Mesh circuit',
     capsule,
-    reviewedStepIds: [],
     raw: TEN_STEP_ELECTRICAL,
   };
 }
@@ -66,15 +65,10 @@ describe('store step navigation (10 steps)', () => {
     expect(useStore.getState().activeStepIndex).toBe(0);
   });
 
-  it('toggleReviewed tracks all 10 step ids independently', () => {
+  it('does not expose reviewed tracking', () => {
+    expect('toggleReviewed' in useStore.getState()).toBe(false);
     useStore.getState().addSession(longSession());
-    const steps = useStore.getState().sessions[0]!.capsule.steps;
-    for (const step of steps) {
-      useStore.getState().toggleReviewed(step.id);
-    }
-    const reviewed = useStore.getState().sessions[0]!.reviewedStepIds;
-    expect(reviewed).toHaveLength(10);
-    expect(reviewed).toContain('step-10');
+    expect('reviewedStepIds' in (useStore.getState().sessions[0] ?? {})).toBe(false);
   });
 
   it('setActiveSession resets step index', () => {

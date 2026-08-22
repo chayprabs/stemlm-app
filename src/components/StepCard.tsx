@@ -7,26 +7,20 @@ import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { StepWork } from './StepWork';
-import { IconCheck } from './icons';
 import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
 
 export function StepCard({
   session,
   index,
   theme,
-  reviewed,
-  onToggleReviewed,
 }: {
   session: Session;
   index: number;
   theme: ResolvedTheme;
-  reviewed: boolean;
-  onToggleReviewed: () => void;
 }) {
   const step = session.capsule.steps[index];
   if (!step) return null;
 
-  const stepNo = String(step.index).padStart(2, '0');
   const isLastStep = index === session.capsule.steps.length - 1;
   const followupSelection =
     step.followup ?? (isLastStep ? buildLastStepFollowupSelection(session, step) : undefined);
@@ -40,18 +34,6 @@ export function StepCard({
       transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
     >
       <header className="slm-card-head">
-        <div className="slm-card-meta">
-          <span className="slm-step-badge">{stepNo}</span>
-        </div>
-        <button
-          type="button"
-          className={`slm-review ${reviewed ? 'is-on' : ''}`}
-          onClick={onToggleReviewed}
-          aria-pressed={reviewed}
-        >
-          <span className="slm-review-box">{reviewed && <IconCheck width={10} height={10} />}</span>
-          {reviewed ? 'Reviewed' : 'Mark reviewed'}
-        </button>
         <h2 className="slm-card-title">{step.title}</h2>
       </header>
 

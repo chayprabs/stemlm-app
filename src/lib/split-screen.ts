@@ -5,15 +5,18 @@ import { detectAdapter } from '@/src/platforms/detect';
 import { pageWidthVw, panelWidthVw } from '@/src/lib/split-ratio';
 
 export const SPLIT_STYLE_ID = 'stemlm-split-style';
+/** Matches --slm-panel-inset so Gemini does not cover the rounded panel gap. */
+export const PANEL_INSET_PX = 8;
 
 export function applySplit(ratio: number, dragging = false): void {
   const panelVw = panelWidthVw(ratio);
   const pageVw = pageWidthVw(ratio);
+  const inset = `${PANEL_INSET_PX}px`;
   const layoutRoots = detectAdapter()?.layoutRoots ?? ['main'];
   const rootClamp = layoutRoots
     .map(
       (sel) =>
-        `${sel}{max-width:calc(100vw - ${panelVw}vw)!important;width:100%!important;box-sizing:border-box!important;overflow-x:hidden!important;}`,
+        `${sel}{max-width:calc(100vw - ${panelVw}vw - ${inset})!important;width:100%!important;box-sizing:border-box!important;overflow-x:hidden!important;}`,
     )
     .join('');
 
@@ -24,9 +27,9 @@ export function applySplit(ratio: number, dragging = false): void {
   const css = `
 html.stemlm-split { overflow-x: hidden !important; }
 html.stemlm-split > body {
-  width: ${pageVw}vw !important;
+  width: calc(${pageVw}vw - ${inset}) !important;
   min-width: 0 !important;
-  max-width: ${pageVw}vw !important;
+  max-width: calc(${pageVw}vw - ${inset}) !important;
   transform: translateZ(0);
   transition: ${bodyTransition};
 }

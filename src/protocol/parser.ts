@@ -32,6 +32,14 @@ import {
   stripProtocolMarkers,
 } from './strip-markers';
 import { auditCapsuleDiagrams, diagramQualityMessage } from './diagram-quality';
+import {
+  canonicalizeDiagramType,
+  familyRequiredMissing,
+  hasKeyValueLine,
+  isKnownDiagramType,
+  isRefuseType,
+} from '@/src/lib/figure/catalog';
+import { parseSpec } from '@/src/lib/figure/spec';
 import { auditStepQuality, enrichStepBody, isDiagnosticBodyText, stepQualityMessage } from './step-quality';
 import {
   auditQuickCheck,
@@ -257,10 +265,17 @@ function normalizeSubject(value: string | undefined): { subject: Subject; recove
   return { subject: 'General', recovered: true };
 }
 
-function parseDiagramOpen(line: string): DiagramType {
-  const m = /type\s*=\s*([a-z]+)/i.exec(line);
-  const t = (m?.[1] ?? 'svg').toLowerCase();
-  return t === 'mermaid' ? 'mermaid' : 'svg';
+const DIAGRAM_TYPE_RE = /type\s*=\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i;
+
+export function parseDiagramOpen(line: string): DiagramType {
+  const m = DIAGRAM_TYPE_RE.exec(line);
+  if (!m?.[1]) return 'svg';
+  return canonicalizeDiagramType(m[1]);
+}
+
+function captionFromSpec(content: string, type: string): string | undefined {
+  if (type === 'svg' || type === 'mermaid') return undefined;
+  return parseSpec(type, content).caption;
 }
 
 /** Extract inline @diagram..@enddiagram blocks from a solution body. */
@@ -281,7 +296,9 @@ function extractSolutionDiagrams(body: string): { text: string; diagrams: Diagra
       }
       if (i < lines.length) i++; // consume @enddiagram
       const idx = diagrams.length;
-      diagrams.push({ type, content: content.join('\n').trim() });
+      const body = content.join('\n').trim();
+      const caption = captionFromSpec(body, type);
+      diagrams.push({ type, content: body, ...(caption ? { caption } : {}) });
       outLines.push(SOLUTION_DIAGRAM_TOKEN(idx));
       continue;
     }
@@ -312,13 +329,20 @@ function sanitizeStepFields(step: Step): void {
 }
 
 function isMalformedDiagram(diagram: Diagram): boolean {
-  if (diagram.type === 'svg') {
+  const type = canonicalizeDiagramType(diagram.type);
+  if (type === 'svg') {
     return !/<svg\b/i.test(diagram.content);
   }
-  const src = diagram.content.trim();
-  return !/^(?:graph\s+(?:TB|BT|TD|DT|RL|LR)\b|flowchart\s+(?:TB|BT|TD|DT|RL|LR)\b|sequenceDiagram\b|stateDiagram(?:-v2)?\b|classDiagram\b|erDiagram\b)/i.test(
-    src,
-  );
+  if (type === 'mermaid') {
+    const src = diagram.content.trim();
+    return !/^(?:graph\s+(?:TB|BT|TD|DT|RL|LR)\b|flowchart\s+(?:TB|BT|TD|DT|RL|LR)\b|sequenceDiagram\b|stateDiagram(?:-v2)?\b|classDiagram\b|erDiagram\b)/i.test(
+      src,
+    );
+  }
+  if (isRefuseType(type)) return false;
+  if (/<svg\b/i.test(diagram.content)) return true;
+  if (!hasKeyValueLine(diagram.content)) return true;
+  return familyRequiredMissing(type, diagram.content).length > 0;
 }
 
 function parseStep(
@@ -369,7 +393,16 @@ function parseStep(
       c.i++;
       const content = readBlock(c, '@enddiagram');
       if (content) {
-        step.diagram = { type, content };
+        const caption = captionFromSpec(content, type);
+        step.diagram = { type, content, ...(caption ? { caption } : {}) };
+        if (!isKnownDiagramType(type)) {
+          addWarning(
+            warnings,
+            warningCodes,
+            'unknown_diagram_type',
+            `Step ${index} had unknown diagram type "${type}".`,
+          );
+        }
         if (isMalformedDiagram(step.diagram)) {
           addWarning(
             warnings,
@@ -530,6 +563,14 @@ export function parseCapsule(capsuleText: string): ParseResult {
       solution = extracted.text;
       solutionDiagrams = extracted.diagrams;
       for (const diagram of solutionDiagrams) {
+        if (!isKnownDiagramType(diagram.type)) {
+          addWarning(
+            warnings,
+            warningCodes,
+            'unknown_diagram_type',
+            `Solution had unknown diagram type "${diagram.type}".`,
+          );
+        }
         if (isMalformedDiagram(diagram)) {
           addWarning(
             warnings,

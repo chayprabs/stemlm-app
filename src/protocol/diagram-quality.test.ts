@@ -136,6 +136,28 @@ describe('auditStepDiagramCompleteness', () => {
     expect(svgMentionsComponent(LAZY_BJT_SVG, 'rc')).toBe(false);
     expect(svgMentionsComponent(LAZY_BJT_SVG, 'c')).toBe(false);
   });
+
+  it('hybrid-π spec missing RC in the spec is diagram_incomplete', () => {
+    const cap = makeCapsule([], 'BJT common-emitter hybrid-π');
+    const step = makeStep({
+      index: 1,
+      title: 'Draw small-signal hybrid-pi model',
+      body: 'Replace the BJT with hybrid-π: r_π, g_m, R_E, R_C.',
+      diagram: { type: 'hybridpi', content: 'rpi: 1k\ngm: 50m\nRE: 270' },
+    });
+    expect(auditStepDiagramCompleteness(step, cap)).toContain('diagram_incomplete');
+  });
+
+  it('hybrid-π spec with required keys is complete', () => {
+    const cap = makeCapsule([], 'BJT common-emitter hybrid-π');
+    const step = makeStep({
+      index: 1,
+      title: 'Draw small-signal hybrid-pi model',
+      body: 'Replace the BJT with hybrid-π: r_π, g_m, R_E, R_C at B,C,E.',
+      diagram: { type: 'hybridpi', content: 'rpi: 1k\ngm: 50m\nRE: 270\nRC: 2.2k' },
+    });
+    expect(auditStepDiagramCompleteness(step, cap)).not.toContain('diagram_incomplete');
+  });
 });
 
 describe('auditCapsuleDiagrams', () => {

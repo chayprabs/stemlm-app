@@ -8,8 +8,8 @@ import {
 } from '@/src/lib/settings';
 import { resolveTheme, applyTheme, type ThemePref } from '@/src/lib/theme';
 import type { PromptVariant } from '@/src/protocol/protocol';
-import { BrandWordmark } from '@/src/components/BrandWordmark';
-import { ExtensionLogo } from '@/src/components/ExtensionLogo';
+import { BrandWordmark, themeToBrandVariant } from '@/src/components/brand';
+import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
 
 function Toggle({
   checked,
@@ -51,7 +51,12 @@ export default function App() {
       setLocal(s);
       setLoaded(true);
     });
-    return onSettingsChanged(setLocal);
+    const stopToolbar = watchAndApplyToolbarIcon();
+    const stopSettings = onSettingsChanged(setLocal);
+    return () => {
+      stopToolbar();
+      stopSettings();
+    };
   }, []);
 
   useEffect(() => {
@@ -70,9 +75,9 @@ export default function App() {
   return (
     <div className="slm-options">
       <header className="slm-options-head">
-        <ExtensionLogo />
         <h1>
-          <BrandWordmark /> Settings
+          <BrandWordmark variant={themeToBrandVariant(resolveTheme(settings.theme))} height={22} />
+          Settings
         </h1>
       </header>
 

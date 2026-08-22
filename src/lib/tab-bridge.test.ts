@@ -11,6 +11,8 @@ vi.mock('wxt/browser', () => ({
       reload: vi.fn(async () => {
         reloadCalls += 1;
       }),
+      update: vi.fn(async (id: number) => ({ id })),
+      create: vi.fn(async (info: { url?: string }) => ({ id: 99, url: info.url })),
       sendMessage: vi.fn(async (tabId: number, msg: unknown) => sendMessageImpl(tabId, msg)),
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
     },
@@ -33,7 +35,8 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-import { deliverStemLmMessage } from './tab-bridge';
+import { browser } from 'wxt/browser';
+import { deliverStemLmMessage, GEMINI_APP_URL, openGeminiTab } from './tab-bridge';
 import { setPanelActionResult } from './tab-workspace';
 
 describe('deliverStemLmMessage', () => {
@@ -70,5 +73,24 @@ describe('deliverStemLmMessage', () => {
     const res = await deliverStemLmMessage('stemlm:load-conversation');
     expect(reloadCalls).toBe(0);
     expect(res).toEqual({ ok: true, loaded: 3 });
+  });
+});
+
+describe('openGeminiTab', () => {
+  beforeEach(() => {
+    vi.mocked(browser.tabs.update).mockClear();
+    vi.mocked(browser.tabs.create).mockClear();
+  });
+
+  it('navigates the active tab to Gemini', async () => {
+    await openGeminiTab();
+    expect(browser.tabs.update).toHaveBeenCalledWith(7, { url: GEMINI_APP_URL });
+    expect(browser.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it('opens a new tab when the current one cannot be updated', async () => {
+    vi.mocked(browser.tabs.update).mockRejectedValueOnce(new Error('restricted'));
+    await openGeminiTab();
+    expect(browser.tabs.create).toHaveBeenCalledWith({ url: GEMINI_APP_URL });
   });
 });

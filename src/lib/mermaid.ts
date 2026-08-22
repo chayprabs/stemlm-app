@@ -3,6 +3,7 @@
  * time a mermaid diagram needs rendering. Theme is synced to the panel theme.
  */
 import type { ResolvedTheme } from './theme';
+import { FONT_SANS } from './fonts';
 
 type MermaidApi = typeof import('mermaid').default;
 
@@ -35,7 +36,7 @@ function initializeMermaid(mermaid: MermaidApi, theme: ResolvedTheme): void {
     htmlLabels: false,
     flowchart: { htmlLabels: false },
     theme: theme === 'dark' ? 'dark' : 'default',
-    fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    fontFamily: FONT_SANS,
   });
 }
 

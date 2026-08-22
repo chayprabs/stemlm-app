@@ -19,6 +19,7 @@ describe('renderMermaid', () => {
         securityLevel: 'strict',
         htmlLabels: false,
         flowchart: { htmlLabels: false },
+        fontFamily: expect.stringContaining('IBM Plex Sans'),
       }),
     );
   });

@@ -14,22 +14,23 @@ function buildSession(): Session {
     platform: 'gemini',
     question: 'Structural fixture question.',
     capsule: result.capsule!,
-    reviewedStepIds: [],
     raw: '',
   };
 }
 
 describe('SolutionView', () => {
-  it('renders the question, steps with diagrams, and the full solution', () => {
+  it('renders stacked steps with index marks and diagrams — no question or Full solution appendix', () => {
     const session = buildSession();
     const html = renderToStaticMarkup(<SolutionView session={session} theme="light" />);
 
-    expect(html).toContain('Question');
-    expect(html).toContain('Structural fixture question.');
-    expect(html).toContain('Step-by-step');
+    expect(html).not.toContain('Question');
+    expect(html).not.toContain('Structural fixture question.');
+    expect(html).not.toContain('Step-by-step');
+    expect(html).toContain('slm-step-index');
     expect(html).toContain('Label the circuit');
     expect(html).toContain('slm-step-diagram');
-    expect(html).toContain('Full solution');
+    expect(html).not.toContain('Full solution');
+    expect(html).not.toContain('slm-solution-full');
     expect(html).toContain('katex');
     expect(session.capsule.steps.some((s) => s.diagram)).toBe(true);
   });

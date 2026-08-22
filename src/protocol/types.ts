@@ -30,13 +30,14 @@ export const SUBJECTS: Subject[] = [
   'General',
 ];
 
-export type DiagramType = 'svg' | 'mermaid';
+/** Hatch (`svg`/`mermaid`), five engines, leftover families, or an unknown token (not collapsed). */
+export type DiagramType = string;
 
 export interface Diagram {
   type: DiagramType;
-  /** Raw SVG markup or mermaid source. Sanitized at render time, never here. */
+  /** Spec body, raw SVG markup, or mermaid source. Sanitized at render time, never here. */
   content: string;
-  /** Optional human caption. */
+  /** Optional human caption (from `caption:` or the hatch). */
   caption?: string;
 }
 
@@ -92,6 +93,7 @@ export type ParseWarningCode =
   | 'missing_step_title'
   | 'missing_solution'
   | 'malformed_diagram'
+  | 'unknown_diagram_type'
   | 'missing_step_body'
   | 'formula_without_body'
   | 'step_missing_substitution'
@@ -140,8 +142,6 @@ export interface Session {
   platform: PlatformId;
   question: string;
   capsule: Capsule;
-  /** Step ids the student has marked reviewed. */
-  reviewedStepIds: string[];
   /** Raw capsule text, kept so we can re-parse / debug / export. */
   raw: string;
 }

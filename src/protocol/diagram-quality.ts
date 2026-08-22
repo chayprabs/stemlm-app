@@ -7,6 +7,9 @@
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import { parseViewBox } from '@/src/lib/diagram-bounds';
 import type { Capsule, ParseWarningCode, Step, Subject } from './types';
+import { canonicalizeDiagramType, familyRequiredMissing } from '@/src/lib/figure/catalog';
+import { parseSpec, specIds, specHas } from '@/src/lib/figure/spec';
+import { samplePathD } from '@/src/lib/figure/geom';
 
 const VISUAL_SUBJECTS = new Set<Subject>([
   'Chemistry',
@@ -167,8 +170,22 @@ export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
 
 function diagramHasGraphics(step: Step): boolean {
   const diagram = step.diagram;
-  if (!diagram || diagram.type !== 'svg') return false;
-  return svgMarkupHasGraphicShapes(diagram.content);
+  if (!diagram?.content?.trim()) return false;
+  const type = canonicalizeDiagramType(diagram.type);
+  if (type === 'svg') return svgMarkupHasGraphicShapes(diagram.content);
+  if (type === 'mermaid') return true;
+  return diagram.content.trim().length > 0;
+}
+
+function specCoversComponent(content: string, type: string, component: string): boolean {
+  const spec = parseSpec(type, content);
+  const ids = specIds(spec).map(normalizeForMatch);
+  const needle = normalizeForMatch(component);
+  if (ids.some((id) => id.includes(needle) || needle.includes(id))) return true;
+  const hay = normalizeForMatch(content);
+  if (hay.includes(needle)) return true;
+  if (needle === 'rpi' && (hay.includes('rpi') || hay.includes('rπ'))) return true;
+  return specHas(spec, component);
 }
 
 function countSvgPrimitives(svg: string): number {
@@ -230,36 +247,7 @@ interface Segment {
 }
 
 function pathLineSegments(d: string): Segment[] {
-  const segments: Segment[] = [];
-  let cx = 0;
-  let cy = 0;
-  const re = /([MLml])\s*([^MLml]*)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(d))) {
-    const cmd = match[1]!;
-    const nums = (match[2] ?? '')
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number)
-      .filter((n) => Number.isFinite(n));
-    if (cmd === 'M' || cmd === 'm') {
-      if (nums.length >= 2) {
-        cx = cmd === 'M' ? nums[0]! : cx + nums[0]!;
-        cy = cmd === 'M' ? nums[1]! : cy + nums[1]!;
-      }
-      continue;
-    }
-    if (cmd === 'L' || cmd === 'l') {
-      for (let i = 0; i + 1 < nums.length; i += 2) {
-        const nx = cmd === 'L' ? nums[i]! : cx + nums[i]!;
-        const ny = cmd === 'L' ? nums[i + 1]! : cy + nums[i + 1]!;
-        segments.push({ x1: cx, y1: cy, x2: nx, y2: ny });
-        cx = nx;
-        cy = ny;
-      }
-    }
-  }
-  return segments;
+  return samplePathD(d).map((s) => ({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 }));
 }
 
 function collectSegments(root: Element): Segment[] {
@@ -441,9 +429,45 @@ function auditSvgLayout(svg: string, step: Step, capsule: Capsule): ParseWarning
   return [...new Set(issues)];
 }
 
+function auditSpecCompleteness(step: Step, capsule: Capsule): ParseWarningCode[] {
+  const diagram = step.diagram!;
+  const type = canonicalizeDiagramType(diagram.type);
+  const issues: ParseWarningCode[] = [];
+  const text = stepText(step);
+  const missingKeys = familyRequiredMissing(type, diagram.content);
+  if (missingKeys.length) issues.push('diagram_incomplete');
+
+  if (isElectrical(capsule) && HYBRID_PI_CONTEXT.test(text) && (type === 'hybridpi' || /hybrid/i.test(text))) {
+    for (const need of HYBRID_PI_REQUIRED_LABELS) {
+      if (!specCoversComponent(diagram.content, type, need)) issues.push('diagram_incomplete');
+    }
+  }
+  if (isElectrical(capsule) && OPAMP_CONTEXT.test(text) && (type === 'opamp' || /\b(draw|feedback|Rf|Rg)\b/i.test(text))) {
+    for (const need of OPAMP_REQUIRED_LABELS) {
+      if (!specCoversComponent(diagram.content, type, need)) issues.push('diagram_incomplete');
+    }
+  }
+  if (diagramStepKind(step) === 'model') {
+    const mentioned = extractMentionedComponents(text);
+    const missing = mentioned.filter((c) => !specCoversComponent(diagram.content, type, c));
+    if (missing.length > 0) issues.push('diagram_incomplete');
+  }
+  const keys = diagram.content.toLowerCase();
+  const empty =
+    !/\b(fn|data|peaks|poles|node|edge|species|force|body|smiles)\s*:/i.test(keys) &&
+    !/\b[vriclqg]\d+\s*:/i.test(keys);
+  if (empty && type !== 'table') issues.push('diagram_legend_only');
+  return [...new Set(issues)];
+}
+
 export function auditStepDiagramCompleteness(step: Step, capsule: Capsule): ParseWarningCode[] {
   const diagram = step.diagram;
-  if (!diagram?.content?.trim() || diagram.type !== 'svg') return [];
+  if (!diagram?.content?.trim()) return [];
+  const type = canonicalizeDiagramType(diagram.type);
+  if (type !== 'svg' && type !== 'mermaid') {
+    return auditSpecCompleteness(step, capsule);
+  }
+  if (type === 'mermaid') return [];
   if (!diagramHasGraphics(step)) return ['diagram_lacks_graphics'];
 
   const svg = diagram.content;
@@ -567,30 +591,30 @@ export function diagramQualityMessage(code: ParseWarningCode, capsule: Capsule):
   switch (code) {
     case 'missing_initial_circuit':
       return subject === 'Electrical'
-        ? `Step 1 must include @diagram type=svg showing the FULL original circuit/model — every component, node (B,C,E), ground, sources, and loads.`
-        : `Step 1 must include @diagram type=svg showing the full visual model for this ${subject} problem — structures, axes, state variables, labels, and key relationships.`;
+        ? `Step 1 must include @diagram type=circuit or type=hybridpi/opamp showing the FULL original circuit/model — every named id (B,C,E, rpi, gm, RE, RC).`
+        : `Step 1 must include @diagram with a complete SPEC of the visual model for this ${subject} problem — named parts, axes, and key relationships.`;
     case 'missing_circuit_diagram':
       return subject === 'Electrical'
-        ? `One or more steps (models, KCL/KVL, gain/Rin/Rout, superposition, Thevenin) are missing @diagram type=svg. Electrical problems need a diagram on nearly every step.`
-        : `One or more visual ${subject} steps are missing @diagram type=svg. Add diagrams for every draw/sketch/model/graph/pathway/state step.`;
+        ? `One or more steps (models, KCL/KVL, gain/Rin/Rout, superposition, Thevenin) are missing @diagram specs. Electrical problems need a diagram on nearly every step.`
+        : `One or more visual ${subject} steps are missing @diagram specs. Add a typed spec for every draw/sketch/model/graph/pathway/state step.`;
     case 'insufficient_diagrams':
-      return `Visual problem needs at least ${need} step diagrams (found ${have} on ${steps} steps). Add complete SVGs on setup, models, derivations, and topology changes — never skip.`;
+      return `Visual problem needs at least ${need} step diagrams (found ${have} on ${steps} steps). Add complete specs on setup, models, derivations, and topology changes — never skip.`;
     case 'diagram_lacks_graphics':
-      return `A @diagram block has text-only SVG (no line/path/rect/circle). Draw real ${subject} primitives — symbols, axes, structures, vectors, pathways, or components with labels.`;
+      return `A @diagram block has no drawable content. Emit a typed spec (plot/scene/graph/table/circuit/template) naming every object, not a text-only legend.`;
     case 'diagram_incomplete':
       return subject === 'Electrical'
-        ? `A @diagram is too sparse or omits components named in @body (e.g. R_C, R_E, r_π, g_m, collector, v_in). Redraw the COMPLETE schematic for this step — every element you analyze must appear in the SVG with labels.`
-        : `A @diagram is too sparse or omits objects named in @body. Redraw the complete ${subject} figure for this step — every analyzed structure, axis, force, curve, species, or pathway node must appear with labels.`;
+        ? `A @diagram spec omits components named in @body (e.g. R_C, R_E, r_π, g_m). Every analyzed id must appear as a named key in the spec (hybrid-π needs rpi, gm, RE, RC).`
+        : `A @diagram spec omits objects named in @body. Every analyzed structure, axis, force, curve, species, or node must appear as a named id in the spec.`;
     case 'diagram_bad_viewbox':
-      return `A @diagram has an invalid or disproportionate viewBox. Use a compact readable SVG viewBox around 0 0 300 180 (max about 360×220 unless the graph truly needs more).`;
+      return `A compiled @diagram has an invalid frame. The compiler owns bounds; do not emit viewBox or path coordinates.`;
     case 'diagram_label_collision':
-      return `A @diagram has overlapping text labels. Spread labels apart and keep them horizontal, short, and directly associated with their target.`;
+      return `A compiled @diagram has overlapping labels. The compiler should fail closed — emit a cleaner spec with fewer labels.`;
     case 'diagram_label_over_graphic':
-      return `A @diagram places label text on top of a wire, bond, axis, vector, or curve. Offset labels at least 10px from strokes or use short leader lines.`;
+      return `A compiled @diagram places a label on a stroke. Emit ids only; the compiler places labels off curves and wires.`;
     case 'diagram_missing_axes':
-      return `A graph/energy/phase/spectrum-style @diagram is missing readable axes, units/ticks, or curve/level labels. Add axis names and direct labels.`;
+      return `A plot-style @diagram is missing xlabel/ylabel with units, or domain/fn. Name axes in the spec.`;
     case 'diagram_legend_only':
-      return `A @diagram looks like a legend/text list instead of a figure. Draw real primitives and place labels beside the objects, not in a detached "Symbols" list.`;
+      return `A @diagram spec has no series, nodes, or devices. Do not emit a "Symbols:" list — name real objects.`;
     default:
       return `Diagrams are incomplete for this visual problem.`;
   }

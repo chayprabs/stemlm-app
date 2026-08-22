@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/tab-workspace';
 
 const GEMINI_HOST = /(^|\.)gemini\.google\.com$/i;
+export const GEMINI_APP_URL = 'https://gemini.google.com/app';
 
 export function isGeminiUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -28,6 +29,20 @@ export async function getActiveTab() {
   } catch {
     return null;
   }
+}
+
+/** Open Gemini in the current tab, or a new tab if the current one cannot be used. */
+export async function openGeminiTab(): Promise<void> {
+  const tab = await getActiveTab();
+  if (tab?.id != null) {
+    try {
+      await browser.tabs.update(tab.id, { url: GEMINI_APP_URL });
+      return;
+    } catch {
+      /* restricted chrome:// pages etc. */
+    }
+  }
+  await browser.tabs.create({ url: GEMINI_APP_URL });
 }
 
 function isNoReceiverError(err: unknown): boolean {

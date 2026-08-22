@@ -13,9 +13,14 @@ function systemPrefersDark(): boolean {
   }
 }
 
+/** OS / browser chrome scheme. Independent of the in-app theme setting. */
+export function getSystemTheme(): ResolvedTheme {
+  return systemPrefersDark() ? 'dark' : 'light';
+}
+
 export function resolveTheme(pref: ThemePref): ResolvedTheme {
   if (pref === 'light' || pref === 'dark') return pref;
-  return systemPrefersDark() ? 'dark' : 'light';
+  return getSystemTheme();
 }
 
 /**

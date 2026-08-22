@@ -3,6 +3,7 @@
  * immediately to the left of the + (upload) button.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
+import { FONT_SANS } from '@/src/lib/fonts';
 
 const SLOT_ATTR = 'data-stemlm-composer-slot';
 export const COMPOSER_SLOT_SELECTOR = `[${SLOT_ATTR}]`;
@@ -18,7 +19,7 @@ const SLOT_CSS = `
   margin-right: ${SLOT_GAP_PX}px;
   position: relative;
   z-index: 50;
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: ${FONT_SANS};
 }
 [data-stemlm-composer-slot] .slm-fab-wrap {
   display: flex;

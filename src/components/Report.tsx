@@ -2,18 +2,43 @@ import { Fragment } from 'react';
 import type { Session, Diagram } from '@/src/protocol/types';
 import { resolveStepWorkText, shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { MathMarkdown } from './MathMarkdown';
-import { BrandWordmark } from './BrandWordmark';
-import { ExtensionLogo } from './ExtensionLogo';
+import { BrandWordmark } from './brand';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { resolveSessionQuestion } from '@/src/lib/session-question';
+import type { Overlay } from '@/src/lib/figure/types';
+import { overlayStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 
 export function diagramKey(scope: string, i: number): string {
   return `${scope}-${i}`;
 }
 
-function ResolvedDiagram({ svg, fallback }: { svg?: string; fallback?: string }) {
+function ResolvedDiagram({
+  svg,
+  overlays,
+  fallback,
+}: {
+  svg?: string;
+  overlays?: Overlay[];
+  fallback?: string;
+}) {
   if (svg) {
-    return <div className="slm-report-diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
+    const vb = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1];
+    return (
+      <div className="slm-report-diagram">
+        <div className="slm-diagram-frame" style={{ position: 'relative' }}>
+          <div dangerouslySetInnerHTML={{ __html: svg }} />
+          {(overlays ?? []).map((overlay) => (
+            <div
+              key={overlay.id}
+              className="slm-diagram-overlay"
+              data-overlay-id={overlay.id}
+              style={{ ...(cssToStyle(overlayStyleAttr(overlay, vb, 'print')) as object) }}
+              dangerouslySetInnerHTML={{ __html: renderOverlayHtml(overlay) }}
+            />
+          ))}
+        </div>
+      </div>
+    );
   }
   if (fallback?.trim()) {
     return (
@@ -23,12 +48,27 @@ function ResolvedDiagram({ svg, fallback }: { svg?: string; fallback?: string })
   return null;
 }
 
+function cssToStyle(css: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of css.split(';')) {
+    const i = part.indexOf(':');
+    if (i < 0) continue;
+    const key = part.slice(0, i).trim();
+    const val = part.slice(i + 1).trim();
+    if (!key) continue;
+    out[key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())] = val;
+  }
+  return out;
+}
+
 export function Report({
   session,
   diagramSvg,
+  diagramOverlays = {},
 }: {
   session: Session;
   diagramSvg: Record<string, string>;
+  diagramOverlays?: Record<string, Overlay[]>;
 }) {
   const { meta, steps, solution, solutionDiagrams } = session.capsule;
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
@@ -38,10 +78,7 @@ export function Report({
     <div className="slm-report">
       <header className="slm-report-head">
         <div className="slm-report-brand-wrap">
-          <span className="slm-report-mark" aria-hidden="true">
-            <ExtensionLogo size={24} />
-          </span>
-          <BrandWordmark className="slm-report-wordmark" />
+          <BrandWordmark className="slm-report-wordmark" variant="mono" height={22} />
         </div>
         {meta.subject && meta.subject !== 'General' && (
           <span className="slm-report-subject">{meta.subject}</span>
@@ -53,7 +90,7 @@ export function Report({
       )}
 
       <section className="slm-report-q-block">
-        <span className="slm-report-label">Q</span>
+        <span className="slm-report-label">Q.</span>
         <div className="slm-report-q">
           <MathMarkdown content={question} className="slm-report-q-text" />
         </div>
@@ -87,6 +124,7 @@ export function Report({
               {step.diagram && (
                 <ResolvedDiagram
                   svg={diagramSvg[diagramKey('step', step.index)]}
+                  overlays={diagramOverlays[diagramKey('step', step.index)]}
                   fallback={step.diagram.content}
                 />
               )}
@@ -100,7 +138,7 @@ export function Report({
             );
           })}
 
-          {solution.trim() && (
+          {steps.length === 0 && solution.trim() && (
             <div className="slm-report-solution">
               <h3 className="slm-report-solution-title">Solution</h3>
               {solutionParts.map((part, i) => {
@@ -112,6 +150,7 @@ export function Report({
                     <ResolvedDiagram
                       key={`d-${i}`}
                       svg={diagramSvg[diagramKey('sol', idx)]}
+                      overlays={diagramOverlays[diagramKey('sol', idx)]}
                       fallback={solDiagram?.content}
                     />
                   );

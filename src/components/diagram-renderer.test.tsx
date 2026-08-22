@@ -1,4 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import * as resolveDiagramMod from '@/src/lib/resolve-diagram';
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DiagramRenderer } from './DiagramRenderer';
@@ -11,6 +12,13 @@ async function flushDiagram(): Promise<void> {
   await act(async () => {
     await new Promise((r) => setTimeout(r, 0));
   });
+}
+
+async function flushUntil(check: () => boolean, tries = 40): Promise<void> {
+  for (let i = 0; i < tries; i++) {
+    await flushDiagram();
+    if (check()) return;
+  }
 }
 
 function mountInShadow(ui: ReactNode): { host: HTMLElement; shadow: ShadowRoot; root: Root } {
@@ -138,6 +146,40 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('Port 2');
   });
 
+  it('mounts a compiled plot spec with SVG and overlay siblings', async () => {
+    const diagram = {
+      type: 'plot',
+      content: [
+        'fn: 1.5*t^2 - 2*t',
+        'var: t',
+        'domain: 0 10',
+        'xlabel: t (s)',
+        'ylabel: alpha',
+        'eq: \\alpha(t)=1.5t^{2}-2t',
+        'eq_slot: NE',
+      ].join('\n'),
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="light" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('figure.slm-diagram svg')));
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeNull();
+    expect(mounted.shadow.querySelector('figure.slm-diagram svg')).toBeTruthy();
+    const overlay = mounted.shadow.querySelector('.slm-diagram-overlay');
+    expect(overlay).toBeTruthy();
+    expect(overlay?.innerHTML).toMatch(/katex|math|alpha|α/i);
+  });
+
+  it('failed compile shows slm-diagram--failed + spec source', async () => {
+    const diagram = { type: 'plot', content: 'xlabel: t' };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
+    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('xlabel: t');
+  });
+
   it('does not leave an eternal skeleton for SVG diagrams', async () => {
     const parsed = parseCapsule(MECHANICAL_AXIAL_STRESS_BAR);
     const diagram = parsed.capsule!.steps[1]!.diagram!;
@@ -151,5 +193,30 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(mounted.shadow.querySelector('.slm-diagram-skeleton')).toBeNull();
     expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeNull();
     expect(mounted.shadow.querySelector('svg')).toBeTruthy();
+  });
+
+  it('does not recompile when only the panel theme changes', async () => {
+    const spy = vi.spyOn(resolveDiagramMod, 'compileDiagram');
+    const diagram = {
+      type: 'svg' as const,
+      content:
+        '<svg viewBox="0 0 40 20"><rect width="40" height="20" fill="#333"/><text x="1" y="12">state</text></svg>',
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="light" />);
+    host = mounted.host;
+    root = mounted.root;
+
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('figure.slm-diagram svg')));
+    const calls = spy.mock.calls.length;
+    expect(calls).toBeGreaterThan(0);
+
+    act(() => {
+      mounted.root.render(<DiagramRenderer diagram={diagram} theme="dark" />);
+    });
+    await flushDiagram();
+
+    expect(spy.mock.calls.length).toBe(calls);
+    expect(mounted.shadow.querySelector('svg')?.getAttribute('data-stemlm-theme')).toBe('dark');
+    spy.mockRestore();
   });
 });

@@ -4,23 +4,23 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { StepWork } from './StepWork';
+import { StepIndexMark } from './step-index';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
-import { resolveSessionQuestion } from '@/src/lib/session-question';
 
 function SolutionStep({
   step,
+  index,
   theme,
 }: {
   step: Step;
+  index: number;
   theme: ResolvedTheme;
 }) {
-  const stepNo = String(step.index).padStart(2, '0');
-
   return (
     <article className="slm-solution-step">
       <header className="slm-solution-step-head">
-        <span className="slm-step-badge">{stepNo}</span>
+        <StepIndexMark n={index + 1} />
         <h3 className="slm-solution-step-title">{step.title}</h3>
       </header>
 
@@ -51,37 +51,27 @@ function SolutionStep({
 }
 
 /**
- * Complete study answer: question, every step (with diagrams), then the
- * condensed @solution narrative. Matches the richness of the PDF export.
+ * Complete study answer: stacked steps (with diagrams). The @solution
+ * narrative is omitted when steps exist — this tab is the full solution.
  */
 export function SolutionView({ session, theme }: { session: Session; theme: ResolvedTheme }) {
-  const { steps, solution, solutionDiagrams, meta } = session.capsule;
-  const question = resolveSessionQuestion(session);
+  const { steps, solution, solutionDiagrams } = session.capsule;
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
   const hasSteps = steps.length > 0;
   const hasSolutionText = solution.trim().length > 0;
 
   return (
     <div className="slm-solution">
-      {question && (
-        <section className="slm-solution-q slm-selectable">
-          <span className="slm-solution-section-label">Question</span>
-          <MathMarkdown content={question} className="slm-solution-q-text" />
-        </section>
-      )}
-
       {hasSteps && (
-        <section className="slm-solution-steps" aria-label="Step-by-step solution">
-          <h2 className="slm-solution-section-title">Step-by-step</h2>
-          {steps.map((step) => (
-            <SolutionStep key={step.id} step={step} theme={theme} />
+        <section className="slm-solution-steps" aria-label="Solution steps">
+          {steps.map((step, i) => (
+            <SolutionStep key={step.id} step={step} index={i} theme={theme} />
           ))}
         </section>
       )}
 
-      {hasSolutionText && (
-        <section className="slm-solution-full slm-selectable" aria-label="Full solution summary">
-          <h2 className="slm-solution-section-title">Full solution</h2>
+      {!hasSteps && hasSolutionText && (
+        <section className="slm-solution-full slm-selectable" aria-label="Solution">
           <div className="slm-solution-full-body">
             {solutionParts.map((part, i) => {
               if (i % 2 === 1) {

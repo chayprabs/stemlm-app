@@ -15,12 +15,19 @@ export function cleanSessionQuestion(text: string): string {
 }
 
 /** Best available question text: composer paste, model @meta question, then topic. */
-export function resolveSessionQuestion(session: Session): string {
-  const fromComposer = cleanSessionQuestion(session.question || '');
+export function resolveQuestionText(
+  question: string,
+  meta: { question?: string; topic?: string } = {},
+): string {
+  const fromComposer = cleanSessionQuestion(question || '');
   if (fromComposer) return fromComposer;
-  const fromMeta = normalizeComposerText(session.capsule.meta.question || '');
+  const fromMeta = normalizeComposerText(meta.question || '');
   if (fromMeta) return fromMeta;
-  return (session.capsule.meta.topic || '').trim();
+  return (meta.topic || '').trim();
+}
+
+export function resolveSessionQuestion(session: Session): string {
+  return resolveQuestionText(session.question, session.capsule.meta);
 }
 
 function stripInjectedNoise(text: string): string {
@@ -65,19 +72,16 @@ function compactLongQuestion(lines: string[]): string {
   return truncateAtWord(lines.join(' '), COMPACT_MAX);
 }
 
+/** Compact heading from already-resolved question text. */
+export function formatQuestionHeading(raw: string): string {
+  const lines = normalizeLines(raw);
+  if (lines.length === 0) return 'Study question';
+  const full = lines.join('\n');
+  if (full.length <= FULL_QUESTION_MAX) return full;
+  return compactLongQuestion(lines);
+}
+
 /** Question text for the panel header (full question or a short layman summary). */
 export function sessionQuestionHeading(session: Session): string {
-  const raw = resolveSessionQuestion(session);
-  const lines = normalizeLines(raw);
-
-  if (lines.length > 0) {
-    const full = lines.join('\n');
-    if (full.length <= FULL_QUESTION_MAX) return full;
-    return compactLongQuestion(lines);
-  }
-
-  const topic = (session.capsule.meta.topic || '').trim();
-  if (topic) return topic.length <= FULL_QUESTION_MAX ? topic : truncateAtWord(topic, COMPACT_MAX);
-
-  return 'Study question';
+  return formatQuestionHeading(resolveSessionQuestion(session));
 }

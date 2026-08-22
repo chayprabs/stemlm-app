@@ -9,3 +9,7 @@ declare module '*?raw' {
   export default content;
 }
 
+declare module 'wavedrom';
+
+
+

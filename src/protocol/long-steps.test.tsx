@@ -20,7 +20,6 @@ function sessionFrom(raw: string): Session {
     platform: 'gemini',
     question: 'Long multi-step problem',
     capsule: result.capsule!,
-    reviewedStepIds: [],
     raw,
   };
 }
