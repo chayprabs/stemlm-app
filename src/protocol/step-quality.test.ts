@@ -74,6 +74,45 @@ describe('auditStepQuality', () => {
     expect(issues).toContain('step_missing_substitution');
   });
 
+  it('does not require numeric plug-in on a proof or symbolic body', () => {
+    const proof = auditStepQuality(
+      {
+        id: 's2',
+        index: 2,
+        title: 'Expand n squared',
+        formula: '$$n^2=(2k)^2=4k^2=2(2k^2)$$',
+        body: '$n^2$ is twice the integer $2k^2$, so $n^2$ is even by definition.',
+      },
+      { archetype: 'proof' },
+    );
+    expect(proof).not.toContain('step_missing_substitution');
+    expect(proof).not.toContain('missing_step_body');
+
+    const symbolic = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Apply the identity',
+        formula: '$$\\sin 2\\theta = 2\\sin\\theta\\cos\\theta$$',
+        body: 'The double-angle identity applies because the goal is to rewrite $\\sin 2\\theta$.',
+      },
+      { archetype: 'symbolic' },
+    );
+    expect(symbolic).not.toContain('step_missing_substitution');
+  });
+
+  it('still requires substitution on numeric and lab archetypes', () => {
+    const step = {
+      id: 's1',
+      index: 1,
+      title: 'Compute capacitive reactance',
+      formula: '$$X_C = \\frac{1}{\\omega C}$$',
+      body: 'The capacitor opposes voltage changes.',
+    };
+    expect(auditStepQuality(step, { archetype: 'numeric' })).toContain('step_missing_substitution');
+    expect(auditStepQuality(step, { archetype: 'lab' })).toContain('step_missing_substitution');
+  });
+
   it('enrichStepBody copies worked formula into empty body', () => {
     const step = {
       id: 's1',

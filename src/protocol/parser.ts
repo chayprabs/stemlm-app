@@ -9,20 +9,28 @@
  *    still contains the ```stemlm fence.
  */
 import {
+  type Archetype,
   type Capsule,
+  type CapsuleMode,
   type Diagram,
   type DiagramType,
+  type LevelBand,
   type ParseErrorCode,
   type ParseResult,
   type ParseWarningCode,
+  type PatchOp,
   type Step,
   type Subject,
+  type UncertaintyBlock,
+  type VerificationBlock,
+  type VerifyMethod,
+  ARCHETYPES,
   SUBJECTS,
 } from './types';
+import { findResumeToken } from './apply';
 import {
   CAPSULE_END_TOKEN,
   CAPSULE_FENCE_TAG,
-  PROTOCOL_VERSION,
   STEP_COUNT_MAX,
   STEP_COUNT_MIN,
 } from './protocol';
@@ -86,6 +94,19 @@ const STRUCTURAL_MARKERS = new Set([
   '@solution',
   '@endsolution',
   '@solutionend',
+  '@q',
+  '@endq',
+  '@qend',
+  '@patch',
+  '@endpatch',
+  '@patchend',
+  '@verify',
+  '@endverify',
+  '@verifyend',
+  '@uncertainty',
+  '@enduncertainty',
+  '@uncertaintyend',
+  '@resume',
   CAPSULE_END_TOKEN,
 ]);
 
@@ -101,7 +122,19 @@ function addWarning(
 
 function isStructural(line: string): boolean {
   const t = line.trim();
-  return STRUCTURAL_MARKERS.has(t) || /^@diagram\b/.test(t);
+  if (STRUCTURAL_MARKERS.has(t)) return true;
+  return /^@(diagram|step|formula|q|patch|verify|uncertainty|resume)\b/i.test(t);
+}
+
+/** `key=value` attrs on an open marker (`@step id=s1`, `@diagram id=f1 type=circuit`). */
+export function parseMarkerAttrs(line: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const re = /\b([A-Za-z][A-Za-z0-9_-]*)=([^\s]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) {
+    if (m[1] && m[2]) attrs[m[1].toLowerCase()] = m[2];
+  }
+  return attrs;
 }
 
 /** Placeholder token used to keep diagram positions inside the solution text. */
@@ -268,6 +301,8 @@ function normalizeSubject(value: string | undefined): { subject: Subject; recove
 const DIAGRAM_TYPE_RE = /type\s*=\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i;
 
 export function parseDiagramOpen(line: string): DiagramType {
+  const attrs = parseMarkerAttrs(line);
+  if (attrs.type) return canonicalizeDiagramType(attrs.type);
   const m = DIAGRAM_TYPE_RE.exec(line);
   if (!m?.[1]) return 'svg';
   return canonicalizeDiagramType(m[1]);
@@ -288,6 +323,7 @@ function extractSolutionDiagrams(body: string): { text: string; diagrams: Diagra
     const line = lines[i] ?? '';
     if (/^\s*@diagram\b/.test(line)) {
       const type = parseDiagramOpen(line);
+      const dId = parseMarkerAttrs(line).id;
       i++;
       const content: string[] = [];
       while (i < lines.length && (lines[i] ?? '').trim() !== '@enddiagram') {
@@ -298,7 +334,12 @@ function extractSolutionDiagrams(body: string): { text: string; diagrams: Diagra
       const idx = diagrams.length;
       const body = content.join('\n').trim();
       const caption = captionFromSpec(body, type);
-      diagrams.push({ type, content: body, ...(caption ? { caption } : {}) });
+      diagrams.push({
+        type,
+        content: body,
+        ...(caption ? { caption } : {}),
+        ...(dId ? { id: dId } : {}),
+      });
       outLines.push(SOLUTION_DIAGRAM_TOKEN(idx));
       continue;
     }
@@ -350,17 +391,29 @@ function parseStep(
   index: number,
   warnings: string[],
   warningCodes: ParseWarningCode[],
+  openAttrs?: Record<string, string>,
 ): Step {
-  const step: Step = { id: `step-${index}`, index, title: '', body: '' };
+  const step: Step = { id: openAttrs?.id || `step-${index}`, index, title: '', body: '' };
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
 
-    if (t === '@endstep') {
+    if (t === '@endstep' || t === '@stepend') {
       c.i++;
       break;
     }
-    if (t === '@step' || t === '@solution' || t === CAPSULE_END_TOKEN) {
+    if (
+      t === '@step' ||
+      /^@step\b/.test(t) ||
+      t === '@solution' ||
+      t === CAPSULE_END_TOKEN ||
+      t === '@endq' ||
+      t === '@qend' ||
+      t === '@endpatch' ||
+      t === '@patchend' ||
+      /^@q\b/.test(t) ||
+      /^@patch\b/.test(t)
+    ) {
       // Implicit close of this step.
       break;
     }
@@ -371,8 +424,16 @@ function parseStep(
       c.i++;
       continue;
     }
+    const stepId = readInlineValue(line, 'id');
+    if (stepId !== null && !step.formulaId && !t.startsWith('@')) {
+      step.id = stepId;
+      c.i++;
+      continue;
+    }
 
-    if (t === '@formula') {
+    if (t === '@formula' || /^@formula\b/.test(t)) {
+      const fAttrs = parseMarkerAttrs(t);
+      if (fAttrs.id) step.formulaId = fAttrs.id;
       c.i++;
       step.formula = readBlock(c, '@endformula') || undefined;
       continue;
@@ -390,11 +451,17 @@ function parseStep(
     }
     if (/^@diagram\b/.test(t)) {
       const type = parseDiagramOpen(t);
+      const dAttrs = parseMarkerAttrs(t);
       c.i++;
       const content = readBlock(c, '@enddiagram');
       if (content) {
         const caption = captionFromSpec(content, type);
-        step.diagram = { type, content, ...(caption ? { caption } : {}) };
+        step.diagram = {
+          type,
+          content,
+          ...(caption ? { caption } : {}),
+          ...(dAttrs.id ? { id: dAttrs.id } : {}),
+        };
         if (!isKnownDiagramType(type)) {
           addWarning(
             warnings,
@@ -480,6 +547,151 @@ function parseStep(
   return step;
 }
 
+const LEVEL_BANDS: LevelBand[] = ['intro', 'undergrad', 'advanced', 'research'];
+const CAPSULE_MODES: CapsuleMode[] = ['full', 'patch', 'resolve', 'new'];
+const VERIFY_METHOD_TOKENS: VerifyMethod[] = [
+  'dimensional',
+  'units',
+  'limit',
+  'oom',
+  'backsub',
+  'conservation',
+  'alt',
+];
+
+function normalizeArchetype(value: string | undefined): Archetype | undefined {
+  if (!value) return undefined;
+  const t = value.trim().toLowerCase() as Archetype;
+  return (ARCHETYPES as string[]).includes(t) ? t : undefined;
+}
+
+function normalizeLevel(value: string | undefined): LevelBand | undefined {
+  if (!value) return undefined;
+  const t = value.trim().toLowerCase() as LevelBand;
+  return (LEVEL_BANDS as string[]).includes(t) ? t : undefined;
+}
+
+function normalizeMode(value: string | undefined): CapsuleMode | undefined {
+  if (!value) return undefined;
+  const t = value.trim().toLowerCase() as CapsuleMode;
+  return (CAPSULE_MODES as string[]).includes(t) ? t : undefined;
+}
+
+function parseMethodList(value: string): VerifyMethod[] {
+  const out: VerifyMethod[] = [];
+  for (const part of value.split(/[,;]/)) {
+    const t = part.trim().toLowerCase();
+    const token = (t === 'alternate' || t === 'alt-method' ? 'alt' : t) as VerifyMethod;
+    if ((VERIFY_METHOD_TOKENS as string[]).includes(token) && !out.includes(token)) out.push(token);
+  }
+  return out;
+}
+
+function parseVerifyBlock(c: Cursor): VerificationBlock {
+  const block: VerificationBlock = { methods: [], status: 'pass', notes: '' };
+  while (c.i < c.lines.length) {
+    const line = c.lines[c.i] ?? '';
+    const t = line.trim();
+    if (t === '@endverify' || t === '@verifyend') {
+      c.i++;
+      break;
+    }
+    if (isStructural(line) && t !== '@verify') break;
+    const methods = readInlineValue(line, 'methods');
+    const status = readInlineValue(line, 'status');
+    const notes = readInlineValue(line, 'notes');
+    const correction = readInlineValue(line, 'correction');
+    if (methods !== null) block.methods = parseMethodList(methods);
+    else if (status !== null) block.status = status.toLowerCase() === 'fail' ? 'fail' : 'pass';
+    else if (notes !== null) block.notes = notes;
+    else if (correction !== null) block.correction = correction;
+    c.i++;
+  }
+  return block;
+}
+
+function parseUncertaintyBlock(c: Cursor): UncertaintyBlock {
+  const block: UncertaintyBlock = { assumptions: [], lowConfidenceSteps: [], studentChecks: [] };
+  while (c.i < c.lines.length) {
+    const line = c.lines[c.i] ?? '';
+    const t = line.trim();
+    if (t === '@enduncertainty' || t === '@uncertaintyend') {
+      c.i++;
+      break;
+    }
+    if (isStructural(line) && t !== '@uncertainty') break;
+    const assumption = readInlineValue(line, 'assumption');
+    const low = readInlineValue(line, 'low_confidence');
+    const check = readInlineValue(line, 'check');
+    if (assumption !== null) block.assumptions.push(assumption);
+    else if (low !== null) {
+      block.lowConfidenceSteps.push(
+        ...low
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+    } else if (check !== null) block.studentChecks.push(check);
+    c.i++;
+  }
+  return block;
+}
+
+function parsePatchBlock(
+  c: Cursor,
+  attrs: Record<string, string>,
+  warnings: string[],
+  warningCodes: ParseWarningCode[],
+): PatchOp {
+  const opRaw = (attrs.op || 'replace').toLowerCase();
+  const op: PatchOp['op'] =
+    opRaw === 'insert' ? 'insert' : opRaw === 'delete' ? 'delete' : 'replace';
+  const patch: PatchOp = { op, id: attrs.id, after: attrs.after };
+  while (c.i < c.lines.length) {
+    const line = c.lines[c.i] ?? '';
+    const t = line.trim();
+    if (t === '@endpatch' || t === '@patchend') {
+      c.i++;
+      break;
+    }
+    if (t === '@step' || /^@step\b/.test(t)) {
+      const stepAttrs = parseMarkerAttrs(t);
+      c.i++;
+      patch.step = parseStep(c, 1, warnings, warningCodes, stepAttrs);
+      if (!patch.id && patch.step.id) patch.id = patch.step.id;
+      continue;
+    }
+    if (isStructural(line) && !/^@step\b/.test(t)) break;
+    c.i++;
+  }
+  return patch;
+}
+
+function warnSolutionDiagrams(
+  diagrams: Diagram[],
+  warnings: string[],
+  warningCodes: ParseWarningCode[],
+): void {
+  for (const diagram of diagrams) {
+    if (!isKnownDiagramType(diagram.type)) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'unknown_diagram_type',
+        `Solution had unknown diagram type "${diagram.type}".`,
+      );
+    }
+    if (isMalformedDiagram(diagram)) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'malformed_diagram',
+        `Solution had a malformed ${diagram.type} diagram.`,
+      );
+    }
+  }
+}
+
 /** Parse the capsule body (already-extracted text) into a Capsule. */
 export function parseCapsule(capsuleText: string): ParseResult {
   const warnings: string[] = [];
@@ -492,12 +704,22 @@ export function parseCapsule(capsuleText: string): ParseResult {
   let subject: Subject = 'General';
   let topic = '';
   let metaQuestion = '';
-  let version = PROTOCOL_VERSION;
+  let version = 1;
+  let qid: string | undefined;
+  let archetype: Archetype | undefined;
+  let level: LevelBand | undefined;
+  let locale: string | undefined;
+  let mode: CapsuleMode | undefined;
   let sawMeta = false;
   let sawEnd = false;
   const steps: Step[] = [];
   let solution = '';
   let solutionDiagrams: Diagram[] = [];
+  const questions: Capsule[] = [];
+  const patch: PatchOp[] = [];
+  let verification: VerificationBlock | undefined;
+  let uncertainty: UncertaintyBlock | undefined;
+  let resumeToken: string | undefined;
 
   if (capsuleText.includes('```')) {
     addWarning(
@@ -532,7 +754,12 @@ export function parseCapsule(capsuleText: string): ParseResult {
         const s = readInlineValue(ml, 'subject');
         const tp = readInlineValue(ml, 'topic');
         const q = readInlineValue(ml, 'question');
-        if (v !== null) version = Number(v) || PROTOCOL_VERSION;
+        const qidV = readInlineValue(ml, 'qid');
+        const archV = readInlineValue(ml, 'archetype');
+        const levelV = readInlineValue(ml, 'level');
+        const localeV = readInlineValue(ml, 'locale');
+        const modeV = readInlineValue(ml, 'mode');
+        if (v !== null) version = Number(v) || 1;
         else if (s !== null) {
           const normalized = normalizeSubject(s);
           subject = normalized.subject;
@@ -547,13 +774,19 @@ export function parseCapsule(capsuleText: string): ParseResult {
         }
         else if (tp !== null) topic = tp;
         else if (q !== null) metaQuestion = q;
+        else if (qidV !== null) qid = qidV;
+        else if (archV !== null) archetype = normalizeArchetype(archV);
+        else if (levelV !== null) level = normalizeLevel(levelV);
+        else if (localeV !== null) locale = localeV;
+        else if (modeV !== null) mode = normalizeMode(modeV);
         c.i++;
       }
       continue;
     }
-    if (t === '@step') {
+    if (t === '@step' || /^@step\b/.test(t)) {
+      const attrs = parseMarkerAttrs(t);
       c.i++;
-      steps.push(parseStep(c, steps.length + 1, warnings, warningCodes));
+      steps.push(parseStep(c, steps.length + 1, warnings, warningCodes, attrs));
       continue;
     }
     if (t === '@solution') {
@@ -562,24 +795,76 @@ export function parseCapsule(capsuleText: string): ParseResult {
       const extracted = extractSolutionDiagrams(body);
       solution = extracted.text;
       solutionDiagrams = extracted.diagrams;
-      for (const diagram of solutionDiagrams) {
-        if (!isKnownDiagramType(diagram.type)) {
-          addWarning(
-            warnings,
-            warningCodes,
-            'unknown_diagram_type',
-            `Solution had unknown diagram type "${diagram.type}".`,
-          );
+      warnSolutionDiagrams(solutionDiagrams, warnings, warningCodes);
+      continue;
+    }
+    if (t === '@q' || /^@q\b/.test(t)) {
+      const attrs = parseMarkerAttrs(t);
+      c.i++;
+      const inner: string[] = [];
+      while (c.i < c.lines.length) {
+        const ql = c.lines[c.i] ?? '';
+        const qt = ql.trim();
+        if (qt === '@endq' || qt === '@qend') {
+          c.i++;
+          break;
         }
-        if (isMalformedDiagram(diagram)) {
-          addWarning(
-            warnings,
-            warningCodes,
-            'malformed_diagram',
-            `Solution had a malformed ${diagram.type} diagram.`,
-          );
-        }
+        if (qt === CAPSULE_END_TOKEN) break;
+        inner.push(ql);
+        c.i++;
       }
+      const innerText = inner.join('\n');
+      let wrapped = innerText;
+      if (!innerText.includes('@meta')) {
+        const headers = [
+          `version: ${version}`,
+          `subject: ${subject}`,
+          `qid: ${attrs.id || qid || `q${questions.length + 1}`}`,
+        ];
+        const rest: string[] = [];
+        for (const il of inner) {
+          const it = il.trim();
+          if (
+            rest.length === 0 &&
+            /^(topic|question|archetype|level|locale|mode)\s*:/i.test(it)
+          ) {
+            headers.push(it);
+          } else {
+            rest.push(il);
+          }
+        }
+        wrapped = ['@meta', ...headers, '@endmeta', ...rest].join('\n');
+      }
+      const innerParsed = parseCapsule(wrapped.endsWith(CAPSULE_END_TOKEN) ? wrapped : `${wrapped}\n${CAPSULE_END_TOKEN}`);
+      if (innerParsed.capsule) {
+        innerParsed.capsule.meta.qid =
+          attrs.id || innerParsed.capsule.meta.qid || `q${questions.length + 1}`;
+        if (!innerParsed.capsule.meta.subject || innerParsed.capsule.meta.subject === 'General') {
+          innerParsed.capsule.meta.subject = subject;
+        }
+        questions.push(innerParsed.capsule);
+      }
+      continue;
+    }
+    if (t === '@patch' || /^@patch\b/.test(t)) {
+      const attrs = parseMarkerAttrs(t);
+      c.i++;
+      patch.push(parsePatchBlock(c, attrs, warnings, warningCodes));
+      continue;
+    }
+    if (t === '@verify' || /^@verify\b/.test(t)) {
+      c.i++;
+      verification = parseVerifyBlock(c);
+      continue;
+    }
+    if (t === '@uncertainty' || /^@uncertainty\b/.test(t)) {
+      c.i++;
+      uncertainty = parseUncertaintyBlock(c);
+      continue;
+    }
+    if (t === '@resume' || /^@resume\b/.test(t)) {
+      resumeToken = findResumeToken(t) ?? resumeToken;
+      c.i++;
       continue;
     }
 
@@ -588,13 +873,15 @@ export function parseCapsule(capsuleText: string): ParseResult {
   }
 
   if (!topic) {
-    topic = steps[0]?.title || 'Study capsule';
-    addWarning(
-      warnings,
-      warningCodes,
-      'missing_topic',
-      'Capsule had no topic; inferred from first step.',
-    );
+    topic = questions[0]?.meta.topic || steps[0]?.title || 'Study capsule';
+    if (!questions.length) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'missing_topic',
+        'Capsule had no topic; inferred from first step.',
+      );
+    }
   }
 
   if (!sawMeta) {
@@ -626,7 +913,7 @@ export function parseCapsule(capsuleText: string): ParseResult {
         );
       }
     }
-    for (const code of auditStepQuality(step)) {
+    for (const code of auditStepQuality(step, { archetype })) {
       const key = `${code}:${step.index}`;
       if (!warnedQuality.has(key)) {
         warnedQuality.add(key);
@@ -646,8 +933,12 @@ export function parseCapsule(capsuleText: string): ParseResult {
       }
     }
   }
-  if (!solution) {
+  if (!solution && patch.length === 0 && questions.length === 0) {
     addWarning(warnings, warningCodes, 'missing_solution', 'Capsule had no solution block.');
+  }
+
+  if (questions.length > 0 && !topic) {
+    topic = questions[0]!.meta.topic;
   }
 
   const capsule: Capsule = {
@@ -656,11 +947,31 @@ export function parseCapsule(capsuleText: string): ParseResult {
       subject,
       topic: stripProtocolMarkers(topic),
       ...(metaQuestion.trim() ? { question: stripProtocolMarkers(metaQuestion) } : {}),
+      ...(qid ? { qid } : {}),
+      ...(archetype ? { archetype } : {}),
+      ...(level ? { level } : {}),
+      ...(locale ? { locale } : {}),
+      ...(mode ? { mode } : patch.length ? { mode: 'patch' as const } : {}),
     },
-    steps,
-    solution: stripProtocolMarkers(solution),
-    solutionDiagrams,
+    steps: questions[0]?.steps?.length && steps.length === 0 ? questions[0].steps : steps,
+    solution:
+      questions[0] && !solution
+        ? questions[0].solution
+        : stripProtocolMarkers(solution),
+    solutionDiagrams:
+      questions[0] && solutionDiagrams.length === 0
+        ? questions[0].solutionDiagrams
+        : solutionDiagrams,
+    ...(uncertainty ? { uncertainty } : questions[0]?.uncertainty ? { uncertainty: questions[0].uncertainty } : {}),
+    ...(verification ? { verification } : questions[0]?.verification ? { verification: questions[0].verification } : {}),
   };
+
+  if (questions.length > 0 && !capsule.meta.qid) {
+    capsule.meta.qid = questions[0]!.meta.qid;
+  }
+  if (questions.length === 1 && !metaQuestion && questions[0]!.meta.question) {
+    capsule.meta.question = questions[0]!.meta.question;
+  }
 
   for (const code of auditCapsuleDiagrams(capsule)) {
     const key = `diagram:${code}`;
@@ -670,13 +981,25 @@ export function parseCapsule(capsuleText: string): ParseResult {
     }
   }
 
-  if (steps.length === 0 && !solution) {
+  const hasQuestions = questions.length > 0 && questions.some((q) => q.steps.length > 0);
+  const hasPatch = patch.length > 0;
+  if (steps.length === 0 && !solution && !hasQuestions && !hasPatch) {
     const errorCode: ParseErrorCode = sawMeta ? 'no_usable_content' : 'missing_meta';
-    return { status: 'empty', warnings, warningCodes, errorCode, raw };
+    return { status: 'empty', warnings, warningCodes, errorCode, raw, resumeToken };
   }
 
-  const status = steps.length > 0 ? 'ok' : 'partial';
-  return { status, capsule, warnings, warningCodes, raw };
+  const usableSteps = capsule.steps.length > 0 || hasPatch;
+  const status = usableSteps ? 'ok' : 'partial';
+  return {
+    status,
+    capsule,
+    warnings,
+    warningCodes,
+    raw,
+    ...(questions.length > 0 ? { questions } : {}),
+    ...(hasPatch ? { patch } : {}),
+    ...(resumeToken ? { resumeToken } : {}),
+  };
 }
 
 /** Top-level: find + parse a capsule from arbitrary message text. */

@@ -210,6 +210,10 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).toContain('slm-theme-glyph');
     expect(html).toContain('slm-theme-disc');
     expect(html).toContain('slm-theme-crescent');
+    expect(html).toContain('M20.15 14.2A8.2 8.2 0 1 1 10.35 3.85 6.25 6.25 0 0 0 20.15 14.2Z');
+    expect(html).not.toContain(
+      'M13.15 6.05a6.15 6.15 0 1 0 4.2 10.85 5.05 5.05 0 1 1-4.2-10.85Z',
+    );
     expect(html).toContain('slm-icon-save');
     expect(html).not.toContain('IconMoon');
   });

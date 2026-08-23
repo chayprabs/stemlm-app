@@ -22,13 +22,11 @@ import {
 import { removeSplit } from '@/src/lib/split-screen';
 import { removeComposerSlot } from '@/src/lib/composer-slot';
 import { parseStemLmMessage } from '@/src/lib/messages';
-import { handleStemLmPanelMessage } from '@/src/lib/panel-remote';
+import { consumePendingPanelAction, handleStemLmPanelMessage } from '@/src/lib/panel-remote';
 import {
   getContentTabId,
   loadTabWorkspace,
   saveTabWorkspace,
-  setPanelActionResult,
-  takePendingPanelAction,
   workspaceFromStore,
 } from '@/src/lib/tab-workspace';
 
@@ -131,11 +129,7 @@ export default defineContentScript({
     }
 
     if (tabId != null) {
-      const pending = await takePendingPanelAction(tabId);
-      if (pending) {
-        const result = await handleStemLmPanelMessage(pending, adapter.id);
-        await setPanelActionResult(tabId, result);
-      }
+      await consumePendingPanelAction(tabId, adapter.id);
     }
 
     let host: HTMLElement | null = null;

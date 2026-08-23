@@ -130,11 +130,12 @@ The model returns one ` ```stemlm ` code block using a line-delimited grammar
 @followup / @solution`, ending with `@end`). We use a delimiter format rather
 than JSON because LaTeX backslashes and inline SVG constantly break JSON, and the
 closing `@end` doubles as the streaming-complete signal. The **core instructions
-live in [`core-protocol.md`](src/protocol/core-protocol.md)** (~4 kB; a deeper
-`ultra` variant in `core-protocol.ultra.md` is selectable in Settings); on Gemini
-they ship inside the attached `stemlm-protocol.txt` together with **every**
-subject playbook. The model sets `@meta subject:` from the problem and applies
-that section only (a compact reminder is pasted into the composer). The parser
+live in [`core-protocol.md`](src/protocol/core-protocol.md)** plus compact
+registries (archetype, diagram catalog, verification, follow-up). A `DEPTH: deep`
+dial is the Settings `ultra` variant — not a second essay. On Gemini they ship
+inside the attached `stemlm-protocol.txt`. The composer only gets a short
+student-facing preamble under `--- stemLM ---`. The model sets `@meta subject:`
+from the problem and applies the matching registry row. The parser
 is tolerant (recovers from missing terminators and a dropped `@end`)
 and never throws.
 

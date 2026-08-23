@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALL_SAVED_SUBJECTS,
+  COMPACT_SAVED_LIMIT,
+  OPEN_ALL_SAVED_LABEL,
   filterSavedSessions,
+  latestSavedSessions,
   savedSessionHeading,
   savedSessionSubject,
   savedSessionSubjects,
@@ -123,5 +126,15 @@ describe('filterSavedSessions', () => {
 
   it('returns none when the query matches nothing', () => {
     expect(filterSavedSessions(library, { query: 'organic stereochemistry' })).toEqual([]);
+  });
+});
+
+describe('latestSavedSessions', () => {
+  it('keeps the most recent compact limit and no more', () => {
+    const items = [1, 2, 3, 4, 5].map((n) => ({ id: `q${n}`, savedAt: n }));
+    const latest = latestSavedSessions(items);
+    expect(COMPACT_SAVED_LIMIT).toBe(3);
+    expect(latest.map((s) => s.id)).toEqual(['q5', 'q4', 'q3']);
+    expect(OPEN_ALL_SAVED_LABEL).toBe('Open all saved questions');
   });
 });

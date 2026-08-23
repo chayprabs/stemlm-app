@@ -494,9 +494,12 @@ describe('Panel empty / loading / banner states', () => {
     const panel = container.querySelector('[role="complementary"]');
     expect(panel?.getAttribute('aria-label')).toBe('stemLM study panel');
     expect(container.textContent).toContain('Study workspace');
-    expect(container.textContent).toContain('Type a question in the chat, then tap stemLM beside send.');
+    expect(container.textContent).toContain('Type a question in the chat, then start stemLM.');
+    expect(container.textContent).not.toContain('beside send');
+    expect(container.textContent).not.toContain('Open Gemini');
     expect(container.textContent).toContain('Load from conversation');
     expect(container.querySelector('.slm-empty')).toBeTruthy();
+    expect(container.querySelector('.slm-tabs')).toBeNull();
     unmount();
   });
 
@@ -558,9 +561,18 @@ describe('Panel ready session', () => {
     expect(container.querySelector('.slm-question-icon')?.innerHTML).not.toContain('<svg');
     expect(container.querySelector('.slm-question-icon')?.innerHTML).not.toContain('M9.09 9');
     const header = container.querySelector('.slm-header') as HTMLElement;
+    const bar = header.querySelector('.slm-header-bar') as HTMLElement;
+    const brandEl = header.querySelector('.slm-brand') as HTMLElement;
     const tabsEl = header.querySelector('.slm-tabs') as HTMLElement;
     const questionEl = header.querySelector('.slm-topic') as HTMLElement;
+    expect(bar.contains(tabsEl)).toBe(true);
+    expect(bar.contains(brandEl)).toBe(true);
+    expect(header.querySelector('.slm-header-leading')?.contains(tabsEl)).toBe(true);
+    expect(brandEl.compareDocumentPosition(tabsEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const actionsEl = header.querySelector('.slm-header-actions') as HTMLElement;
+    expect(tabsEl.compareDocumentPosition(actionsEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(tabsEl.compareDocumentPosition(questionEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bar.contains(questionEl)).toBe(false);
     expect(container.querySelector('.slm-step-badge')).toBeNull();
     expect(container.querySelector('.slm-card-head')?.textContent).not.toMatch(/\b0\d\b/);
     expect(container.querySelector('.slm-stepnav-count')).toBeNull();
@@ -898,6 +910,19 @@ describe('Panel theme, split, and width density', () => {
     expect(container.textContent).toContain('First visual state');
     expect(container.textContent).toContain('Newton second law');
     expect(container.querySelector('.slm-read')?.textContent).toContain('First visual state');
+    const header = container.querySelector('.slm-header') as HTMLElement;
+    const stepsTab = container.querySelector('#slm-tab-steps') as HTMLButtonElement;
+    const solutionTab = container.querySelector('#slm-tab-solution') as HTMLButtonElement;
+    expect(header.contains(stepsTab)).toBe(true);
+    expect(header.contains(solutionTab)).toBe(true);
+    act(() => {
+      solutionTab.click();
+    });
+    expect(useStore.getState().view).toBe('solution');
+    act(() => {
+      stepsTab.click();
+    });
+    expect(useStore.getState().view).toBe('steps');
 
     act(() => {
       roCb?.(
@@ -997,9 +1022,214 @@ describe('Panel theme, split, and width density', () => {
     expect(getComputedStyle(scroll).maxHeight).not.toBe('none');
     expect(getComputedStyle(panel).borderRadius).not.toBe('0px');
 
+    const leading = container.querySelector('.slm-header-leading') as HTMLElement;
+    const tabs = container.querySelector('.slm-tabs') as HTMLElement;
+    expect(getComputedStyle(leading).justifyContent).toBe('flex-start');
+    expect(getComputedStyle(leading).display).toBe('flex');
+    expect(getComputedStyle(tabs).borderStyle).not.toBe('none');
+    expect(getComputedStyle(tabs).borderWidth).not.toBe('0px');
+    expect(PANEL_CSS).toMatch(
+      /\.slm-tabs\s*\{[\s\S]*height:\s*calc\(var\(--slm-brand-size,\s*25px\)\s*\+\s*6px\)/,
+    );
+
     const pdfBtn = container.querySelector('button[aria-label="Export PDF"]') as HTMLButtonElement;
     expect(pdfBtn.innerHTML).toContain('M15 2H6');
     expect(pdfBtn.innerHTML).not.toContain('M6.4 20.4h11.2');
+
+    unmount();
+  });
+});
+
+function cssBlock(source: string, selector: string): string {
+  const needle = `${selector} {`;
+  const at = source.indexOf(needle);
+  if (at < 0) return '';
+  const open = source.indexOf('{', at);
+  const close = source.indexOf('}', open);
+  if (open < 0 || close < 0) return '';
+  return source.slice(open + 1, close);
+}
+
+function remToken(value: string | undefined): number {
+  const m = /([\d.]+)rem/.exec(value ?? '');
+  return m ? Number(m[1]) : NaN;
+}
+
+describe('Panel chrome: overlay, theme glyph, close motion, session strip', () => {
+  beforeEach(() => {
+    installShippedStyles();
+  });
+
+  it('packs the Prev/Next overlay as a compact capsule with new chevrons and theme colors', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'dark', activeStepIndex: 0 });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const overlay = container.querySelector('.slm-stepnav--overlay') as HTMLElement;
+    const prev = container.querySelector('button[aria-label="Previous step"]') as HTMLButtonElement;
+    const next = container.querySelector('button[aria-label="Next step"]') as HTMLButtonElement;
+    expect(overlay).toBeTruthy();
+    expect(prev).toBeTruthy();
+    expect(next).toBeTruthy();
+    expect(overlay.contains(prev)).toBe(true);
+    expect(overlay.contains(next)).toBe(true);
+
+    expect(prev.disabled).toBe(true);
+    expect(next.disabled).toBe(false);
+    act(() => {
+      next.click();
+    });
+    expect(useStore.getState().activeStepIndex).toBe(1);
+    act(() => {
+      prev.click();
+    });
+    expect(useStore.getState().activeStepIndex).toBe(0);
+
+    const navCss = cssBlock(PANEL_CSS, '.slm-stepnav');
+    const overlayCss = cssBlock(PANEL_CSS, '.slm-stepnav--overlay');
+    const lightCss = cssBlock(PANEL_CSS, ".slm-panel[data-stemlm-theme='light'] .slm-stepnav--overlay");
+    expect(navCss).toMatch(/justify-content:\s*center/);
+    expect(navCss).not.toMatch(/space-between/);
+    expect(navCss).toMatch(/width:\s*auto/);
+    expect(overlayCss).toMatch(/width:\s*auto/);
+    expect(overlayCss).not.toMatch(/width:\s*50%/);
+    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.32);
+    expect(remToken(/bottom:\s*calc\(([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.85);
+    expect(overlayCss).not.toContain('#3c3b3b');
+    expect(lightCss).not.toMatch(/#ffffff/);
+    expect(lightCss).not.toMatch(/#efefef/);
+    expect(lightCss.length).toBeGreaterThan(20);
+    expect(overlayCss).not.toBe(lightCss);
+
+    const cs = getComputedStyle(overlay);
+    expect(cs.justifyContent).not.toBe('space-between');
+    expect(cs.width).not.toBe('50%');
+    const padTop = parseFloat(cs.paddingTop);
+    if (Number.isFinite(padTop) && padTop > 0) {
+      expect(padTop).toBeGreaterThan(0.32 * 16);
+    }
+    const bottomPx = remToken(cs.bottom) * 16 || parseFloat(cs.bottom);
+    if (Number.isFinite(bottomPx) && bottomPx > 0) {
+      expect(bottomPx).toBeGreaterThan(0.85 * 16);
+    }
+
+    expect(prev.innerHTML).not.toContain('M12.5 12 7 8l5.5-4');
+    expect(next.innerHTML).not.toContain('M7.5 4 13 8l-5.5 4');
+    expect(prev.innerHTML).toContain('m15 18-6-6 6-6');
+    expect(next.innerHTML).toContain('m9 18 6-6-6-6');
+
+    expect(cssVar(overlay, '--slm-nav-chip').toLowerCase()).not.toBe('#3c3b3b');
+
+    const panel = container.querySelector('.slm-panel') as HTMLElement;
+    act(() => {
+      useStore.getState().setTheme('light');
+    });
+    applyTheme(panel, 'light');
+    const lightOverlay = container.querySelector('.slm-stepnav--overlay') as HTMLElement;
+    const lightChip = cssVar(lightOverlay, '--slm-nav-chip').toLowerCase();
+    const lightShell = cssVar(lightOverlay, '--slm-nav-shell').toLowerCase();
+    expect(lightChip).not.toBe('#efefef');
+    expect(lightShell).not.toBe('#ffffff');
+
+    unmount();
+  });
+
+  it('uses an upright filled crescent in dark theme and a centered ease-out close rotate', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const themeBtn = container.querySelector(
+      'button[aria-label="Switch to dark theme"]',
+    ) as HTMLButtonElement;
+    expect(themeBtn.querySelector('.slm-theme-crescent')?.getAttribute('d')).toBe(
+      'M20.15 14.2A8.2 8.2 0 1 1 10.35 3.85 6.25 6.25 0 0 0 20.15 14.2Z',
+    );
+    expect(themeBtn.innerHTML).not.toContain(
+      'M13.15 6.05a6.15 6.15 0 1 0 4.2 10.85 5.05 5.05 0 1 1-4.2-10.85Z',
+    );
+    expect(themeBtn.classList.contains('is-dark')).toBe(false);
+
+    await act(async () => {
+      themeBtn.click();
+      await Promise.resolve();
+    });
+    const darkBtn = container.querySelector(
+      'button[aria-label="Switch to light theme"]',
+    ) as HTMLButtonElement;
+    expect(darkBtn.classList.contains('is-dark')).toBe(true);
+    expect(useStore.getState().theme).toBe('dark');
+    expect(darkBtn.querySelector('.slm-theme-disc')).toBeTruthy();
+    expect(darkBtn.querySelector('.slm-theme-rays')).toBeTruthy();
+
+    const closeCss = cssBlock(PANEL_CSS, '.slm-icon-btn--close svg');
+    const closeHoverCss = cssBlock(PANEL_CSS, '.slm-icon-btn--close:hover:not(:disabled) svg');
+    expect(closeCss).toMatch(/transform-origin:\s*center/);
+    expect(closeCss).toMatch(/cubic-bezier\(/);
+    expect(closeCss).not.toMatch(/transition:\s*[^;]*\s+linear\b/);
+    expect(closeHoverCss).toMatch(/rotate\(/);
+    expect(PANEL_CSS).toMatch(
+      /prefers-reduced-motion:\s*reduce[\s\S]*\.slm-icon-btn--close svg/,
+    );
+    expect(PANEL_CSS).toMatch(
+      /prefers-reduced-motion:\s*reduce[\s\S]*\.slm-icon-btn--close:hover:not\(:disabled\) svg[\s\S]*transform:\s*none/,
+    );
+
+    const closeBtn = container.querySelector('.slm-icon-btn--close') as HTMLElement;
+    const closeSvg = closeBtn.querySelector('svg') as SVGElement;
+    const origin = getComputedStyle(closeSvg).transformOrigin;
+    expect(origin).toBeTruthy();
+    expect(origin).not.toBe('0px 0px');
+
+    unmount();
+  });
+
+  it('scrolls many session pills on one row without a visible scrollbar and still switches', () => {
+    const sessions = Array.from({ length: 24 }, (_, i) => {
+      const s = buildStudySession();
+      s.id = `session-strip-${i}`;
+      s.question = `Question ${i + 1}`;
+      s.capsule = {
+        ...s.capsule,
+        meta: { ...s.capsule.meta, topic: `${i + 1}. Long session topic ${i + 1} about circular motion` },
+      };
+      return s;
+    });
+    useStore.getState().setSessions(sessions);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    const strip = container.querySelector('.slm-session-switch') as HTMLElement;
+    expect(strip).toBeTruthy();
+    const pills = [...strip.querySelectorAll<HTMLButtonElement>('.slm-session-pill')];
+    expect(pills).toHaveLength(24);
+
+    const stripCss = cssBlock(PANEL_CSS, '.slm-session-switch');
+    expect(stripCss).toMatch(/overflow-x:\s*auto/);
+    expect(stripCss).toMatch(/flex-wrap:\s*nowrap/);
+    expect(stripCss).toMatch(/scrollbar-width:\s*none/);
+    expect(PANEL_CSS).toMatch(/\.slm-session-switch::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
+
+    const cs = getComputedStyle(strip);
+    expect(cs.overflowX).toMatch(/auto|scroll/);
+    expect(cs.flexWrap).toBe('nowrap');
+    const scrollbarWidth = cs.getPropertyValue('scrollbar-width').trim();
+    if (scrollbarWidth) expect(scrollbarWidth).toBe('none');
+
+    const last = pills[pills.length - 1]!;
+    act(() => {
+      last.click();
+    });
+    expect(useStore.getState().activeSessionId).toBe(sessions[23]!.id);
+
+    act(() => {
+      pills[0]!.click();
+    });
+    expect(useStore.getState().activeSessionId).toBe(sessions[0]!.id);
 
     unmount();
   });

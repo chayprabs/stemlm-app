@@ -47,6 +47,8 @@ vi.mock('@/src/lib/tab-bridge', () => ({
 }));
 
 import { SavedSessionList } from './SavedSessionList';
+import { SavedLibraryOverlay } from './SavedLibraryOverlay';
+import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
 import {
   SAVED_SESSIONS_KEY,
   sessionToSnapshot,
@@ -118,13 +120,18 @@ function seed(list: SavedSessionSnapshot[]) {
   storageData[SAVED_SESSIONS_KEY] = list;
 }
 
-function mount(list: SavedSessionSnapshot[]) {
+function mount(
+  list: SavedSessionSnapshot[],
+  props?: { variant?: 'compact' | 'full'; onOpenAll?: () => void },
+) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   let root: Root | undefined;
   act(() => {
     root = createRoot(container);
-    root.render(<SavedSessionList sessions={list} />);
+    root.render(
+      <SavedSessionList sessions={list} variant={props?.variant} onOpenAll={props?.onOpenAll} />,
+    );
   });
   return {
     container,
@@ -303,5 +310,81 @@ describe('SavedSessionList', () => {
     expect(stored.map((s) => s.id).sort()).toEqual(['newton', 'rlc']);
 
     unmount();
+  });
+
+  it('compact mode shows the latest 3, hides search, and offers open-all', () => {
+    const fourth = sessionToSnapshot(
+      makeSession({
+        id: 'extra',
+        question: 'Fourth saved question about inductance',
+        capsule: {
+          meta: { version: 1, subject: 'Electrical', topic: 'Inductance' },
+          steps: [{ id: 's1', index: 1, title: 'L', body: 'L' }],
+          solution: 'done',
+          solutionDiagrams: [],
+        },
+      }),
+    );
+    const list = [...snapshots(), fourth].map((item, i) => ({ ...item, savedAt: i + 1 }));
+    seed(list);
+    const onOpenAll = vi.fn();
+    const { container, unmount } = mount(list, { variant: 'compact', onOpenAll });
+
+    expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeNull();
+    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(3);
+    expect(container.textContent).toContain('Fourth saved question');
+    expect(container.textContent).not.toContain('Find the impedance of the series RLC');
+    const openAll = [...container.querySelectorAll('button')].find((el) =>
+      el.textContent?.includes(OPEN_ALL_SAVED_LABEL),
+    );
+    expect(openAll).toBeTruthy();
+    act(() => {
+      openAll!.click();
+    });
+    expect(onOpenAll).toHaveBeenCalledOnce();
+    unmount();
+  });
+});
+
+describe('SavedLibraryOverlay', () => {
+  it('lists every saved question with search and still downloads PDFs', async () => {
+    const list = snapshots();
+    seed(list);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    act(() => {
+      root = createRoot(container);
+      root.render(<SavedLibraryOverlay sessions={list} onClose={() => undefined} />);
+    });
+
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+    expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeTruthy();
+    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(3);
+
+    const search = container.querySelector(
+      'input[aria-label="Search saved questions"]',
+    ) as HTMLInputElement;
+    setInputValue(search, 'net force');
+    expect(container.textContent).toContain('net force');
+    expect(container.textContent).not.toContain('series RLC');
+
+    setInputValue(search, '');
+    const row = container.querySelector(
+      'button[aria-label="Download PDF for Find the impedance of the series RLC circuit at 60 Hz."]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      row.click();
+      await Promise.resolve();
+    });
+    await flush();
+    expect(tabsCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=rlc') }),
+    );
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
   });
 });

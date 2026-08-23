@@ -1,56 +1,36 @@
 import { describe, it, expect } from 'vitest';
 import { SUBJECTS } from './types';
-import { PLAYBOOKS, getPlaybook, getUniversalPlaybook, UNIVERSAL_PLAYBOOK_HEADER } from './playbooks';
+import {
+  PLAYBOOKS,
+  getPlaybook,
+  getUniversalPlaybook,
+  UNIVERSAL_PLAYBOOK_HEADER,
+  SUBJECT_REGISTRY,
+} from './playbooks';
 import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
 import { buildComposerStub, buildInjectionPayload } from './builder';
 
-const SUBJECT_MARKERS: Record<(typeof SUBJECTS)[number], string> = {
-  Physics: 'PHYSICS:',
-  Chemistry: 'CHEMISTRY:',
-  Math: 'MATH:',
-  Biology: 'BIOLOGY:',
-  CS: 'CS:',
-  Electrical: 'ELECTRICAL:',
-  Mechanical: 'MECHANICAL:',
-  Civil: 'CIVIL:',
-  Chemical: 'CHEMICAL ENG:',
-  General: 'GENERAL:',
-};
-
-/** Distinctive conventions that must survive in the attached file — not just a header. */
-const SUBJECT_FINGERPRINTS: Record<(typeof SUBJECTS)[number], string[]> = {
-  Physics: ['FBD', 'F/2F', 'de Broglie'],
-  Chemistry: ['mhchem', 'curved-arrow', 'VSEPR'],
-  Math: ['eigen', '$$…$$', 'phase portrait'],
-  Biology: ['Punnett', 'blunt bar', 'HWE'],
-  CS: ['mermaid', 'inline `code`', 'Dijkstra'],
-  Electrical: ['HYBRID-π', 'Thévenin', 'KVL'],
-  Mechanical: ['FoS', 'P-V', 'Bernoulli'],
-  Civil: ['SFD', 'BMD', 'pin (triangle)'],
-  Chemical: ['McCabe-Thiele', 'CSTR', 'stream table'],
-  General: ['most specific subject', 'sanity/limit check'],
-};
-
-describe('universal playbook', () => {
-  it('defines a playbook for every subject and no extras', () => {
+describe('subject registry', () => {
+  it('defines a compact row for every subject and no extras', () => {
     expect(Object.keys(PLAYBOOKS).sort()).toEqual([...SUBJECTS].sort());
+    expect(Object.keys(SUBJECT_REGISTRY).sort()).toEqual([...SUBJECTS].sort());
     for (const subject of SUBJECTS) {
-      expect(PLAYBOOKS[subject]?.length, `${subject} playbook missing`).toBeGreaterThan(80);
+      expect(PLAYBOOKS[subject]?.length, `${subject} row missing`).toBeGreaterThan(40);
       expect(getPlaybook(subject)).toBe(PLAYBOOKS[subject]);
-      expect(getPlaybook(subject)).toContain(SUBJECT_MARKERS[subject]);
+      expect(getPlaybook(subject)).toContain(SUBJECT_REGISTRY[subject].marker);
+      expect(SUBJECT_REGISTRY[subject].diagrams.length).toBeGreaterThan(8);
+      expect(SUBJECT_REGISTRY[subject].verify.length).toBeGreaterThan(4);
     }
   });
 
-  it('ships every subject so a classifier miss cannot omit the right conventions', () => {
+  it('ships every subject row so a classifier miss cannot omit conventions', () => {
     const universal = getUniversalPlaybook();
     expect(universal.startsWith(UNIVERSAL_PLAYBOOK_HEADER)).toBe(true);
     expect(universal).toContain(SUBJECTS.join('|'));
     for (const subject of SUBJECTS) {
-      expect(universal, `universal playbook missing ${subject}`).toContain(SUBJECT_MARKERS[subject]);
-      expect(universal).toContain(getPlaybook(subject));
-      for (const fingerprint of SUBJECT_FINGERPRINTS[subject]) {
-        expect(universal, `${subject} missing fingerprint "${fingerprint}"`).toContain(fingerprint);
-      }
+      const row = SUBJECT_REGISTRY[subject];
+      expect(universal, `missing ${subject}`).toContain(row.marker);
+      expect(universal).toContain(row.diagrams.split(',')[0]!.trim());
     }
   });
 

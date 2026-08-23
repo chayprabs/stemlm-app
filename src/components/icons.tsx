@@ -45,16 +45,16 @@ export const IconChevronRight = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** Geometric nav arrows — used on the floating Prev/Next overlay. */
+/** Lucide chevrons for the floating Prev/Next overlay (same 1.5 stroke as the header set). */
 export const IconNavPrev = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 14, height: 14, strokeWidth: 2, ...p })}>
-    <path d="M12.5 12 7 8l5.5-4" />
+  <svg {...base({ width: 16, height: 16, ...p })}>
+    <path d="m15 18-6-6 6-6" />
   </svg>
 );
 
 export const IconNavNext = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 14, height: 14, strokeWidth: 2, ...p })}>
-    <path d="M7.5 4 13 8l-5.5 4" />
+  <svg {...base({ width: 16, height: 16, ...p })}>
+    <path d="m9 18 6-6-6-6" />
   </svg>
 );
 
@@ -150,7 +150,9 @@ export const IconTheme = ({ className, ...p }: SVGProps<SVGSVGElement>) => (
     </g>
     <path
       className="slm-theme-crescent"
-      d="M13.15 6.05a6.15 6.15 0 1 0 4.2 10.85 5.05 5.05 0 1 1-4.2-10.85Z"
+      fill="currentColor"
+      stroke="none"
+      d="M20.15 14.2A8.2 8.2 0 1 1 10.35 3.85 6.25 6.25 0 0 0 20.15 14.2Z"
     />
   </svg>
 );
@@ -181,5 +183,25 @@ export const IconReply = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M9 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3" />
     <path d="m9 17 4-4-4-4M15 17h5" />
+  </svg>
+);
+
+export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <polygon points="6 4 20 12 6 20 6 4" />
+  </svg>
+);
+
+export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+export const IconHistory = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <path d="M3 4v5h5" />
+    <path d="M12 7v5l3 2" />
   </svg>
 );

@@ -58,9 +58,9 @@ describe('long-step capsules (8–12 steps)', () => {
     });
   }
 
-  it('13 steps emits invalid_step_count warning but still parses', () => {
-    const result = parse(buildLongStepCapsule(13));
-    expect(result.capsule?.steps).toHaveLength(13);
+  it('21 steps emits invalid_step_count warning but still parses', () => {
+    const result = parse(buildLongStepCapsule(21));
+    expect(result.capsule?.steps).toHaveLength(21);
     expect(result.warningCodes).toContain('invalid_step_count');
     expect(result.status).toBe('ok');
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { detectAdapter, adapterById } from './detect';
+import { detectAdapter, adapterById, adapterForUrl, isSupportedChatUrl, supportedChatLabels } from './detect';
 import { geminiAdapter } from './gemini';
 import { buildComposerStub, buildInjectionPrompt } from '@/src/protocol/builder';
 import {
@@ -54,6 +54,15 @@ describe('detectAdapter', () => {
 
   it('exposes getComposerShell', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
+  });
+
+  it('resolves adapters from page URLs and lists only shipped hosts', () => {
+    expect(adapterForUrl('https://gemini.google.com/app')?.id).toBe('gemini');
+    expect(isSupportedChatUrl('https://gemini.google.com/app/abc')).toBe(true);
+    expect(isSupportedChatUrl('https://example.com')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com')).toBe(false);
+    expect(supportedChatLabels()).toEqual(['Gemini']);
+    expect(supportedChatLabels().join(' ')).not.toMatch(/ChatGPT|Claude|Grok/i);
   });
 });
 

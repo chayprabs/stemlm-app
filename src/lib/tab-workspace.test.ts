@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  getContentTabId,
+  handleWhoamiRequest,
   loadTabWorkspace,
   saveTabWorkspace,
   setPendingPanelAction,
@@ -9,6 +11,14 @@ import {
 import type { Session } from '@/src/protocol/types';
 
 const sessionStore = new Map<string, unknown>();
+
+const getCurrent = vi.hoisted(() => vi.fn(async () => undefined));
+const sendMessage = vi.hoisted(() =>
+  vi.fn(async (msg: unknown) => {
+    if ((msg as { type?: string })?.type === 'stemlm:whoami') return { tabId: 42 };
+    return undefined;
+  }),
+);
 
 vi.mock('wxt/browser', () => ({
   browser: {
@@ -29,7 +39,10 @@ vi.mock('wxt/browser', () => ({
       },
     },
     tabs: {
-      getCurrent: vi.fn(async () => ({ id: 42 })),
+      getCurrent,
+    },
+    runtime: {
+      sendMessage,
     },
   },
 }));
@@ -90,5 +103,11 @@ describe('tab-workspace', () => {
     await setPendingPanelAction({ tabId: 42, type: 'stemlm:open-panel' });
     expect(await takePendingPanelAction(42)).toBe('stemlm:open-panel');
     expect(await takePendingPanelAction(42)).toBeNull();
+  });
+
+  it('resolves the content-script tab id from sender.tab, not tabs.getCurrent', async () => {
+    expect(handleWhoamiRequest({ tab: { id: 81 } })).toEqual({ tabId: 81 });
+    expect(await getContentTabId()).toBe(42);
+    expect(getCurrent).not.toHaveBeenCalled();
   });
 });

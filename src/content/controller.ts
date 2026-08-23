@@ -14,7 +14,9 @@ import {
   buildFollowupAskInChatPrompt,
   buildFollowupPayload,
   buildComposerAppendix,
+  buildComposerPointer,
   composerTextHasProtocol,
+  pageThreadHasProtocol,
   FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
   FOLLOWUP_CONTEXT_HEADER,
@@ -22,10 +24,12 @@ import {
 } from '@/src/protocol/builder';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
+import { applyStepPatch, findResumeToken, stitchResume } from '@/src/protocol/apply';
 import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
+import { rememberCurrentChat } from '@/src/lib/last-chat';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { auditCapsuleDiagrams } from '@/src/protocol/diagram-quality';
 import { auditStepQuality } from '@/src/protocol/step-quality';
@@ -68,8 +72,10 @@ export class StemController {
   private capturedRaw = new Set<string>();
   private static readonly CAPTURED_RAW_MAX = 100;
   private lastQuestion = '';
-  /** True while waiting for a dig-deeper / ask follow-up answer (never replace the prior session). */
+  /** True while waiting for a dig-deeper / ask follow-up answer. */
   private pendingFollowUpCapture = false;
+  /** Truncated capsule waiting for a `@resume` continuation. */
+  private pendingResume: { token: string; raw: string } | null = null;
   private watching = false;
   /** Cleared on each inject/follow-up so stale chat capsules do not block capture. */
   private captureEpoch = 0;
@@ -124,6 +130,9 @@ export class StemController {
     let ok = false;
     let injectionMethod: 'text' | 'file' = 'text';
 
+    const alreadyInComposer = composerTextHasProtocol(existing);
+    const alreadyInThread =
+      alreadyInComposer || pageThreadHasProtocol(document, this.adapter.findEditor());
     const attached = await attachTextFile(payload.fileContent, {
       filename: PROTOCOL_FILENAME,
       preserveExisting: hasImageAttachment,
@@ -131,16 +140,30 @@ export class StemController {
 
     if (attached.ok) {
       await new Promise((r) => setTimeout(r, 80));
-      const stub = hasUserContent
-        ? buildComposerAppendix({
+      const stub = alreadyInThread
+        ? buildComposerPointer({
             hasImageAttachment,
             hasQuestion: question.length > 0,
           })
-        : payload.composerText;
-      const mode = hasUserContent ? 'append' : 'replace';
+        : hasUserContent
+          ? buildComposerAppendix({
+              hasImageAttachment,
+              hasQuestion: question.length > 0,
+            })
+          : payload.composerText;
+      const mode = hasUserContent || alreadyInThread ? 'append' : 'replace';
       ok = await this.insertVerifiedPrompt(stub, mode, { fileAttach: true });
       if (ok) injectionMethod = 'file';
       // File already on the composer — never dump the protocol wall as well.
+    } else if (alreadyInThread) {
+      const stub = buildComposerPointer({
+        hasImageAttachment,
+        hasQuestion: question.length > 0,
+      });
+      ok = await this.insertVerifiedPrompt(stub, hasUserContent ? 'append' : 'replace', {
+        fileAttach: true,
+      });
+      injectionMethod = 'text';
     } else if (hasUserContent) {
       const built = buildInjectionAppendix(question, buildOpt);
       ok = await this.insertVerifiedPrompt(built.prompt, 'append');
@@ -164,6 +187,7 @@ export class StemController {
     store.setStatus('loading');
     this.beginCaptureEpoch();
     this.armAnswerDetection();
+    void rememberCurrentChat(this.adapter.id);
     void trackEvent('question_asked', {
       platform: this.adapter.id,
       subject,
@@ -382,6 +406,7 @@ export class StemController {
   private beginCaptureEpoch(): void {
     this.captureEpoch += 1;
     this.capturedRaw.clear();
+    this.pendingResume = null;
   }
 
   /**
@@ -452,6 +477,19 @@ export class StemController {
    */
   private tryCapture(candidate: string, complete: boolean): void {
     if (!this.watching) return;
+    const resumeToken = findResumeToken(candidate);
+    if (resumeToken && !looksComplete(candidate)) {
+      this.pendingResume = { token: resumeToken, raw: candidate };
+      return;
+    }
+    if (this.pendingResume) {
+      const sameToken = !resumeToken || resumeToken === this.pendingResume.token;
+      if (sameToken) {
+        candidate = stitchResume([this.pendingResume.raw, candidate]);
+        this.pendingResume = null;
+      }
+    }
+
     const key = candidate.trim();
     if (this.capturedRaw.has(key)) {
       this.resolveLoadingIfAlreadyCaptured(key);
@@ -459,7 +497,11 @@ export class StemController {
     }
 
     const result = parse(candidate);
-    const usable = result.status !== 'empty' && result.capsule && result.capsule.steps.length > 0;
+    const usable =
+      result.status !== 'empty' &&
+      ((result.capsule && result.capsule.steps.length > 0) ||
+        (result.patch && result.patch.length > 0) ||
+        (result.questions && result.questions.some((q) => q.steps.length > 0)));
     if (!usable) {
       if (complete) {
         this.rememberCaptured(key);
@@ -517,56 +559,141 @@ export class StemController {
 
   private captureFromText(text: string, question: string, parsed?: ParseResult): void {
     const result = parsed ?? parse(text);
-    if (result.status === 'empty' || !result.capsule) {
+    const store = useStore.getState();
+    const active = store.sessions.find((s) => s.id === store.activeSessionId);
+
+    if (this.pendingFollowUpCapture && result.patch && result.patch.length && active) {
+      const patched = applyStepPatch(active.capsule, result.patch);
+      this.commitSession(
+        { ...active, updatedAt: Date.now(), capsule: patched, raw: result.raw },
+        true,
+      );
+      this.finishCapture(patched, result);
+      return;
+    }
+
+    const questionCapsules =
+      result.questions && result.questions.length > 0
+        ? result.questions
+        : result.capsule
+          ? [result.capsule]
+          : [];
+    if (result.status === 'empty' || questionCapsules.length === 0) {
       this.offerRepairPrompt(result);
       return;
     }
-    const diagrams = allDiagrams(result.capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])), result.capsule.solutionDiagrams);
-    const stepQualityIssues = result.capsule.steps.flatMap((s) => auditStepQuality(s));
-    const diagramIssues = auditCapsuleDiagrams(result.capsule);
-    const store = useStore.getState();
-    const topic = result.capsule.meta.topic;
-    const cleanedQuestion =
-      cleanSessionQuestion(question) ||
-      result.capsule.meta.question?.trim() ||
-      topic;
-    const last = store.sessions[store.sessions.length - 1];
-    const shouldReplace =
-      !this.pendingFollowUpCapture &&
-      last &&
-      store.activeSessionId === last.id &&
-      last.platform === this.adapter.id &&
-      cleanSessionQuestion(last.question) === cleanedQuestion;
 
-    const session: Session = {
-      id: shouldReplace ? last.id : makeId(),
-      createdAt: shouldReplace ? last.createdAt : Date.now(),
-      updatedAt: Date.now(),
-      platform: this.adapter.id,
-      question: cleanedQuestion,
-      capsule: result.capsule,
-      raw: result.raw,
-    };
+    const followUpSameQuestion =
+      this.pendingFollowUpCapture &&
+      active &&
+      questionCapsules.length === 1 &&
+      questionCapsules[0]!.meta.mode !== 'new';
 
-    if (shouldReplace) {
+    if (followUpSameQuestion) {
+      const cap = questionCapsules[0]!;
+      this.commitSession(
+        {
+          ...active,
+          updatedAt: Date.now(),
+          capsule: cap,
+          raw: result.raw,
+          question:
+            cleanSessionQuestion(active.question) ||
+            cap.meta.question?.trim() ||
+            cap.meta.topic,
+        },
+        true,
+      );
+      this.finishCapture(cap, result);
+      return;
+    }
+
+    for (let i = 0; i < questionCapsules.length; i++) {
+      const cap = questionCapsules[i]!;
+      const diagrams = allDiagrams(
+        cap.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])),
+        cap.solutionDiagrams,
+      );
+      const stepQualityIssues = cap.steps.flatMap((s) =>
+        auditStepQuality(s, { archetype: cap.meta.archetype }),
+      );
+      const diagramIssues = auditCapsuleDiagrams(cap);
+      const topic = cap.meta.topic;
+      const cleanedQuestion =
+        (i === 0 ? cleanSessionQuestion(question) : '') ||
+        cap.meta.question?.trim() ||
+        topic;
+      const last = store.sessions[store.sessions.length - 1];
+      const shouldReplace =
+        i === 0 &&
+        !this.pendingFollowUpCapture &&
+        last &&
+        store.activeSessionId === last.id &&
+        last.platform === this.adapter.id &&
+        cleanSessionQuestion(last.question) === cleanedQuestion;
+
+      const session: Session = {
+        id: shouldReplace ? last.id : makeId(),
+        createdAt: shouldReplace ? last.createdAt : Date.now(),
+        updatedAt: Date.now(),
+        platform: this.adapter.id,
+        question: cleanedQuestion,
+        capsule: cap,
+        raw: result.raw,
+      };
+      this.commitSession(session, Boolean(shouldReplace));
+      void trackEvent('question_solved', {
+        platform: this.adapter.id,
+        subject: cap.meta.subject,
+        steps: cap.steps.length,
+        prompt_variant: useStore.getState().settings.promptVariant,
+        parse_status: result.status,
+        warnings_count: result.warningCodes.length,
+        step_quality_warnings_count: stepQualityIssues.length,
+        diagram_warnings_count: diagramIssues.length,
+        step_work_ok: stepQualityIssues.length === 0 ? 1 : 0,
+        had_svg: diagrams.some((d) => d.type === 'svg'),
+        had_mermaid: diagrams.some((d) => d.type === 'mermaid'),
+      });
+    }
+    void rememberCurrentChat(this.adapter.id);
+    this.pendingFollowUpCapture = false;
+    this.resetInjection();
+  }
+
+  private commitSession(session: Session, replace: boolean): void {
+    if (replace) {
+      const id = session.id;
       useStore.setState((s) => {
         const maxStep = Math.max(0, session.capsule.steps.length - 1);
         return {
-          sessions: s.sessions.map((sess) => (sess.id === last.id ? session : sess)),
+          sessions: s.sessions.map((sess) => (sess.id === id ? session : sess)),
           activeStepIndex: Math.min(s.activeStepIndex, maxStep),
           status: 'ready',
           errorMessage: undefined,
         };
       });
     } else {
-      store.addSession(session);
+      useStore.getState().addSession(session);
     }
+  }
+
+  private finishCapture(capsule: Session['capsule'], result: ParseResult): void {
+    const diagrams = allDiagrams(
+      capsule.steps.flatMap((s) => (s.diagram ? [s.diagram] : [])),
+      capsule.solutionDiagrams,
+    );
+    const stepQualityIssues = capsule.steps.flatMap((s) =>
+      auditStepQuality(s, { archetype: capsule.meta.archetype }),
+    );
+    const diagramIssues = auditCapsuleDiagrams(capsule);
+    void rememberCurrentChat(this.adapter.id);
     this.pendingFollowUpCapture = false;
     this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,
-      subject: result.capsule.meta.subject,
-      steps: result.capsule.steps.length,
+      subject: capsule.meta.subject,
+      steps: capsule.steps.length,
       prompt_variant: useStore.getState().settings.promptVariant,
       parse_status: result.status,
       warnings_count: result.warningCodes.length,

@@ -19,6 +19,10 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
   const popupHtml = read('entrypoints/popup/index.html');
   const optionsHtml = read('entrypoints/options/index.html');
   const savedPdfHtml = read('entrypoints/saved-pdf/index.html');
+  const popupApp = read('entrypoints/popup/App.tsx');
+  const emptyState = read('src/components/EmptyState.tsx');
+  const wxt = read('wxt.config.ts');
+  const contentScript = read('entrypoints/content/index.ts');
   const mermaid = read('src/lib/mermaid.ts');
   const svgPresent = read('src/lib/svg-present.ts');
   const emit = read('src/lib/figure/emit.ts');
@@ -91,7 +95,42 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(panel).not.toContain('.slm-review ');
     expect(panel).not.toContain('.slm-solution-q');
     expect(panel).toContain('.slm-stepnav--overlay');
-    expect(panel).toContain('#2f2e2e');
+    expect(panel).toMatch(/\.slm-stepnav--overlay\s*\{[^}]*width:\s*auto/);
+    expect(panel).not.toMatch(/\.slm-stepnav--overlay\s*\{[^}]*width:\s*50%/);
+    expect(panel).not.toMatch(/\.slm-stepnav\s*\{[^}]*justify-content:\s*space-between/);
+    expect(panel).not.toContain('#3c3b3b');
+    expect(panel).toMatch(
+      /\.slm-panel\[data-stemlm-theme='light'\] \.slm-stepnav--overlay\s*\{[^}]*color-mix/,
+    );
+    expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*overflow-x:\s*auto/);
+    expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*scrollbar-width:\s*none/);
+    expect(panel).toContain('.slm-session-switch::-webkit-scrollbar');
     expect(panel).toContain('scrollbar-width: none');
+    expect(panel).toContain('.slm-header-leading');
+    expect(panel).toMatch(/\.slm-header-leading\s*\{[\s\S]*justify-content:\s*flex-start/);
+    expect(panel).toMatch(/\.slm-tabs\s*\{[\s\S]*height:\s*calc\(var\(--slm-brand-size/);
+  });
+
+  it('popup overlay uses panel tokens, a wider rounded shell, and Gemini-only hosts', () => {
+    const width = /\.slm-popup\s*\{[^}]*width:\s*(\d+)px/.exec(pages);
+    expect(width).toBeTruthy();
+    expect(Number(width![1])).toBeGreaterThan(420);
+    expect(pages).toContain('border-radius: var(--radius-xl)');
+    expect(pages).toContain('--slm-bg');
+    expect(pages).toContain('--slm-solid');
+    expect(pages).toContain('slm-launch-grid');
+    expect(pages).toContain('slm-library-overlay');
+    expect(popupHtml).toContain('IBM+Plex+Sans');
+    expect(optionsHtml).toContain('IBM+Plex+Sans');
+    expect(savedPdfHtml).toContain('IBM+Plex+Sans');
+    expect(popupApp).not.toContain('Open study panel');
+    expect(popupApp).not.toContain('Load conversation from this chat');
+    expect(popupApp).not.toContain('beside send');
+    expect(emptyState).not.toContain('beside send');
+    expect(emptyState).not.toContain('Open Gemini');
+    expect(wxt).toContain('*://gemini.google.com/*');
+    expect(wxt).not.toMatch(/chatgpt|claude|grok\.com/i);
+    expect(contentScript).toContain("*://gemini.google.com/*");
+    expect(contentScript).not.toMatch(/chatgpt|claude\.ai|grok\.com/i);
   });
 });

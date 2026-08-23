@@ -24,7 +24,7 @@ export interface TabWorkspaceBackup {
 
 export interface PendingPanelAction {
   tabId: number;
-  type: 'stemlm:open-panel' | 'stemlm:load-conversation';
+  type: 'stemlm:open-panel' | 'stemlm:load-conversation' | 'stemlm:ask-here';
 }
 
 type TabWorkspaceMap = Record<string, TabWorkspaceBackup>;
@@ -42,13 +42,28 @@ export interface PanelActionResult {
   loaded?: number;
 }
 
+export const WHOAMI_TYPE = 'stemlm:whoami' as const;
+
+export function isWhoamiMessage(msg: unknown): msg is { type: typeof WHOAMI_TYPE } {
+  return !!msg && typeof msg === 'object' && (msg as { type?: unknown }).type === WHOAMI_TYPE;
+}
+
+/** Background reply: content scripts have no chrome.tabs, so tab id comes from sender.tab. */
+export function handleWhoamiRequest(sender: { tab?: { id?: number } }): { tabId?: number } {
+  const tabId = sender.tab?.id;
+  return typeof tabId === 'number' ? { tabId } : {};
+}
+
 export async function getContentTabId(): Promise<number | undefined> {
   try {
-    const tab = await browser.tabs.getCurrent();
-    return tab?.id;
+    const res = (await browser.runtime.sendMessage({ type: WHOAMI_TYPE })) as
+      | { tabId?: unknown }
+      | undefined;
+    if (typeof res?.tabId === 'number') return res.tabId;
   } catch {
-    return undefined;
+    /* background asleep / tests without a whoami handler */
   }
+  return undefined;
 }
 
 export function workspaceFromStore(

@@ -30,6 +30,44 @@ export const SUBJECTS: Subject[] = [
   'General',
 ];
 
+export type Archetype =
+  | 'numeric'
+  | 'symbolic'
+  | 'proof'
+  | 'design'
+  | 'comparison'
+  | 'conceptual'
+  | 'code'
+  | 'lab'
+  | 'estimation';
+
+export const ARCHETYPES: Archetype[] = [
+  'numeric',
+  'symbolic',
+  'proof',
+  'design',
+  'comparison',
+  'conceptual',
+  'code',
+  'lab',
+  'estimation',
+];
+
+export type LevelBand = 'intro' | 'undergrad' | 'advanced' | 'research';
+
+export type CapsuleMode = 'full' | 'patch' | 'resolve' | 'new';
+
+export type VerifyMethod =
+  | 'dimensional'
+  | 'units'
+  | 'limit'
+  | 'oom'
+  | 'backsub'
+  | 'conservation'
+  | 'alt';
+
+export type VerifyStatus = 'pass' | 'fail';
+
 /** Hatch (`svg`/`mermaid`), five engines, leftover families, or an unknown token (not collapsed). */
 export type DiagramType = string;
 
@@ -39,6 +77,8 @@ export interface Diagram {
   content: string;
   /** Optional human caption (from `caption:` or the hatch). */
   caption?: string;
+  /** Stable figure id emitted as `@diagram id=fN`. */
+  id?: string;
 }
 
 export interface QuickCheck {
@@ -52,6 +92,8 @@ export interface Step {
   title: string;
   /** Display LaTeX (already in `$$...$$` or raw) for the key formula. */
   formula?: string;
+  /** Stable equation id emitted as `@formula id=eN`. */
+  formulaId?: string;
   /** Markdown body (may contain inline `$math$`). */
   body: string;
   diagram?: Diagram;
@@ -67,6 +109,26 @@ export interface CapsuleMeta {
   topic: string;
   /** Full verbatim problem statement — required when the student pasted an image. */
   question?: string;
+  /** Stable question object id (`q1`, `q2`, …). */
+  qid?: string;
+  archetype?: Archetype;
+  level?: LevelBand;
+  locale?: string;
+  mode?: CapsuleMode;
+}
+
+export interface UncertaintyBlock {
+  assumptions: string[];
+  lowConfidenceSteps: string[];
+  studentChecks: string[];
+}
+
+export interface VerificationBlock {
+  methods: VerifyMethod[];
+  status: VerifyStatus;
+  notes: string;
+  /** Visible correction when verification fails — never a silent re-solve. */
+  correction?: string;
 }
 
 /** The fully parsed structured answer. */
@@ -76,6 +138,19 @@ export interface Capsule {
   /** Plain-language full solution (markdown + math, may embed diagrams). */
   solution: string;
   solutionDiagrams: Diagram[];
+  uncertainty?: UncertaintyBlock;
+  verification?: VerificationBlock;
+}
+
+export type PatchOpKind = 'replace' | 'insert' | 'delete';
+
+export interface PatchOp {
+  op: PatchOpKind;
+  /** Target step id for replace/delete. */
+  id?: string;
+  /** Insert after this step id. */
+  after?: string;
+  step?: Step;
 }
 
 export type ParseStatus = 'ok' | 'partial' | 'empty';
@@ -124,6 +199,12 @@ export type ParseErrorCode =
 export interface ParseResult {
   status: ParseStatus;
   capsule?: Capsule;
+  /** Multi-question input: one capsule per `@q` object (capsule is questions[0]). */
+  questions?: Capsule[];
+  /** Follow-up diff against step ids (mode: patch). */
+  patch?: PatchOp[];
+  /** Truncation resume token from `@resume token=…`. */
+  resumeToken?: string;
   /** Warnings collected while parsing (missing blocks, recovered sections...). */
   warnings: string[];
   /** Stable warning codes for telemetry, scoring, and repair prompts. */

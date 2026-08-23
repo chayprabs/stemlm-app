@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useStore } from '@/src/state/store';
 import { OverlayButton } from '@/src/components/OverlayButton';
 import { Panel } from '@/src/components/Panel';
+import { SavedLibraryOverlay } from '@/src/components/SavedLibraryOverlay';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { applySplit, removeSplit } from '@/src/lib/split-screen';
 
@@ -13,6 +14,8 @@ import { applySplit, removeSplit } from '@/src/lib/split-screen';
  */
 export default function App() {
   const panelOpen = useStore((s) => s.panelOpen);
+  const savedLibraryOpen = useStore((s) => s.savedLibraryOpen);
+  const closeSavedLibrary = useStore((s) => s.closeSavedLibrary);
   const splitRatio = useStore((s) => s.splitRatio);
   const splitDragging = useStore((s) => s.splitDragging);
 
@@ -26,6 +29,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <OverlayButton />
+      {savedLibraryOpen && <SavedLibraryOverlay onClose={closeSavedLibrary} />}
       <AnimatePresence
         onExitComplete={() => {
           if (!useStore.getState().panelOpen) removeSplit();

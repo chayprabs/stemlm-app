@@ -14,8 +14,10 @@ vi.mock('wxt/browser', () => ({
       update: vi.fn(async (id: number) => ({ id })),
       create: vi.fn(async (info: { url?: string }) => ({ id: 99, url: info.url })),
       sendMessage: vi.fn(async (tabId: number, msg: unknown) => sendMessageImpl(tabId, msg)),
+      get: vi.fn(async (id: number) => ({ id, url: 'https://gemini.google.com/app', status: 'complete' })),
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
     },
+    windows: { update: vi.fn(async () => undefined) },
     storage: {
       session: {
         get: vi.fn(async (key: string) => {
@@ -36,7 +38,13 @@ vi.mock('wxt/browser', () => ({
 }));
 
 import { browser } from 'wxt/browser';
-import { deliverStemLmMessage, GEMINI_APP_URL, openGeminiTab } from './tab-bridge';
+import {
+  createGeminiTab,
+  deliverStemLmMessage,
+  GEMINI_APP_URL,
+  isRestrictedTabUrl,
+  openGeminiTab,
+} from './tab-bridge';
 import { setPanelActionResult } from './tab-workspace';
 
 describe('deliverStemLmMessage', () => {
@@ -92,5 +100,22 @@ describe('openGeminiTab', () => {
     vi.mocked(browser.tabs.update).mockRejectedValueOnce(new Error('restricted'));
     await openGeminiTab();
     expect(browser.tabs.create).toHaveBeenCalledWith({ url: GEMINI_APP_URL });
+  });
+});
+
+describe('createGeminiTab', () => {
+  it('always opens a new Gemini tab', async () => {
+    vi.mocked(browser.tabs.create).mockClear();
+    const tab = await createGeminiTab();
+    expect(browser.tabs.create).toHaveBeenCalledWith({ url: GEMINI_APP_URL, active: false });
+    expect(tab.id).toBe(99);
+  });
+});
+
+describe('isRestrictedTabUrl', () => {
+  it('rejects chrome pages and the Web Store', () => {
+    expect(isRestrictedTabUrl('chrome://extensions')).toBe(true);
+    expect(isRestrictedTabUrl('https://chromewebstore.google.com/detail/x')).toBe(true);
+    expect(isRestrictedTabUrl('https://gemini.google.com/app')).toBe(false);
   });
 });

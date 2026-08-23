@@ -17,6 +17,10 @@ export const ALT_END_MARKERS: Record<string, string> = {
   '@solutionend': '@endsolution',
   '@quickcheckend': '@endquickcheck',
   '@followupend': '@endfollowup',
+  '@qend': '@endq',
+  '@patchend': '@endpatch',
+  '@verifyend': '@endverify',
+  '@uncertaintyend': '@enduncertainty',
 };
 
 /** Every standalone protocol line token. */
@@ -48,6 +52,19 @@ export const PROTOCOL_LINE_MARKERS = new Set([
   '@endsolution',
   '@solutionend',
   '@end',
+  '@q',
+  '@endq',
+  '@qend',
+  '@patch',
+  '@endpatch',
+  '@patchend',
+  '@verify',
+  '@endverify',
+  '@verifyend',
+  '@uncertainty',
+  '@enduncertainty',
+  '@uncertaintyend',
+  '@resume',
 ]);
 
 function escapeRegExp(s: string): string {

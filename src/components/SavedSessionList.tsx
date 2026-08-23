@@ -12,10 +12,12 @@ import {
 import {
   ALL_SAVED_SUBJECTS,
   filterSavedSessions,
+  latestSavedSessions,
   savedSessionHeading,
   savedSessionSubject,
   savedSessionSubjects,
 } from '@/src/lib/saved-library';
+import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
 import { IconCheck, IconClose, IconFilter, IconHelp, IconPdf, IconSave, IconSearch } from './icons';
 
 const SAVED_HELP = 'Bookmark it in the panel. Click a question here for the PDF.';
@@ -38,7 +40,8 @@ function SavedHelp() {
   );
 }
 
-function SavedHead({ countLabel }: { countLabel?: string }) {
+function SavedHead({ countLabel, hide }: { countLabel?: string; hide?: boolean }) {
+  if (hide) return null;
   return (
     <div className="slm-saved-head">
       <h2 className="slm-popup-section-title">
@@ -129,16 +132,23 @@ export function SavedSessionList({
   sessions,
   onSessionsChange,
   onDownloaded,
+  variant = 'full',
+  hideHeading = false,
+  onOpenAll,
 }: {
   sessions: SavedSessionSnapshot[];
   onSessionsChange?: (sessions: SavedSessionSnapshot[]) => void;
   onDownloaded?: () => void;
+  variant?: 'compact' | 'full';
+  hideHeading?: boolean;
+  onOpenAll?: () => void;
 }) {
   const [items, setItems] = useState(sessions);
   const [query, setQuery] = useState('');
   const [subject, setSubject] = useState(ALL_SAVED_SUBJECTS);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const compact = variant === 'compact';
 
   useEffect(() => {
     setItems(sessions);
@@ -146,8 +156,8 @@ export function SavedSessionList({
 
   const subjects = useMemo(() => savedSessionSubjects(items), [items]);
   const visible = useMemo(
-    () => filterSavedSessions(items, { query, subject }),
-    [items, query, subject],
+    () => (compact ? latestSavedSessions(items) : filterSavedSessions(items, { query, subject })),
+    [compact, items, query, subject],
   );
 
   async function download(id: string) {
@@ -182,7 +192,7 @@ export function SavedSessionList({
   if (items.length === 0) {
     return (
       <section className="slm-popup-section" aria-label="Saved questions">
-        <SavedHead />
+        <SavedHead hide={hideHeading} />
         <div className="slm-saved-empty">
           <span className="slm-saved-empty-mark" aria-hidden="true">
             <IconSave width={22} height={22} />
@@ -194,28 +204,35 @@ export function SavedSessionList({
   }
 
   const countLabel =
-    visible.length === items.length ? `${items.length}` : `${visible.length} / ${items.length}`;
+    compact || visible.length === items.length
+      ? `${items.length}`
+      : `${visible.length} / ${items.length}`;
 
   return (
-    <section className="slm-popup-section" aria-label="Saved questions">
-      <SavedHead countLabel={countLabel} />
+    <section
+      className={`slm-popup-section ${compact ? 'slm-saved-compact' : 'slm-saved-full'}`}
+      aria-label="Saved questions"
+    >
+      <SavedHead countLabel={countLabel} hide={hideHeading} />
 
-      <div className="slm-saved-toolbar">
-        <div className="slm-saved-search-wrap">
-          <IconSearch width={14} height={14} aria-hidden="true" />
-          <input
-            type="text"
-            className="slm-saved-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            aria-label="Search saved questions"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <SubjectFilter subject={subject} subjects={subjects} onChange={setSubject} />
+      {!compact && (
+        <div className="slm-saved-toolbar">
+          <div className="slm-saved-search-wrap">
+            <IconSearch width={14} height={14} aria-hidden="true" />
+            <input
+              type="text"
+              className="slm-saved-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search"
+              aria-label="Search saved questions"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <SubjectFilter subject={subject} subjects={subjects} onChange={setSubject} />
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <p className="slm-popup-error">{error}</p>}
 
@@ -263,6 +280,12 @@ export function SavedSessionList({
             );
           })}
         </ul>
+      )}
+
+      {compact && onOpenAll && (
+        <button type="button" className="slm-saved-open-all" onClick={onOpenAll}>
+          {OPEN_ALL_SAVED_LABEL}
+        </button>
       )}
     </section>
   );

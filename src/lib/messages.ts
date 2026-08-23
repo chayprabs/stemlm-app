@@ -7,12 +7,16 @@ import { browser } from 'wxt/browser';
 export type StemLmMessage =
   | { type: 'stemlm:ping' }
   | { type: 'stemlm:open-panel' }
-  | { type: 'stemlm:load-conversation' };
+  | { type: 'stemlm:load-conversation' }
+  | { type: 'stemlm:ask-here' }
+  | { type: 'stemlm:open-saved-library' };
 
 const ALLOWED: StemLmMessage['type'][] = [
   'stemlm:ping',
   'stemlm:open-panel',
   'stemlm:load-conversation',
+  'stemlm:ask-here',
+  'stemlm:open-saved-library',
 ];
 
 export function isStemLmMessage(msg: unknown): msg is StemLmMessage {

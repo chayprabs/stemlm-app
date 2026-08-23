@@ -39,12 +39,42 @@ export function PanelHeader({
   return (
     <header className="slm-header">
       <div className="slm-header-bar slm-header-top">
-        <div className="slm-brand">
-          <BrandWordmark
-            key={themeToBrandVariant(theme)}
-            className="slm-brand-name"
-            variant={themeToBrandVariant(theme)}
-          />
+        <div className="slm-header-leading">
+          <div className="slm-brand">
+            <BrandWordmark
+              key={themeToBrandVariant(theme)}
+              className="slm-brand-name"
+              variant={themeToBrandVariant(theme)}
+            />
+          </div>
+          {session && (
+            <div className="slm-header-nav slm-header-bottom">
+              <div className="slm-tabs" role="tablist" aria-label="Study view">
+                <button
+                  type="button"
+                  role="tab"
+                  id="slm-tab-steps"
+                  aria-controls="slm-panel-steps"
+                  aria-selected={view === 'steps'}
+                  className={`slm-tab ${view === 'steps' ? 'is-active' : ''}`}
+                  onClick={() => onSetView('steps')}
+                >
+                  <IconLayers /> Steps
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="slm-tab-solution"
+                  aria-controls="slm-panel-solution"
+                  aria-selected={view === 'solution'}
+                  className={`slm-tab ${view === 'solution' ? 'is-active' : ''}`}
+                  onClick={() => onSetView('solution')}
+                >
+                  <IconBook /> Solution
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="slm-header-actions">
           <button
@@ -93,43 +123,14 @@ export function PanelHeader({
       </div>
 
       {session && (
-        <>
-          <div className="slm-header-nav slm-header-bottom">
-            <div className="slm-tabs" role="tablist" aria-label="Study view">
-              <button
-                type="button"
-                role="tab"
-                id="slm-tab-steps"
-                aria-controls="slm-panel-steps"
-                aria-selected={view === 'steps'}
-                className={`slm-tab ${view === 'steps' ? 'is-active' : ''}`}
-                onClick={() => onSetView('steps')}
-              >
-                <IconLayers /> Steps
-              </button>
-              <button
-                type="button"
-                role="tab"
-                id="slm-tab-solution"
-                aria-controls="slm-panel-solution"
-                aria-selected={view === 'solution'}
-                className={`slm-tab ${view === 'solution' ? 'is-active' : ''}`}
-                onClick={() => onSetView('solution')}
-              >
-                <IconBook /> Solution
-              </button>
-            </div>
+        <div className="slm-header-title slm-topic-row">
+          <span className="slm-question-icon" aria-hidden="true">
+            Q.
+          </span>
+          <div className="slm-topic-scroll">
+            <MathMarkdown content={heading} className="slm-topic" />
           </div>
-
-          <div className="slm-header-title slm-topic-row">
-            <span className="slm-question-icon" aria-hidden="true">
-              Q.
-            </span>
-            <div className="slm-topic-scroll">
-              <MathMarkdown content={heading} className="slm-topic" />
-            </div>
-          </div>
-        </>
+        </div>
       )}
     </header>
   );

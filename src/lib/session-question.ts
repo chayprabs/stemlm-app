@@ -32,6 +32,7 @@ export function resolveSessionQuestion(session: Session): string {
 
 function stripInjectedNoise(text: string): string {
   const markers = [
+    '--- stemLM ---',
     '--- stemLM',
     'stemLM instructions',
     'Ask your question here:',

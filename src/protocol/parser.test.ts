@@ -325,7 +325,7 @@ describe('atomic step guidance', () => {
   });
 
   it('warns when step count exceeds the maximum', () => {
-    const steps = Array.from({ length: 13 }, (_, i) =>
+    const steps = Array.from({ length: 21 }, (_, i) =>
       `@step\ntitle: Move ${i + 1}\n@body\nOne line.\n@endbody\n@endstep`,
     ).join('\n');
     const r = parseCapsule(`@meta\nsubject: Math\ntopic: test\n@endmeta\n${steps}\n@solution\ns\n@endsolution\n@end`);
@@ -551,4 +551,187 @@ describe('parse @diagram spec families', () => {
     expect(sfd.capsule!.steps[0]!.diagram!.type).toBe('sfd');
   });
 });
+
+describe('stable IDs, version, resume, multi-question, uncertainty', () => {
+  it('keeps emitted step, formula, and figure ids instead of step-${index}', () => {
+    const r = parseCapsule(
+      [
+        '@meta',
+        'version: 2',
+        'subject: Physics',
+        'topic: Range',
+        'question: Find the range of a 20 m/s launch at 45 degrees.',
+        'qid: q1',
+        'archetype: numeric',
+        'level: intro',
+        'locale: SI,decimal=.,circuit=IEC',
+        '@endmeta',
+        '@step id=s1',
+        'title: Write the range formula',
+        '@formula id=e1',
+        '$$R=u^2\\sin 2\\theta/g$$',
+        '@endformula',
+        '@body',
+        '$R$ is range in m.',
+        '@endbody',
+        '@diagram id=f1 type=plot',
+        'fn: 20*t',
+        'domain: 0 3',
+        'xlabel: t (s)',
+        'ylabel: x (m)',
+        '@enddiagram',
+        '@endstep',
+        '@verify',
+        'methods: units,limit',
+        'status: fail',
+        'notes: units of g were wrong',
+        'correction: g is 9.81 m/s^2 not 9.81 cm/s^2',
+        '@endverify',
+        '@uncertainty',
+        'assumption: g = 9.81 m/s^2 (not given)',
+        'low_confidence: s1',
+        'check: Confirm the photo shows 45 degrees not 45 rad',
+        '@enduncertainty',
+        '@solution',
+        'Range follows from the formula.',
+        '@endsolution',
+        '@end',
+      ].join('\n'),
+    );
+    expect(r.status).toBe('ok');
+    expect(r.capsule?.meta.version).toBe(2);
+    expect(r.capsule?.meta.qid).toBe('q1');
+    expect(r.capsule?.meta.archetype).toBe('numeric');
+    expect(r.capsule?.meta.question).toContain('20 m/s');
+    expect(r.capsule?.steps[0]!.id).toBe('s1');
+    expect(r.capsule?.steps[0]!.id).not.toBe('step-1');
+    expect(r.capsule?.steps[0]!.formulaId).toBe('e1');
+    expect(r.capsule?.steps[0]!.diagram?.id).toBe('f1');
+    expect(r.capsule?.verification?.status).toBe('fail');
+    expect(r.capsule?.verification?.correction).toContain('9.81');
+    expect(r.capsule?.uncertainty?.assumptions[0]).toContain('9.81');
+    expect(r.capsule?.uncertainty?.lowConfidenceSteps).toContain('s1');
+  });
+
+  it('still yields known blocks when version is a future number', () => {
+    const r = parseCapsule(
+      '@meta\nversion: 99\nsubject: Math\ntopic: Future\n@endmeta\n@step id=s1\ntitle: A\n@body\nb\n@endbody\n@endstep\n@solution\ns\n@endsolution\n@end',
+    );
+    expect(r.status).toBe('ok');
+    expect(r.capsule?.meta.version).toBe(99);
+    expect(r.capsule?.steps[0]!.id).toBe('s1');
+  });
+
+  it('parses multi-question input into N objects', () => {
+    const r = parseCapsule(
+      [
+        '@meta',
+        'version: 2',
+        'subject: Physics',
+        'topic: Homework page',
+        '@endmeta',
+        '@q id=q1',
+        'topic: Range',
+        'question: Find the range.',
+        '@step id=q1.s1',
+        'title: Write the range formula',
+        '@body',
+        '$R$ is range.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'R = 40 m',
+        '@endsolution',
+        '@endq',
+        '@q id=q2',
+        'topic: Time of flight',
+        'question: Find the time of flight.',
+        '@step id=q2.s1',
+        'title: Write the flight-time formula',
+        '@body',
+        '$T$ is time of flight.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'T = 2.9 s',
+        '@endsolution',
+        '@endq',
+        '@end',
+      ].join('\n'),
+    );
+    expect(r.questions).toHaveLength(2);
+    expect(r.questions![0]!.meta.qid).toBe('q1');
+    expect(r.questions![1]!.meta.qid).toBe('q2');
+    expect(r.questions![0]!.steps[0]!.id).toBe('q1.s1');
+    expect(r.questions![1]!.steps[0]!.id).toBe('q2.s1');
+    expect(r.capsule?.meta.qid).toBe('q1');
+  });
+
+  it('does not warn step_missing_substitution on a proof capsule', () => {
+    const r = parse(
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Math',
+        'topic: Even square',
+        'question: Prove that if n is even then n^2 is even.',
+        'archetype: proof',
+        '@endmeta',
+        '@step id=s1',
+        'title: Assume n is even',
+        '@body',
+        'Let $n=2k$ for some integer $k$ (definition of even). This step does not substitute a numeric example.',
+        '@endbody',
+        '@endstep',
+        '@step id=s2',
+        'title: Expand n squared',
+        '@formula id=e1',
+        '$$n^2=(2k)^2=4k^2=2(2k^2)$$',
+        '@endformula',
+        '@body',
+        '$n^2$ is twice the integer $2k^2$, so $n^2$ is even by definition.',
+        '@endbody',
+        '@endstep',
+        '@step id=s3',
+        'title: Conclude from the definition',
+        '@body',
+        'Every even $n$ has even $n^2$. No numeric plug-in was used.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'If $n$ is even then $n^2$ is even.',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    );
+    expect(r.status).toBe('ok');
+    expect(r.capsule?.meta.archetype).toBe('proof');
+    expect(r.warningCodes).not.toContain('step_missing_substitution');
+    expect(r.capsule?.steps[1]!.id).toBe('s2');
+  });
+
+  it('records a resume token on a truncated capsule', () => {
+    const r = parseCapsule(
+      [
+        '@meta',
+        'version: 2',
+        'subject: Math',
+        'topic: Cut off',
+        '@endmeta',
+        '@step id=s1',
+        'title: Start',
+        '@body',
+        'First move.',
+        '@endbody',
+        '@endstep',
+        '@resume token=zz99aa00',
+      ].join('\n'),
+    );
+    expect(r.resumeToken).toBe('zz99aa00');
+    expect(r.capsule?.steps[0]!.id).toBe('s1');
+  });
+});
+
 

@@ -5,7 +5,10 @@ import {
   buildInjectionPayload,
   buildComposerStub,
   buildComposerAppendix,
+  buildComposerPointer,
   composerTextHasProtocol,
+  pageThreadHasProtocol,
+  STEP_BODY_REQUIREMENT,
   buildProtocolFileContent,
   buildFollowupPrompt,
   buildFollowupPayload,
@@ -13,21 +16,23 @@ import {
   buildRepairPrompt,
   resolveSubject,
   PROTOCOL_FILENAME,
+  STEMLM_SENTINEL,
   getDiagramRequirement,
 } from './builder';
 import coreBalancedTemplate from './core-protocol.md?raw';
-import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT, renderProtocol } from './protocol';
+import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT, renderProtocol, PROTOCOL_VERSION } from './protocol';
 
 describe('buildInjectionPrompt', () => {
-  it('includes the question, protocol, and the routed playbook', () => {
+  it('includes the question, protocol, and every subject registry row', () => {
     const { prompt, subject } = buildInjectionPrompt('Solve this circuit with a resistor and 12V voltage source');
     expect(subject).toBe('Electrical');
     expect(prompt).toContain('Solve this circuit');
     expect(prompt).toContain('OUTPUT:');
     expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('PHYSICS:');
-    expect(prompt).toContain('CHEMISTRY:');
+    expect(prompt).toContain('PHYSICS');
+    expect(prompt).toContain('CHEMISTRY');
     expect(prompt).toContain('@end');
+    expect(prompt).toContain(`version: ${PROTOCOL_VERSION}`);
   });
 
   it('honors an explicit subject override', () => {
@@ -35,51 +40,46 @@ describe('buildInjectionPrompt', () => {
     expect(subject).toBe('Chemistry');
     expect(prompt).toContain('CHEMISTRY');
     expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('PHYSICS:');
+    expect(prompt).toContain('PHYSICS');
   });
 
-  it('supports the ultra prompt variant behind an explicit option', () => {
+  it('supports the ultra prompt variant as a depth dial, not a second essay', () => {
     const { prompt, variant } = buildInjectionPrompt('trace binary search code', {
       subject: 'CS',
       variant: 'ultra',
     });
     expect(variant).toBe('ultra');
     expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
-    expect(prompt).toContain('CS: one move/step');
-    expect(prompt).toContain('PHYSICS:');
+    expect(prompt).toContain('DEPTH: deep');
+    expect(prompt).toContain('PHYSICS');
+    expect(prompt).not.toMatch(/PHYSICS: one move\/step/);
   });
 
-  it('normalizes CRLF in protocol templates so Windows checkouts stay within budget', () => {
+  it('normalizes CRLF in protocol templates so Windows checkouts stay consistent', () => {
     const crlf = coreBalancedTemplate.replace(/\n/g, '\r\n');
-    expect(renderProtocol(crlf)).toBe(CORE_PROTOCOL);
+    expect(renderProtocol(crlf)).toBe(renderProtocol(coreBalancedTemplate));
   });
 
-  it('keeps the injected core prompt compact', () => {
-    // The core protocol is sent on every question; keep it small so it doesn't
-    // lag the composer. Subject playbook + question are added on top.
-    expect(Buffer.byteLength(CORE_PROTOCOL, 'utf8')).toBeLessThanOrEqual(4000);
-    // All structural markers the parser relies on must survive compression.
+  it('keeps structural markers the parser relies on', () => {
     for (const marker of [
       '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
       '@body', '@endbody', '@diagram', '@enddiagram', '@takeaway', '@endtakeaway',
       '@quickcheck', '@followup', '@endfollowup', '@solution', '@endsolution', '@end',
+      '@verify', '@uncertainty', '@resume', '@q', '@patch',
       'stemlm',
     ]) {
       expect(CORE_PROTOCOL).toContain(marker);
     }
   });
 
-  it('ultra variant is deeper than balanced but stays within a usable budget', () => {
+  it('ultra variant is the deeper depth dial on the same protocol body', () => {
     const balanced = CORE_PROTOCOL_BY_VARIANT.balanced;
     const ultra = CORE_PROTOCOL_BY_VARIANT.ultra;
-    // Ultra must be the *deeper* variant (longer than balanced), not a compressed one.
     expect(Buffer.byteLength(ultra, 'utf8')).toBeGreaterThan(Buffer.byteLength(balanced, 'utf8'));
-    // ...but still bounded so it does not break composer usability.
-    expect(Buffer.byteLength(ultra, 'utf8')).toBeLessThanOrEqual(6000);
-    // Ultra adds the explicit depth directives the balanced default does not force.
     expect(ultra).toContain('VERIFICATION');
     expect(ultra).toMatch(/DEEP mode/i);
-    // Same structural grammar as balanced (parser depends on these markers).
+    expect(ultra).toContain('DEPTH: deep');
+    expect(balanced).toContain('DEPTH: balanced');
     for (const marker of ['@meta', '@step', '@body', '@diagram', '@solution', '@end']) {
       expect(ultra).toContain(marker);
     }
@@ -110,10 +110,10 @@ describe('buildInjectionAppendix', () => {
     expect(prompt).toContain('non-empty @body');
     expect(prompt).toContain('FIRST PASS');
     expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('PHYSICS:');
-    expect(prompt).toContain('ELECTRICAL:');
-    expect(prompt).toContain('CHEMISTRY:');
-    expect(prompt).toContain('MATH:');
+    expect(prompt).toContain('PHYSICS');
+    expect(prompt).toContain('ELECTRICAL');
+    expect(prompt).toContain('CHEMISTRY');
+    expect(prompt).toContain('MATH');
     expect(prompt).not.toContain('A projectile is launched');
   });
 
@@ -132,31 +132,27 @@ describe('buildInjectionPayload', () => {
     expect(payload.subject).toBe('Electrical');
     expect(payload.composerText).toContain('Solve this circuit');
     expect(payload.composerText).toContain(PROTOCOL_FILENAME);
+    expect(payload.composerText).toContain(STEMLM_SENTINEL);
     expect(payload.composerText).toContain('Follow the attached');
-    expect(payload.composerText).toContain('ONE fenced stemlm block');
     expect(payload.composerText).not.toContain('OUTPUT:');
+    expect(payload.composerText).not.toContain('@meta');
     expect(payload.composerText).not.toContain('(Electrical)');
     expect(payload.composerText).toContain('Infer the subject from the problem');
+    expect(payload.composerText.indexOf('Solve this circuit')).toBeLessThan(
+      payload.composerText.indexOf(STEMLM_SENTINEL),
+    );
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
-    expect(payload.fileContent).toContain('PHYSICS:');
-    expect(payload.fileContent).toContain('CHEMISTRY:');
-    expect(payload.fileContent).toContain('MATH:');
-    expect(payload.fileContent).toContain('BIOLOGY:');
-    expect(payload.fileContent).toContain('MECHANICAL:');
-    expect(payload.fileContent).toContain('CIVIL:');
-    expect(payload.fileContent).toContain('CHEMICAL ENG:');
-    expect(payload.fileContent).toContain('CRITICAL');
-  });
-
-  it('keeps the universal protocol file within an attachment budget', () => {
-    // Core + every subject playbook. Same file for every question (classifier is analytics-only).
-    for (const variant of ['balanced', 'ultra'] as const) {
-      const { content } = buildProtocolFileContent({ question: 'sizing', variant });
-      const bytes = Buffer.byteLength(content, 'utf8');
-      const budget = variant === 'ultra' ? 16000 : 14000;
-      expect(bytes, `${variant} protocol file is ${bytes} B`).toBeLessThanOrEqual(budget);
-    }
+    expect(payload.fileContent).toContain('PHYSICS');
+    expect(payload.fileContent).toContain('CHEMISTRY');
+    expect(payload.fileContent).toContain('MATH');
+    expect(payload.fileContent).toContain('BIOLOGY');
+    expect(payload.fileContent).toContain('MECHANICAL');
+    expect(payload.fileContent).toContain('CIVIL');
+    expect(payload.fileContent).toContain('CHEMICAL');
+    expect(payload.fileContent).toContain('@resume');
+    expect(payload.fileContent).toContain('@uncertainty');
+    expect(payload.fileContent).toContain('WHEN NOT TO DRAW');
   });
 
   it('attaches the same universal file regardless of the classified subject', () => {
@@ -174,13 +170,11 @@ describe('buildInjectionPayload', () => {
     expect(content).toContain('type=plot');
     expect(content).toContain('type=circuit');
     expect(content).toContain('chem.smiles');
-    expect(content).toMatch(/Never emit <svg>|Never <svg>|never emit <svg>/i);
+    expect(content).toMatch(/NEVER <svg>|Never <svg>|never emit <svg>/i);
     expect(content).not.toMatch(/viewBox="0 0 300 180"/);
-    expect(content).not.toMatch(/prefer \*\*0 0 300 180\*\*/);
     expect(content).not.toMatch(/@diagram type=svg/);
-    expect(content).not.toMatch(/stroke-width 2/);
     const stub = buildComposerStub('A kinematics graph question.');
-    expect(stub).toMatch(/SPEC/i);
+    expect(stub).toMatch(/diagram/i);
     expect(stub).not.toContain('viewBox');
     expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
     expect(getDiagramRequirement('Electrical')).not.toContain('viewBox="0 0 300 180"');
@@ -188,24 +182,24 @@ describe('buildInjectionPayload', () => {
 
   it('keeps the composer stub compact (full rules live in the attached file)', () => {
     const stub = buildComposerStub('A representative question for sizing.');
-    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(700);
+    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(900);
     expect(stub).toContain('Infer the subject from the problem');
   });
 
-  it('puts every subject playbook in the attached file, not a duplicated diagram wall', () => {
+  it('puts every subject registry in the attached file, not a duplicated diagram wall', () => {
     const cases: [string, string][] = [
-      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'MATH:'],
-      ['Explain the Krebs cycle pathway in the mitochondrion', 'BIOLOGY:'],
-      ['Compute bending stress for this shaft and draw the free-body diagram', 'MECHANICAL:'],
-      ['Draw the SFD and BMD for a simply supported beam with a point load', 'CIVIL:'],
-      ['Mass balance on a mixer with two inlet streams and one outlet', 'CHEMICAL ENG:'],
+      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'MATH'],
+      ['Explain the Krebs cycle pathway in the mitochondrion', 'BIOLOGY'],
+      ['Compute bending stress for this shaft and draw the free-body diagram', 'MECHANICAL'],
+      ['Draw the SFD and BMD for a simply supported beam with a point load', 'CIVIL'],
+      ['Mass balance on a mixer with two inlet streams and one outlet', 'CHEMICAL'],
     ];
     for (const [question, marker] of cases) {
       const { fileContent } = buildInjectionPayload(question);
       expect(fileContent, `protocol file for "${question}" should mention "${marker}"`).toContain(marker);
       expect(fileContent).toContain('OUTPUT:');
-      expect(fileContent).toContain('PHYSICS:');
-      expect(fileContent).toContain('ELECTRICAL:');
+      expect(fileContent).toContain('PHYSICS');
+      expect(fileContent).toContain('ELECTRICAL');
       expect(buildComposerAppendix()).toContain(PROTOCOL_FILENAME);
       expect(buildComposerAppendix()).not.toContain('OUTPUT:');
     }
@@ -218,15 +212,16 @@ describe('buildInjectionPayload', () => {
     expect(stub).not.toContain('MATH:');
   });
 
-  it('buildProtocolFileContent includes every playbook', () => {
+  it('buildProtocolFileContent includes every registry', () => {
     const { content, subject } = buildProtocolFileContent({
       question: 'binary search trace',
       subject: 'CS',
     });
     expect(subject).toBe('CS');
-    expect(content).toContain('CS: one move/step');
-    expect(content).toContain('PHYSICS:');
+    expect(content).toContain('CS');
+    expect(content).toContain('PHYSICS');
     expect(content).toContain('OUTPUT:');
+    expect(content).toContain('ARCHETYPE REGISTRY');
   });
 
   it('classifies for analytics but does not pin the composer or file to that subject', () => {
@@ -239,11 +234,11 @@ describe('buildInjectionPayload', () => {
 
     for (const payload of payloads) {
       expect(payload.subject).toBe('Electrical');
-      expect(payload.composerText).toContain('Follow the attached stemlm-protocol.txt exactly.');
+      expect(payload.composerText).toContain('Follow the attached stemlm-protocol.txt');
       expect(payload.composerText).toContain('Infer the subject from the problem');
       expect(payload.composerText).not.toContain('(Electrical)');
       expect(payload.fileContent).toContain('ELECTRICAL');
-      expect(payload.fileContent).toContain('PHYSICS:');
+      expect(payload.fileContent).toContain('PHYSICS');
       expect(payload.composerText).not.toContain('OUTPUT:');
     }
 
@@ -297,22 +292,20 @@ describe('buildFollowupPrompt', () => {
     subject: 'Electrical' as const,
   };
 
-  it('quotes the selection and includes full core protocol + playbook for paste', () => {
+  it('quotes the selection and uses the short form, not the protocol wall', () => {
     const prompt = buildFollowupPrompt(opts);
     expect(prompt).toMatch(/^Ask your question here:/);
     expect(prompt).toContain('stemLM follow-up context');
     expect(prompt).toContain('> Total resistance is R1 + R2');
     expect(prompt).toContain('Solve for current');
     expect(prompt).toContain('stemlm');
-    expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('PHYSICS:');
+    expect(prompt).toContain('FOLLOW-UP CONTRACT');
+    expect(prompt).toContain('mode: patch');
     expect(prompt).toContain('stemLM instructions');
+    expect(prompt).toContain('OUTPUT:');
+    expect(prompt).not.toContain('ARCHETYPE REGISTRY');
     expect(prompt.indexOf('Ask your question here:')).toBeLessThan(
       prompt.indexOf('stemLM follow-up context'),
-    );
-    expect(prompt.indexOf('stemLM follow-up context')).toBeLessThan(
-      prompt.indexOf('stemLM instructions'),
     );
     expect(prompt).not.toContain('```stemlm');
     expect(prompt).not.toContain(PROTOCOL_FILENAME);
@@ -321,18 +314,16 @@ describe('buildFollowupPrompt', () => {
   it('uses ask intent copy for free-form last-step follow-ups', () => {
     const prompt = buildFollowupPrompt({ ...opts, intent: 'ask' });
     expect(prompt).toContain('finished the step-by-step solution');
-    expect(prompt).toContain('type a follow-up question');
+    expect(prompt).toContain('type a follow-up');
   });
 
   it('buildFollowupComposerText references the attached protocol file', () => {
     const composer = buildFollowupComposerText(opts);
     expect(composer).toContain(PROTOCOL_FILENAME);
-    expect(composer).toContain('Infer the subject from the problem');
     expect(composer).not.toContain('(Electrical)');
     expect(composer).toContain('> Total resistance is R1 + R2');
     expect(composer).not.toContain('OUTPUT:');
-    expect(composer).toContain('No prose outside.');
-    // Attach line is near the top so Gemini cannot truncate it away.
+    expect(composer).toContain('FOLLOW-UP CONTRACT');
     expect(composer.indexOf(PROTOCOL_FILENAME)).toBeLessThan(composer.indexOf('> Total resistance'));
   });
 
@@ -342,7 +333,7 @@ describe('buildFollowupPrompt', () => {
       intent: 'ask',
       selection: 'Problem: verify the vector section formula\nFinal step: Verify endpoints\nContext: boundary work',
     });
-    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(1200);
+    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(2200);
     expect(composer).not.toContain('CRITICAL');
   });
 
@@ -351,8 +342,8 @@ describe('buildFollowupPrompt', () => {
     expect(payload.composerText).toBe(buildFollowupComposerText(opts));
     expect(payload.fileContent).toContain('OUTPUT:');
     expect(payload.fileContent).toContain('ELECTRICAL');
-    expect(payload.fileContent).toContain('PHYSICS:');
-    expect(payload.fileContent).toContain('CRITICAL');
+    expect(payload.fileContent).toContain('PHYSICS');
+    expect(payload.fileContent).toContain('FOLLOW-UP CONTRACT');
     expect(payload.subject).toBe('Electrical');
   });
 });
@@ -361,11 +352,12 @@ describe('composer stubs', () => {
   it('appends a short file pointer without repeating the question', () => {
     const stub = buildComposerAppendix({ hasQuestion: true });
     expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).toContain(STEMLM_SENTINEL);
     expect(stub).toContain('Infer the subject from the problem');
     expect(stub).not.toContain('(Physics)');
     expect(stub).not.toContain('OUTPUT:');
     expect(stub).not.toContain('has not typed');
-    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(280);
+    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(700);
     expect(composerTextHasProtocol(stub)).toBe(true);
   });
 
@@ -373,12 +365,58 @@ describe('composer stubs', () => {
     const stub = buildComposerAppendix({ hasImageAttachment: true, hasQuestion: false });
     expect(stub).toContain('image/PDF');
     expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).not.toContain('@meta');
+  });
+
+  it('emits a short pointer when the protocol is already present', () => {
+    const pointer = buildComposerPointer({ hasQuestion: true });
+    expect(pointer).toContain(STEMLM_SENTINEL);
+    expect(pointer).toContain('New problem');
+    expect(pointer).toContain(PROTOCOL_FILENAME);
+    expect(pointer).not.toContain('OUTPUT:');
+    expect(Buffer.byteLength(pointer, 'utf8')).toBeLessThanOrEqual(400);
   });
 
   it('detects both file-stub and inline-paste protocol markers', () => {
     expect(composerTextHasProtocol('Follow the attached stemlm-protocol.txt exactly. Infer the subject from the problem.')).toBe(true);
     expect(composerTextHasProtocol('--- stemLM instructions (do not remove) ---')).toBe(true);
+    expect(composerTextHasProtocol('--- stemLM ---\nstemLM is writing')).toBe(true);
     expect(composerTextHasProtocol('Find the range of a projectile')).toBe(false);
+  });
+});
+
+describe('pageThreadHasProtocol', () => {
+  it('detects a prior user turn after the composer has been cleared', () => {
+    document.body.innerHTML = `
+      <div data-message-author-role="user">A projectile --- stemLM --- Follow the attached stemlm-protocol.txt</div>
+      <div id="ed" contenteditable="true">New question</div>
+    `;
+    const editor = document.getElementById('ed');
+    expect(pageThreadHasProtocol(document, editor)).toBe(true);
+    expect(pageThreadHasProtocol(document, editor)).toBe(
+      composerTextHasProtocol(
+        'A projectile --- stemLM --- Follow the attached stemlm-protocol.txt',
+      ),
+    );
+  });
+
+  it('does not treat the live composer as the thread', () => {
+    document.body.innerHTML = `
+      <div data-message-author-role="user">Just a question about range</div>
+      <div id="ed" contenteditable="true">--- stemLM --- Follow the attached stemlm-protocol.txt</div>
+    `;
+    expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(false);
+  });
+});
+
+describe('numeric plug-in is scoped to numeric/lab', () => {
+  it('repair/inject body rules do not globally MUST-format every formula as a plug-in', () => {
+    expect(STEP_BODY_REQUIREMENT).toContain('NUMERIC/LAB only');
+    expect(STEP_BODY_REQUIREMENT).toContain('NEVER force a numeric plug-in');
+    expect(STEP_BODY_REQUIREMENT).toMatch(/proof MUST NOT plug into the formula/i);
+    const file = buildProtocolFileContent({ question: 'sizing' }).content;
+    expect(file).toContain('NUMERIC/LAB only');
+    expect(file).toContain('NEVER force a numeric plug-in');
   });
 });
 

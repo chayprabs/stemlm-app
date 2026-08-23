@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StemController } from './controller';
 import { attachTextFile } from '@/src/lib/file-inject';
-import { PROTOCOL_FILENAME } from '@/src/protocol/builder';
+import { PROTOCOL_FILENAME, STEMLM_SENTINEL } from '@/src/protocol/builder';
 
 vi.mock('@/src/lib/file-inject', () => ({
   attachTextFile: vi.fn(async () => ({ ok: false, method: 'none' as const })),
@@ -175,8 +175,13 @@ describe('StemController.inject', () => {
     );
     expect(adapter.editorText).toContain('Solve this circuit');
     expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain(STEMLM_SENTINEL);
     expect(adapter.editorText).toContain('Follow the attached');
     expect(adapter.editorText).toContain('Infer the subject from the problem');
+    expect(adapter.editorText.indexOf('Solve this circuit')).toBeLessThan(
+      adapter.editorText.indexOf(STEMLM_SENTINEL),
+    );
+    expect(adapter.inserted).not.toContain('Solve this circuit');
     expect(adapter.editorText).not.toContain('(Electrical)');
     expect(adapter.editorText).not.toContain('OUTPUT:');
     expect(adapter.editorText).not.toContain('--- stemLM instructions');
@@ -239,7 +244,7 @@ describe('StemController.inject', () => {
     expect(file).toContain('BIOLOGY:');
     expect(file).toContain('MECHANICAL:');
     expect(file).toContain('CIVIL:');
-    expect(file).toContain('CHEMICAL ENG:');
+    expect(file).toContain('CHEMICAL');
     expect(adapter.inserted).not.toContain('(Electrical)');
     expect(adapter.inserted).toContain('Infer the subject from the problem');
     c.stopWatching();
@@ -321,6 +326,49 @@ describe('StemController.inject', () => {
     expect(useStore.getState().status).toBe('error');
     c.stopWatching();
   });
+
+  it('injects a short pointer when the protocol is already in the composer', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'First question about a projectile';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    c.resetInjection();
+    adapter.editorText = `Another projectile question\n${adapter.editorText}`;
+    expect(await c.inject()).toBe(true);
+    expect(adapter.inserted).toContain('New problem');
+    expect(adapter.inserted).toContain(STEMLM_SENTINEL);
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    expect(adapter.inserted).not.toContain('@meta');
+    expect(adapter.editorText).toContain('Another projectile question');
+    c.stopWatching();
+  });
+
+  it('injects a short pointer when the protocol is already in the thread, not only the composer', async () => {
+    document.body.innerHTML = `
+      <div data-message-author-role="user">
+        Find the range of a projectile
+        --- stemLM ---
+        Follow the attached stemlm-protocol.txt
+      </div>
+      <div id="ed" contenteditable="true"></div>
+    `;
+    const adapter = new MockAdapter();
+    adapter.findEditor = () => document.getElementById('ed');
+    adapter.editorText = 'A new kinematics question on the same chat';
+    const c = new StemController(adapter);
+
+    expect(await c.inject()).toBe(true);
+    expect(adapter.inserted).toContain('New problem');
+    expect(adapter.inserted).toContain(STEMLM_SENTINEL);
+    expect(adapter.inserted).not.toContain('textbook-style solution');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    expect(adapter.inserted).not.toContain('@meta');
+    expect(adapter.editorText).toContain('A new kinematics question');
+    expect(adapter.editorText.indexOf('A new kinematics question')).toBeLessThan(
+      adapter.editorText.indexOf(STEMLM_SENTINEL),
+    );
+    c.stopWatching();
+  });
 });
 
 describe('StemController.followUp', () => {
@@ -392,16 +440,19 @@ describe('StemController.followUp', () => {
     expect(ok).toBe(true);
     expect(adapter.editorText).toContain('stemLM follow-up context');
     const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
-    expect(file).toContain('SUBJECT ROUTING');
+    expect(file).toContain('SUBJECT REGISTRY');
     expect(file).toContain('PHYSICS:');
     expect(file).toContain('ELECTRICAL:');
-    expect(file).toContain('CHEMICAL ENG:');
+    expect(file).toContain('CHEMICAL');
     expect(adapter.inserted).toContain('Follow the attached');
+    expect(adapter.inserted).toContain('FOLLOW-UP CONTRACT');
     expect(adapter.inserted).not.toContain('--- stemLM instructions');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    expect(adapter.inserted).not.toContain('ARCHETYPE REGISTRY');
     c.stopWatching();
   });
 
-  it('adds a new session for follow-up answers instead of replacing the original', async () => {
+  it('applies a same-question follow-up to the current session instead of opening a new blob', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
 
@@ -419,8 +470,78 @@ describe('StemController.followUp', () => {
     await new Promise((r) => setTimeout(r, 500));
 
     const sessions = useStore.getState().sessions;
-    expect(sessions).toHaveLength(2);
+    expect(sessions).toHaveLength(1);
     expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.topic).toBe('Follow-up explanation');
+    c.stopWatching();
+  });
+
+  it('applies an id patch from ask-in-chat onto the current question', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const withIds = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Electrical',
+      'topic: Series resistors',
+      'qid: q1',
+      '@endmeta',
+      '@step id=s1',
+      'title: Add the resistors',
+      '@body',
+      '$R_T$ is 6 ohm.',
+      '@endbody',
+      '@endstep',
+      '@step id=s2',
+      'title: Compute current',
+      '@body',
+      '$I$ is 2 mA.',
+      '@endbody',
+      '@endstep',
+      '@solution',
+      'I = 2 mA',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    adapter.capsules = [withIds];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions[0]!.capsule.steps[1]!.body).toContain('2 mA');
+    c.stopWatching();
+
+    await c.followUp('step 2 is wrong, current is 2 A', 'Compute current', 'Electrical');
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'qid: q1',
+        'mode: patch',
+        '@endmeta',
+        '@patch op=replace id=s2',
+        '@step id=s2',
+        'title: Compute current with correct units',
+        '@body',
+        '$I$ is 2 A because $12/6=2\\,\\text{A}$.',
+        '@endbody',
+        '@endstep',
+        '@endpatch',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.capsule.steps).toHaveLength(2);
+    expect(sessions[0]!.capsule.steps[1]!.id).toBe('s2');
+    expect(sessions[0]!.capsule.steps[1]!.title).toContain('correct units');
+    expect(sessions[0]!.capsule.steps[0]!.id).toBe('s1');
     c.stopWatching();
   });
 });

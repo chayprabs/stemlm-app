@@ -19,6 +19,19 @@ export interface SavedFilterable {
 
 export const ALL_SAVED_SUBJECTS = 'all';
 
+/** Compact popup strip — latest N only. Search lives in the full overlay. */
+export const COMPACT_SAVED_LIMIT = 3;
+export const OPEN_ALL_SAVED_LABEL = 'Open all saved questions';
+
+/** Most recently saved first, capped. Callers pass snapshots that include `savedAt`. */
+export function latestSavedSessions<T extends { savedAt: number }>(
+  items: readonly T[],
+  limit = COMPACT_SAVED_LIMIT,
+): T[] {
+  const cap = Math.max(0, limit);
+  return [...items].sort((a, b) => b.savedAt - a.savedAt).slice(0, cap);
+}
+
 export interface SavedSessionQuery {
   /** Case-insensitive match against question and topic. Empty = no text filter. */
   query?: string;

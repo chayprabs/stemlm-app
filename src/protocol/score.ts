@@ -67,7 +67,9 @@ export async function scoreRaw(raw: string, theme: ResolvedTheme = 'light'): Pro
   const parseOk = result.status === 'ok' && stepCount >= 3 ? 1 : 0;
   const stepWorkOk =
     capsule && capsule.steps.length > 0
-      ? capsule.steps.every((step) => auditStepQuality(step).length === 0)
+      ? capsule.steps.every(
+          (step) => auditStepQuality(step, { archetype: capsule.meta.archetype }).length === 0,
+        )
         ? 1
         : 0
       : 0;
