@@ -20,7 +20,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     marker: 'PHYSICS',
     archetypes: 'numeric,symbolic,conceptual,lab,estimation',
     diagrams:
-      'scene(fbd,ray,geom,field),plot,circuit,ray,field,phasor,minkowski,feynman,mo,sfd',
+      'scene(fbd,ray,geom,field),plot,circuit,ray,field,phasor,minkowski,feynman,mo',
     verify: 'dimensional,units,limit,oom,conservation,backsub',
     nodraw: 'pure algebra after the system is drawn; unit conversion; definition-only',
     notation: 'SI; g from problem else 9.81 listed in @uncertainty; radians unless stated',
@@ -136,14 +136,12 @@ export function getPlaybook(subject: Subject): string {
 export const UNIVERSAL_PLAYBOOK_HEADER = `SUBJECT REGISTRY: from the problem (text/image/PDF/file), set @meta subject: to exactly one of ${SUBJECTS.join('|')}. Apply that row. Mixed problems → the dominant subject. NEVER invent a subject name.`;
 
 export function getUniversalPlaybook(): string {
-  const rows = [
+  return [
     UNIVERSAL_PLAYBOOK_HEADER,
     'subject\tarchetypes\tdiagrams\tverify\tnodraw\tnotation\ttraps',
     ...SUBJECTS.map((s) => {
       const r = SUBJECT_REGISTRY[s];
       return `${r.marker}\t${r.archetypes}\t${r.diagrams}\t${r.verify}\t${r.nodraw}\t${r.notation}\t${r.traps}`;
     }),
-    ...SUBJECTS.map((s) => PLAYBOOKS[s]),
-  ];
-  return rows.join('\n\n');
+  ].join('\n');
 }

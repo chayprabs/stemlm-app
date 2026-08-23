@@ -339,21 +339,31 @@ export async function attachTextFile(
 
   const file = createTextFile(content, filename);
   const dropTargets = opt.dropTargets ?? DEFAULT_DROP_TARGETS;
-  const additiveTimeoutMs = opt.additiveTimeoutMs ?? 200;
   const preserveExisting = opt.preserveExisting ?? hasAnyAttachment();
+  const additiveTimeoutMs =
+    opt.additiveTimeoutMs ?? (preserveExisting ? 800 : 200);
 
   const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs);
   if (additive) return { ok: true, method: additive };
 
-  if (preserveExisting) {
-    // Assigning input.files would replace the student's problem image/PDF.
-    return { ok: false, method: 'none' };
-  }
-
   const input = await findFileInput(opt);
   if (!input) return { ok: false, method: 'none' };
 
+  const prior = existingInputFiles(input).filter((f) => f.name !== filename);
+
+  if (preserveExisting && prior.length === 0 && hasAnyAttachment()) {
+    // FileList does not hold the image/PDF chip — assigning would replace it.
+    return { ok: false, method: 'none' };
+  }
+
   if (!assignFileToInput(input, file, { keepExisting: true })) return { ok: false, method: 'none' };
+
+  const files = input.files ? Array.from(input.files) : [];
+  const hasProtocol = files.some((f) => f.name === filename);
+  const keptPriors = prior.every((p) => files.some((f) => f.name === p.name));
+  if (!hasProtocol || (prior.length > 0 && !keptPriors)) {
+    return { ok: false, method: 'none' };
+  }
 
   const attached = await waitForAttachment({
     ...opt,

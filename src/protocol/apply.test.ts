@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyStepPatch, findResumeToken, stitchResume } from './apply';
+import { applyStepPatch, findResumeToken, groupResumeParts, stitchResume } from './apply';
 import { parse, parseCapsule } from './parser';
 import type { Capsule, Step } from './types';
 
@@ -86,11 +86,12 @@ describe('applyStepPatch', () => {
         step: step('s2', 'Correct substitution', 'Use 12 V not 12 mV.'),
       },
     ]);
-    expect(next.steps).toHaveLength(3);
-    expect(next.steps[1]!.id).toBe('s2');
-    expect(next.steps[1]!.title).toBe('Correct substitution');
-    expect(next.steps[0]!.title).toBe('Name the law');
-    expect(next.steps.map((s) => s.index)).toEqual([1, 2, 3]);
+    expect(next.capsule.steps).toHaveLength(3);
+    expect(next.capsule.steps[1]!.id).toBe('s2');
+    expect(next.capsule.steps[1]!.title).toBe('Correct substitution');
+    expect(next.capsule.steps[0]!.title).toBe('Name the law');
+    expect(next.capsule.steps.map((s) => s.index)).toEqual([1, 2, 3]);
+    expect(next.warningCodes).not.toContain('patch_unknown_id');
   });
 
   it('inserts after a named id', () => {
@@ -98,13 +99,40 @@ describe('applyStepPatch', () => {
     const next = applyStepPatch(original, [
       { op: 'insert', after: 's1', step: step('s1a', 'Inserted') },
     ]);
-    expect(next.steps.map((s) => s.id)).toEqual(['s1', 's1a', 's2']);
+    expect(next.capsule.steps.map((s) => s.id)).toEqual(['s1', 's1a', 's2']);
   });
 
   it('deletes a named id', () => {
     const original = capsule([step('s1', 'A'), step('s2', 'B'), step('s3', 'C')]);
     const next = applyStepPatch(original, [{ op: 'delete', id: 's2' }]);
-    expect(next.steps.map((s) => s.id)).toEqual(['s1', 's3']);
+    expect(next.capsule.steps.map((s) => s.id)).toEqual(['s1', 's3']);
+  });
+
+  it('warns patch_unknown_id instead of silently no-oping', () => {
+    const original = capsule([step('s1', 'A'), step('s2', 'B')]);
+    const next = applyStepPatch(original, [
+      { op: 'replace', id: 's3', step: step('s3', 'Ghost') },
+    ]);
+    expect(next.capsule.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(next.warningCodes).toContain('patch_unknown_id');
+  });
+
+  it('applies @solution and @verify carried on the patch op', () => {
+    const original = capsule([step('s1', 'A'), step('s2', 'Wrong')]);
+    original.solution = 'I = 2 mA';
+    original.verification = { methods: ['units'], status: 'fail', notes: 'mA vs A' };
+    const next = applyStepPatch(original, [
+      {
+        op: 'replace',
+        id: 's2',
+        step: step('s2', 'Correct', 'I is 2 A.'),
+        solution: 'I = 2 A',
+        verification: { methods: ['units', 'backsub'], status: 'pass', notes: '12/6=2 A' },
+      },
+    ]);
+    expect(next.capsule.solution).toBe('I = 2 A');
+    expect(next.capsule.verification?.status).toBe('pass');
+    expect(next.capsule.verification?.notes).toContain('2 A');
   });
 });
 
@@ -138,6 +166,83 @@ describe('parse patch capsules', () => {
     expect(result.capsule?.meta.mode).toBe('patch');
     const original = capsule([step('s1', 'A'), step('s2', 'B'), step('s3', 'Wrong')]);
     const next = applyStepPatch(original, result.patch!);
-    expect(next.steps[2]!.title).toBe('Correct the current units');
+    expect(next.capsule.steps[2]!.title).toBe('Correct the current units');
+  });
+
+  it('parses @solution/@verify inside @patch and applies them', () => {
+    const raw = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Electrical',
+      'topic: Patch current',
+      'qid: q1',
+      'mode: patch',
+      '@endmeta',
+      '@patch op=replace id=s2',
+      '@step id=s2',
+      'title: Correct the current',
+      '@body',
+      '$I$ is $2\\,\\text{A}$.',
+      '@endbody',
+      '@endstep',
+      '@solution',
+      '$I=2\\,\\text{A}$.',
+      '@endsolution',
+      '@verify',
+      'methods: units',
+      'status: pass',
+      'notes: 12/6 recovers 2 A',
+      '@endverify',
+      '@endpatch',
+      '@end',
+      '```',
+    ].join('\n');
+    const result = parse(raw);
+    expect(result.patch?.[0]?.solution).toContain('2');
+    expect(result.patch?.[0]?.verification?.status).toBe('pass');
+    const original = capsule([step('s1', 'A'), step('s2', 'Wrong')]);
+    original.solution = '2 mA';
+    const next = applyStepPatch(original, result.patch!);
+    expect(next.capsule.solution).toContain('2');
+    expect(next.capsule.verification?.status).toBe('pass');
+  });
+});
+
+describe('groupResumeParts', () => {
+  it('stitches two parts that share a resume token', () => {
+    const part1 = [
+      '```stemlm',
+      '@meta',
+      'subject: Math',
+      'topic: Resume',
+      '@endmeta',
+      '@step id=s1',
+      'title: First',
+      '@body',
+      'Move one.',
+      '@endbody',
+      '@endstep',
+      '@resume token=aa11bb22',
+    ].join('\n');
+    const part2 = [
+      '```stemlm',
+      '@resume token=aa11bb22',
+      '@step id=s2',
+      'title: Second',
+      '@body',
+      'Move two.',
+      '@endbody',
+      '@endstep',
+      '@solution',
+      'done',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    const grouped = groupResumeParts([part1, part2]);
+    expect(grouped).toHaveLength(1);
+    const parsed = parseCapsule(grouped[0]!);
+    expect(parsed.capsule?.steps.map((s) => s.id)).toEqual(['s1', 's2']);
   });
 });

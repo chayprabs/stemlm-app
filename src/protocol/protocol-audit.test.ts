@@ -138,6 +138,105 @@ describe('composer stubs stay short and isolated', () => {
     expect(text).not.toContain('OUTPUT:');
     expect(text).not.toContain('ARCHETYPE REGISTRY');
     expect(text).not.toContain('PHYSICS: subject=');
-    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(2200);
+    expect(text).not.toContain('--- stemLM instructions');
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(4000);
+  });
+});
+
+describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
+  it('scopes DEPTH substitution to numeric/lab and drops Prefer hedges', () => {
+    expect(FILE).toContain('DEPTH: balanced');
+    expect(FILE).toContain('NUMERIC/LAB only: do not skip symbol definitions or substitution');
+    expect(FILE).not.toMatch(/Prefer the standard textbook path\. Do not skip symbol definitions or substitution\./);
+    expect(FILE).not.toMatch(/\bPrefer the standard textbook path\b/);
+    expect(FILE).not.toMatch(/\bPrefer the upper step-count bound\b/);
+  });
+
+  it('labels the template numeric body and includes a non-numeric @body example', () => {
+    expect(FILE).toContain('NUMERIC/LAB example only');
+    expect(FILE).toMatch(/Proof @body example/i);
+  });
+
+  it('qualifies visual MUST to state-changing steps', () => {
+    expect(FILE).toMatch(/Visual state-changing steps MUST include a complete labeled @diagram SPEC/i);
+    expect(FILE).not.toMatch(/^CRITICAL:.*Visual steps MUST include a complete labeled @diagram SPEC \(not SVG\)\.$/m);
+  });
+
+  it('keeps leftover types but prefers ENGINE then the subject row', () => {
+    expect(FILE).toContain('Use ENGINE types first, then the subject row');
+    expect(FILE).toContain('TEMPLATE');
+    expect(FILE).toContain('hybridpi');
+    expect(FILE).toContain('anatomy');
+  });
+
+  it('uses catalog hybridpi/opamp keys and does not list Physics sfd', () => {
+    expect(FILE).toContain('rpi,gm,re,rc');
+    expect(FILE).toContain('rf,rg');
+    expect(FILE).not.toMatch(/hybridpi REQUIRES rpi,gm,RE,RC/);
+    expect(FILE).not.toMatch(/opamp REQUIRES Rf,Rg/);
+    const physicsLine = FILE.split('\n').find((l) => l.startsWith('PHYSICS\t'));
+    expect(physicsLine, 'Physics TSV row').toBeTruthy();
+    expect(physicsLine).not.toMatch(/(^|\t|,)sfd(,|\t|$)/);
+  });
+
+  it('ships TSV subject rows without duplicate paragraph chapters', () => {
+    expect(FILE).toContain('SUBJECT REGISTRY');
+    expect(FILE).toContain('subject\tarchetypes\tdiagrams\tverify\tnodraw\tnotation\ttraps');
+    expect(FILE).not.toContain('PHYSICS: subject=');
+    expect(FILE).not.toContain('ELECTRICAL: subject=');
+    expect(FILE).not.toMatch(/PRINCIPLES:/);
+  });
+
+  it('copies locale circuit into std: and names the protocol file as not the problem', () => {
+    expect(FILE).toMatch(/Copy @meta locale circuit=IEEE\|IEC into (?:this spec as )?std:/i);
+    expect(FILE).toContain('any attached file is the problem, not the protocol file');
+    expect(FILE).toContain('intro + DEPTH deep');
+    expect(FILE).toContain('Add skipped algebra and named substitutions');
+    expect(assembleProtocolFile('ultra')).toContain(
+      'At intro, DEPTH deep adds skipped algebra and named substitutions',
+    );
+  });
+
+  it('lists extra follow-up cases including empty no-op', () => {
+    for (const n of [
+      'revert last patch',
+      'only the diagram is wrong',
+      'translate this',
+      "hint, don't solve",
+      'check my working',
+      'multiple-choice',
+      'skip to the answer',
+      'change two givens',
+      'explain this formula only',
+      'empty follow-up',
+    ]) {
+      expect(FILE, `missing follow-up case ${n}`).toContain(n);
+    }
+  });
+
+  it('does not smuggle research-only family tokens as type=', () => {
+    const forbidden = [
+      'nline',
+      'shaft',
+      'punnett',
+      'pedigree',
+      'magcirc',
+      'devicemodel',
+      'crispr',
+      'western',
+      'karyo',
+      'sfd-bmd',
+      'airfoil',
+      'ttt',
+      'poincare',
+      'penrose',
+      'heap',
+      'dfa',
+    ];
+    for (const t of forbidden) {
+      expect(FILE, `type=${t}`).not.toMatch(new RegExp(`type=${t}\\b`, 'i'));
+    }
+    expect(FILE).not.toMatch(/JSON capsule/i);
+    expect(FILE).toMatch(/NEVER.*AI images/i);
   });
 });

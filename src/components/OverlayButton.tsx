@@ -3,7 +3,12 @@ import { createPortal } from 'react-dom';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
-import { composerTextHasProtocol } from '@/src/protocol/builder';
+import {
+  composerTextHasProtocol,
+  pageThreadHasProtocol,
+  shouldReinjectOnNewQuestion,
+} from '@/src/protocol/builder';
+import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { detectHostScheme } from '@/src/lib/theme';
 import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
 import { IconCheck } from './icons';
@@ -175,14 +180,27 @@ export function OverlayButton() {
 
   function onMain() {
     if (pasting) return;
-    if (injected) {
+    const ctrl = getController();
+    const text = adapter?.getEditorText().trim() ?? '';
+    const question = cleanSessionQuestion(text);
+    const last = ctrl?.getLastQuestion().trim() ?? '';
+    const hasProtocol =
+      composerTextHasProtocol(text) ||
+      pageThreadHasProtocol(document, adapter?.findEditor() ?? null);
+    if (
+      injected &&
+      !shouldReinjectOnNewQuestion({
+        buttonInjected: true,
+        question,
+        lastQuestion: last,
+        hasProtocol,
+      })
+    ) {
       togglePanel();
       return;
     }
     setPasting(true);
-    void getController()
-      ?.inject()
-      .finally(() => setPasting(false));
+    void ctrl?.inject().finally(() => setPasting(false));
   }
 
   const wrapClass = [

@@ -123,6 +123,38 @@ describe('attachTextFile', () => {
     expect(hasNamedAttachment('stemlm-protocol.txt')).toBe(false);
   });
 
+  it('adds the protocol beside a problem image already in the FileList', async () => {
+    document.body.innerHTML = `
+      <images-files-uploader>
+        <input type="file" id="f" multiple />
+        <div class="attachment-chip">problem.png</div>
+      </images-files-uploader>
+    `;
+    const input = document.getElementById('f') as HTMLInputElement;
+    const photo = new File(['img'], 'problem.png', { type: 'image/png' });
+    expect(assignFileToInput(input, photo, { keepExisting: false })).toBe(true);
+    input.addEventListener('change', () => {
+      if (!hasNamedAttachment('stemlm-protocol.txt')) {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        chip.textContent = 'stemlm-protocol.txt';
+        document.querySelector('images-files-uploader')!.appendChild(chip);
+      }
+    });
+    const result = await attachTextFile('OUTPUT:\n@end', {
+      preserveExisting: true,
+      dropTargets: [],
+      additiveTimeoutMs: 40,
+      waitMs: 200,
+      timeoutMs: 800,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.method).toBe('input');
+    const names = Array.from(input.files ?? []).map((f) => f.name);
+    expect(names).toContain('problem.png');
+    expect(names).toContain('stemlm-protocol.txt');
+  });
+
   it('does not replace an existing image via the file input', async () => {
     document.body.innerHTML = `
       <images-files-uploader>

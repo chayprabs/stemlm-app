@@ -4,14 +4,47 @@
  * Catches formula-only steps (bare law with no symbol defs or numeric work)
  * that pass structural parsing but leave students unable to follow the math.
  */
-import type { Archetype, ParseWarningCode, Step } from './types';
+import type { Archetype, ParseWarningCode, Step, Subject } from './types';
 
 /** Substitution/plug-in is required only for these archetypes. */
 export const NUMERIC_PLUG_IN_ARCHETYPES: ReadonlySet<Archetype> = new Set(['numeric', 'lab']);
 
-export function stepNeedsNumericPlugIn(archetype?: Archetype): boolean {
-  if (!archetype) return true;
-  return NUMERIC_PLUG_IN_ARCHETYPES.has(archetype);
+const PROOF_LIKE =
+  /\b(prove|proof|lemma|theorem|qed|by induction|contradiction|without loss of generality|\bwlog\b|assume\s+n\s*=|hence .{0,40}even)\b/i;
+
+export function looksProofLike(title: string, body: string): boolean {
+  return PROOF_LIKE.test(`${title}\n${body}`);
+}
+
+function hasDigitGivens(text: string): boolean {
+  const stripped = text
+    .replace(/\$\$[\s\S]*?\$\$/g, '')
+    .replace(/\$[^$]*\$/g, '');
+  return /\d/.test(stripped);
+}
+
+export interface StepQualityContext {
+  archetype?: Archetype;
+  subject?: Subject;
+  question?: string;
+}
+
+export function stepNeedsNumericPlugIn(
+  archetype?: Archetype,
+  ctx?: Omit<StepQualityContext, 'archetype'> & { title?: string; body?: string },
+): boolean {
+  if (archetype) return NUMERIC_PLUG_IN_ARCHETYPES.has(archetype);
+  if (ctx && looksProofLike(ctx.title ?? '', ctx.body ?? '')) return false;
+  const question = (ctx?.question ?? '').trim();
+  if (ctx?.subject === 'Math' && question && !hasDigitGivens(question)) return false;
+  return true;
+}
+
+/** Steps whose empty @body was filled from a worked @formula for display only. */
+const salvagedEmptyBodies = new WeakSet<Step>();
+
+export function stepBodyWasSalvaged(step: Step): boolean {
+  return salvagedEmptyBodies.has(step);
 }
 
 const SYMBOL_CONTEXT =
@@ -138,12 +171,13 @@ export function enrichStepBody(step: Step): void {
   const formula = step.formula?.trim() ?? '';
   if (formula && formulaShowsNumericWork(formula)) {
     step.body = formula;
+    salvagedEmptyBodies.add(step);
   }
 }
 
 export function auditStepQuality(
   step: Step,
-  opt?: { archetype?: Archetype },
+  opt?: StepQualityContext,
 ): ParseWarningCode[] {
   const issues: ParseWarningCode[] = [];
   const body = (step.body ?? '').trim();
@@ -161,6 +195,14 @@ export function auditStepQuality(
     return issues;
   }
 
+  if (!opt?.archetype) {
+    const proofLike = looksProofLike(step.title, body);
+    const question = (opt?.question ?? '').trim();
+    const mathNoDigits =
+      opt?.subject === 'Math' && Boolean(question) && !hasDigitGivens(question);
+    if (proofLike || mathNoDigits) issues.push('missing_archetype');
+  }
+
   if (!formula) return issues;
 
   const formulaWorked = formulaShowsNumericWork(formula);
@@ -168,7 +210,13 @@ export function auditStepQuality(
   const hasSymbolContext =
     bodyDefinesSymbols(body) || (hasSubstitution && bodyUsesFormulaVars(body, formula));
 
-  if (stepNeedsNumericPlugIn(opt?.archetype) && !hasSubstitution) {
+  const needsPlugIn = stepNeedsNumericPlugIn(opt?.archetype, {
+    subject: opt?.subject,
+    question: opt?.question,
+    title: step.title,
+    body,
+  });
+  if (needsPlugIn && !hasSubstitution) {
     issues.push('step_missing_substitution');
   }
 
@@ -195,18 +243,20 @@ export function stepQualityMessage(code: ParseWarningCode, step: Step): string {
       return `Step ${step.index} ("${title}") needs numeric substitution in @body (plug in givens and compute).`;
     case 'step_missing_symbol_defs':
       return `Step ${step.index} ("${title}") introduces symbols in @formula without defining them in @body.`;
+    case 'missing_archetype':
+      return `Capsule omitted archetype:; inferred a non-numeric grammar for step ${step.index} ("${title}").`;
     default:
       return `Step ${step.index} ("${title}") is missing worked explanation.`;
   }
 }
 
-export function stepHasQualityIssues(step: Step, opt?: { archetype?: Archetype }): boolean {
+export function stepHasQualityIssues(step: Step, opt?: StepQualityContext): boolean {
   return auditStepQuality(step, opt).length > 0;
 }
 
 export function primaryStepQualityIssue(
   step: Step,
-  opt?: { archetype?: Archetype },
+  opt?: StepQualityContext,
 ): ParseWarningCode | null {
   return auditStepQuality(step, opt)[0] ?? null;
 }
@@ -218,14 +268,14 @@ const HARD_STEP_QUALITY_CODES = new Set<ParseWarningCode>([
 ]);
 
 /** Hard failures (empty body, no numbers) — always worth a repair prompt. */
-export function stepHasHardQualityIssue(step: Step, opt?: { archetype?: Archetype }): boolean {
+export function stepHasHardQualityIssue(step: Step, opt?: StepQualityContext): boolean {
   return auditStepQuality(step, opt).some((c) => HARD_STEP_QUALITY_CODES.has(c));
 }
 
 /** Only queue chatbox repair when work is broadly broken, not one soft symbol line. */
 export function capsuleNeedsStepQualityRepair(
   steps: Step[],
-  opt?: { archetype?: Archetype },
+  opt?: StepQualityContext,
 ): boolean {
   const weak = steps.filter((s) => auditStepQuality(s, opt).length > 0);
   if (!weak.length) return false;

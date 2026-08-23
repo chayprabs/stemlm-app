@@ -38,8 +38,8 @@ export function StepList({
                 className="slm-step-rail-btn"
                 onClick={() => onSelect(i)}
                 aria-current={active ? 'step' : undefined}
-                aria-label={`Step ${n}: ${step.title}`}
-                title={step.title}
+                aria-label={`Step ${n} (${step.id}): ${step.title}`}
+                title={`${step.id}: ${step.title}`}
               >
                 <span className="slm-step-rail-mark" aria-hidden="true">
                   <StepIndexMark n={n} />

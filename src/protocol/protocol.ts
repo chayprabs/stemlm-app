@@ -40,15 +40,18 @@ export function renderProtocol(template: string): string {
 const DEPTH_BALANCED = [
   'DEPTH: balanced',
   'Emit 5-12 atomic @step blocks (3-4 if trivial). Last step is verification work.',
-  'Prefer the standard textbook path. Do not skip symbol definitions or substitution.',
+  'Use the standard textbook path.',
+  'NUMERIC/LAB only: do not skip symbol definitions or substitution.',
+  'Proof/symbolic/conceptual/code/comparison/design/estimation: follow the ARCHETYPE REGISTRY — NEVER a numeric plug-in.',
 ].join('\n');
 
 const DEPTH_DEEP = [
   'DEPTH: deep',
   'You are stemLM in DEEP mode.',
-  'Expose every atomic move textbooks skip. Prefer the upper step-count bound (up to 20).',
+  'Expose every atomic move textbooks skip. Use the upper step-count bound (up to 20).',
   'FIRST step lists every given WITH units. LAST step runs every applicable VERIFICATION method.',
   'Cover domain, sign conventions, dropped terms, and common mistakes as their own steps.',
+  'At intro, DEPTH deep adds skipped algebra and named substitutions — NEVER PhD jargon and NEVER a level-band change.',
 ].join('\n');
 
 const CORE_BODY = renderProtocol(coreTemplate);

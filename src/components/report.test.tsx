@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Report, collectDiagrams, diagramKey } from './Report';
 import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
@@ -56,6 +58,58 @@ describe('Report renderToStaticMarkup', () => {
     // KaTeX rendered the formula (with MathML for font-independent printing)
     expect(html).toContain('katex');
     expect(html).toContain('<math'); // MathML present for vector PDF
+  });
+
+  it('renders verification-fail, uncertainty, non-STEM flag, and step ids', () => {
+    const session: Session = {
+      id: 'r-verify',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find the current',
+      raw: '',
+      capsule: {
+        meta: {
+          version: 2,
+          subject: 'General',
+          topic: 'Not a STEM question',
+          archetype: 'conceptual',
+        },
+        solution: 'Not a STEM solve; insufficient data for a numeric answer.',
+        solutionDiagrams: [],
+        steps: [
+          {
+            id: 's1',
+            index: 1,
+            title: 'Name why it is not STEM',
+            body: 'The prompt is a poem, not a STEM question.',
+          },
+        ],
+        verification: {
+          methods: ['units'],
+          status: 'fail',
+          notes: 'no numeric given',
+          correction: 'Stop; do not invent a current.',
+        },
+        uncertainty: {
+          assumptions: ['insufficient data for I'],
+          lowConfidenceSteps: ['s1'],
+          studentChecks: ['confirm the request'],
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+    expect(html).toContain('status: fail');
+    expect(html).toContain('correction:');
+    expect(html).toContain('assumptions');
+    expect(html).toContain('s1');
+    expect(html).toMatch(/Not a STEM question/i);
+    expect(html).toMatch(/Insufficient data/i);
+    const scratch = resolve(
+      'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b80021d34f9c\\implementer',
+    );
+    mkdirSync(scratch, { recursive: true });
+    writeFileSync(resolve(scratch, 'report-verify.html'), html, 'utf8');
   });
 
   it('does not throw without diagrams resolved', () => {

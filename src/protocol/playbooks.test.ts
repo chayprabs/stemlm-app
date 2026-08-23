@@ -27,6 +27,9 @@ describe('subject registry', () => {
     const universal = getUniversalPlaybook();
     expect(universal.startsWith(UNIVERSAL_PLAYBOOK_HEADER)).toBe(true);
     expect(universal).toContain(SUBJECTS.join('|'));
+    expect(universal).toContain('subject\tarchetypes\tdiagrams\tverify\tnodraw\tnotation\ttraps');
+    expect(universal).not.toContain('PHYSICS: subject=');
+    expect(universal).not.toContain('ELECTRICAL: subject=');
     for (const subject of SUBJECTS) {
       const row = SUBJECT_REGISTRY[subject];
       expect(universal, `missing ${subject}`).toContain(row.marker);

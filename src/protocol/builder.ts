@@ -7,6 +7,7 @@
 import type { Subject } from './types';
 import {
   assembleProtocolFile,
+  CORE_PROTOCOL_BY_VARIANT,
   DEFAULT_PROMPT_VARIANT,
   STEP_COUNT_MAX,
   STEP_COUNT_TARGET,
@@ -52,9 +53,34 @@ export const THREAD_PROTOCOL_SELECTORS = [
   '.user-query',
 ] as const;
 
+const THREAD_SCAN_ROOTS = [
+  'infinite-scroller',
+  'chat-window',
+  '.conversation-container',
+  'main',
+  '[class*="conversation"]',
+] as const;
+
+/** Collect text under `el` while skipping the live composer subtree. */
+function textOutsideComposer(el: HTMLElement, composer: HTMLElement | null): string {
+  if (!composer || !el.contains(composer)) return el.textContent ?? '';
+  let out = '';
+  const walk = (node: Node) => {
+    if (node === composer) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.textContent ?? '';
+      return;
+    }
+    node.childNodes.forEach(walk);
+  };
+  walk(el);
+  return out;
+}
+
 /**
  * True when an earlier user turn in the visible thread already carries the
  * protocol sentinel or filename (composer may already be empty after send).
+ * Also scans conversation roots for `stemlm-protocol.txt` outside the composer.
  */
 export function pageThreadHasProtocol(
   root: ParentNode = document,
@@ -77,7 +103,42 @@ export function pageThreadHasProtocol(
       if (composerTextHasProtocol(el.textContent ?? '')) return true;
     }
   }
+
+  const scopes: HTMLElement[] = [];
+  for (const sel of THREAD_SCAN_ROOTS) {
+    let nodes: NodeListOf<Element>;
+    try {
+      nodes = root.querySelectorAll(sel);
+    } catch {
+      continue;
+    }
+    for (const el of nodes) {
+      if (el instanceof HTMLElement) scopes.push(el);
+    }
+  }
+  if (scopes.length === 0 && root instanceof HTMLElement) scopes.push(root);
+  if (scopes.length === 0 && 'body' in root && root.body instanceof HTMLElement) {
+    scopes.push(root.body);
+  }
+
+  for (const scope of scopes) {
+    const hay = textOutsideComposer(scope, skipComposer);
+    if (hay.includes(PROTOCOL_FILENAME) || composerTextHasProtocol(hay)) return true;
+  }
   return false;
+}
+
+/** After send, + injects a pointer when protocol is present and the question changed. */
+export function shouldReinjectOnNewQuestion(opt: {
+  buttonInjected: boolean;
+  question: string;
+  lastQuestion: string;
+  hasProtocol: boolean;
+}): boolean {
+  if (!opt.buttonInjected) return true;
+  const q = opt.question.trim();
+  const last = opt.lastQuestion.trim();
+  return opt.hasProtocol && q.length > 0 && q !== last;
 }
 
 /** NUMERIC/LAB only — other archetypes follow the ARCHETYPE REGISTRY row. */
@@ -100,7 +161,7 @@ export const DIAGRAM_SPEC_CATALOG = [
   'type=table    kind=ice|dp|punnett|matrix  row lines',
   'type=circuit  SPICE-like  id n1 n2 value  std=ieee  highlight:',
   'type=chem.smiles  smiles:  annotate:  (never Newman/Fischer/chair as SMILES)',
-  'hybridpi rpi,gm,RE,RC,B,C,E required. opamp Rf,Rg required.',
+  'hybridpi rpi,gm,re,rc required. opamp rf,rg required.',
   'mccabe α,zF,xD,R,q — do NOT list staircase corners. sfd piecewise V(x), M(x) sagging+.',
   'FORBIDDEN: AI images, mermaid for circuits/plots/chem, JCAMP, type=svg.',
 ].join('\n');
@@ -109,7 +170,7 @@ export function getDiagramRequirement(subject: Subject): string {
   const row = SUBJECT_REGISTRY[subject] ?? SUBJECT_REGISTRY.General;
   const extra: Record<Subject, string> = {
     Electrical:
-      'CRITICAL — electrical/visual problems MUST include @diagram type=circuit (or hybridpi/opamp) on nearly EVERY @step. Completeness: every component named in @body MUST appear as a named id. hybridpi requires rpi, gm, RE, RC. Never omit RC.',
+      'CRITICAL — electrical visual problems MUST include @diagram type=circuit (or hybridpi/opamp) when components exist. OMIT unit conversion only. NEVER skip the circuit when components exist. Completeness: every component named in @body MUST appear as a named id. hybridpi requires rpi, gm, re, rc. Never omit rc.',
     Chemistry:
       'CRITICAL — chemistry/visual problems MUST include @diagram specs. chem.smiles / newman / mo / table kind=ice / type=echem. NEVER SMILES-as-Newman. Every named species is a spec id.',
     Physics:
@@ -134,7 +195,7 @@ export function getDiagramRequirement(subject: Subject): string {
 
 export const FIRST_PASS_COMPLETION_REQUIREMENT = [
   'FIRST PASS ONLY: produce the complete corrected capsule now; do not rely on a later repair/retry prompt.',
-  'Before sending, self-check that the output is exactly one fenced stemlm block ending in @end, every @step has non-empty @body work and id=, and every visual step has a closed @diagram spec (not SVG) that names every object in @body.',
+  'Before sending, self-check that the output is exactly one fenced stemlm block ending in @end, every @step has non-empty @body work and id=, and every visual state-changing step has a closed @diagram spec (not SVG) that names every object in @body.',
 ].join('\n');
 
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
@@ -167,7 +228,7 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
 
 const DIAGRAM_REMINDERS: Record<Subject, string> = {
   Electrical:
-    'Use @diagram type=circuit or hybridpi/opamp on nearly EVERY step; every named id (rpi,gm,RE,RC) must appear in the spec. Never SVG coordinates.',
+    'Use @diagram type=circuit or hybridpi/opamp when components exist; OMIT unit conversion. Every named id (rpi,gm,re,rc) must appear in the spec. Never SVG coordinates.',
   Chemistry:
     'Use chem.smiles / newman / mo / table kind=ice / echem on visual steps — every named species is a spec id. Never SVG coordinates.',
   Physics:
@@ -203,9 +264,8 @@ const IMAGE_STUB_LINE =
 
 /** Student-facing product copy. Short, plain, states what is happening. */
 export const STUDENT_PREAMBLE = [
-  'stemLM is writing a textbook-style solution: one move per step, formulas with substitution, and compiler-drawn diagrams.',
+  'stemLM is writing a textbook-style solution: one move per step, formulas, and compiler-drawn diagrams.',
   `Follow the attached ${PROTOCOL_FILENAME}. Infer the subject from the problem.`,
-  'Reply with one fenced stemlm block ending @end — no chat prose outside it.',
   "Do not blend the student's problem (text above this line, or an attached photo/PDF/file) with these instructions.",
 ].join(' ');
 
@@ -279,13 +339,18 @@ const IMAGE_QUESTION_PREAMBLE = [
   'topic: stays a short ≤8-word title only.',
 ].join(' ');
 
-export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
+/** Last-resort composer paste: core template markers only — never leftover rows. */
+export function buildCoreFallbackAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${assembleProtocolFile(variant)}`;
+  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL_BY_VARIANT[variant]}`;
   return { prompt, subject, variant };
+}
+
+export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
+  return buildCoreFallbackAppendix(question, opt);
 }
 
 export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
@@ -323,6 +388,16 @@ const FOLLOWUP_CONTRACT_SHORT = [
   'change this value and redo → RESOLVE with the new given; mode: resolve',
   'add a step → PATCH insert after the named id; mode: patch',
   'off-topic / new problem → NEW question object; mode: new',
+  'revert last patch → PATCH restore that id; mode: patch',
+  'only the diagram is wrong → PATCH that @diagram; keep @body; mode: patch',
+  'translate this → PATCH language only; keep ids; mode: patch',
+  'hint, don\'t solve → PATCH hint; NEVER dump the final answer; mode: patch',
+  'check my working → PATCH mark student lines; mode: patch',
+  'multiple-choice → RESOLVE; name the option and why others fail; mode: resolve',
+  'skip to the answer → structure still wins; full steps; mode: resolve',
+  'change two givens → RESOLVE with both new givens; mode: resolve',
+  'explain this formula only → PATCH that formula step; mode: patch',
+  'empty follow-up → NO-OP; emit nothing',
 ].join('\n');
 
 export function buildFollowupContextBlock(opt: FollowupOptions): string {
@@ -389,7 +464,7 @@ const COMPACT_GRAMMAR = [
   'mode: patch uses @patch op=replace|insert|delete. mode: resolve re-emits the current qid. mode: new opens @q id=qN.',
 ].join('\n');
 
-/** Ask-in-chat / clipboard follow-up: short form only — never the full protocol. */
+/** Attach-failed follow-up: short contract plus compact grammar — not leftover rows. */
 export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
   const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
@@ -397,8 +472,17 @@ export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
   return `${FOLLOWUP_QUESTION_SLOT}${context}\n${SEP}${COMPACT_GRAMMAR}`;
 }
 
+/** Clipboard Copy: short composer form + question slot — never the instructions wall. */
+export function buildFollowupCopyText(opt: FollowupOptions): string {
+  return `${FOLLOWUP_QUESTION_SLOT}${buildFollowupComposerText(opt)}`;
+}
+
+export function isEmptyFollowupSelection(selection: string): boolean {
+  return normalizeFollowupSelection(selection).length === 0;
+}
+
 export function buildFollowupPrompt(opt: FollowupOptions): string {
-  return buildFollowupAskInChatPrompt(opt);
+  return buildFollowupCopyText(opt);
 }
 
 export interface RepairPromptOptions {

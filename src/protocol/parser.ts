@@ -48,7 +48,13 @@ import {
   isRefuseType,
 } from '@/src/lib/figure/catalog';
 import { parseSpec } from '@/src/lib/figure/spec';
-import { auditStepQuality, enrichStepBody, isDiagnosticBodyText, stepQualityMessage } from './step-quality';
+import {
+  auditStepQuality,
+  enrichStepBody,
+  isDiagnosticBodyText,
+  stepBodyWasSalvaged,
+  stepQualityMessage,
+} from './step-quality';
 import {
   auditQuickCheck,
   isSubstantiveQuickCheck,
@@ -393,6 +399,7 @@ function parseStep(
   warningCodes: ParseWarningCode[],
   openAttrs?: Record<string, string>,
 ): Step {
+  let emittedId = Boolean(openAttrs?.id);
   const step: Step = { id: openAttrs?.id || `step-${index}`, index, title: '', body: '' };
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
@@ -427,6 +434,7 @@ function parseStep(
     const stepId = readInlineValue(line, 'id');
     if (stepId !== null && !step.formulaId && !t.startsWith('@')) {
       step.id = stepId;
+      emittedId = true;
       c.i++;
       continue;
     }
@@ -541,6 +549,30 @@ function parseStep(
   if (!step.title) {
     step.title = `Step ${index}`;
     addWarning(warnings, warningCodes, 'missing_step_title', `Step ${index} had no title.`);
+  }
+  if (!emittedId) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'missing_step_id',
+      `Step ${index} had no id=; salvaged as ${step.id}.`,
+    );
+  }
+  if (step.formula && !step.formulaId) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'missing_formula_id',
+      `Step ${index} had @formula without id=.`,
+    );
+  }
+  if (step.diagram && !step.diagram.id) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'missing_diagram_id',
+      `Step ${index} had @diagram without id=.`,
+    );
   }
   sanitizeStepFields(step);
   enrichStepBody(step);
@@ -661,6 +693,21 @@ function parsePatchBlock(
       if (!patch.id && patch.step.id) patch.id = patch.step.id;
       continue;
     }
+    if (t === '@solution') {
+      c.i++;
+      patch.solution = readSolutionBlock(c);
+      continue;
+    }
+    if (t === '@verify' || /^@verify\b/.test(t)) {
+      c.i++;
+      patch.verification = parseVerifyBlock(c);
+      continue;
+    }
+    if (t === '@uncertainty' || /^@uncertainty\b/.test(t)) {
+      c.i++;
+      patch.uncertainty = parseUncertaintyBlock(c);
+      continue;
+    }
     if (isStructural(line) && !/^@step\b/.test(t)) break;
     c.i++;
   }
@@ -692,8 +739,45 @@ function warnSolutionDiagrams(
   }
 }
 
+const META_KEY_LINE = /^(version|subject|topic|question|qid|archetype|level|locale|mode)\s*:/i;
+
+function readQuestionContinuations(c: Cursor, first: string): string {
+  let value = first;
+  while (c.i < c.lines.length) {
+    const ml = c.lines[c.i] ?? '';
+    const mt = ml.trim();
+    if (mt === '@endmeta' || mt === '@metaend') break;
+    if (isStructural(ml)) break;
+    if (META_KEY_LINE.test(mt)) break;
+    if (mt) value = value ? `${value} ${mt}` : mt;
+    c.i++;
+  }
+  return value;
+}
+
+/**
+ * Count substitution moves. Two "With givens:" plug-ins (or two law=expr=number
+ * chains) are the split signal — not raw character count.
+ */
+export function countBodySubstitutions(body: string): number {
+  const withGivens = body.match(/\bWith\b[^:]{0,120}:/gi)?.length ?? 0;
+  const plug = body.match(/\$[^$\n]{1,48}\$\s*=\s*[^.=\n]{1,80}=\s*[^.=\n]{0,48}/g)?.length ?? 0;
+  return Math.max(withGivens, plug);
+}
+
+function bodyPacksMultipleMoves(body: string): boolean {
+  const subs = countBodySubstitutions(body);
+  if (subs >= 2) return true;
+  const sentences = countBodySentences(body);
+  if (sentences >= 5 && subs === 0 && body.trim().length > 120) return true;
+  return false;
+}
+
 /** Parse the capsule body (already-extracted text) into a Capsule. */
-export function parseCapsule(capsuleText: string): ParseResult {
+export function parseCapsule(
+  capsuleText: string,
+  opt?: { nestedQuestion?: boolean },
+): ParseResult {
   const warnings: string[] = [];
   const warningCodes: ParseWarningCode[] = [];
   const raw = capsuleText;
@@ -773,7 +857,11 @@ export function parseCapsule(capsuleText: string): ParseResult {
           }
         }
         else if (tp !== null) topic = tp;
-        else if (q !== null) metaQuestion = q;
+        else if (q !== null) {
+          c.i++;
+          metaQuestion = readQuestionContinuations(c, q);
+          continue;
+        }
         else if (qidV !== null) qid = qidV;
         else if (archV !== null) archetype = normalizeArchetype(archV);
         else if (levelV !== null) level = normalizeLevel(levelV);
@@ -835,7 +923,10 @@ export function parseCapsule(capsuleText: string): ParseResult {
         }
         wrapped = ['@meta', ...headers, '@endmeta', ...rest].join('\n');
       }
-      const innerParsed = parseCapsule(wrapped.endsWith(CAPSULE_END_TOKEN) ? wrapped : `${wrapped}\n${CAPSULE_END_TOKEN}`);
+      const innerParsed = parseCapsule(
+        wrapped.endsWith(CAPSULE_END_TOKEN) ? wrapped : `${wrapped}\n${CAPSULE_END_TOKEN}`,
+        { nestedQuestion: true },
+      );
       if (innerParsed.capsule) {
         innerParsed.capsule.meta.qid =
           attrs.id || innerParsed.capsule.meta.qid || `q${questions.length + 1}`;
@@ -844,6 +935,9 @@ export function parseCapsule(capsuleText: string): ParseResult {
         }
         questions.push(innerParsed.capsule);
       }
+      innerParsed.warningCodes.forEach((code, i) => {
+        addWarning(warnings, warningCodes, code, innerParsed.warnings[i] ?? code);
+      });
       continue;
     }
     if (t === '@patch' || /^@patch\b/.test(t)) {
@@ -890,7 +984,14 @@ export function parseCapsule(capsuleText: string): ParseResult {
   if (!sawEnd) {
     addWarning(warnings, warningCodes, 'missing_end', 'Capsule had no final @end token.');
   }
-  if (steps.length > 0 && (steps.length < STEP_COUNT_MIN || steps.length > STEP_COUNT_MAX)) {
+  const isPatchOnly = patch.length > 0 && steps.length === 0;
+  const isQuestionWrapper = questions.length > 0 && steps.length === 0;
+  if (
+    !opt?.nestedQuestion &&
+    !isPatchOnly &&
+    steps.length > 0 &&
+    (steps.length < STEP_COUNT_MIN || steps.length > STEP_COUNT_MAX)
+  ) {
     addWarning(
       warnings,
       warningCodes,
@@ -898,10 +999,27 @@ export function parseCapsule(capsuleText: string): ParseResult {
       `Capsule had ${steps.length} step(s); expected ${STEP_COUNT_MIN}-${STEP_COUNT_MAX}.`,
     );
   }
+  if (!isPatchOnly && !isQuestionWrapper) {
+    if (!verification) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'missing_verify',
+        'Capsule had no @verify block.',
+      );
+    }
+    if (!uncertainty) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'missing_uncertainty',
+        'Capsule had no @uncertainty block.',
+      );
+    }
+  }
   const warnedQuality = new Set<string>();
   for (const step of steps) {
-    const sentences = countBodySentences(step.body);
-    if (step.body.length > 420 || sentences > 4) {
+    if (bodyPacksMultipleMoves(step.body)) {
       const key = `step_body_too_long:${step.index}`;
       if (!warnedQuality.has(key)) {
         warnedQuality.add(key);
@@ -913,7 +1031,15 @@ export function parseCapsule(capsuleText: string): ParseResult {
         );
       }
     }
-    for (const code of auditStepQuality(step, { archetype })) {
+    const qualityCodes = auditStepQuality(step, {
+      archetype,
+      subject,
+      question: metaQuestion,
+    });
+    if (stepBodyWasSalvaged(step) && !qualityCodes.includes('missing_step_body')) {
+      qualityCodes.unshift('missing_step_body');
+    }
+    for (const code of qualityCodes) {
       const key = `${code}:${step.index}`;
       if (!warnedQuality.has(key)) {
         warnedQuality.add(key);

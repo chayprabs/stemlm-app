@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { IconCopy, IconReply } from './icons';
 import { getController } from '@/src/content/controller';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
-import { buildFollowupPrompt, type FollowupIntent } from '@/src/protocol/builder';
+import {
+  buildFollowupCopyText,
+  isEmptyFollowupSelection,
+  type FollowupIntent,
+} from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
 
@@ -27,7 +31,7 @@ export function FollowupBar({
   const displayFollowup = isAsk ? null : stripProtocolMarkers(followup);
 
   function buildPrompt() {
-    return buildFollowupPrompt({
+    return buildFollowupCopyText({
       selection: followup,
       stepTitle,
       subject,
@@ -37,6 +41,7 @@ export function FollowupBar({
   }
 
   async function copy() {
+    if (isEmptyFollowupSelection(followup)) return;
     try {
       await navigator.clipboard.writeText(buildPrompt());
       setCopied(true);
@@ -49,6 +54,7 @@ export function FollowupBar({
   }
 
   async function ask() {
+    if (isEmptyFollowupSelection(followup)) return;
     const ctrl = getController();
     if (!ctrl) {
       useStore

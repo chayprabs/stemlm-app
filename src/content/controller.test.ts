@@ -78,7 +78,7 @@ class MockAdapter implements PlatformAdapter {
   matches() {
     return true;
   }
-  findEditor() {
+  findEditor(): HTMLElement | null {
     return document.body;
   }
   getEditorText() {
@@ -170,7 +170,7 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(attachTextFile).toHaveBeenCalledWith(
-      expect.stringMatching(/ELECTRICAL[\s\S]*PHYSICS:|PHYSICS:[\s\S]*ELECTRICAL/),
+      expect.stringMatching(/ELECTRICAL[\s\S]*PHYSICS|PHYSICS[\s\S]*ELECTRICAL/),
       expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: false }),
     );
     expect(adapter.editorText).toContain('Solve this circuit');
@@ -238,13 +238,14 @@ describe('StemController.inject', () => {
       expect.any(Object),
     );
     const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
-    expect(file).toContain('PHYSICS:');
-    expect(file).toContain('CHEMISTRY:');
-    expect(file).toContain('MATH:');
-    expect(file).toContain('BIOLOGY:');
-    expect(file).toContain('MECHANICAL:');
-    expect(file).toContain('CIVIL:');
+    expect(file).toContain('PHYSICS');
+    expect(file).toContain('CHEMISTRY');
+    expect(file).toContain('MATH');
+    expect(file).toContain('BIOLOGY');
+    expect(file).toContain('MECHANICAL');
+    expect(file).toContain('CIVIL');
     expect(file).toContain('CHEMICAL');
+    expect(file).not.toContain('PHYSICS: subject=');
     expect(adapter.inserted).not.toContain('(Electrical)');
     expect(adapter.inserted).toContain('Infer the subject from the problem');
     c.stopWatching();
@@ -260,10 +261,11 @@ describe('StemController.inject', () => {
     expect(ok).toBe(true);
     expect(adapter.editorText).toContain('Solve this circuit');
     expect(adapter.editorText).toContain('OUTPUT:');
-    expect(adapter.editorText).toContain('ELECTRICAL');
-    expect(adapter.editorText).toContain('PHYSICS:');
-    expect(adapter.editorText).toContain('CHEMISTRY:');
+    expect(adapter.editorText).toContain('@meta');
+    expect(adapter.editorText).toContain('Electrical');
     expect(adapter.editorText).toContain('stemLM instructions');
+    expect(adapter.editorText).not.toContain('DIAGRAM REGISTRY');
+    expect(adapter.editorText).not.toContain('anatomy\tleftover');
     expect(adapter.inserted).not.toContain(PROTOCOL_FILENAME);
     c.stopWatching();
   });
@@ -369,6 +371,34 @@ describe('StemController.inject', () => {
     );
     c.stopWatching();
   });
+
+  it('re-injects a pointer when protocol is present and the question changed', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Find the range of a projectile';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    expect(useStore.getState().buttonInjected).toBe(true);
+    adapter.editorText = `A different kinematics question\n${adapter.editorText}`;
+    expect(await c.inject()).toBe(true);
+    expect(adapter.inserted).toContain('New problem');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    c.stopWatching();
+  });
+
+  it('uses a pointer, not leftover dump, when a photo is attached and file attach fails', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.editorText = '';
+    adapter.composerHasAttachments = () => true;
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    expect(adapter.inserted).toContain(PROTOCOL_FILENAME);
+    expect(adapter.inserted).toContain(STEMLM_SENTINEL);
+    expect(adapter.inserted).not.toContain('DIAGRAM REGISTRY');
+    expect(adapter.inserted).not.toContain('anatomy\tleftover');
+    expect(adapter.inserted).not.toContain('OUTPUT:');
+    c.stopWatching();
+  });
 });
 
 describe('StemController.followUp', () => {
@@ -441,9 +471,10 @@ describe('StemController.followUp', () => {
     expect(adapter.editorText).toContain('stemLM follow-up context');
     const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
     expect(file).toContain('SUBJECT REGISTRY');
-    expect(file).toContain('PHYSICS:');
-    expect(file).toContain('ELECTRICAL:');
+    expect(file).toContain('PHYSICS');
+    expect(file).toContain('ELECTRICAL');
     expect(file).toContain('CHEMICAL');
+    expect(file).not.toContain('PHYSICS: subject=');
     expect(adapter.inserted).toContain('Follow the attached');
     expect(adapter.inserted).toContain('FOLLOW-UP CONTRACT');
     expect(adapter.inserted).not.toContain('--- stemLM instructions');
@@ -544,6 +575,143 @@ describe('StemController.followUp', () => {
     expect(sessions[0]!.capsule.steps[0]!.id).toBe('s1');
     c.stopWatching();
   });
+
+  it('no-ops an empty follow-up without inserting', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    expect(await c.followUp('   ', 'Series resistors', 'Electrical')).toBe(true);
+    expect(adapter.inserted).toBe('');
+    expect(adapter.editorText).toBe('');
+    c.stopWatching();
+  });
+
+  it('keeps qid when a follow-up re-emits disjoint step ids', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const original = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Electrical',
+      'topic: Series resistors',
+      'qid: q1',
+      '@endmeta',
+      '@step id=s1',
+      'title: Add the resistors',
+      '@body',
+      '$R_T$ is 6 ohm.',
+      '@endbody',
+      '@endstep',
+      '@step id=s2',
+      'title: Compute current',
+      '@body',
+      '$I$ is 2 A.',
+      '@endbody',
+      '@endstep',
+      '@solution',
+      'I = 2 A',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const originalId = useStore.getState().sessions[0]!.id;
+    c.stopWatching();
+
+    await c.followUp('solve it another way', 'Compute current', 'Electrical');
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'mode: resolve',
+        '@endmeta',
+        '@step id=a1',
+        'title: Use conductance',
+        '@body',
+        '$G=1/R$.',
+        '@endbody',
+        '@endstep',
+        '@step id=a2',
+        'title: Sum conductances',
+        '@body',
+        'Then $I=VG$.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'same I',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.qid).toBe('q1');
+    expect(sessions[0]!.capsule.steps[0]!.id).toBe('a1');
+    c.stopWatching();
+  });
+
+  it('opens a new session on mode: new or a topic/qid mismatch', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    c.stopWatching();
+
+    await c.followUp('now solve this biology Punnett square', 'Off topic', 'Biology');
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Biology',
+        'topic: Punnett square',
+        'qid: q2',
+        'mode: new',
+        'archetype: conceptual',
+        '@endmeta',
+        '@step id=s1',
+        'title: Draw the square',
+        '@body',
+        'Alleles go on the axes.',
+        '@endbody',
+        '@endstep',
+        '@step id=s2',
+        'title: Fill cells',
+        '@body',
+        'Each cell is one offspring genotype.',
+        '@endbody',
+        '@endstep',
+        '@step id=s3',
+        'title: Read ratios',
+        '@body',
+        'Count phenotypes.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        '3:1',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(2);
+    c.stopWatching();
+  });
 });
 
 describe('StemController.loadConversation', () => {
@@ -583,6 +751,50 @@ describe('StemController.loadConversation', () => {
     expect(count).toBe(0);
     expect(useStore.getState().sessions).toHaveLength(0);
     expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+
+  it('stitches two resume parts with the same token into one session', async () => {
+    const adapter = new MockAdapter();
+    const part1 = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Range',
+      'question: Find the range.',
+      'qid: q1',
+      '@endmeta',
+      '@step id=s1',
+      'title: Write the range formula',
+      '@body',
+      '$R$ is range.',
+      '@endbody',
+      '@endstep',
+      '@resume token=aa11bb22',
+    ].join('\n');
+    const part2 = [
+      '```stemlm',
+      '@resume token=aa11bb22',
+      '@step id=s2',
+      'title: Substitute the angle',
+      '@body',
+      'With $\\theta=45$: $R=40.8\\,\\text{m}$.',
+      '@endbody',
+      '@endstep',
+      '@solution',
+      'Range is $40.8\\,\\text{m}$.',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    adapter.capsules = [part1, part2];
+    const c = new StemController(adapter);
+    const count = await c.loadConversation({ maxWaitMs: 0 });
+    expect(count).toBe(1);
+    const session = useStore.getState().sessions[0];
+    expect(session?.capsule.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(session?.capsule.meta.qid).toBe('q1');
     c.stopWatching();
   });
 });

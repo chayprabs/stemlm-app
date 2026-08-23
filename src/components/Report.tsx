@@ -7,6 +7,7 @@ import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { resolveSessionQuestion } from '@/src/lib/session-question';
 import type { Overlay } from '@/src/lib/figure/types';
 import { overlayStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
+import { CapsuleSignals } from './CapsuleSignals';
 
 export function diagramKey(scope: string, i: number): string {
   return `${scope}-${i}`;
@@ -96,6 +97,8 @@ export function Report({
         </div>
       </section>
 
+      <CapsuleSignals capsule={session.capsule} />
+
       <section className="slm-report-a">
         <span className="slm-report-label">Answer</span>
         <div className="slm-report-a-body">
@@ -105,6 +108,7 @@ export function Report({
             <div key={step.id} className="slm-report-step">
               <h3 className="slm-report-step-title">
                 <span className="slm-report-step-no">{step.index}</span>
+                <span className="slm-step-id">{step.id}</span>
                 {step.title}
               </h3>
               {shouldShowFormulaBlock(step) && step.formula && (

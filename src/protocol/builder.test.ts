@@ -8,6 +8,9 @@ import {
   buildComposerPointer,
   composerTextHasProtocol,
   pageThreadHasProtocol,
+  shouldReinjectOnNewQuestion,
+  isEmptyFollowupSelection,
+  buildFollowupCopyText,
   STEP_BODY_REQUIREMENT,
   buildProtocolFileContent,
   buildFollowupPrompt,
@@ -28,9 +31,8 @@ describe('buildInjectionPrompt', () => {
     expect(subject).toBe('Electrical');
     expect(prompt).toContain('Solve this circuit');
     expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('PHYSICS');
-    expect(prompt).toContain('CHEMISTRY');
+    expect(prompt).toContain('@meta');
+    expect(prompt).toContain('Electrical');
     expect(prompt).toContain('@end');
     expect(prompt).toContain(`version: ${PROTOCOL_VERSION}`);
   });
@@ -38,9 +40,9 @@ describe('buildInjectionPrompt', () => {
   it('honors an explicit subject override', () => {
     const { prompt, subject } = buildInjectionPrompt('something vague', { subject: 'Chemistry' });
     expect(subject).toBe('Chemistry');
-    expect(prompt).toContain('CHEMISTRY');
-    expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('PHYSICS');
+    expect(prompt).toContain('Chemistry');
+    expect(prompt).toContain('Electrical');
+    expect(prompt).toContain('Physics');
   });
 
   it('supports the ultra prompt variant as a depth dial, not a second essay', () => {
@@ -51,7 +53,7 @@ describe('buildInjectionPrompt', () => {
     expect(variant).toBe('ultra');
     expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
     expect(prompt).toContain('DEPTH: deep');
-    expect(prompt).toContain('PHYSICS');
+    expect(prompt).toContain('Physics');
     expect(prompt).not.toMatch(/PHYSICS: one move\/step/);
   });
 
@@ -90,12 +92,15 @@ describe('buildInjectionPrompt', () => {
     expect(prompt).toContain('has not typed a question');
   });
 
-  it('is a last-resort inline paste without the file-attach stub', () => {
+  it('is a last-resort inline paste of core markers, not leftover rows', () => {
     const { prompt } = buildInjectionPrompt('');
     expect(prompt).toContain('stemLM instructions');
     expect(prompt).toContain('OUTPUT:');
+    expect(prompt).toContain('@meta');
     expect(prompt).not.toContain(PROTOCOL_FILENAME);
     expect(prompt).not.toContain('Follow the attached');
+    expect(prompt).not.toContain('anatomy\tleftover');
+    expect(prompt).not.toContain('DIAGRAM REGISTRY');
   });
 });
 
@@ -110,10 +115,10 @@ describe('buildInjectionAppendix', () => {
     expect(prompt).toContain('non-empty @body');
     expect(prompt).toContain('FIRST PASS');
     expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('PHYSICS');
-    expect(prompt).toContain('ELECTRICAL');
-    expect(prompt).toContain('CHEMISTRY');
-    expect(prompt).toContain('MATH');
+    expect(prompt).toContain('Physics');
+    expect(prompt).toContain('Electrical');
+    expect(prompt).not.toContain('DIAGRAM REGISTRY');
+    expect(prompt).not.toContain('anatomy\tleftover');
     expect(prompt).not.toContain('A projectile is launched');
   });
 
@@ -177,6 +182,8 @@ describe('buildInjectionPayload', () => {
     expect(stub).toMatch(/diagram/i);
     expect(stub).not.toContain('viewBox');
     expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
+    expect(getDiagramRequirement('Electrical')).not.toContain('nearly EVERY');
+    expect(getDiagramRequirement('Electrical')).toContain('rpi, gm, re, rc');
     expect(getDiagramRequirement('Electrical')).not.toContain('viewBox="0 0 300 180"');
   });
 
@@ -249,6 +256,7 @@ describe('buildInjectionPayload', () => {
   it('includes subject-specific textbook diagram conventions without prompt banks', () => {
     expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
     expect(getDiagramRequirement('Electrical')).toContain('type=circuit');
+    expect(getDiagramRequirement('Electrical')).not.toContain('nearly EVERY');
     expect(getDiagramRequirement('Chemistry')).toContain('chem.smiles');
     expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
     expect(getDiagramRequirement('Math')).toContain('type=plot');
@@ -298,17 +306,16 @@ describe('buildFollowupPrompt', () => {
     expect(prompt).toContain('stemLM follow-up context');
     expect(prompt).toContain('> Total resistance is R1 + R2');
     expect(prompt).toContain('Solve for current');
-    expect(prompt).toContain('stemlm');
     expect(prompt).toContain('FOLLOW-UP CONTRACT');
     expect(prompt).toContain('mode: patch');
-    expect(prompt).toContain('stemLM instructions');
-    expect(prompt).toContain('OUTPUT:');
+    expect(prompt).not.toContain('--- stemLM instructions');
+    expect(prompt).not.toContain('OUTPUT:');
     expect(prompt).not.toContain('ARCHETYPE REGISTRY');
     expect(prompt.indexOf('Ask your question here:')).toBeLessThan(
       prompt.indexOf('stemLM follow-up context'),
     );
     expect(prompt).not.toContain('```stemlm');
-    expect(prompt).not.toContain(PROTOCOL_FILENAME);
+    expect(prompt).toContain(PROTOCOL_FILENAME);
   });
 
   it('uses ask intent copy for free-form last-step follow-ups', () => {
@@ -333,7 +340,7 @@ describe('buildFollowupPrompt', () => {
       intent: 'ask',
       selection: 'Problem: verify the vector section formula\nFinal step: Verify endpoints\nContext: boundary work',
     });
-    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(2200);
+    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(4000);
     expect(composer).not.toContain('CRITICAL');
   });
 
@@ -406,6 +413,61 @@ describe('pageThreadHasProtocol', () => {
       <div id="ed" contenteditable="true">--- stemLM --- Follow the attached stemlm-protocol.txt</div>
     `;
     expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(false);
+  });
+
+  it('finds stemlm-protocol.txt in a conversation root outside the composer', () => {
+    document.body.innerHTML = `
+      <main class="conversation-container">
+        <div class="turn">Previous turn attached stemlm-protocol.txt</div>
+        <div id="ed" contenteditable="true">New question only</div>
+      </main>
+    `;
+    expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(true);
+  });
+});
+
+describe('shouldReinjectOnNewQuestion', () => {
+  it('re-injects when protocol is present and the question changed', () => {
+    expect(
+      shouldReinjectOnNewQuestion({
+        buttonInjected: true,
+        question: 'New projectile question',
+        lastQuestion: 'Old circuit question',
+        hasProtocol: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('toggles the panel when the question is unchanged', () => {
+    expect(
+      shouldReinjectOnNewQuestion({
+        buttonInjected: true,
+        question: 'Same question',
+        lastQuestion: 'Same question',
+        hasProtocol: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('follow-up copy and empty slot', () => {
+  it('Copy text is the short composer form without the instructions wall', () => {
+    const text = buildFollowupCopyText({
+      selection: 'Total resistance is R1 + R2',
+      stepTitle: 'Solve for current',
+      subject: 'Electrical',
+      intent: 'ask',
+    });
+    expect(text).toMatch(/^Ask your question here:/);
+    expect(text).toContain('FOLLOW-UP CONTRACT');
+    expect(text).not.toContain('--- stemLM instructions');
+    expect(text).not.toContain('OUTPUT:');
+  });
+
+  it('treats whitespace as an empty follow-up no-op', () => {
+    expect(isEmptyFollowupSelection('')).toBe(true);
+    expect(isEmptyFollowupSelection('   \n')).toBe(true);
+    expect(isEmptyFollowupSelection('Why is R1 + R2?')).toBe(false);
   });
 });
 

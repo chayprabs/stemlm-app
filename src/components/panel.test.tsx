@@ -696,8 +696,8 @@ describe('Panel ready session', () => {
     expect(rail.querySelectorAll('.slm-step-index')).toHaveLength(2);
 
     const buttons = [...rail.querySelectorAll<HTMLButtonElement>('.slm-step-rail-btn')];
-    expect(buttons[0]?.getAttribute('aria-label')).toBe('Step 1: First visual state');
-    expect(buttons[1]?.getAttribute('aria-label')).toBe('Step 2: Second visual state');
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Step 1 (s1): First visual state');
+    expect(buttons[1]?.getAttribute('aria-label')).toBe('Step 2 (s2): Second visual state');
     expect(getComputedStyle(buttons[0]!).borderRadius).not.toBe('50%');
 
     act(() => {
@@ -938,7 +938,7 @@ describe('Panel theme, split, and width density', () => {
       '.slm-step-rail-btn[aria-current="step"]',
     ) as HTMLButtonElement;
     expect(stepBtn.getAttribute('aria-label')).toContain('First visual state');
-    expect(stepBtn.getAttribute('title')).toBe('First visual state');
+    expect(stepBtn.getAttribute('title')).toBe('s1: First visual state');
     expect(container.querySelector('.slm-step-index')).toBeTruthy();
     expect(cssVar(panel, '--slm-rail-size')).not.toBe('13.25rem');
     expect(getComputedStyle(container.querySelector('.slm-brand-name') as HTMLElement).height).toBe(
@@ -1315,6 +1315,120 @@ ${PANEL_CSS}
     await settle();
     writeDump('panel-ready-solution-dark', mounted.container.innerHTML, 'dark');
     mounted.unmount();
+  });
+});
+
+function verifyFailSession(): Session {
+  return {
+    id: 'verify-fail',
+    createdAt: 0,
+    updatedAt: 0,
+    platform: 'gemini',
+    question: 'Find the current',
+    raw: '',
+    capsule: {
+      meta: { version: 2, subject: 'Electrical', topic: 'Series current', qid: 'q1' },
+      solution: 'I = 2 A after correction.',
+      solutionDiagrams: [],
+      steps: [
+        {
+          id: 's1',
+          index: 1,
+          title: 'Add the resistors',
+          body: '$R_T$ is 6 ohm.',
+        },
+        {
+          id: 's2',
+          index: 2,
+          title: 'Correct the unit of I',
+          body: 'Wrong value was 2 mA. Units check failed. Corrected $I=2\\,\\text{A}$.',
+        },
+      ],
+      verification: {
+        methods: ['units', 'backsub'],
+        status: 'fail',
+        notes: 'mA vs A',
+        correction: 'I is 2 A, not 2 mA',
+      },
+      uncertainty: {
+        assumptions: ['g = 9.81 if used', 'rms not peak'],
+        lowConfidenceSteps: ['s2'],
+        studentChecks: ['photo labels for current units'],
+      },
+    },
+  };
+}
+
+function nonStemSession(): Session {
+  return {
+    id: 'non-stem',
+    createdAt: 0,
+    updatedAt: 0,
+    platform: 'gemini',
+    question: 'Write a haiku about autumn',
+    raw: '',
+    capsule: {
+      meta: {
+        version: 2,
+        subject: 'General',
+        topic: 'Not a STEM question',
+        archetype: 'conceptual',
+      },
+      solution: 'This is not a STEM solve.',
+      solutionDiagrams: [],
+      steps: [
+        {
+          id: 's1',
+          index: 1,
+          title: 'Name why it is not STEM',
+          body: 'The prompt is a poem, not a STEM question.',
+        },
+      ],
+      uncertainty: {
+        assumptions: ['insufficient data for a numeric solve'],
+        lowConfidenceSteps: ['s1'],
+        studentChecks: ['confirm they wanted a poem'],
+      },
+    },
+  };
+}
+
+describe('Panel verification and uncertainty', () => {
+  const GOAL_SCRATCH = resolve(
+    'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b80021d34f9c\\implementer',
+  );
+
+  it('renders fail, correction, assumptions, ids, and visible step ids', async () => {
+    const session = verifyFailSession();
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const { container, unmount } = mountPanel();
+    await flush();
+    const html = container.innerHTML;
+    expect(html).toContain('status: fail');
+    expect(html).toContain('correction:');
+    expect(html).toContain('2 A, not 2 mA');
+    expect(html).toContain('assumptions');
+    expect(html).toContain('s2');
+    expect(html).toContain('slm-step-id');
+    mkdirSync(GOAL_SCRATCH, { recursive: true });
+    writeFileSync(resolve(GOAL_SCRATCH, 'panel-verify.html'), html, 'utf8');
+    unmount();
+  });
+
+  it('flags a General non-STEM / insufficient-data capsule', async () => {
+    const session = nonStemSession();
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const { container, unmount } = mountPanel();
+    await flush();
+    const text = container.textContent ?? '';
+    expect(text).toMatch(/Not a STEM question/i);
+    expect(text).toMatch(/Insufficient data/i);
+    expect(container.innerHTML).toContain('s1');
+    unmount();
   });
 });
 

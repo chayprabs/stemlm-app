@@ -734,4 +734,236 @@ describe('stable IDs, version, resume, multi-question, uncertainty', () => {
   });
 });
 
+describe('parser warnings for omitted selling-point blocks', () => {
+  function mini(steps: string, extra = ''): string {
+    return [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Range',
+      extra,
+      '@endmeta',
+      steps,
+      '@solution',
+      'done',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+  }
+
+  it('warns missing_verify and missing_uncertainty but stays usable', () => {
+    const r = parse(
+      mini(
+        [
+          '@step id=s1',
+          'title: Name the range formula',
+          '@body',
+          '$R$ is range. With $u=20$: keep the formula.',
+          '@endbody',
+          '@endstep',
+          '@step id=s2',
+          'title: Substitute',
+          '@body',
+          'With $\\theta=45$: $R=40.8\\,\\text{m}$.',
+          '@endbody',
+          '@endstep',
+          '@step id=s3',
+          'title: Check units',
+          '@body',
+          'Metres check.',
+          '@endbody',
+          '@endstep',
+        ].join('\n'),
+      ),
+    );
+    expect(r.status).toBe('ok');
+    expect(r.capsule?.steps).toHaveLength(3);
+    expect(r.warningCodes).toContain('missing_verify');
+    expect(r.warningCodes).toContain('missing_uncertainty');
+  });
+
+  it('warns when a step/formula/diagram omits id= but salvages step-N', () => {
+    const r = parse(
+      mini(
+        [
+          '@step',
+          'title: Unnamed',
+          '@formula',
+          '$$R=u^2/g$$',
+          '@endformula',
+          '@body',
+          '$R$ is range.',
+          '@endbody',
+          '@diagram type=plot',
+          'fn: t',
+          'domain: 0 1',
+          '@enddiagram',
+          '@endstep',
+          '@step id=s2',
+          'title: Two',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+          '@step id=s3',
+          'title: Three',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+        ].join('\n'),
+      ),
+    );
+    expect(r.capsule?.steps[0]!.id).toMatch(/^step-/);
+    expect(r.warningCodes).toContain('missing_step_id');
+    expect(r.warningCodes).toContain('missing_formula_id');
+    expect(r.warningCodes).toContain('missing_diagram_id');
+  });
+
+  it('keeps wrapped question: continuation lines until a new key', () => {
+    const r = parse(
+      mini(
+        [
+          '@step id=s1',
+          'title: A',
+          '@body',
+          'a',
+          '@endbody',
+          '@endstep',
+          '@step id=s2',
+          'title: B',
+          '@body',
+          'b',
+          '@endbody',
+          '@endstep',
+          '@step id=s3',
+          'title: C',
+          '@body',
+          'c',
+          '@endbody',
+          '@endstep',
+        ].join('\n'),
+        [
+          'question: Find the range of a projectile launched at 20 m/s',
+          'at 45 degrees from a 12 m cliff. Include part (b).',
+          'qid: q1',
+        ].join('\n'),
+      ),
+    );
+    expect(r.capsule?.meta.question).toContain('20 m/s');
+    expect(r.capsule?.meta.question).toContain('12 m cliff');
+    expect(r.capsule?.meta.question).toContain('part (b)');
+    expect(r.capsule?.meta.qid).toBe('q1');
+  });
+
+  it('does not warn invalid_step_count for an inner @q with two steps', () => {
+    const raw = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Math',
+      'topic: Homework',
+      '@endmeta',
+      '@q id=q1',
+      'topic: Part a',
+      'question: Prove n even implies n^2 even.',
+      'archetype: proof',
+      '@step id=q1.s1',
+      'title: Assume n even',
+      '@body',
+      'Let $n=2k$.',
+      '@endbody',
+      '@endstep',
+      '@step id=q1.s2',
+      'title: Expand',
+      '@body',
+      'Then $n^2=4k^2$ is even.',
+      '@endbody',
+      '@endstep',
+      '@verify',
+      'methods: alt',
+      'status: pass',
+      'notes: converse not claimed',
+      '@endverify',
+      '@uncertainty',
+      'assumption: none',
+      'low_confidence: none',
+      'check: definition of even',
+      '@enduncertainty',
+      '@solution',
+      'even',
+      '@endsolution',
+      '@endq',
+      '@end',
+      '```',
+    ].join('\n');
+    const r = parse(raw);
+    expect(r.status).toBe('ok');
+    expect(r.questions?.[0]?.steps).toHaveLength(2);
+    expect(r.warningCodes).not.toContain('invalid_step_count');
+  });
+
+  it('still warns missing_step_body after salvaging a worked @formula into display @body', () => {
+    const r = parse(
+      mini(
+        [
+          '@step id=s1',
+          'title: Calculate XL',
+          '@formula id=e1',
+          '$$X_L = \\omega L = 377 \\times 0.2 = 75.4\\,\\Omega$$',
+          '@endformula',
+          '@endstep',
+          '@step id=s2',
+          'title: Two',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+          '@step id=s3',
+          'title: Three',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+        ].join('\n'),
+      ),
+    );
+    expect(r.capsule?.steps[0]!.body).toContain('75.4');
+    expect(r.warningCodes).toContain('missing_step_body');
+  });
+
+  it('does not warn step_body_too_long on a professor-style one-move numeric body', () => {
+    const body =
+      '$X_L$ is inductive reactance in $\\Omega$. Ohm\'s law for inductance applies because the current is sinusoidal. With $\\omega=377\\,\\text{rad/s}$ and $L=0.2\\,\\text{H}$: $X_L=\\omega L=377\\times0.2=75.4\\,\\Omega$.';
+    const r = parse(
+      mini(
+        [
+          '@step id=s1',
+          'title: Compute XL',
+          '@body',
+          body,
+          '@endbody',
+          '@endstep',
+          '@step id=s2',
+          'title: Two',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+          '@step id=s3',
+          'title: Three',
+          '@body',
+          'ok',
+          '@endbody',
+          '@endstep',
+        ].join('\n'),
+      ),
+    );
+    expect(body.length).toBeGreaterThan(200);
+    expect(r.warningCodes).not.toContain('step_body_too_long');
+  });
+});
+
 

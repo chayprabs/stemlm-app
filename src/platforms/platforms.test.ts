@@ -126,7 +126,7 @@ describe('Gemini adapter', () => {
     expect(geminiAdapter.getEditorText()).toContain('hello');
   });
 
-  it('inserts the full stemLM protocol into a Quill-like editor', () => {
+  it('inserts the core stemLM template into a Quill-like editor', () => {
     const { prompt } = buildInjectionPrompt(
       'Solve this circuit with a 12V source and resistor (Kirchhoff)',
     );
@@ -134,7 +134,9 @@ describe('Gemini adapter', () => {
     const got = geminiAdapter.getEditorText();
     expect(got).toContain('stemLM instructions');
     expect(got).toContain('OUTPUT:');
-    expect(got).toContain('ELECTRICAL');
+    expect(got).toContain('@meta');
+    expect(got).toContain('Electrical');
+    expect(got).not.toContain('DIAGRAM REGISTRY');
     expect(got).not.toContain('stemlm-protocol.txt');
   });
 

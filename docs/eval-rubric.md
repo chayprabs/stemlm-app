@@ -38,20 +38,27 @@ For each question/answer, score:
 1. **Subject routing** — Auto routes to the correct subject (or a defensible one).
 2. **Parse success** — output is one ` ```stemlm ` capsule that parses with `status: ok`.
 3. **Step count** — 5–12 atomic steps for typical problems (≥3); one move per step.
-4. **Body quality** — every `@step` has a worked `@body`: symbols defined, givens
-   substituted, arithmetic shown **with units** (no bare-formula steps).
-5. **Diagram coverage** — visual problems carry diagrams on the steps that need them
-   (≥40% of steps; ≥55% for circuits), including a step-1 overview/model.
-6. **Diagram completeness** — every component/force/bond/axis/node named in `@body`
-   appears **labeled** in that step's SVG; never text-only or a partial fragment.
-7. **SVG validity** — sanitizes to valid SVG; no `width/height/script/foreignObject/
-   image/external refs`.
-8. **Label collisions** — no overlapping `<text>` labels; labels offset from lines.
+4. **Body quality** — every `@step` has a worked `@body`. Grammar is **archetype-gated**:
+   numeric/lab bodies define symbols, substitute givens, and show arithmetic **with units**.
+   Proof/symbolic/conceptual/code/comparison/design/estimation follow the ARCHETYPE REGISTRY
+   row — a proof MUST NOT grow a numeric plug-in. Empty `@body` is always a fail.
+5. **Diagram coverage** — visual **state-changing** steps carry a closed `@diagram` spec
+   of a catalog `type=` (not SVG). OMIT on pure algebra, definition-only, unit conversion,
+   or an unchanged figure (WHEN NOT TO DRAW). Do not score coverage as “≥40% of steps have SVG”.
+6. **Diagram completeness** — spec-id completeness: every component/force/bond/axis/node
+   named in `@body` appears as a **named id** in that step's spec. Completeness is spec
+   membership, not SVG text or a 40%/55% step fraction.
+7. **Compiled figure validity** — the compiler turns the spec into sanitized SVG; no
+   `width/height/script/foreignObject/image/external refs`. The model MUST NOT emit
+   `<svg>`, `viewBox`, or `path d=`.
+8. **Label collisions** — compiled labels do not overlap; labels offset from lines.
 9. **Panel bounds** — diagrams fit the step-card bounds (no overflow).
 10. **PDF bounds** — diagrams fit the print bounds in the exported PDF.
 11. **Correctness red flags** *(manual)* — spot wrong laws, dropped factors, bad units.
-12. **Final solution completeness** — a verification step (units + sanity/limit check)
-    and a `@solution` that restates the final answer(s) with units and assumptions.
+12. **Final solution completeness** — a verification **step** plus a visible `@verify`
+    block (methods, status, notes; fail → correction) and `@uncertainty` (assumptions,
+    low-confidence step ids, student check), and a `@solution` that restates the final
+    answer(s) with units and assumptions. Do not invent live-model scores here.
 
 Dimensions 2–10 and 12-structure are checked automatically by `--answers`;
 1 is from the routing report; 11 and final-answer *correctness* require a human.
@@ -63,8 +70,8 @@ Dimensions 2–10 and 12-structure are checked automatically by `--answers`;
    stemLM button.
 3. Confirm `stemlm-protocol.txt` attaches and a short stub appears in the composer.
 4. Confirm the panel opens when the answer starts and parses into step cards.
-5. Inspect against the rubric above: worked bodies, complete/labeled diagrams that fit
-   the card, no label collisions, a final verification step.
+5. Inspect against the rubric above: archetype-gated worked bodies, spec-id-complete
+   diagrams that fit the card, no label collisions, visible `@verify` / `@uncertainty`.
 6. Export the PDF; confirm diagrams stay within print bounds and remain legible.
 7. Try the **ultra** variant (Options → prompt variant) for deeper output on hard
    problems; confirm `balanced` stays reliable for everyday use.

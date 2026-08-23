@@ -101,6 +101,21 @@ describe('auditStepQuality', () => {
     expect(symbolic).not.toContain('step_missing_substitution');
   });
 
+  it('does not require substitution on proof-like Math that omitted archetype:', () => {
+    const issues = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Prove n squared is even',
+        formula: '$$n^2=(2k)^2=4k^2$$',
+        body: 'Assume $n=2k$. Then $n^2$ is twice an integer, so $n^2$ is even.',
+      },
+      { subject: 'Math', question: 'Prove that if n is even then n^2 is even.' },
+    );
+    expect(issues).not.toContain('step_missing_substitution');
+    expect(issues).toContain('missing_archetype');
+  });
+
   it('still requires substitution on numeric and lab archetypes', () => {
     const step = {
       id: 's1',

@@ -2,7 +2,7 @@
  * Resume stitch, ID-patch apply, and multi-question helpers.
  * Pure functions — the controller calls these; they do not touch the DOM.
  */
-import type { Capsule, PatchOp, Step } from './types';
+import type { Capsule, ParseWarningCode, PatchOp, Step } from './types';
 import { CAPSULE_END_TOKEN, CAPSULE_FENCE_TAG } from './protocol';
 
 const RESUME_RE = /@resume\b[^\n]*/i;
@@ -76,24 +76,96 @@ function reindex(steps: Step[]): Step[] {
   return steps.map((s, i) => ({ ...s, index: i + 1 }));
 }
 
-/** Apply ID-targeted patch ops onto an existing capsule. Unknown ids are skipped. */
-export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): Capsule {
+export interface ApplyPatchResult {
+  capsule: Capsule;
+  warnings: string[];
+  warningCodes: ParseWarningCode[];
+}
+
+/** Apply ID-targeted patch ops onto an existing capsule. Unknown ids warn `patch_unknown_id`. */
+export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResult {
   let steps = [...capsule.steps];
+  let solution = capsule.solution;
+  let verification = capsule.verification;
+  let uncertainty = capsule.uncertainty;
+  const warnings: string[] = [];
+  const warningCodes: ParseWarningCode[] = [];
+
+  const unknown = (id: string, kind: string) => {
+    warnings.push(`Patch ${kind} referenced unknown id "${id}".`);
+    warningCodes.push('patch_unknown_id');
+  };
+
   for (const op of ops) {
+    if (op.solution != null) solution = op.solution;
+    if (op.verification) verification = op.verification;
+    if (op.uncertainty) uncertainty = op.uncertainty;
+
     if (op.op === 'replace' && op.id && op.step) {
       const i = steps.findIndex((s) => s.id === op.id);
-      if (i === -1) continue;
+      if (i === -1) {
+        unknown(op.id, 'replace');
+        continue;
+      }
       steps[i] = { ...op.step, id: op.id, index: steps[i]!.index };
     } else if (op.op === 'insert' && op.step) {
-      const after = op.after ? steps.findIndex((s) => s.id === op.after) : steps.length - 1;
-      const idx = after === -1 ? steps.length : after + 1;
-      const id = op.step.id || `step-${idx + 1}`;
-      steps.splice(idx, 0, { ...op.step, id });
+      if (op.after) {
+        const after = steps.findIndex((s) => s.id === op.after);
+        if (after === -1) unknown(op.after, 'insert');
+        const idx = after === -1 ? steps.length : after + 1;
+        const id = op.step.id || `step-${idx + 1}`;
+        steps.splice(idx, 0, { ...op.step, id });
+      } else {
+        const idx = steps.length;
+        const id = op.step.id || `step-${idx + 1}`;
+        steps.splice(idx, 0, { ...op.step, id });
+      }
     } else if (op.op === 'delete' && op.id) {
+      const before = steps.length;
       steps = steps.filter((s) => s.id !== op.id);
+      if (steps.length === before) unknown(op.id, 'delete');
     }
   }
-  return { ...capsule, steps: reindex(steps) };
+  return {
+    capsule: {
+      ...capsule,
+      steps: reindex(steps),
+      solution,
+      ...(verification ? { verification } : {}),
+      ...(uncertainty ? { uncertainty } : {}),
+    },
+    warnings,
+    warningCodes,
+  };
+}
+
+/** Pair truncated + continuation capsules that share an @resume token. */
+export function groupResumeParts(parts: string[]): string[] {
+  const out: string[] = [];
+  let pending: { token: string; raw: string } | null = null;
+  const complete = (text: string) =>
+    text.split('\n').some((l) => l.trim() === CAPSULE_END_TOKEN);
+
+  for (const candidate of parts) {
+    const token = findResumeToken(candidate);
+    if (pending && token && token === pending.token) {
+      out.push(stitchResume([pending.raw, candidate]));
+      pending = null;
+      continue;
+    }
+    if (token && !complete(candidate)) {
+      if (pending) out.push(pending.raw);
+      pending = { token, raw: candidate };
+      continue;
+    }
+    if (pending) {
+      out.push(pending.raw);
+      pending = null;
+    }
+    out.push(candidate);
+  }
+  if (pending) out.push(pending.raw);
+  return out;
 }
 
 export function questionsOf(capsule: Capsule | undefined, extras?: Capsule[]): Capsule[] {

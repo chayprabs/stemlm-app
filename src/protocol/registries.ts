@@ -44,6 +44,7 @@ export function renderDiagramRegistry(): string {
     'DIAGRAM REGISTRY — compiler draws; you name ids. NEVER <svg>, viewBox, path d=, text x= y=, markers, AI images.',
     'Emit @diagram id=fN type=<token> then key: value lines, then @enddiagram. Max one @diagram per @step.',
     'Every object named in that step\'s @body MUST appear as a named id in the spec.',
+    'Use ENGINE types first, then the subject row; emit a TEMPLATE type only when that row names it.',
     'ENGINE',
     'type\tkind\tkeys',
     ...engines,
@@ -121,7 +122,17 @@ export function renderFollowupRegistry(): string {
     'change this value and redo\tRESOLVE with the new given, same qid\tmode: resolve ; @meta question: restates the changed given',
     'add a step\tPATCH insert after the named id\tmode: patch ; @patch op=insert after=sN then @step id=sNa',
     'off-topic / new problem\tNEW question object\tmode: new ; @q id=q<next> (do not overwrite q1)',
-    'Ask-in-chat NEVER looks like a new homework blob. Patch/resolve stay on the current qid. Off-topic is the only path that opens a new @q.',
+    'revert last patch\tPATCH restore the last patched step id; if unknown, RESOLVE same qid\tmode: patch ; @patch op=replace the last patched id',
+    'only the diagram is wrong\tPATCH that step\'s @diagram; keep @body and ids\tmode: patch ; @patch op=replace id=sN with same @body, corrected @diagram',
+    'translate this\tPATCH rewrite title/body/solution in the requested language; keep ids, math, specs\tmode: patch',
+    'hint, don\'t solve\tPATCH add a hint or rewrite @body as a hint; NEVER dump the final numeric answer\tmode: patch',
+    'check my working\tPATCH mark each student line; do not replace with a fresh solve unless a line is wrong\tmode: patch',
+    'multiple-choice\tRESOLVE; one @step names the correct option and why others fail; same qid\tmode: resolve',
+    'skip to the answer\tstructure still wins: emit full steps; @solution restates the answer\tmode: resolve',
+    'change two givens\tRESOLVE with both new givens, same qid\tmode: resolve ; @meta question: restates both changed givens',
+    'explain this formula only\tPATCH the named formula step; OMIT a new homework blob\tmode: patch',
+    'empty follow-up\tNO-OP; emit nothing and do not open a new @q\t(no capsule)',
+    'Ask-in-chat NEVER looks like a new homework blob. Patch/resolve stay on the current qid. Off-topic is the only path that opens a new @q. Empty follow-up is a no-op.',
   ].join('\n');
 }
 
@@ -146,7 +157,7 @@ export function renderNotationLocale(): string {
     'units\tSI unless the problem uses imperial/USCS; then stay imperial and say so in @uncertainty.',
     'decimal\t`.` unless the problem uses `,` as the decimal mark; then match the problem.',
     'sigfig\tFinal numbers match the least precise given. Keep one guard digit in intermediate @body lines and state it.',
-    'circuit\tstd: ieee (ANSI) when the problem uses US textbook symbols; std: iec otherwise. Set locale: circuit=IEEE|IEC. NEVER mix in one netlist.',
+    'circuit\tstd: ieee (ANSI) when the problem uses US textbook symbols; std: iec otherwise. Set locale: circuit=IEEE|IEC. Copy @meta locale circuit=IEEE|IEC into diagram std: ieee|iec unless the problem figure shows the other. NEVER mix in one netlist.',
     'g\tUse the value given. If missing: 9.81 m/s^2 and list it under @uncertainty assumption:. NEVER silently use 10 or 9.8.',
     'angles\tRadians in analysis unless the problem states degrees; convert explicitly.',
     'current\tPassive sign convention unless the problem draws otherwise. State the choice once.',
@@ -161,6 +172,7 @@ export function renderLevelDial(): string {
     'undergrad\tstandard UG course (nodal, ICE, RREF, FBD, Punnett)\tName the law, state why it applies, one move per step, textbook diagram spec.',
     'advanced\tmasters language (Laplace-domain control, McCabe, MAG, Hilbert)\tState hypotheses/assumptions of the theorem; justify dropping terms.',
     'research\tPhD/research (QFT Feynman, Banach, MAG noise figure, original design)\tName the framework, the approximation, and the validity region. Do not patronize with intro analogies.',
+    'intro + DEPTH deep\tDEPTH is deep and level is intro\tAdd skipped algebra and named substitutions. NEVER switch to research jargon.',
     'NEVER talk down to research; NEVER skip symbol definitions at intro. Student "in Hindi" (or any language) wins for OUTPUT LANGUAGE only — structure, diagrams, and verification still apply.',
   ].join('\n');
 }

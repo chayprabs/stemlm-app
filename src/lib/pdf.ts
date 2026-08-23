@@ -122,6 +122,11 @@ code{font-family:${FONT_MONO};font-size:.88em;}
 .katex .katex-mathml{position:static!important;clip:auto!important;height:auto!important;width:auto!important;overflow:visible!important;}
 .katex{font:inherit;}
 math{font-size:1.02em;}
+.slm-step-id{display:inline-block;margin-right:6px;font-family:${FONT_MONO};font-size:8.5pt;color:${T.fgSubtle};}
+.slm-signals{margin:0 0 14px;}
+.slm-signal--flag{font-size:10pt;font-weight:600;color:${T.fg};background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusSm};padding:6px 10px;margin:0 0 8px;}
+.slm-signals-title{margin:0 0 4px;font-size:8pt;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:${T.fgSubtle};}
+.slm-verify,.slm-uncertainty{padding:10px 12px;margin:0 0 8px;background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};font-size:10pt;}
 `;
 }
 

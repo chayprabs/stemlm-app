@@ -17,6 +17,8 @@ import {
   buildComposerPointer,
   composerTextHasProtocol,
   pageThreadHasProtocol,
+  shouldReinjectOnNewQuestion,
+  isEmptyFollowupSelection,
   FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
   FOLLOWUP_CONTEXT_HEADER,
@@ -24,8 +26,8 @@ import {
 } from '@/src/protocol/builder';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
-import { applyStepPatch, findResumeToken, stitchResume } from '@/src/protocol/apply';
-import type { Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
+import { applyStepPatch, findResumeToken, stitchResume, groupResumeParts } from '@/src/protocol/apply';
+import type { Capsule, Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
@@ -62,6 +64,35 @@ function makeId(): string {
 
 function allDiagrams(...groups: Diagram[][]): Diagram[] {
   return groups.flat();
+}
+
+/** Off-topic / mode:new / qid mismatch must open a new session, not overwrite. */
+export function followUpOpensNewSession(active: Session, incoming: Capsule): boolean {
+  if (incoming.meta.mode === 'new') return true;
+  const aQid = active.capsule.meta.qid;
+  const iQid = incoming.meta.qid;
+  if (aQid && iQid && aQid !== iQid) return true;
+  const aTopic = (active.capsule.meta.topic || '').trim().toLowerCase();
+  const iTopic = (incoming.meta.topic || '').trim().toLowerCase();
+  if (aTopic && iTopic && aTopic !== iTopic) {
+    const aQ = (active.question || active.capsule.meta.question || '').toLowerCase();
+    const iQ = (incoming.meta.question || '').toLowerCase();
+    if (iQ && aQ) {
+      const aHead = aQ.slice(0, 48);
+      const iHead = iQ.slice(0, 48);
+      if (!aQ.includes(iHead) && !iQ.includes(aHead)) return true;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function keepActiveQid(active: Session, incoming: Capsule): Capsule {
+  if (incoming.meta.qid) return incoming;
+  const qid = active.capsule.meta.qid;
+  if (!qid) return incoming;
+  return { ...incoming, meta: { ...incoming.meta, qid } };
 }
 
 export class StemController {
@@ -114,11 +145,27 @@ export class StemController {
   /** Attach stemlm-protocol.txt and a short stub — never dump the protocol as chat text. */
   async inject(): Promise<boolean> {
     const store = useStore.getState();
-    if (store.buttonInjected) return false;
-
     const existing = this.adapter.getEditorText().trim();
     const hasImageAttachment = this.adapter.composerHasAttachments();
     const question = cleanSessionQuestion(existing);
+    const alreadyInComposer = composerTextHasProtocol(existing);
+    const alreadyInThread =
+      alreadyInComposer || pageThreadHasProtocol(document, this.adapter.findEditor());
+
+    if (store.buttonInjected) {
+      if (
+        !shouldReinjectOnNewQuestion({
+          buttonInjected: true,
+          question,
+          lastQuestion: this.lastQuestion,
+          hasProtocol: alreadyInThread,
+        })
+      ) {
+        return false;
+      }
+      store.setButtonInjected(false);
+    }
+
     const hasUserContent = this.composerHasUserContent();
     this.lastQuestion = question;
 
@@ -130,9 +177,6 @@ export class StemController {
     let ok = false;
     let injectionMethod: 'text' | 'file' = 'text';
 
-    const alreadyInComposer = composerTextHasProtocol(existing);
-    const alreadyInThread =
-      alreadyInComposer || pageThreadHasProtocol(document, this.adapter.findEditor());
     const attached = await attachTextFile(payload.fileContent, {
       filename: PROTOCOL_FILENAME,
       preserveExisting: hasImageAttachment,
@@ -155,7 +199,7 @@ export class StemController {
       ok = await this.insertVerifiedPrompt(stub, mode, { fileAttach: true });
       if (ok) injectionMethod = 'file';
       // File already on the composer — never dump the protocol wall as well.
-    } else if (alreadyInThread) {
+    } else if (alreadyInThread || hasImageAttachment) {
       const stub = buildComposerPointer({
         hasImageAttachment,
         hasQuestion: question.length > 0,
@@ -207,6 +251,9 @@ export class StemController {
     opt?: { intent?: FollowupIntent },
   ): Promise<boolean> {
     const normalized = normalizeFollowupSelection(selection);
+    if (isEmptyFollowupSelection(selection)) {
+      return true;
+    }
     if (normalized.length < 3) {
       useStore
         .getState()
@@ -565,10 +612,10 @@ export class StemController {
     if (this.pendingFollowUpCapture && result.patch && result.patch.length && active) {
       const patched = applyStepPatch(active.capsule, result.patch);
       this.commitSession(
-        { ...active, updatedAt: Date.now(), capsule: patched, raw: result.raw },
+        { ...active, updatedAt: Date.now(), capsule: patched.capsule, raw: result.raw },
         true,
       );
-      this.finishCapture(patched, result);
+      this.finishCapture(patched.capsule, result);
       return;
     }
 
@@ -587,10 +634,10 @@ export class StemController {
       this.pendingFollowUpCapture &&
       active &&
       questionCapsules.length === 1 &&
-      questionCapsules[0]!.meta.mode !== 'new';
+      !followUpOpensNewSession(active, questionCapsules[0]!);
 
     if (followUpSameQuestion) {
-      const cap = questionCapsules[0]!;
+      const cap = keepActiveQid(active, questionCapsules[0]!);
       this.commitSession(
         {
           ...active,
@@ -749,7 +796,7 @@ export class StemController {
       if (k) existingByRaw.set(k, s);
     }
 
-    for (const candidate of capsules) {
+    for (const candidate of groupResumeParts(capsules)) {
       const text = findCapsuleRaw(candidate) ?? candidate;
       const key = text.trim();
       if (!key.includes('@meta') || seen.has(key)) continue;

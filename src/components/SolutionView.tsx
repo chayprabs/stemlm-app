@@ -7,6 +7,7 @@ import { StepWork } from './StepWork';
 import { StepIndexMark } from './step-index';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
+import { CapsuleSignals } from './CapsuleSignals';
 
 function SolutionStep({
   step,
@@ -21,6 +22,7 @@ function SolutionStep({
     <article className="slm-solution-step">
       <header className="slm-solution-step-head">
         <StepIndexMark n={index + 1} />
+        <span className="slm-step-id">{step.id}</span>
         <h3 className="slm-solution-step-title">{step.title}</h3>
       </header>
 
@@ -62,6 +64,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
 
   return (
     <div className="slm-solution">
+      <CapsuleSignals capsule={session.capsule} />
       {hasSteps && (
         <section className="slm-solution-steps" aria-label="Solution steps">
           {steps.map((step, i) => (

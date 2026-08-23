@@ -151,6 +151,10 @@ export interface PatchOp {
   /** Insert after this step id. */
   after?: string;
   step?: Step;
+  /** Optional capsule-level updates inside `@patch` (final-answer changes). */
+  solution?: string;
+  verification?: VerificationBlock;
+  uncertainty?: UncertaintyBlock;
 }
 
 export type ParseStatus = 'ok' | 'partial' | 'empty';
@@ -186,7 +190,14 @@ export type ParseWarningCode =
   | 'diagram_label_collision'
   | 'diagram_label_over_graphic'
   | 'diagram_missing_axes'
-  | 'diagram_legend_only';
+  | 'diagram_legend_only'
+  | 'missing_verify'
+  | 'missing_uncertainty'
+  | 'missing_step_id'
+  | 'missing_formula_id'
+  | 'missing_diagram_id'
+  | 'patch_unknown_id'
+  | 'missing_archetype';
 
 export type ParseErrorCode =
   | 'no_capsule'

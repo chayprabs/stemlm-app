@@ -8,6 +8,7 @@ import { FollowupBar } from './FollowupBar';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { StepWork } from './StepWork';
 import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
+import { CapsuleSignals } from './CapsuleSignals';
 
 export function StepCard({
   session,
@@ -34,8 +35,10 @@ export function StepCard({
       transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
     >
       <header className="slm-card-head">
+        <span className="slm-step-id" title="Step id for follow-up">{step.id}</span>
         <h2 className="slm-card-title">{step.title}</h2>
       </header>
+      <CapsuleSignals capsule={session.capsule} />
 
       {shouldShowFormulaBlock(step) && step.formula && (
         <div className="slm-formula">
