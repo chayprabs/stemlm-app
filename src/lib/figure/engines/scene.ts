@@ -74,26 +74,8 @@ export function compileScene(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     b.line('ray1b', lensX, axisY - ho, lensX + f * 2, axisY, { color: 'accent' });
     b.line('ray2', objX, axisY - ho, lensX, axisY, { markerEnd: true, color: 'muted' });
   } else if (kind === 'field') {
-    const catalog = specGet(spec, 'catalog') ?? specGet(spec, 'kind') ?? 'dipole';
-    b.label('fieldkind', catalog, w / 2, 14, { protected: true });
-    if (/dipole/i.test(catalog)) {
-      b.circle('plus', w * 0.35, h / 2, 8, { color: 'danger', fill: 'none' });
-      b.circle('minus', w * 0.65, h / 2, 8, { color: 'accent', fill: 'none' });
-      b.label('plusl', '+', w * 0.35, h / 2, { protected: true });
-      b.label('minusl', '−', w * 0.65, h / 2, { protected: true });
-      for (let i = 0; i < 5; i++) {
-        const y = 40 + i * 20;
-        b.path(`fl${i}`, `M ${w * 0.38} ${h / 2} Q ${w * 0.5} ${y} ${w * 0.62} ${h / 2}`, {
-          color: 'muted',
-          markerEnd: true,
-        });
-      }
-    } else {
-      for (let i = 0; i < 6; i++) {
-        const y = 30 + i * 20;
-        b.line(`fl${i}`, 40, y, w - 40, y, { markerEnd: true, color: 'muted' });
-      }
-    }
+    const drawn = drawFieldCatalog(b, spec, w, h);
+    if (!drawn.ok) return drawn;
   } else if (kind === 'geom' || kind === 'geometry') {
     b.polygon('tri', [w * 0.2, h * 0.75, w * 0.8, h * 0.75, w * 0.5, h * 0.2], { color: 'neutral' });
     b.label('A', 'A', w * 0.2, h * 0.75, { slot: 'SW' });
@@ -107,4 +89,137 @@ export function compileScene(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   }
 
   return layoutAndCompile(b.scene());
+}
+
+type FieldCatalog = 'dipole' | 'parallel-plate' | 'wire' | 'solenoid' | 'te10';
+
+export function normalizeFieldCatalog(raw: string | undefined): FieldCatalog | null {
+  if (!raw) return null;
+  const t = raw
+    .trim()
+    .split(/[\s,;]/)[0]!
+    .toLowerCase()
+    .replace(/_/g, '-');
+  if (t === 'dipole' || t === 'electric-dipole') return 'dipole';
+  if (t === 'parallel-plate' || t === 'parallelplate' || t === 'plates') return 'parallel-plate';
+  if (t === 'wire' || t === 'long-wire' || t === 'infinite-wire') return 'wire';
+  if (t === 'solenoid' || t === 'coil') return 'solenoid';
+  if (t === 'te10' || t === 'te-10' || t === 'waveguide') return 'te10';
+  return null;
+}
+
+function drawFieldCatalog(
+  b: SceneBuilder,
+  spec: SpecDoc,
+  w: number,
+  h: number,
+): CompileResult | { ok: true } {
+  const raw = specGet(spec, 'catalog') ?? (specGet(spec, 'core') ? 'solenoid' : undefined);
+  const cat = normalizeFieldCatalog(raw);
+  if (!cat) {
+    return {
+      ok: false,
+      code: 'malformed',
+      reason: 'field needs catalog: dipole|parallel-plate|wire|solenoid|TE10',
+    };
+  }
+
+  if (cat === 'dipole') {
+    b.circle('plus', w * 0.32, h / 2, 8, { color: 'danger', fill: 'none' });
+    b.circle('minus', w * 0.68, h / 2, 8, { color: 'accent', fill: 'none' });
+    b.label('plusl', '+', w * 0.32, h / 2, { protected: true });
+    b.label('minusl', '−', w * 0.68, h / 2, { protected: true });
+    for (let i = 0; i < 5; i++) {
+      const y = 28 + i * ((h - 48) / 4);
+      b.path(`fl${i}`, `M ${w * 0.36} ${h / 2} Q ${w * 0.5} ${y} ${w * 0.64} ${h / 2}`, {
+        color: 'muted',
+        markerEnd: true,
+      });
+    }
+    return { ok: true };
+  }
+
+  if (cat === 'parallel-plate') {
+    b.rect('plate1', 70, 28, 10, h - 52, { fill: 'muted', width: 1.4 });
+    b.rect('plate2', w - 80, 28, 10, h - 52, { fill: 'muted', width: 1.4 });
+    for (let i = 0; i < 5; i++) {
+      const y = 40 + i * ((h - 70) / 4);
+      b.line(`E${i}`, 88, y, w - 88, y, { markerEnd: true, color: 'accent', width: 1.4 });
+    }
+    b.label('plusl', '+', 75, 18, { protected: true });
+    b.label('minusl', '−', w - 75, 18, { protected: true });
+    return { ok: true };
+  }
+
+  if (cat === 'wire') {
+    const cx = w / 2;
+    const cy = h / 2;
+    b.circle('wire', cx, cy, 8, { fill: 'muted', width: 1.6 });
+    b.line('cur1', cx - 4, cy - 4, cx + 4, cy + 4, { width: 1.4 });
+    b.line('cur2', cx - 4, cy + 4, cx + 4, cy - 4, { width: 1.4 });
+    for (let i = 0; i < 4; i++) {
+      const r = 18 + i * 12;
+      b.circle(`B${i}`, cx, cy, r, { color: 'guide', width: 1 });
+    }
+    b.path('Btan', `M ${cx + 30} ${cy - 6} A 30 30 0 0 1 ${cx + 6} ${cy + 30}`, {
+      color: 'accent',
+      markerEnd: true,
+      width: 1.4,
+    });
+    b.label('I', 'I', cx, cy - 16, { protected: true });
+    return { ok: true };
+  }
+
+  if (cat === 'te10') {
+    const x0 = 36;
+    const y0 = 28;
+    const bw = w - 72;
+    const bh = h - 52;
+    b.rect('guide', x0, y0, bw, bh, { width: 1.6 });
+    for (let i = 1; i <= 7; i++) {
+      const x = x0 + (i * bw) / 8;
+      const amp = Math.sin((Math.PI * i) / 8);
+      const half = Math.max(8, amp * (bh * 0.38));
+      b.line(`E${i}`, x, y0 + bh / 2 + half, x, y0 + bh / 2 - half, {
+        markerEnd: true,
+        color: 'accent',
+        width: 1.4,
+      });
+    }
+    b.label('TE10', 'TE10', w / 2, 16, { protected: true });
+    return { ok: true };
+  }
+
+  // solenoid — shaded cylindrical core, coil wraps, interior B, H same direction.
+  const coreX = 48;
+  const coreY = 46;
+  const coreW = w - 88;
+  const coreH = h - 78;
+  b.rect('core', coreX, coreY, coreW, coreH, { fill: 'muted', color: 'neutral', width: 1.4 });
+  const hatchN = 8;
+  for (let i = 0; i < hatchN; i++) {
+    const x0 = coreX + 6 + (i * (coreW - 20)) / (hatchN - 1);
+    b.line(`core-hatch${i}`, x0, coreY + 4, x0 + 16, coreY + coreH - 4, { color: 'neutral', width: 0.7 });
+  }
+  const wraps = 6;
+  for (let i = 0; i < wraps; i++) {
+    const cx = coreX + 18 + (i * (coreW - 36)) / (wraps - 1);
+    b.ellipse(`wrap${i}`, cx, coreY + coreH / 2, 8, coreH / 2 + 12, { color: 'neutral' });
+  }
+  const bYs = [coreY + coreH * 0.28, coreY + coreH * 0.45, coreY + coreH * 0.62];
+  bYs.forEach((y, i) => {
+    const id = i === 1 ? 'B' : `B${i}`;
+    b.line(id, coreX + 14, y, coreX + coreW - 14, y, { markerEnd: true, color: 'accent', width: 1.6 });
+  });
+  const hy = coreY + coreH * 0.82;
+  b.line('H', coreX + 14, hy, coreX + coreW - 28, hy, { markerEnd: true, color: 'danger', width: 1.8 });
+
+  const coreRaw = specGet(spec, 'core') ?? specGet(spec, 'mu_r') ?? 'mu_r=400';
+  const mur = /mu_r\s*=\s*(\S+)/i.exec(coreRaw)?.[1] ?? coreRaw.replace(/^mu_r\s*=\s*/i, '');
+  const bRaw = specGet(spec, 'b') ?? '1.0 T';
+  const hRaw = specGet(spec, 'h') ?? '?';
+  b.label('mu_r', `μ_r=${mur}`, coreX + coreW / 2, coreY - 10, { protected: true });
+  b.label('B-val', `B=${bRaw}`, coreX + coreW - 8, bYs[1]! - 10, { slot: 'E', protected: true });
+  b.label('H-val', `H=${hRaw}`, coreX + coreW - 8, hy + 12, { slot: 'E', protected: true });
+  return { ok: true };
 }

@@ -30,7 +30,7 @@ describe('last chat persistence', () => {
     for (const key of Object.keys(localStore)) delete localStore[key];
   });
 
-  it('accepts a Gemini chat URL and rejects unsupported hosts', () => {
+  it('accepts the four shipped chat URLs and rejects unsupported hosts', () => {
     expect(
       isLastChatRecord({
         url: 'https://gemini.google.com/app/abc',
@@ -38,7 +38,18 @@ describe('last chat persistence', () => {
         savedAt: 1,
       }),
     ).toBe(true);
+    expect(lastChatFromUrl('https://chatgpt.com/c/1', 'chatgpt')).toMatchObject({
+      url: 'https://chatgpt.com/c/1',
+      platform: 'chatgpt',
+    });
+    expect(lastChatFromUrl('https://claude.ai/chat/1', 'claude')).toMatchObject({
+      platform: 'claude',
+    });
+    expect(lastChatFromUrl('https://grok.com/chat', 'grok')).toMatchObject({
+      platform: 'grok',
+    });
     expect(lastChatFromUrl('https://chatgpt.com/c/1', 'gemini')).toBeNull();
+    expect(lastChatFromUrl('https://x.com/i/grok', 'grok')).toBeNull();
     expect(lastChatFromUrl('chrome://extensions', 'gemini')).toBeNull();
   });
 

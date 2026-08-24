@@ -111,7 +111,11 @@ export function compileRay(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileField(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const catalog = specGet(spec, 'catalog') ?? specGet(spec, 'kind');
   spec.values.set('kind', ['field']);
+  if (catalog && catalog.toLowerCase() !== 'field' && !specGet(spec, 'catalog')) {
+    spec.values.set('catalog', [catalog]);
+  }
   return compileScene(spec, ctx);
 }
 

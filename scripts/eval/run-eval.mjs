@@ -18,14 +18,15 @@
  *
  * With no question file it prints usage + the manual-QA checklist and exits 0.
  *
- * Requires the loader hook for Vite-style `?raw` imports:
- *   node --import tsx ... is handled automatically by `pnpm eval`.
+ * Requires the loader hooks for Vite-style `?raw` imports and `@/` aliases.
+ * `pnpm eval` runs this file with Node (no tsx).
  */
 import { register } from 'node:module';
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 
-// 1) Resolve Vite `?raw` imports used by the protocol modules.
+// 1) `@/` → repo root `.ts` and Vite `?raw` imports used by the protocol modules.
+register('./alias-hook.mjs', import.meta.url);
 register('./raw-hook.mjs', import.meta.url);
 // 2) Shim the analytics build-time globals (no telemetry in the harness).
 globalThis.__GA_MEASUREMENT_ID__ = '';

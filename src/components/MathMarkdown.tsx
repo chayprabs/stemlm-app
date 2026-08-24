@@ -29,7 +29,7 @@ export const MathMarkdown = memo(function MathMarkdown({
   return (
     <div className={`slm-prose ${className ?? ''}`}>
       <Markdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkMath, remarkGfm]} // math first so GFM cannot italicize A_{safe}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
         urlTransform={safeUrl}
       >

@@ -42,7 +42,6 @@ export function PanelHeader({
         <div className="slm-header-leading">
           <div className="slm-brand">
             <BrandWordmark
-              key={themeToBrandVariant(theme)}
               className="slm-brand-name"
               variant={themeToBrandVariant(theme)}
             />

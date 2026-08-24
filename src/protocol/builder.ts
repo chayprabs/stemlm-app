@@ -48,6 +48,9 @@ export const THREAD_PROTOCOL_SELECTORS = [
   'user-query',
   '[data-message-author-role="user"]',
   '[data-message-author-role="human"]',
+  '[data-testid="user-message"]',
+  '[data-testid*="user-message" i]',
+  '[data-testid^="conversation-turn-"][data-turn="user"]',
   'query-text',
   '.query-text',
   '.user-query',
@@ -157,6 +160,7 @@ export const DIAGRAM_SPEC_CATALOG = [
   'DIAGRAMS: compiler draws. You name ids. Never <svg>, viewBox, path d=, text x= y=, markers.',
   'type=plot     fn: | data: | poles: | peaks:  xlabel: ylabel: units  eq:  domain:',
   'type=scene    kind=fbd|ray|geom|field  named parts, relations (incline_deg, f, do) — no pixels',
+  'type=field    catalog: dipole|parallel-plate|wire|solenoid|TE10  core: B: H:',
   'type=graph    node: id label   edge: a b kind   (mermaid OK for CS flow/sequence/state only)',
   'type=table    kind=ice|dp|punnett|matrix  row lines',
   'type=circuit  SPICE-like  id n1 n2 value  std=ieee  highlight:',
@@ -174,7 +178,7 @@ export function getDiagramRequirement(subject: Subject): string {
     Chemistry:
       'CRITICAL — chemistry/visual problems MUST include @diagram specs. chem.smiles / newman / mo / table kind=ice / type=echem. NEVER SMILES-as-Newman. Every named species is a spec id.',
     Physics:
-      'CRITICAL — physics visual problems MUST include @diagram specs. FREE-BODY: type=scene kind=fbd; isolate ONE body; name forces N,T,f,mg,F; axes separate. OPTICS: type=ray or scene kind=ray with f, do.',
+      'CRITICAL — physics visual problems MUST include @diagram specs. FREE-BODY: type=scene kind=fbd; isolate ONE body; name forces N,T,f,mg,F; axes separate. OPTICS: type=ray or scene kind=ray with f, do. FIELDS: type=field catalog: solenoid|dipole|parallel-plate|wire|TE10 with core:/B:/H: keys — never a prose paragraph.',
     Math: 'CRITICAL — math visual problems MUST include @diagram type=plot (or scene/table/graph) for graphs, regions, geometry. Omit on purely symbolic algebra.',
     Biology:
       'CRITICAL — biology visual problems MUST include @diagram specs. Punnett: table. Pedigree/pathway: graph (pointed=activation, blunt=inhibition).',
@@ -232,7 +236,7 @@ const DIAGRAM_REMINDERS: Record<Subject, string> = {
   Chemistry:
     'Use chem.smiles / newman / mo / table kind=ice / echem on visual steps — every named species is a spec id. Never SVG coordinates.',
   Physics:
-    'Use scene FBD / ray (f,do) / plot on visual steps — named forces and axes. Never SVG coordinates.',
+    'Use scene FBD / ray (f,do) / field catalog (solenoid,dipole,parallel-plate,wire,TE10) / plot on visual steps — named forces, axes, core/B/H. Never SVG coordinates.',
   Math: 'Use type=plot with fn: and eq: (or scene/table) when visual. Never SVG coordinates.',
   Biology: 'Use table/graph/named templates (or mermaid for pathways). Never SVG coordinates.',
   CS: 'Use mermaid for control flow / state; table/graph/array for DS traces. Code as inline `code`, never a fence.',
@@ -521,7 +525,7 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
       : '';
   const diagramFix =
     opt.errorCode && DIAGRAM_REPAIR_CODES.has(opt.errorCode)
-      ? ' Convert each figure to a spec; do not emit path coordinates. ADD a complete @diagram SPEC — electrical: circuit or hybridpi/opamp with required keys; physics: scene FBD/ray or plot; math: plot/scene; chemistry: chem.smiles/mo/table; civil: sfd; ChemE: mccabe without stair corners. Every object named in @body MUST appear as a named id. Never <svg>.'
+      ? ' Convert each figure to typed key: value lines; do not emit path coordinates. ADD a complete @diagram with keys — electrical: circuit or hybridpi/opamp with required keys; physics: field catalog (solenoid/dipole/…) or scene FBD/ray or plot; math: plot/scene; chemistry: chem.smiles/mo/table; civil: sfd; ChemE: mccabe without stair corners. Every object named in @body MUST appear as a named id. Never <svg>.'
       : '';
   return [
     `Your previous stemLM capsule was incomplete or malformed.${reason}`,

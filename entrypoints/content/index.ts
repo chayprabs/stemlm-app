@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import App from './App';
 import './style.css';
 import { detectAdapter } from '@/src/platforms/detect';
+import { CHAT_CONTENT_MATCHES } from '@/src/platforms/hosts';
 import { initController, getController } from '@/src/content/controller';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
@@ -37,7 +38,7 @@ import {
  * overridden in settings. Sessions are per-tab unless "Share across tabs" is on.
  */
 export default defineContentScript({
-  matches: ['*://gemini.google.com/*'],
+  matches: [...CHAT_CONTENT_MATCHES],
   cssInjectionMode: 'ui',
   runAt: 'document_idle',
 

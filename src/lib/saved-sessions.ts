@@ -5,6 +5,7 @@
  */
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
+import { isPlatformId, type PlatformId } from '@/src/platforms/types';
 import { exportSessionPdf, type PdfExportResult } from './pdf';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
@@ -23,7 +24,7 @@ export interface SavedSessionSnapshot {
   id: string;
   question: string;
   savedAt: number;
-  platform: 'gemini';
+  platform: PlatformId;
   meta: CapsuleMeta;
   steps: Step[];
   solution: string;
@@ -77,7 +78,7 @@ export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
     id: session.id,
     question: resolveSessionQuestion(session),
     savedAt: Date.now(),
-    platform: 'gemini',
+    platform: session.platform,
     meta: session.capsule.meta,
     steps: session.capsule.steps,
     solution: session.capsule.solution,
@@ -141,7 +142,7 @@ export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | nul
       id: o.id,
       question: o.question,
       savedAt: typeof o.savedAt === 'number' ? o.savedAt : typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
-      platform: 'gemini',
+      platform: isPlatformId(o.platform) ? o.platform : 'gemini',
       meta: o.meta,
       steps: Array.isArray(o.steps) ? o.steps.filter(isStep) : [],
       solution: o.solution,

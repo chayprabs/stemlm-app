@@ -103,9 +103,11 @@ describe('popup launch helpers', () => {
     expect(unsupported.find((t) => t.id === 'ask-here')?.visible).toBe(false);
     expect(unsupported.find((t) => t.id === 'open-last')?.disabled).toBe(true);
     expect(unsupportedHostNotice()).toBe(
-      'This website is not supported. stemLM currently only works on Gemini.',
+      'This website is not supported. stemLM currently only works on ChatGPT, Claude, Gemini, Grok.',
     );
-    expect(unsupportedHostNotice()).not.toMatch(/ChatGPT|Claude|Grok/);
+    expect(unsupportedHostNotice()).toMatch(/ChatGPT/);
+    expect(unsupportedHostNotice()).toMatch(/Claude/);
+    expect(unsupportedHostNotice()).toMatch(/Grok/);
   });
 
   it('Start here loads when capsules exist and still succeeds when the chat is empty', async () => {
@@ -162,6 +164,21 @@ describe('popup launch helpers', () => {
     });
     expect(tabs.update).toHaveBeenCalledWith(99, { active: true });
     expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'stemlm:load-conversation' });
+  });
+
+  it('Ask here on ChatGPT, Claude, and Grok is a supported host path', async () => {
+    for (const url of [
+      'https://chatgpt.com/c/1',
+      'https://claude.ai/chat/1',
+      'https://grok.com/chat',
+    ]) {
+      tabs.sendMessage.mockClear();
+      activeTab = { id: 11, url };
+      const result = await runLaunchAction('ask-here');
+      expect(result.ok).toBe(true);
+      expect(tabs.sendMessage).toHaveBeenCalledWith(11, { type: 'stemlm:ask-here' });
+      expect(localStore[LAST_CHAT_KEY]).toMatchObject({ url });
+    }
   });
 
   it('Ask here delivers the composer inject message', async () => {

@@ -40,6 +40,7 @@ import {
   stripProtocolMarkers,
 } from './strip-markers';
 import { auditCapsuleDiagrams, diagramQualityMessage } from './diagram-quality';
+import { injectStdIntoSpec } from './locale';
 import {
   canonicalizeDiagramType,
   familyRequiredMissing,
@@ -302,6 +303,17 @@ function normalizeSubject(value: string | undefined): { subject: Subject; recove
   if (/bio/.test(v)) return { subject: 'Biology', recovered: false };
   if (/math|calc|algebra/.test(v)) return { subject: 'Math', recovered: false };
   return { subject: 'General', recovered: true };
+}
+
+function applyLocaleStd(capsule: Capsule): void {
+  const locale = capsule.meta.locale;
+  if (!locale) return;
+  const apply = (d: Diagram | undefined) => {
+    if (!d) return;
+    d.content = injectStdIntoSpec(d.content, locale, d.type);
+  };
+  for (const s of capsule.steps) apply(s.diagram);
+  for (const d of capsule.solutionDiagrams) apply(d);
 }
 
 const DIAGRAM_TYPE_RE = /type\s*=\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i;
@@ -933,6 +945,10 @@ export function parseCapsule(
         if (!innerParsed.capsule.meta.subject || innerParsed.capsule.meta.subject === 'General') {
           innerParsed.capsule.meta.subject = subject;
         }
+        if (!innerParsed.capsule.meta.locale && locale) {
+          innerParsed.capsule.meta.locale = locale;
+          applyLocaleStd(innerParsed.capsule);
+        }
         questions.push(innerParsed.capsule);
       }
       innerParsed.warningCodes.forEach((code, i) => {
@@ -1098,6 +1114,8 @@ export function parseCapsule(
   if (questions.length === 1 && !metaQuestion && questions[0]!.meta.question) {
     capsule.meta.question = questions[0]!.meta.question;
   }
+
+  applyLocaleStd(capsule);
 
   for (const code of auditCapsuleDiagrams(capsule)) {
     const key = `diagram:${code}`;

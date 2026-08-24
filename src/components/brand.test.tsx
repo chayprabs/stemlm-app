@@ -218,14 +218,19 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).not.toContain('IconMoon');
   });
 
-  it('inject idle glyph is the therefore mark', () => {
+  it('inject idle glyph is a plus, not the therefore mark', () => {
     const html = renderToStaticMarkup(<OverlayButton />);
     const doc = parseSvg(html);
     const btn = doc.querySelector('.slm-inject-btn');
     expect(btn).toBeTruthy();
+    expect(btn?.getAttribute('data-glyph')).toBe('plus');
+    expect(html).toContain('M12 5v14');
+    expect(html).toContain('slm-inject-plus');
+    expect(html).toContain('slm-inject-tick');
     const { circles, signal } = thereforeParts(btn ?? doc);
-    expect(circles).toHaveLength(2);
-    expect(signal).toHaveLength(1);
+    expect(circles).toHaveLength(0);
+    expect(signal).toHaveLength(0);
+    expect(html).not.toContain('slm-extension-logo');
     expect(html).not.toContain('M24 40V17');
   });
 

@@ -145,7 +145,7 @@ title: <corrected move>
 @endpatch
 
 DIAGRAMS: compiler draws. You name ids. NEVER <svg>, viewBox, path d=, text x= y=, markers, AI images, "Symbols:" legends, JCAMP dumps, mermaid for circuits/plots/chem.
-Each @diagram is a SPEC of the state AT THIS STEP. Every component, force, bond, axis, node, species, or peak named in @body MUST appear as a named id. Function graphs: emit fn: and eq: (compiler places the equation). hybridpi REQUIRES rpi,gm,re,rc (NEVER omit rc). opamp REQUIRES rf,rg. McCabe: α,zF,xD,R,q — NEVER list staircase corners. SFD: piecewise V(x), M(x), sagging positive. Completeness is spec membership, not SVG text. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec unless the problem figure shows the other.
+Each @diagram is typed key: value lines for the state AT THIS STEP (never a prose paragraph). Every component, force, bond, axis, node, species, or peak named in @body MUST appear as a named id. Function graphs: emit fn: and eq: (compiler places the equation). Fields: type=field catalog: dipole|parallel-plate|wire|solenoid|TE10 with core:/B:/H: keys. hybridpi REQUIRES rpi,gm,re,rc (NEVER omit rc). opamp REQUIRES rf,rg. McCabe: α,zF,xD,R,q — NEVER list staircase corners. SFD: piecewise V(x), M(x), sagging positive. Completeness is spec membership, not SVG text. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec unless the problem figure shows the other.
 
 Worked engine examples (copy the keys; change the science):
 @diagram id=f1 type=circuit
@@ -179,6 +179,12 @@ species: N2, H2, NH3
 I: 1, 3, 0
 C: -x, -3x, +2x
 E: 1-x, 3-3x, 2x
+@enddiagram
+@diagram id=f6 type=field
+catalog: solenoid
+core: mu_r=400
+B: 1.0 T
+H: ?
 @enddiagram
 
 FIRST PASS: emit the complete corrected capsule now. Self-check before sending: one fence ending `__END__` (or a closed @resume); every @step has id= and worked @body; every visual state-changing step has a closed @diagram spec (not SVG) that names every @body object; @meta question: is the verbatim problem; @verify and @uncertainty are present; last step is verification.

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { detectAdapter, adapterById, adapterForUrl, isSupportedChatUrl, supportedChatLabels } from './detect';
+import { detectAdapter, adapterById, adapterForUrl, isSupportedChatUrl, supportedChatLabels, injectControlEnabled } from './detect';
+import { isImageGenPath, watchComposerRoute } from './routes';
 import { geminiAdapter } from './gemini';
 import { buildComposerStub, buildInjectionPrompt } from '@/src/protocol/builder';
 import {
@@ -13,6 +14,13 @@ import {
 } from './factory';
 import { buildFollowupAskInChatPrompt } from '@/src/protocol/builder';
 import { buildInjectionAppendix } from '@/src/protocol/builder';
+import { CHAT_CONTENT_MATCHES } from './hosts';
+import {
+  HOST_CAPSULE,
+  HOST_FIXTURES,
+  addNamedChip,
+  mountHostComposer,
+} from './host-fixtures';
 
 const CAPSULE_BODY = [
   '@meta',
@@ -37,9 +45,23 @@ describe('detectAdapter', () => {
     expect(detectAdapter('www.gemini.google.com')?.id).toBe('gemini');
   });
 
+  it('matches ChatGPT, Claude, and Grok by host', () => {
+    expect(detectAdapter('chatgpt.com')?.id).toBe('chatgpt');
+    expect(detectAdapter('www.chatgpt.com')?.id).toBe('chatgpt');
+    expect(detectAdapter('chat.openai.com')?.id).toBe('chatgpt');
+    expect(detectAdapter('claude.ai')?.id).toBe('claude');
+    expect(detectAdapter('www.claude.ai')?.id).toBe('claude');
+    expect(detectAdapter('grok.com')?.id).toBe('grok');
+    expect(detectAdapter('www.grok.com')?.id).toBe('grok');
+  });
+
   it('returns null for unsupported hosts', () => {
     expect(detectAdapter('example.com')).toBeNull();
     expect(detectAdapter('notgemini.google.com.evil.com')).toBeNull();
+    expect(detectAdapter('chatgpt.com.evil.com')).toBeNull();
+    expect(detectAdapter('claude.ai.evil.com')).toBeNull();
+    expect(detectAdapter('grok.com.evil.com')).toBeNull();
+    expect(detectAdapter('x.com')).toBeNull();
   });
 
   it('looks up Gemini by id', () => {
@@ -56,13 +78,61 @@ describe('detectAdapter', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
   });
 
-  it('resolves adapters from page URLs and lists only shipped hosts', () => {
+  it('resolves adapters from page URLs and lists the four shipped hosts', () => {
+    expect(adapterForUrl('https://claude.ai/chat/abc')?.id).toBe('claude');
+    expect(adapterForUrl('https://chatgpt.com/c/abc')?.id).toBe('chatgpt');
+    expect(adapterForUrl('https://chat.openai.com/')?.id).toBe('chatgpt');
     expect(adapterForUrl('https://gemini.google.com/app')?.id).toBe('gemini');
+    expect(adapterForUrl('https://grok.com/')?.id).toBe('grok');
     expect(isSupportedChatUrl('https://gemini.google.com/app/abc')).toBe(true);
+    expect(isSupportedChatUrl('https://chatgpt.com/c/1')).toBe(true);
+    expect(isSupportedChatUrl('https://claude.ai/new')).toBe(true);
+    expect(isSupportedChatUrl('https://grok.com/chat')).toBe(true);
     expect(isSupportedChatUrl('https://example.com')).toBe(false);
-    expect(isSupportedChatUrl('https://chatgpt.com')).toBe(false);
-    expect(supportedChatLabels()).toEqual(['Gemini']);
-    expect(supportedChatLabels().join(' ')).not.toMatch(/ChatGPT|Claude|Grok/i);
+    expect(isSupportedChatUrl('https://x.com/i/grok')).toBe(false);
+    expect(isSupportedChatUrl('https://grok.com/imagine')).toBe(false);
+    expect(isSupportedChatUrl('https://grok.com/imagine/foo')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/images')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/sora/new')).toBe(false);
+    expect(isSupportedChatUrl('https://gemini.google.com/imagen')).toBe(false);
+    expect(isSupportedChatUrl('https://claude.ai/imagine')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/')).toBe(true);
+    expect(isSupportedChatUrl('https://claude.ai/chat/abc')).toBe(true);
+    expect(isSupportedChatUrl('https://gemini.google.com/app')).toBe(true);
+    expect(isSupportedChatUrl('https://grok.com/')).toBe(true);
+    expect(supportedChatLabels()).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/chatgpt\.com/);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/claude\.ai/);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/gemini\.google\.com/);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/grok\.com/);
+  });
+
+  it('gates the inject control off on dedicated image-gen paths', () => {
+    expect(injectControlEnabled('grok', '/imagine')).toBe(false);
+    expect(injectControlEnabled('grok', '/imagine/abc')).toBe(false);
+    expect(injectControlEnabled('grok', '/chat')).toBe(true);
+    expect(injectControlEnabled('grok', '/')).toBe(true);
+    expect(isImageGenPath('grok', '/imagine')).toBe(true);
+    expect(isImageGenPath('chatgpt', '/c/abc')).toBe(false);
+    expect(injectControlEnabled('chatgpt', '/c/abc')).toBe(true);
+    expect(injectControlEnabled('chatgpt', '/images')).toBe(false);
+    expect(injectControlEnabled('chatgpt', '/sora/new')).toBe(false);
+    expect(injectControlEnabled('gemini', '/app')).toBe(true);
+    expect(injectControlEnabled('gemini', '/imagen')).toBe(false);
+    expect(injectControlEnabled('claude', '/chat/xyz')).toBe(true);
+    expect(injectControlEnabled('claude', '/imagine')).toBe(false);
+  });
+
+  it('notifies watchers on in-page path changes', () => {
+    const seen: string[] = [];
+    const stop = watchComposerRoute(() => seen.push(location.pathname));
+    window.history.pushState({}, '', '/imagine');
+    window.history.replaceState({}, '', '/chat');
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(seen).toContain('/imagine');
+    expect(seen[seen.length - 1]).toBe('/chat');
+    stop();
+    window.history.replaceState({}, '', '/');
   });
 });
 
@@ -292,6 +362,78 @@ describe('setEditorText on textarea', () => {
     expect(sel?.anchorOffset).toBeGreaterThan(0);
     const markerPos = getEditorTextOf(el).indexOf('Ask your question here:');
     expect(sel?.anchorOffset).toBeGreaterThan(markerPos);
+  });
+});
+
+describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) => {
+  beforeEach(() => {
+    mountHostComposer(spec);
+  });
+
+  it('finds the editor, composer shell, leading +, and send/anchor', () => {
+    expect(spec.adapter.findEditor()).not.toBeNull();
+    expect(spec.adapter.getComposerShell()).not.toBeNull();
+    expect(spec.adapter.getComposerAnchor()).not.toBeNull();
+    const plus = spec.adapter.getComposerLeadingAnchor();
+    expect(plus).not.toBeNull();
+    expect(plus!.getAttribute('aria-label')).toBe(spec.plusLabel);
+    expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
+  });
+
+  it('inserts replace and append without wiping the editor', () => {
+    expect(spec.adapter.insertPrompt('hello\nworld')).toBe(true);
+    expect(spec.adapter.getEditorText()).toContain('hello');
+    expect(spec.adapter.insertPrompt('Keep going', 'append')).toBe(true);
+    const got = spec.adapter.getEditorText();
+    expect(got).toContain('hello');
+    expect(got).toContain('Keep going');
+  });
+
+  it('does not treat the + control as an attachment, and detects a file/image chip', () => {
+    const editor = spec.adapter.findEditor();
+    expect(composerHasAttachments(editor)).toBe(false);
+    expect(spec.adapter.composerHasAttachments()).toBe(false);
+    addNamedChip(document, 'problem.png');
+    expect(spec.adapter.composerHasAttachments()).toBe(true);
+  });
+
+  it('extracts a stemLM capsule with @meta from the assistant message', () => {
+    const caps = spec.adapter.extractCapsules();
+    expect(caps.length).toBeGreaterThanOrEqual(1);
+    expect(caps[0]).toContain('@meta');
+    expect(caps[0]).toContain(HOST_CAPSULE.split('\n')[0]);
+  });
+
+  it('reports streaming when a stop control is present', () => {
+    expect(spec.adapter.isStreaming()).toBe(false);
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<button aria-label="${spec.stopLabel}" data-testid="stop-button">Stop</button>`,
+    );
+    expect(spec.adapter.isStreaming()).toBe(true);
+  });
+
+  it('appends follow-up text without wiping an attachment chip and focuses the question slot', () => {
+    addNamedChip(document, 'problem.png');
+    const prompt = buildFollowupAskInChatPrompt({
+      selection: 'Explain the sign of reactance',
+      subject: 'Electrical',
+    });
+    expect(spec.adapter.insertPrompt(prompt, 'append')).toBe(true);
+    expect(document.body.textContent).toContain('problem.png');
+    expect(spec.adapter.composerHasAttachments()).toBe(true);
+    spec.adapter.focusComposerQuestionSlot();
+    const editor = spec.adapter.findEditor()!;
+    const text = spec.adapter.getEditorText();
+    expect(text).toContain('Ask your question here:');
+    if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+      const input = editor as HTMLTextAreaElement;
+      const marker = input.value.indexOf('Ask your question here:');
+      expect(input.selectionStart).toBeGreaterThan(marker);
+    } else {
+      const sel = window.getSelection();
+      expect(sel?.rangeCount).toBeGreaterThan(0);
+    }
   });
 });
 

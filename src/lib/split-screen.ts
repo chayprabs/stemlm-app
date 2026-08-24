@@ -30,7 +30,6 @@ html.stemlm-split > body {
   width: calc(${pageVw}vw - ${inset}) !important;
   min-width: 0 !important;
   max-width: calc(${pageVw}vw - ${inset}) !important;
-  transform: translateZ(0);
   transition: ${bodyTransition};
 }
 ${rootClamp}

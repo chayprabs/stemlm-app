@@ -1,8 +1,17 @@
 import type { PlatformAdapter, PlatformId } from './types';
+import { chatgptAdapter } from './chatgpt';
+import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
+import { grokAdapter } from './grok';
+import { injectControlEnabled } from './routes';
 
-/** Gemini-only. */
-export const ADAPTERS: PlatformAdapter[] = [geminiAdapter];
+/** Shipped chat adapters — ChatGPT, Claude, Gemini, Grok. */
+export const ADAPTERS: PlatformAdapter[] = [
+  chatgptAdapter,
+  claudeAdapter,
+  geminiAdapter,
+  grokAdapter,
+];
 
 export function detectAdapter(host: string = location.hostname): PlatformAdapter | null {
   return ADAPTERS.find((a) => a.matches(host)) ?? null;
@@ -22,9 +31,23 @@ export function adapterForUrl(url: string | undefined | null): PlatformAdapter |
   }
 }
 
+/**
+ * Hostname is a shipped chat host AND the path is not a dedicated image-gen
+ * surface (e.g. grok.com/imagine). SPA navigations re-check via injectControlEnabled.
+ */
 export function isSupportedChatUrl(url: string | undefined | null): boolean {
-  return adapterForUrl(url) != null;
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const adapter = detectAdapter(parsed.hostname);
+    if (!adapter) return false;
+    return injectControlEnabled(adapter.id, parsed.pathname);
+  } catch {
+    return false;
+  }
 }
+
+export { injectControlEnabled, isImageGenPath, watchComposerRoute } from './routes';
 
 /** Host labels that actually work today — never advertise unshipped adapters. */
 export function supportedChatLabels(): string[] {

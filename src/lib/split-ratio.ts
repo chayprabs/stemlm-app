@@ -2,6 +2,13 @@
 export const MIN_PANEL_PX = 280;
 export const MAX_SPLIT_RATIO = 0.75;
 export const MIN_SPLIT_RATIO_FLOOR = 0.25;
+/**
+ * Default study-panel fraction of the viewport. Modest majority so stemLM is a
+ * little larger than the host chat without crushing it.
+ */
+export const DEFAULT_SPLIT_RATIO = 0.55;
+/** Pre-majority default. Stored exact 0.5 hydrates to DEFAULT_SPLIT_RATIO. */
+export const LEGACY_DEFAULT_SPLIT_RATIO = 0.5;
 
 export function viewportWidth(): number {
   if (typeof window === 'undefined') return 1280;
@@ -15,14 +22,28 @@ export function minSplitRatio(vw = viewportWidth()): number {
 }
 
 export function clampSplitRatio(ratio: number, vw = viewportWidth()): number {
-  if (!Number.isFinite(ratio)) return 0.5;
+  if (!Number.isFinite(ratio)) return DEFAULT_SPLIT_RATIO;
   const min = minSplitRatio(vw);
   return Math.min(MAX_SPLIT_RATIO, Math.max(min, ratio));
 }
 
+/**
+ * Stored split hydration. Exact 0.5 is the legacy never-resized default and
+ * becomes DEFAULT_SPLIT_RATIO; any other finite value is clamped as-is.
+ */
+export function hydrateSplitRatio(value: unknown, vw = viewportWidth()): number {
+  if (value === LEGACY_DEFAULT_SPLIT_RATIO || value == null) {
+    return clampSplitRatio(DEFAULT_SPLIT_RATIO, vw);
+  }
+  if (typeof value !== 'number') {
+    return clampSplitRatio(DEFAULT_SPLIT_RATIO, vw);
+  }
+  return clampSplitRatio(value, vw);
+}
+
 /** Panel width fraction from a pointer position (panel docked on the right). */
 export function ratioFromPointer(clientX: number, vw = viewportWidth()): number {
-  if (vw <= 0) return 0.5;
+  if (vw <= 0) return DEFAULT_SPLIT_RATIO;
   return clampSplitRatio(1 - clientX / vw, vw);
 }
 

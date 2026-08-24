@@ -3,6 +3,7 @@ import type { Capsule, Step } from './types';
 import {
   auditCapsuleDiagrams,
   auditStepDiagramCompleteness,
+  diagramQualityMessage,
   extractMentionedComponents,
   isVisualDenseProblem,
   stepNeedsDiagram,
@@ -180,7 +181,7 @@ describe('auditCapsuleDiagrams', () => {
     expect(isVisualDenseProblem(capsule)).toBe(true);
     const issues = auditCapsuleDiagrams(capsule);
     expect(issues).toContain('missing_circuit_diagram');
-    expect(issues).toContain('insufficient_diagrams');
+    expect(issues).not.toContain('insufficient_diagrams');
   });
 
   it('flags BJT capsule with one lazy partial diagram and missing step diagrams', () => {
@@ -201,7 +202,7 @@ describe('auditCapsuleDiagrams', () => {
     const issues = auditCapsuleDiagrams(capsule);
     expect(issues).toContain('diagram_incomplete');
     expect(issues).toContain('missing_circuit_diagram');
-    expect(issues).toContain('insufficient_diagrams');
+    expect(issues).not.toContain('insufficient_diagrams');
   });
 
   it('passes dense electrical fixtures with rich diagrams on every step', () => {
@@ -481,5 +482,110 @@ describe('auditCapsuleDiagrams', () => {
     expect(isVisualDenseProblem(capsule)).toBe(true);
     const stripped = { ...capsule, steps: capsule.steps.map((s) => ({ ...s, diagram: undefined })) };
     expect(auditCapsuleDiagrams(stripped).length).toBeGreaterThan(0);
+  });
+
+  it('does not fail insufficient_diagrams when only algebra/unit-conversion steps lack figures', () => {
+    const circuitSpec = 'std: ieee\nV1: n1 0 DC 12\nR1: n1 n2 1k\nR2: n2 0 2k';
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Label all nodes and pick ground',
+        body: 'Nodes n1, n2, and ground. V1, R1, R2 stay on the original netlist.',
+        diagram: { type: 'circuit', content: circuitSpec },
+      }),
+      makeStep({
+        index: 2,
+        title: 'Convert 12 V to millivolts',
+        body: 'Unit conversion only: $12\\,\\text{V}=12000\\,\\text{mV}$.',
+      }),
+      makeStep({
+        index: 3,
+        title: 'Substitute numeric values',
+        body: 'With $R_1=1\\,\\text{k}\\Omega$: $I=12/3000=4\\,\\text{mA}$.',
+      }),
+      makeStep({
+        index: 4,
+        title: 'Units check of the current',
+        body: 'V/R yields amperes.',
+      }),
+      makeStep({
+        index: 5,
+        title: 'Verify numerically',
+        body: 'Back-check: $4\\,\\text{mA}$ times $3\\,\\text{k}\\Omega$ is $12\\,\\text{V}$.',
+      }),
+    ]);
+    const issues = auditCapsuleDiagrams(capsule);
+    expect(issues).not.toContain('insufficient_diagrams');
+    expect(issues).not.toContain('missing_circuit_diagram');
+    expect(issues).not.toContain('diagram_lacks_graphics');
+  });
+
+  it('still reports missing-spec codes when KCL and hybrid-π steps omit a closed spec', () => {
+    const circuitSpec = 'std: ieee\nV1: n1 0 DC 12\nR1: n1 n2 1k\nQ1: n2 n3 0';
+    const capsule = makeCapsule(
+      [
+        makeStep({
+          index: 1,
+          title: 'Label all nodes and pick ground',
+          body: 'Original circuit with Q1, R1, V1.',
+          diagram: { type: 'circuit', content: circuitSpec },
+        }),
+        makeStep({ index: 2, title: 'Apply KCL at node C', body: 'Sum currents at collector node C.' }),
+        makeStep({
+          index: 3,
+          title: 'Draw small-signal hybrid-pi model',
+          body: 'Replace the BJT with hybrid-π: r_π, g_m, R_E, R_C.',
+        }),
+        makeStep({
+          index: 4,
+          title: 'Substitute numeric values',
+          body: 'Plug $g_m=50\\,\\text{mS}$ into the gain formula.',
+        }),
+      ],
+      'BJT common-emitter amplifier hybrid-π',
+    );
+    const issues = auditCapsuleDiagrams(capsule);
+    expect(issues).toContain('missing_circuit_diagram');
+    expect(issues).not.toContain('insufficient_diagrams');
+  });
+
+  it('does not apply SVG-era lacks-graphics to a non-svg circuit spec', () => {
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Label all nodes',
+        body: 'Netlist of V1 and R1.',
+        diagram: { type: 'circuit', content: 'std: ieee\nV1: n1 0 DC 12\nR1: n1 0 1k' },
+      }),
+      makeStep({
+        index: 2,
+        title: 'Apply KCL at node n1',
+        body: 'Currents at n1.',
+        diagram: { type: 'circuit', content: 'std: ieee\nV1: n1 0 DC 12\nR1: n1 0 1k' },
+      }),
+    ]);
+    expect(auditCapsuleDiagrams(capsule)).not.toContain('diagram_lacks_graphics');
+    expect(auditCapsuleDiagrams(capsule)).not.toContain('diagram_bad_viewbox');
+  });
+});
+
+describe('diagramQualityMessage', () => {
+  it('uses Electrical nodraw language and hybrid-π keys rpi,gm,re,rc', () => {
+    const capsule = makeCapsule([
+      makeStep({ index: 1, title: 'Apply KCL at node C', body: 'Sum currents.' }),
+    ]);
+    const missing = diagramQualityMessage('missing_circuit_diagram', capsule);
+    expect(missing).toMatch(/unit conversion only/i);
+    expect(missing).toMatch(/NEVER skip the circuit when components exist/i);
+    expect(missing).not.toMatch(/nearly every step/i);
+
+    const initial = diagramQualityMessage('missing_initial_circuit', capsule);
+    expect(initial).toContain('rpi, gm, re, rc');
+    expect(initial).not.toMatch(/\bRE, RC\b/);
+
+    const incomplete = diagramQualityMessage('diagram_incomplete', capsule);
+    expect(incomplete).toContain('rpi, gm, re, rc');
+    expect(incomplete).not.toMatch(/hybrid-π needs RE, RC/i);
+    expect(incomplete).not.toMatch(/hybrid-π needs rpi, gm, RE, RC/);
   });
 });

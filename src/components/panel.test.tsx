@@ -696,8 +696,12 @@ describe('Panel ready session', () => {
     expect(rail.querySelectorAll('.slm-step-index')).toHaveLength(2);
 
     const buttons = [...rail.querySelectorAll<HTMLButtonElement>('.slm-step-rail-btn')];
-    expect(buttons[0]?.getAttribute('aria-label')).toBe('Step 1 (s1): First visual state');
-    expect(buttons[1]?.getAttribute('aria-label')).toBe('Step 2 (s2): Second visual state');
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Step 1: First visual state');
+    expect(buttons[1]?.getAttribute('aria-label')).toBe('Step 2: Second visual state');
+    expect(buttons[0]?.getAttribute('title')).toBe('First visual state');
+    expect(buttons[1]?.getAttribute('title')).toBe('Second visual state');
+    expect(buttons[0]?.getAttribute('aria-label')).not.toMatch(/\bs1\b/);
+    expect(buttons[0]?.getAttribute('title')).not.toMatch(/\bs1\b/);
     expect(getComputedStyle(buttons[0]!).borderRadius).not.toBe('50%');
 
     act(() => {
@@ -938,7 +942,7 @@ describe('Panel theme, split, and width density', () => {
       '.slm-step-rail-btn[aria-current="step"]',
     ) as HTMLButtonElement;
     expect(stepBtn.getAttribute('aria-label')).toContain('First visual state');
-    expect(stepBtn.getAttribute('title')).toBe('s1: First visual state');
+    expect(stepBtn.getAttribute('title')).toBe('First visual state');
     expect(container.querySelector('.slm-step-index')).toBeTruthy();
     expect(cssVar(panel, '--slm-rail-size')).not.toBe('13.25rem');
     expect(getComputedStyle(container.querySelector('.slm-brand-name') as HTMLElement).height).toBe(
@@ -1005,7 +1009,10 @@ describe('Panel theme, split, and width density', () => {
     expect(cssVar(panel, '--font-sans')).toContain('IBM Plex Sans');
     expect(cssVar(panel, '--font-mono')).toContain('IBM Plex Mono');
     expect(cssVar(panel, '--slm-bg').toLowerCase()).toBe('#151515');
-    expect(cssVar(panel, '--slm-formula-bg').toLowerCase()).toBe('#111111');
+    expect(hexLuma(cssVar(panel, '--slm-formula-bg'))).toBeGreaterThanOrEqual(
+      hexLuma('#151515') - 0.5,
+    );
+    expect(cssVar(panel, '--slm-formula-bg').toLowerCase()).not.toBe('#111111');
     expect(cssVar(panel, '--slm-fg').toLowerCase()).toBe('#ededed');
     expect(parseInt(cssVar(panel, '--slm-theme-duration'), 10)).toBeLessThanOrEqual(180);
 
@@ -1055,12 +1062,21 @@ function remToken(value: string | undefined): number {
   return m ? Number(m[1]) : NaN;
 }
 
+function hexLuma(hex: string): number {
+  const h = hex.trim().replace('#', '');
+  if (h.length < 6) return Number.NaN;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 describe('Panel chrome: overlay, theme glyph, close motion, session strip', () => {
   beforeEach(() => {
     installShippedStyles();
   });
 
-  it('packs the Prev/Next overlay as a compact capsule with new chevrons and theme colors', async () => {
+  it('packs the Prev/Next overlay as a right-docked rounded rect with shafted arrows', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'dark', activeStepIndex: 0 });
@@ -1086,41 +1102,56 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
       prev.click();
     });
     expect(useStore.getState().activeStepIndex).toBe(0);
+    act(() => {
+      prev.click();
+    });
+    expect(useStore.getState().activeStepIndex).toBe(0);
+    expect(prev.disabled).toBe(true);
 
     const navCss = cssBlock(PANEL_CSS, '.slm-stepnav');
     const overlayCss = cssBlock(PANEL_CSS, '.slm-stepnav--overlay');
-    const lightCss = cssBlock(PANEL_CSS, ".slm-panel[data-stemlm-theme='light'] .slm-stepnav--overlay");
+    const btnCss = cssBlock(PANEL_CSS, '.slm-stepnav-btn');
     expect(navCss).toMatch(/justify-content:\s*center/);
     expect(navCss).not.toMatch(/space-between/);
     expect(navCss).toMatch(/width:\s*auto/);
     expect(overlayCss).toMatch(/width:\s*auto/);
     expect(overlayCss).not.toMatch(/width:\s*50%/);
-    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.32);
+    expect(overlayCss).toMatch(/right:\s*var\(--slm-pad-x\)/);
+    expect(overlayCss).toMatch(/left:\s*auto/);
+    expect(overlayCss).not.toMatch(/left:\s*50%/);
+    expect(overlayCss).not.toMatch(/translateX\(-50%\)/);
+    expect(overlayCss).not.toMatch(/border-radius:\s*999px/);
+    expect(overlayCss).toMatch(/border-radius:\s*var\(--radius-md\)/);
+    expect(btnCss).not.toMatch(/border-radius:\s*999px/);
+    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeLessThan(0.44);
+    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.08);
+    expect(remToken(/padding:\s*([\d.]+rem)/.exec(btnCss)?.[1])).toBeLessThan(0.5);
     expect(remToken(/bottom:\s*calc\(([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.85);
+    expect(overlayCss).not.toContain('#2f2e2e');
+    expect(overlayCss).not.toContain('#3f3e3e');
     expect(overlayCss).not.toContain('#3c3b3b');
-    expect(lightCss).not.toMatch(/#ffffff/);
-    expect(lightCss).not.toMatch(/#efefef/);
-    expect(lightCss.length).toBeGreaterThan(20);
-    expect(overlayCss).not.toBe(lightCss);
+    expect(overlayCss).toMatch(/background:\s*var\(--slm-nav-shell\)/);
 
     const cs = getComputedStyle(overlay);
     expect(cs.justifyContent).not.toBe('space-between');
     expect(cs.width).not.toBe('50%');
     const padTop = parseFloat(cs.paddingTop);
     if (Number.isFinite(padTop) && padTop > 0) {
-      expect(padTop).toBeGreaterThan(0.32 * 16);
-    }
-    const bottomPx = remToken(cs.bottom) * 16 || parseFloat(cs.bottom);
-    if (Number.isFinite(bottomPx) && bottomPx > 0) {
-      expect(bottomPx).toBeGreaterThan(0.85 * 16);
+      expect(padTop).toBeLessThan(0.44 * 16);
     }
 
-    expect(prev.innerHTML).not.toContain('M12.5 12 7 8l5.5-4');
-    expect(next.innerHTML).not.toContain('M7.5 4 13 8l-5.5 4');
-    expect(prev.innerHTML).toContain('m15 18-6-6 6-6');
-    expect(next.innerHTML).toContain('m9 18 6-6-6-6');
+    expect(prev.innerHTML).not.toContain('m15 18-6-6 6-6');
+    expect(next.innerHTML).not.toContain('m9 18 6-6-6-6');
+    expect(prev.innerHTML).toContain('M19 12H5');
+    expect(prev.innerHTML).toContain('m12 19-7-7 7-7');
+    expect(next.innerHTML).toContain('M5 12h14');
+    expect(next.innerHTML).toContain('m12 5 7 7-7 7');
 
-    expect(cssVar(overlay, '--slm-nav-chip').toLowerCase()).not.toBe('#3c3b3b');
+    const darkShell = cssVar(overlay, '--slm-nav-shell').toLowerCase();
+    expect(darkShell).not.toBe('#2f2e2e');
+    if (darkShell.startsWith('#')) {
+      expect(hexLuma(darkShell)).toBeLessThan(hexLuma('#2f2e2e'));
+    }
 
     const panel = container.querySelector('.slm-panel') as HTMLElement;
     act(() => {
@@ -1132,6 +1163,7 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     const lightShell = cssVar(lightOverlay, '--slm-nav-shell').toLowerCase();
     expect(lightChip).not.toBe('#efefef');
     expect(lightShell).not.toBe('#ffffff');
+    expect(lightShell).not.toBe('#efefef');
 
     unmount();
   });
@@ -1231,6 +1263,96 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     });
     expect(useStore.getState().activeSessionId).toBe(sessions[0]!.id);
 
+    unmount();
+  });
+
+  it('draws a header/body rule for a single session without doubling it when the strip is present', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const headerCss = cssBlock(PANEL_CSS, '.slm-header');
+    const stripCss = cssBlock(PANEL_CSS, '.slm-session-switch');
+    expect(headerCss).toMatch(/border-bottom:\s*1px solid var\(--slm-border-subtle\)/);
+    expect(stripCss).not.toMatch(/border-bottom:/);
+    expect(container.querySelector('.slm-session-switch')).toBeNull();
+    const header = container.querySelector('.slm-header') as HTMLElement;
+    const body = container.querySelector('.slm-body') as HTMLElement;
+    expect(header).toBeTruthy();
+    expect(body).toBeTruthy();
+    const headerBorder = getComputedStyle(header).borderBottomWidth;
+    if (headerBorder && headerBorder !== '') {
+      expect(headerBorder).not.toBe('0px');
+    }
+
+    const second = buildStudySession();
+    second.id = 'panel-study-2';
+    second.question = 'Second question';
+    await act(async () => {
+      useStore.getState().addSession(second);
+    });
+    await flush();
+    const strip = container.querySelector('.slm-session-switch') as HTMLElement;
+    expect(strip).toBeTruthy();
+    const stripBorder = getComputedStyle(strip).borderBottomWidth;
+    if (stripBorder && headerBorder && headerBorder !== '0px') {
+      expect(stripBorder === '0px' || stripBorder !== headerBorder).toBe(true);
+    }
+    unmount();
+  });
+
+  it('keeps rail/formula/solution on interpolating tokens after a dark theme apply', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const panelEl = container.querySelector('.slm-panel') as HTMLElement;
+    act(() => {
+      useStore.getState().setTheme('dark');
+    });
+    applyTheme(panelEl, 'dark');
+
+    expect(cssVar(panelEl, '--slm-bg').toLowerCase()).toBe('#151515');
+    expect(cssVar(panelEl, '--slm-fg').toLowerCase()).toBe('#ededed');
+    const formulaBg = cssVar(panelEl, '--slm-formula-bg').toLowerCase();
+    expect(formulaBg).not.toMatch(/#f|#e[0-9a-f]{5}|#ffffff|#efefef|#f5f5f5/i);
+    expect(hexLuma(formulaBg)).toBeGreaterThanOrEqual(hexLuma('#151515') - 0.5);
+
+    const railBtn = container.querySelector('.slm-step-rail-btn') as HTMLElement;
+    const formula = container.querySelector('.slm-formula') as HTMLElement;
+    expect(railBtn).toBeTruthy();
+    expect(getComputedStyle(railBtn).backgroundColor).not.toMatch(/rgb\(\s*245/);
+    if (formula) {
+      expect(getComputedStyle(formula).backgroundColor).not.toMatch(/rgb\(\s*245/);
+    }
+
+    const duration = cssVar(panelEl, '--slm-theme-duration');
+    expect(parseInt(duration, 10)).toBeLessThanOrEqual(180);
+    unmount();
+  });
+
+  it('uses slightly darker-than-#171717 light answer ink, not pure black', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const panelEl = container.querySelector('.slm-panel') as HTMLElement;
+    applyTheme(panelEl, 'light');
+    const fg = cssVar(panelEl, '--slm-fg').toLowerCase();
+    expect(fg).not.toBe('#000000');
+    expect(fg).not.toBe('#000');
+    expect(fg).not.toBe('black');
+    expect(hexLuma(fg)).toBeLessThan(hexLuma('#171717'));
+
+    expect(cssBlock(PANEL_CSS, '.slm-step-work-body')).toMatch(/color:\s*var\(--slm-fg\)/);
+    expect(cssBlock(PANEL_CSS, '.slm-card-body')).toMatch(/color:\s*var\(--slm-fg\)/);
+    expect(cssBlock(PANEL_CSS, '.slm-solution')).toMatch(/color:\s*var\(--slm-fg\)/);
     unmount();
   });
 });
@@ -1393,12 +1515,123 @@ function nonStemSession(): Session {
   };
 }
 
-describe('Panel verification and uncertainty', () => {
-  const GOAL_SCRATCH = resolve(
-    'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b80021d34f9c\\implementer',
-  );
+const BACK_SUB_NOTE =
+  'Back-substitution yields (1/2)^6 = 1/64, matching the factor 64 in 108 days.';
+const HALFLIFE_STUDENT_CHECK =
+  'Verify that half-life is 18 days and radiation factor is 64.';
+const GOAL_SCRATCH = resolve(
+  'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b5a9895ff4e4\\implementer',
+);
 
-  it('renders fail, correction, assumptions, ids, and visible step ids', async () => {
+function screenshotHalfLifeSession(): Session {
+  return {
+    id: 'half-life',
+    createdAt: 0,
+    updatedAt: 0,
+    platform: 'gemini',
+    question: 'A sample has half-life 18 days. After 108 days the radiation factor is 64. Why?',
+    raw: '',
+    capsule: {
+      meta: { version: 2, subject: 'Physics', topic: 'Radioactive decay', qid: 'q1' },
+      solution: 'Six half-lives give remaining fraction 1/64.',
+      solutionDiagrams: [],
+      steps: [
+        {
+          id: 's1',
+          index: 1,
+          title: 'Count the half-lives',
+          body: '108 days / 18 days = 6 half-lives.',
+        },
+        {
+          id: 's2',
+          index: 2,
+          title: 'Apply the decay factor',
+          body: 'After 6 half-lives the remaining fraction is $(1/2)^6 = 1/64$.',
+        },
+      ],
+      verification: {
+        methods: ['units', 'backsub', 'oom'],
+        status: 'pass',
+        notes: BACK_SUB_NOTE,
+      },
+      uncertainty: {
+        assumptions: ['none'],
+        lowConfidenceSteps: ['none'],
+        studentChecks: [HALFLIFE_STUDENT_CHECK],
+      },
+    },
+  };
+}
+
+function assertNoProtocolChrome(html: string, text: string) {
+  expect(html).not.toContain('slm-verify');
+  expect(html).not.toContain('slm-uncertainty');
+  expect(html).not.toContain('slm-step-id');
+  expect(html).not.toContain('slm-signals-title');
+  expect(html).not.toMatch(/>Verification</i);
+  expect(html).not.toMatch(/>Uncertainty</i);
+  expect(html).not.toMatch(/>assumptions</i);
+  expect(text).not.toMatch(/\bstatus:\s*(pass|fail)\b/i);
+  expect(text).not.toMatch(/\bmethods:\s/i);
+  expect(text).not.toMatch(/student check/i);
+  expect(text).not.toMatch(/low-confidence/i);
+  expect(text).not.toContain('Verify that ');
+}
+
+function assertNoStepIdLeaks(root: HTMLElement) {
+  expect(root.querySelector('.slm-step-id')).toBeNull();
+  for (const el of root.querySelectorAll('[title], [aria-label]')) {
+    const blob = `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`;
+    expect(blob).not.toMatch(/\(\s*s\d+\s*\)/);
+    expect(blob).not.toMatch(/\bs\d+\s*:/);
+  }
+}
+
+describe('Panel verification and uncertainty', () => {
+  it('hides screenshot verification/uncertainty chrome and s1/s2 chips', async () => {
+    const session = screenshotHalfLifeSession();
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({
+      panelOpen: true,
+      status: 'ready',
+      view: 'steps',
+      theme: 'light',
+      activeStepIndex: 0,
+    });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const stepsHtml = container.innerHTML;
+    const stepsText = container.textContent ?? '';
+    assertNoProtocolChrome(stepsHtml, stepsText);
+    assertNoStepIdLeaks(container);
+    expect(stepsText).toContain('Back-substitution yields');
+    expect(stepsText).toContain('matching the factor 64');
+    expect(stepsText).not.toMatch(/\bnone\b/i);
+    expect(container.querySelector('.slm-answer-notes')?.textContent).toContain(
+      'Back-substitution yields',
+    );
+    expect(container.querySelector('.slm-answer-notes h2, .slm-answer-notes h3')).toBeNull();
+    mkdirSync(GOAL_SCRATCH, { recursive: true });
+    writeFileSync(resolve(GOAL_SCRATCH, 'panel-steps.html'), stepsHtml, 'utf8');
+
+    const solutionTab = container.querySelector('#slm-tab-solution') as HTMLButtonElement;
+    act(() => {
+      solutionTab.click();
+    });
+    await flush();
+    const solutionHtml = container.innerHTML;
+    const solutionText = container.textContent ?? '';
+    assertNoProtocolChrome(solutionHtml, solutionText);
+    assertNoStepIdLeaks(container);
+    expect(solutionText).toContain('Back-substitution yields');
+    expect(solutionText).not.toContain('Verify that ');
+    writeFileSync(resolve(GOAL_SCRATCH, 'panel-solution.html'), solutionHtml, 'utf8');
+    unmount();
+  });
+
+  it('shows real assumptions and fail corrections as unlabeled answer lines', async () => {
     const session = verifyFailSession();
     useStore.getState().resetSessions();
     useStore.getState().addSession(session);
@@ -1406,18 +1639,30 @@ describe('Panel verification and uncertainty', () => {
     const { container, unmount } = mountPanel();
     await flush();
     const html = container.innerHTML;
-    expect(html).toContain('status: fail');
-    expect(html).toContain('correction:');
-    expect(html).toContain('2 A, not 2 mA');
-    expect(html).toContain('assumptions');
-    expect(html).toContain('s2');
-    expect(html).toContain('slm-step-id');
-    mkdirSync(GOAL_SCRATCH, { recursive: true });
-    writeFileSync(resolve(GOAL_SCRATCH, 'panel-verify.html'), html, 'utf8');
+    const text = container.textContent ?? '';
+    const clone = container.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.katex-mathml').forEach((n) => n.remove());
+    const vis = clone.textContent ?? '';
+    assertNoProtocolChrome(html, text);
+    assertNoStepIdLeaks(container);
+    expect(text).toContain('I is 2 A, not 2 mA');
+    expect(vis).toMatch(/g\s*=\s*9\.81/);
+    expect(vis).toContain('if used');
+    expect(text).toContain('rms not peak');
+    expect(text).toContain('mA vs A');
+    expect(text).not.toContain('photo labels for current units');
+    expect(html).not.toContain('correction:');
+    const notes = container.querySelector('.slm-answer-notes');
+    const notesClone = notes?.cloneNode(true) as HTMLElement | undefined;
+    notesClone?.querySelectorAll('.katex-mathml').forEach((n) => n.remove());
+    expect(notesClone?.textContent).toMatch(/g\s*=\s*9\.81/);
+    expect(notesClone?.textContent).toContain('if used');
+    expect(notes?.querySelector('h2, h3, h4')).toBeNull();
+    expect(notes?.querySelector('.katex')).toBeTruthy();
     unmount();
   });
 
-  it('flags a General non-STEM / insufficient-data capsule', async () => {
+  it('flags a General non-STEM / insufficient-data capsule without step-id chips', async () => {
     const session = nonStemSession();
     useStore.getState().resetSessions();
     useStore.getState().addSession(session);
@@ -1427,7 +1672,10 @@ describe('Panel verification and uncertainty', () => {
     const text = container.textContent ?? '';
     expect(text).toMatch(/Not a STEM question/i);
     expect(text).toMatch(/Insufficient data/i);
-    expect(container.innerHTML).toContain('s1');
+    expect(text).toContain('insufficient data for a numeric solve');
+    expect(text).not.toContain('confirm they wanted a poem');
+    assertNoProtocolChrome(container.innerHTML, text);
+    assertNoStepIdLeaks(container);
     unmount();
   });
 });

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useStore } from '@/src/state/store';
 import { getController } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
+import { injectControlEnabled, watchComposerRoute } from '@/src/platforms/routes';
 import {
   composerTextHasProtocol,
   pageThreadHasProtocol,
@@ -10,11 +11,15 @@ import {
 } from '@/src/protocol/builder';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { detectHostScheme } from '@/src/lib/theme';
-import { ensureComposerSlot, _composerSlotGap } from '@/src/lib/composer-slot';
-import { IconCheck } from './icons';
-import { ExtensionLogo } from './ExtensionLogo';
+import {
+  ensureComposerSlot,
+  isolateStemLmPointer,
+  removeComposerSlot,
+  syncComposerSlotGeometry,
+  _composerSlotGap,
+} from '@/src/lib/composer-slot';
 
-const BTN_SIZE = 36;
+const BTN_SIZE = 32;
 const SLOT_GAP = _composerSlotGap;
 const DOCK_RETRY_MS = 400;
 const FIXED_FALLBACK_MS = 900;
@@ -41,7 +46,7 @@ function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
   const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
   if (boxR && boxR.width > 0) {
     return {
-      top: clamp(boxR.bottom - BTN_SIZE - 10, PAD, window.innerHeight - BTN_SIZE - PAD),
+      top: clamp(boxR.top + (boxR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
       left: clamp(boxR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
     };
   }
@@ -50,7 +55,7 @@ function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
   const editorR = editor?.isConnected ? editor.getBoundingClientRect() : undefined;
   if (editorR && editorR.width > 0) {
     return {
-      top: clamp(editorR.bottom - BTN_SIZE - 10, PAD, window.innerHeight - BTN_SIZE - PAD),
+      top: clamp(editorR.top + (editorR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
       left: clamp(editorR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
     };
   }
@@ -66,31 +71,48 @@ function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
  * positioning after the composer slot has been missing for a sustained period —
  * avoids flicker when Gemini briefly rebuilds the composer row.
  */
-function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } {
+function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' } {
   const adapter = detectAdapter();
+  const [path, setPath] = useState(() => (typeof location === 'undefined' ? '/' : location.pathname));
   const [mount, setMount] = useState<
-    { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number }
-  >(() =>
-    adapter
+    { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' }
+  >(() => {
+    if (adapter && !injectControlEnabled(adapter.id, path)) return { mode: 'hidden' };
+    return adapter
       ? { mode: 'fixed', ...fixedCoords(adapter) }
-      : { mode: 'fixed', top: window.innerHeight - 108, left: 24 },
-  );
+      : { mode: 'fixed', top: window.innerHeight - 108, left: 24 };
+  });
   const lastDockedAt = useRef(0);
+
+  useEffect(() => watchComposerRoute(() => setPath(location.pathname)), []);
 
   useEffect(() => {
     const platform = detectAdapter();
     if (!platform) return;
 
+    const enabled = injectControlEnabled(platform.id, path);
+    if (!enabled) {
+      removeComposerSlot();
+      setMount({ mode: 'hidden' });
+      return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let observer: MutationObserver | null = null;
 
     const sync = () => {
+      if (!injectControlEnabled(platform.id, location.pathname)) {
+        removeComposerSlot();
+        setMount({ mode: 'hidden' });
+        return;
+      }
       const scheme = detectHostScheme();
       const slot = ensureComposerSlot(platform, scheme);
       const now = Date.now();
 
       if (slot?.isConnected) {
         lastDockedAt.current = now;
+        syncComposerSlotGeometry(platform);
         setMount((prev) =>
           prev.mode === 'docked' && prev.slot === slot ? prev : { mode: 'docked', slot },
         );
@@ -122,7 +144,7 @@ function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixe
       window.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
     };
-  }, [adapter?.id ?? 'none']);
+  }, [adapter?.id ?? 'none', path]);
 
   return mount;
 }
@@ -144,12 +166,42 @@ function InjectSpinner() {
   );
 }
 
+/** Plus (idle) morphs to a tick when the protocol is attached. */
+export function InjectGlyph({ attached }: { attached: boolean }) {
+  return (
+    <span className={`slm-inject-glyph ${attached ? 'is-tick' : 'is-plus'}`} aria-hidden="true">
+      <svg className="slm-inject-plus" viewBox="0 0 24 24" width={16} height={16}>
+        <path
+          d="M12 5v14M5 12h14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+      <svg className="slm-inject-tick" viewBox="0 0 24 24" width={16} height={16}>
+        <path
+          d="M20 6 9 17l-5-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
 export function OverlayButton() {
   const mount = useInjectMount();
   const [pasting, setPasting] = useState(false);
   const injected = useStore((s) => s.buttonInjected);
   const panelOpen = useStore((s) => s.panelOpen);
   const togglePanel = useStore((s) => s.togglePanel);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const onMainRef = useRef<() => void>(() => {});
+  const armedRef = useRef(false);
 
   const adapter = detectAdapter();
   const hostScheme = detectHostScheme();
@@ -161,12 +213,14 @@ export function OverlayButton() {
     if (!ctrl) return;
 
     const tick = () => {
-      if (useStore.getState().status === 'loading') return;
       const text = adapter.getEditorText().trim();
+      // inject()/followUp set status 'loading' with buttonInjected; empty
+      // composer must still revert to plus (host send clears the box).
       if (text.length === 0) {
         ctrl.resetInjection();
         return;
       }
+      if (useStore.getState().status === 'loading') return;
       const last = ctrl.getLastQuestion().trim();
       const hasProtocol = composerTextHasProtocol(text);
       if (!hasProtocol && last.length > 0 && text !== last) {
@@ -203,6 +257,24 @@ export function OverlayButton() {
     void ctrl?.inject().finally(() => setPasting(false));
   }
 
+  onMainRef.current = onMain;
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const activate = () => {
+      if (armedRef.current) return;
+      armedRef.current = true;
+      queueMicrotask(() => {
+        armedRef.current = false;
+      });
+      onMainRef.current();
+    };
+    return isolateStemLmPointer(wrap, activate, true);
+  }, [mount.mode]);
+
+  if (mount.mode === 'hidden') return null;
+
   const wrapClass = [
     'slm-fab-wrap',
     mount.mode === 'fixed' ? 'slm-fab-wrap--fixed' : '',
@@ -228,15 +300,28 @@ export function OverlayButton() {
     <button
       type="button"
       className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
-      onClick={onMain}
+      data-stemlm-inject="true"
+      data-glyph={injected ? 'tick' : 'plus'}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (armedRef.current) return;
+        onMain();
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       title={title}
       aria-label={title}
+      aria-pressed={injected}
     >
-      {injected ? <IconCheck width={14} height={14} /> : <ExtensionLogo size={14} />}
+      <InjectGlyph attached={injected} />
     </button>
   );
 
-  const shell = <div className={wrapClass}>{content}</div>;
+  const shell = (
+    <div ref={wrapRef} className={wrapClass}>
+      {content}
+    </div>
+  );
 
   if (mount.mode === 'docked' && mount.slot.isConnected) {
     return createPortal(shell, mount.slot);
@@ -246,7 +331,7 @@ export function OverlayButton() {
     mount.mode === 'fixed' ? mount : { top: window.innerHeight - 108, left: 24 };
 
   return (
-    <div className={wrapClass} style={{ top, left }}>
+    <div ref={wrapRef} className={wrapClass} style={{ top, left }}>
       {content}
     </div>
   );

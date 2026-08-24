@@ -86,7 +86,7 @@ export function SelectionPopover({
     if (!ok) {
       useStore
         .getState()
-        .setStatus('error', 'Could not send the follow-up to Gemini. Click in the chat box and try again.');
+        .setStatus('error', 'Could not send the follow-up to the chat box. Click in the input and try again.');
     }
   }
 

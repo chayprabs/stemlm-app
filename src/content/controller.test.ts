@@ -799,6 +799,307 @@ describe('StemController.loadConversation', () => {
   });
 });
 
+describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+  });
+
+  const original = [
+    '```stemlm',
+    '@meta',
+    'version: 2',
+    'subject: Electrical',
+    'topic: Series resistors',
+    'qid: q1',
+    '@endmeta',
+    '@step id=s1',
+    'title: Add the resistors',
+    '@body',
+    '$R_T$ is 6 ohm.',
+    '@endbody',
+    '@endstep',
+    '@step id=s2',
+    'title: Compute current',
+    '@body',
+    '$I$ is 2 mA.',
+    '@endbody',
+    '@endstep',
+    '@solution',
+    'I = 2 mA',
+    '@endsolution',
+    '@end',
+    '```',
+  ].join('\n');
+
+  it('applies an incoming @patch to the active session without followUp()', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const originalId = useStore.getState().sessions[0]!.id;
+    expect(useStore.getState().sessions[0]!.capsule.steps[1]!.body).toContain('2 mA');
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'qid: q1',
+        'mode: patch',
+        '@endmeta',
+        '@patch op=replace id=s2',
+        '@step id=s2',
+        'title: Compute current with correct units',
+        '@body',
+        '$I$ is 2 A because $12/6=2\\,\\text{A}$.',
+        '@endbody',
+        '@endstep',
+        '@endpatch',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.qid).toBe('q1');
+    expect(sessions[0]!.capsule.steps[1]!.title).toContain('correct units');
+    expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('replaces the active session on same-qid resolve without followUp()', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const originalId = useStore.getState().sessions[0]!.id;
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'qid: q1',
+        'mode: resolve',
+        '@endmeta',
+        '@step id=a1',
+        'title: Use conductance',
+        '@body',
+        '$G=1/R$.',
+        '@endbody',
+        '@endstep',
+        '@step id=a2',
+        'title: Sum conductances',
+        '@body',
+        'Then $I=VG$.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'same I',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.qid).toBe('q1');
+    expect(sessions[0]!.capsule.steps[0]!.id).toBe('a1');
+    expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('after inject(), native mode:new adds a session instead of replacing via lastQuestion', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    adapter.capsules = [original];
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    const originalId = useStore.getState().sessions[0]!.id;
+    expect(useStore.getState().sessions[0]!.capsule.meta.qid).toBe('q1');
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Biology',
+        'topic: Punnett square',
+        'qid: q2',
+        'mode: new',
+        'archetype: conceptual',
+        '@endmeta',
+        '@step id=s1',
+        'title: Draw the square',
+        '@body',
+        'Alleles go on the axes.',
+        '@endbody',
+        '@endstep',
+        '@step id=s2',
+        'title: Fill cells',
+        '@body',
+        'Each cell is one offspring genotype.',
+        '@endbody',
+        '@endstep',
+        '@step id=s3',
+        'title: Read ratios',
+        '@body',
+        'Count phenotypes.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        '3:1',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.qid).toBe('q1');
+    expect(sessions[1]!.capsule.meta.qid).toBe('q2');
+    expect(sessions[1]!.capsule.meta.mode).toBe('new');
+    expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('after inject(), native qid mismatch without mode:new adds a session', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(true);
+    adapter.capsules = [original];
+    await new Promise((r) => setTimeout(r, 500));
+    const originalId = useStore.getState().sessions[0]!.id;
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'qid: q2',
+        '@endmeta',
+        '@step id=s1',
+        'title: Add the resistors',
+        '@body',
+        '$R_T$ is 6 ohm.',
+        '@endbody',
+        '@endstep',
+        '@step id=s2',
+        'title: Compute current',
+        '@body',
+        '$I$ is 2 A.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'I = 2 A',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]!.id).toBe(originalId);
+    expect(sessions[0]!.capsule.meta.qid).toBe('q1');
+    expect(sessions[1]!.capsule.meta.qid).toBe('q2');
+    expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('opens a new session on mode: new without followUp()', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Biology',
+        'topic: Punnett square',
+        'qid: q2',
+        'mode: new',
+        'archetype: conceptual',
+        '@endmeta',
+        '@step id=s1',
+        'title: Draw the square',
+        '@body',
+        'Alleles go on the axes.',
+        '@endbody',
+        '@endstep',
+        '@step id=s2',
+        'title: Fill cells',
+        '@body',
+        'Each cell is one offspring genotype.',
+        '@endbody',
+        '@endstep',
+        '@step id=s3',
+        'title: Read ratios',
+        '@body',
+        'Count phenotypes.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        '3:1',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(2);
+    expect(useStore.getState().sessions[1]!.capsule.meta.qid).toBe('q2');
+    expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('does not prepend FOLLOW-UP CONTRACT on an empty composer while watching', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = '';
+    const c = new StemController(adapter);
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(adapter.editorText).toBe('');
+    expect(adapter.inserted).toBe('');
+    c.stopWatching();
+  });
+});
+
 describe('StemController capture', () => {
   beforeEach(() => {
     resetStore();

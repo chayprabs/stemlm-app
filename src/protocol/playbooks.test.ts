@@ -30,6 +30,11 @@ describe('subject registry', () => {
     expect(universal).toContain('subject\tarchetypes\tdiagrams\tverify\tnodraw\tnotation\ttraps');
     expect(universal).not.toContain('PHYSICS: subject=');
     expect(universal).not.toContain('ELECTRICAL: subject=');
+    expect(universal).toContain('NMR δ increases right-to-left');
+    expect(universal).toContain('Fischer D/L ≠ R/S');
+    expect(universal).toContain('Oh CFT t2g below eg');
+    expect(universal).toContain('quote every mermaid node label');
+    expect(universal).not.toContain('type=punnett');
     for (const subject of SUBJECTS) {
       const row = SUBJECT_REGISTRY[subject];
       expect(universal, `missing ${subject}`).toContain(row.marker);

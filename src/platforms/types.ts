@@ -1,5 +1,10 @@
-/** Platform adapter contract. Gemini-only for now. */
-export type PlatformId = 'gemini';
+/** Chat hosts stemLM actually ships adapters for. */
+export const PLATFORM_IDS = ['chatgpt', 'claude', 'gemini', 'grok'] as const;
+export type PlatformId = (typeof PLATFORM_IDS)[number];
+
+export function isPlatformId(value: unknown): value is PlatformId {
+  return typeof value === 'string' && (PLATFORM_IDS as readonly string[]).includes(value);
+}
 
 /**
  * Per-site brand colours used to make the overlay button visually belong on

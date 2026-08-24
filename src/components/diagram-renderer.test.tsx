@@ -170,6 +170,63 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(overlay?.innerHTML).toMatch(/katex|math|alpha|α/i);
   });
 
+  it('mounts a compiled solenoid field spec as graphic SVG, not fallback', async () => {
+    const diagram = {
+      type: 'field',
+      content: ['catalog: solenoid', 'core: mu_r=400', 'B: 1.0 T', 'H: ?'].join('\n'),
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="light" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('figure.slm-diagram svg')));
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeNull();
+    const svg = mounted.shadow.querySelector('figure.slm-diagram svg');
+    expect(svg).toBeTruthy();
+    const html = mounted.shadow.querySelector('.slm-diagram-svg')?.innerHTML ?? '';
+    expect(html).toMatch(/<(rect|ellipse|line|path|polyline)\b/i);
+    expect(html).toMatch(/id="[^"]*core"/);
+  });
+
+  it('mounts a compiled divider circuit spec as graphic SVG, not fallback', async () => {
+    const diagram = {
+      type: 'circuit',
+      content: [
+        'std: ieee',
+        'V1: n_in 0 DC 12',
+        'R1: n_in n_a 4k',
+        'R2: n_a 0 6k',
+        'RL: n_a 0 10k',
+        'highlight: R2',
+      ].join('\n'),
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('figure.slm-diagram svg')));
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeNull();
+    const html = mounted.shadow.querySelector('.slm-diagram-svg')?.innerHTML ?? '';
+    expect(html).toMatch(/<(line|polyline|rect|circle|path)\b/i);
+    expect(html).toContain('V1');
+    expect(html).toContain('R1');
+    expect(html).toContain('R2');
+    expect(html).toContain('RL');
+  });
+
+  it('prose-only field body falls back to pre, not a fake figure', async () => {
+    const diagram = {
+      type: 'field',
+      content:
+        'SPEC: A cross-section of a solenoid coil wrapped around a solid cylindrical core.\n- The core is shaded.',
+    };
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
+    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
+    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('SPEC:');
+    expect(mounted.shadow.querySelector('figure.slm-diagram svg')).toBeNull();
+  });
+
   it('failed compile shows slm-diagram--failed + spec source', async () => {
     const diagram = { type: 'plot', content: 'xlabel: t' };
     const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);

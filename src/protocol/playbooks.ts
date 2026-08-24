@@ -34,7 +34,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     verify: 'units,conservation,backsub,limit',
     nodraw: 'mole arithmetic with no structure/mechanism/cell; unit conversion',
     notation: 'mhchem $\\ce{...}$; R/S E/Z; NEVER SMILES-as-Newman/Fischer/chair',
-    traps: 'limiting reagent; ICE x domain; electrochem MUST be type=echem not circuit or bio cell; NEVER SMILES-as-Newman; frost≠Latimer',
+    traps: 'limiting reagent; ICE x domain; electrochem MUST be type=echem not circuit or bio cell; NEVER SMILES-as-Newman; frost≠Latimer; NMR δ increases right-to-left; Fischer D/L ≠ R/S; Oh CFT t2g below eg',
   },
   Math: {
     marker: 'MATH',
@@ -63,7 +63,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     verify: 'alt,backsub,oom',
     nodraw: 'complexity-only with no state; a one-line identity',
     notation: 'inline `code` NEVER a fence; quote mermaid labels; 0-index unless the problem is 1-index',
-    traps: 'off-by-one; mutating the input in the trace; mermaid for non-CS figures',
+    traps: 'off-by-one; mutating the input in the trace; mermaid for non-CS figures; quote every mermaid node label',
   },
   Electrical: {
     marker: 'ELECTRICAL',

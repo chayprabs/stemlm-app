@@ -8,6 +8,7 @@ import {
   buildComposerPointer,
   composerTextHasProtocol,
   pageThreadHasProtocol,
+  THREAD_PROTOCOL_SELECTORS,
   shouldReinjectOnNewQuestion,
   isEmptyFollowupSelection,
   buildFollowupCopyText,
@@ -174,6 +175,8 @@ describe('buildInjectionPayload', () => {
     const { content } = buildProtocolFileContent({ question: 'sizing' });
     expect(content).toContain('type=plot');
     expect(content).toContain('type=circuit');
+    expect(content).toContain('type=field');
+    expect(content).toContain('catalog: solenoid');
     expect(content).toContain('chem.smiles');
     expect(content).toMatch(/NEVER <svg>|Never <svg>|never emit <svg>/i);
     expect(content).not.toMatch(/viewBox="0 0 300 180"/);
@@ -259,6 +262,8 @@ describe('buildInjectionPayload', () => {
     expect(getDiagramRequirement('Electrical')).not.toContain('nearly EVERY');
     expect(getDiagramRequirement('Chemistry')).toContain('chem.smiles');
     expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
+    expect(getDiagramRequirement('Physics')).toContain('type=field');
+    expect(getDiagramRequirement('Physics')).toContain('solenoid');
     expect(getDiagramRequirement('Math')).toContain('type=plot');
     expect(getDiagramRequirement('Biology')).toContain('Punnett');
     expect(getDiagramRequirement('Civil')).toContain('type=sfd');
@@ -424,6 +429,13 @@ describe('pageThreadHasProtocol', () => {
     `;
     expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(true);
   });
+
+  it('does not invent unconfirmed Gemini user-only custom-element selectors', () => {
+    const joined = THREAD_PROTOCOL_SELECTORS.join(' ');
+    expect(joined).not.toMatch(/gemini-user/i);
+    expect(joined).not.toMatch(/<user-turn/i);
+    expect(THREAD_PROTOCOL_SELECTORS.some((s) => s.includes('stemlm-protocol'))).toBe(false);
+  });
 });
 
 describe('shouldReinjectOnNewQuestion', () => {
@@ -489,5 +501,16 @@ describe('buildRepairPrompt', () => {
     expect(prompt).toContain("fix every step's @body work");
     expect(prompt).toContain('@end');
     expect(prompt).not.toContain('```stemlm');
+  });
+
+  it('diagram repair asks for typed key: value specs, not SVG craft or a prose SPEC', () => {
+    const prompt = buildRepairPrompt({ errorCode: 'diagram_lacks_graphics' });
+    expect(prompt).toMatch(/typed key: value/);
+    expect(prompt).toMatch(/field catalog/);
+    expect(prompt).toContain('solenoid');
+    expect(prompt).toContain('circuit');
+    expect(prompt).not.toMatch(/viewBox="0 0 300 180"/);
+    expect(prompt).not.toMatch(/SPEC:\s+A /);
+    expect(prompt).toMatch(/Never <svg>|NEVER <svg>/i);
   });
 });

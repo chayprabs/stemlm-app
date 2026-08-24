@@ -10,6 +10,9 @@ const DEFAULT_FILE_INPUT_SELECTORS = [
   'images-files-uploader input[type="file"]',
   'input-area input[type="file"]',
   'rich-textarea input[type="file"]',
+  'form input[type="file"]',
+  'fieldset input[type="file"]',
+  '[data-testid*="composer" i] input[type="file"]',
   'input[type="file"]',
 ];
 
@@ -19,6 +22,7 @@ const DEFAULT_UPLOAD_BUTTON_SELECTORS = [
   'button[aria-label*="Attach" i]',
   'button[aria-label*="Insert" i]',
   '[data-test-id*="upload" i]',
+  '[data-testid*="upload" i]',
   'button.upload-button',
 ];
 
@@ -29,7 +33,13 @@ export const COMPOSER_ATTACHMENT_SELECTORS = [
   'images-files-uploader img',
   '[class*="file-preview"]',
   '[class*="attachment-chip"]',
+  '[class*="file-chip"]',
+  '[class*="attachment-preview"]',
   'uploader-file-preview',
+  '[data-testid*="file-preview" i]',
+  '[data-testid*="file-thumbnail" i]',
+  '[data-testid="file-attachment"]',
+  '[data-testid*="attachment-chip" i]',
 ];
 
 const DEFAULT_DROP_TARGETS = [
@@ -38,6 +48,13 @@ const DEFAULT_DROP_TARGETS = [
   'input-area-v2',
   '.input-area',
   'div.ql-editor',
+  '#prompt-textarea',
+  '[data-testid="prompt-textarea"]',
+  'div.ProseMirror[contenteditable="true"]',
+  'fieldset:has([contenteditable])',
+  'form:has(input[type="file"])',
+  'textarea[aria-label*="Ask Grok" i]',
+  '[class*="chat-input"]',
 ];
 
 export function createTextFile(content: string, filename: string): File {
@@ -68,10 +85,25 @@ function queryButton(selectors: string[]): HTMLElement | null {
   return null;
 }
 
-/** Gemini's leading + often opens a menu, not a hidden file input. */
+/**
+ * Leading + on Gemini / ChatGPT / Claude / Grok often opens a menu, not a
+ * hidden file input. Clicking it is wrong — skip those controls.
+ */
 function opensUploadMenu(el: HTMLElement): boolean {
-  const label = `${el.getAttribute('aria-label') ?? ''} ${el.getAttribute('mattooltip') ?? ''}`.toLowerCase();
-  return label.includes('menu');
+  const label = [
+    el.getAttribute('aria-label') ?? '',
+    el.getAttribute('mattooltip') ?? '',
+    el.getAttribute('title') ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  if (label.includes('menu')) return true;
+  if (label.includes('and more')) return true;
+  const popup = (el.getAttribute('aria-haspopup') ?? '').toLowerCase();
+  if (popup === 'menu' || popup === 'true' || popup === 'dialog' || popup === 'listbox') {
+    return true;
+  }
+  return false;
 }
 
 function elementMentionsFilename(el: Element, filename: string): boolean {
@@ -116,12 +148,20 @@ export function hasNamedAttachment(
   return false;
 }
 
+function isShownChip(el: Element): boolean {
+  if (!(el instanceof HTMLElement) || !el.isConnected) return false;
+  if (el.hidden || el.getAttribute('aria-hidden') === 'true') return false;
+  const style = el.style;
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  return true;
+}
+
 /** True when any file/image chip is visible (problem photo, PDF, etc.). */
 export function hasAnyAttachment(root: ParentNode = document): boolean {
   for (const sel of COMPOSER_ATTACHMENT_SELECTORS) {
     try {
       const el = root.querySelector(sel);
-      if (el && (el as HTMLElement).offsetParent !== null) return true;
+      if (el && isShownChip(el)) return true;
     } catch {
       /* skip */
     }

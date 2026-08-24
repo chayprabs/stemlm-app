@@ -60,7 +60,120 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('<math'); // MathML present for vector PDF
   });
 
-  it('renders verification-fail, uncertainty, non-STEM flag, and step ids', () => {
+  it('hides screenshot verification/uncertainty chrome and step-id chips', () => {
+    const backSub =
+      'Back-substitution yields (1/2)^6 = 1/64, matching the factor 64 in 108 days.';
+    const session: Session = {
+      id: 'r-half-life',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'A sample has half-life 18 days. After 108 days the radiation factor is 64. Why?',
+      raw: '',
+      capsule: {
+        meta: { version: 2, subject: 'Physics', topic: 'Radioactive decay' },
+        solution: 'Six half-lives give remaining fraction 1/64.',
+        solutionDiagrams: [],
+        steps: [
+          {
+            id: 's1',
+            index: 1,
+            title: 'Count the half-lives',
+            body: '108 days / 18 days = 6 half-lives.',
+          },
+          {
+            id: 's2',
+            index: 2,
+            title: 'Apply the decay factor',
+            body: 'After 6 half-lives the remaining fraction is $(1/2)^6 = 1/64$.',
+          },
+        ],
+        verification: {
+          methods: ['units', 'backsub', 'oom'],
+          status: 'pass',
+          notes: backSub,
+        },
+        uncertainty: {
+          assumptions: ['none'],
+          lowConfidenceSteps: ['none'],
+          studentChecks: ['Verify that half-life is 18 days and radiation factor is 64.'],
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+    expect(html).not.toContain('slm-verify');
+    expect(html).not.toContain('slm-uncertainty');
+    expect(html).not.toContain('slm-step-id');
+    expect(html).not.toMatch(/>Verification</i);
+    expect(html).not.toMatch(/>Uncertainty</i);
+    expect(html).not.toMatch(/\bstatus:\s*(pass|fail)\b/i);
+    expect(html).not.toMatch(/\bmethods:\s/i);
+    expect(html).not.toMatch(/student check/i);
+    expect(html).not.toMatch(/low-confidence/i);
+    expect(html).not.toContain('Verify that ');
+    expect(html).not.toMatch(/>none</i);
+    expect(html).not.toMatch(/assumption:\s*none/i);
+    expect(html).toContain('Back-substitution yields');
+    expect(html).toContain('matching the factor 64');
+    expect(html).toContain('slm-answer-notes');
+    expect(html).not.toMatch(/slm-answer-notes[^>]*>[\s\S]*<(h2|h3)/i);
+    const scratch = resolve(
+      'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b5a9895ff4e4\\implementer',
+    );
+    mkdirSync(scratch, { recursive: true });
+    writeFileSync(resolve(scratch, 'report.html'), html, 'utf8');
+  });
+
+  it('folds real assumptions and fail corrections into unlabeled answer prose', () => {
+    const session: Session = {
+      id: 'r-assume',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find the current',
+      raw: '',
+      capsule: {
+        meta: { version: 2, subject: 'Electrical', topic: 'Series current' },
+        solution: 'I = 2 A after correction.',
+        solutionDiagrams: [],
+        steps: [
+          {
+            id: 's1',
+            index: 1,
+            title: 'Add the resistors',
+            body: '$R_T$ is 6 ohm.',
+          },
+        ],
+        verification: {
+          methods: ['units'],
+          status: 'fail',
+          notes: 'mA vs A',
+          correction: 'I is 2 A, not 2 mA',
+        },
+        uncertainty: {
+          assumptions: ['take g as 9.81 metres per second squared', 'rms not peak'],
+          lowConfidenceSteps: ['s2'],
+          studentChecks: ['photo labels for current units'],
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+    expect(html).toContain('take g as 9.81 metres per second squared');
+    expect(html).toContain('I is 2 A, not 2 mA');
+    expect(html).toContain('rms not peak');
+    expect(html).toContain('mA vs A');
+    expect(html).not.toContain('slm-verify');
+    expect(html).not.toContain('slm-uncertainty');
+    expect(html).not.toMatch(/>assumptions</i);
+    expect(html).not.toContain('correction:');
+    expect(html).not.toContain('photo labels for current units');
+    expect(html).not.toContain('slm-step-id');
+    expect(html).toContain('slm-answer-notes');
+    expect(html.indexOf('slm-report-a')).toBeGreaterThan(-1);
+    expect(html.indexOf('slm-answer-notes')).toBeGreaterThan(html.indexOf('slm-report-a'));
+  });
+
+  it('still flags non-STEM / insufficient data without protocol chrome', () => {
     const session: Session = {
       id: 'r-verify',
       createdAt: 0,
@@ -99,17 +212,16 @@ describe('Report renderToStaticMarkup', () => {
       },
     };
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
-    expect(html).toContain('status: fail');
-    expect(html).toContain('correction:');
-    expect(html).toContain('assumptions');
-    expect(html).toContain('s1');
     expect(html).toMatch(/Not a STEM question/i);
     expect(html).toMatch(/Insufficient data/i);
-    const scratch = resolve(
-      'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b80021d34f9c\\implementer',
-    );
-    mkdirSync(scratch, { recursive: true });
-    writeFileSync(resolve(scratch, 'report-verify.html'), html, 'utf8');
+    expect(html).toContain('insufficient data for I');
+    expect(html).toContain('Stop; do not invent a current.');
+    expect(html).toContain('no numeric given');
+    expect(html).not.toContain('status: fail');
+    expect(html).not.toContain('correction:');
+    expect(html).not.toContain('confirm the request');
+    expect(html).not.toContain('slm-step-id');
+    expect(html).not.toContain('low-confidence');
   });
 
   it('does not throw without diagrams resolved', () => {
@@ -170,6 +282,31 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(html).not.toContain('<script');
     expect(html).not.toMatch(/<image\b/i);
     expect(html).toMatch(/katex|mathml|<math/i);
+  });
+
+  it('print path for a divider circuit spec is vector SVG without foreignObject/image/script', async () => {
+    const circuit = {
+      type: 'circuit',
+      content: [
+        'std: ieee',
+        'V1: n_in 0 DC 12',
+        'R1: n_in n_a 4k',
+        'R2: n_a 0 6k',
+        'RL: n_a 0 10k',
+        'highlight: R2',
+      ].join('\n'),
+    };
+    const resolved = await resolveDiagram(circuit, 'light', 'print');
+    expect(resolved.svg).toMatch(/<(line|polyline|rect|circle|path)\b/i);
+    const session = buildSession();
+    session.capsule.steps[0]!.diagram = circuit;
+    const html = buildReportDocument(session, { [diagramKey('step', 1)]: resolved.svg });
+    expect(html).toContain('<svg');
+    expect(html).toContain('V1');
+    expect(html).toContain('R1');
+    expect(html).not.toContain('foreignObject');
+    expect(html).not.toContain('<script');
+    expect(html).not.toMatch(/<image\b/i);
   });
 
   it('print styles target A4 and current light reading tokens', () => {

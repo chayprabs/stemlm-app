@@ -12,7 +12,7 @@
 @property --slm-bg-muted { syntax: '<color>'; inherits: true; initial-value: #e8e8e8; }
 @property --slm-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
 @property --slm-border-subtle { syntax: '<color>'; inherits: true; initial-value: #ebebed; }
-@property --slm-fg { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-fg { syntax: '<color>'; inherits: true; initial-value: #121212; }
 @property --slm-fg-muted { syntax: '<color>'; inherits: true; initial-value: #5c5c63; }
 @property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #8a8a92; }
 @property --slm-accent { syntax: '<color>'; inherits: true; initial-value: #0e7c76; }
@@ -31,9 +31,13 @@
 @property --slm-error { syntax: '<color>'; inherits: true; initial-value: #dc2626; }
 @property --slm-formula-bg { syntax: '<color>'; inherits: true; initial-value: #efefef; }
 @property --slm-formula-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
-@property --slm-formula-fg { syntax: '<color>'; inherits: true; initial-value: #171717; }
+@property --slm-formula-fg { syntax: '<color>'; inherits: true; initial-value: #121212; }
 @property --slm-ring { syntax: '<color>'; inherits: true; initial-value: #171717; }
 @property --slm-signal { syntax: '<color>'; inherits: true; initial-value: #ff6b2c; }
+@property --slm-nav-shell { syntax: '<color>'; inherits: true; initial-value: #e3e3e6; }
+@property --slm-nav-line { syntax: '<color>'; inherits: true; initial-value: #cfcfd2; }
+@property --slm-nav-chip { syntax: '<color>'; inherits: true; initial-value: rgba(18, 18, 18, 0.06); }
+@property --slm-nav-ink { syntax: '<color>'; inherits: true; initial-value: #121212; }
 
 :where([data-stemlm-theme]),
 [data-stemlm-theme],
@@ -56,7 +60,7 @@
   --slm-bg-muted: #e8e8e8;
   --slm-border: #e2e2e4;
   --slm-border-subtle: #ebebed;
-  --slm-fg: #171717;
+  --slm-fg: #121212;
   --slm-fg-muted: #5c5c63;
   --slm-fg-subtle: #8a8a92;
   --slm-accent: #0e7c76;
@@ -75,9 +79,13 @@
   --slm-error: #dc2626;
   --slm-formula-bg: #efefef;
   --slm-formula-border: #e2e2e4;
-  --slm-formula-fg: #171717;
+  --slm-formula-fg: #121212;
   --slm-ring: #171717;
   --slm-signal: #ff6b2c;
+  --slm-nav-shell: #e3e3e6;
+  --slm-nav-line: #cfcfd2;
+  --slm-nav-chip: rgba(18, 18, 18, 0.06);
+  --slm-nav-ink: #121212;
   --slm-shadow: 0 8px 28px rgba(15, 15, 18, 0.12);
   --slm-theme-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --slm-theme-duration: 160ms;
@@ -106,13 +114,17 @@
     --slm-formula-bg var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-border var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-fg var(--slm-theme-duration) var(--slm-theme-ease),
-    --slm-ring var(--slm-theme-duration) var(--slm-theme-ease);
+    --slm-ring var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-nav-shell var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-nav-line var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-nav-chip var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-nav-ink var(--slm-theme-duration) var(--slm-theme-ease);
 }
 
 [data-stemlm-theme='dark'],
 :host([data-stemlm-theme='dark']) {
   --slm-bg: #151515;
-  --slm-bg-subtle: #121212;
+  --slm-bg-subtle: #1a1a1a;
   --slm-bg-elevated: #1c1c1c;
   --slm-bg-muted: #222222;
   --slm-border: #2a2a2a;
@@ -132,11 +144,15 @@
   --slm-amber-dim: #f5b9421c;
   --slm-success: #4ade80;
   --slm-success-soft: #4ade8020;
-  --slm-formula-bg: #111111;
+  --slm-formula-bg: #1a1a1a;
   --slm-formula-border: #2a2a2a;
   --slm-formula-fg: #ededed;
   --slm-ring: #ededed;
   --slm-signal: #ff6b2c;
+  --slm-nav-shell: #1a1a1a;
+  --slm-nav-line: #2c2c2c;
+  --slm-nav-chip: rgba(237, 237, 237, 0.08);
+  --slm-nav-ink: #ededed;
   --slm-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
 }
 

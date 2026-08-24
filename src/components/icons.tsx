@@ -45,16 +45,18 @@ export const IconChevronRight = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** Lucide chevrons for the floating Prev/Next overlay (same 1.5 stroke as the header set). */
+/** Shafted Lucide arrows for floating Prev/Next (same 1.5 stroke as the header set). */
 export const IconNavPrev = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ width: 16, height: 16, ...p })}>
-    <path d="m15 18-6-6 6-6" />
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
   </svg>
 );
 
 export const IconNavNext = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ width: 16, height: 16, ...p })}>
-    <path d="m9 18 6-6-6-6" />
+    <path d="M5 12h14" />
+    <path d="m12 5 7 7-7 7" />
   </svg>
 );
 

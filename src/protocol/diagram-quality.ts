@@ -447,8 +447,8 @@ function auditSpecCompleteness(step: Step, capsule: Capsule): ParseWarningCode[]
       if (!specCoversComponent(diagram.content, type, need)) issues.push('diagram_incomplete');
     }
   }
-  if (diagramStepKind(step) === 'model') {
-    const mentioned = extractMentionedComponents(text);
+  const mentioned = extractMentionedComponents(text);
+  if (mentioned.length > 0) {
     const missing = mentioned.filter((c) => !specCoversComponent(diagram.content, type, c));
     if (missing.length > 0) issues.push('diagram_incomplete');
   }
@@ -535,15 +535,8 @@ export function auditStepDiagramCompleteness(step: Step, capsule: Capsule): Pars
   return issues;
 }
 
-function countStepDiagrams(capsule: Capsule): number {
-  return capsule.steps.filter((s) => s.diagram?.content?.trim()).length;
-}
-
-function minDiagramCount(stepCount: number, capsule: Capsule): number {
-  if (isElectrical(capsule)) {
-    return Math.max(3, Math.ceil(stepCount * 0.55));
-  }
-  return Math.max(2, Math.ceil(stepCount * 0.4));
+function hasClosedSpec(step: Step): boolean {
+  return Boolean(step.diagram?.content?.trim());
 }
 
 export function auditCapsuleDiagrams(capsule: Capsule): ParseWarningCode[] {
@@ -553,13 +546,10 @@ export function auditCapsuleDiagrams(capsule: Capsule): ParseWarningCode[] {
   const steps = capsule.steps;
   if (!steps.length) return issues;
 
-  const diagramCount = countStepDiagrams(capsule);
-  const requiredMin = minDiagramCount(steps.length, capsule);
-
   const first = steps[0]!;
-  if (!first.diagram?.content?.trim()) {
+  if (stepNeedsDiagram(first, capsule) && !hasClosedSpec(first)) {
     issues.push('missing_initial_circuit');
-  } else {
+  } else if (hasClosedSpec(first)) {
     for (const code of auditStepDiagramCompleteness(first, capsule)) {
       if (!issues.includes(code)) issues.push(code);
     }
@@ -567,43 +557,39 @@ export function auditCapsuleDiagrams(capsule: Capsule): ParseWarningCode[] {
 
   for (const step of steps) {
     if (!stepNeedsDiagram(step, capsule)) continue;
-    if (!step.diagram?.content?.trim()) {
+    if (!hasClosedSpec(step)) {
       if (!issues.includes('missing_circuit_diagram')) issues.push('missing_circuit_diagram');
       continue;
     }
+    if (step === first) continue;
     for (const code of auditStepDiagramCompleteness(step, capsule)) {
       if (!issues.includes(code)) issues.push(code);
     }
-  }
-
-  if (diagramCount < requiredMin && !issues.includes('insufficient_diagrams')) {
-    issues.push('insufficient_diagrams');
   }
 
   return issues;
 }
 
 export function diagramQualityMessage(code: ParseWarningCode, capsule: Capsule): string {
-  const steps = capsule.steps.length;
-  const have = countStepDiagrams(capsule);
-  const need = minDiagramCount(steps, capsule);
+  const visualNeed = capsule.steps.filter((s) => stepNeedsDiagram(s, capsule)).length;
+  const have = capsule.steps.filter((s) => stepNeedsDiagram(s, capsule) && s.diagram?.content?.trim()).length;
   const subject = capsule.meta.subject;
   switch (code) {
     case 'missing_initial_circuit':
       return subject === 'Electrical'
-        ? `Step 1 must include @diagram type=circuit or type=hybridpi/opamp showing the FULL original circuit/model — every named id (B,C,E, rpi, gm, RE, RC).`
+        ? `Step 1 must include @diagram type=circuit or type=hybridpi/opamp showing the FULL original circuit/model — every named id (B,C,E, rpi, gm, re, rc).`
         : `Step 1 must include @diagram with a complete SPEC of the visual model for this ${subject} problem — named parts, axes, and key relationships.`;
     case 'missing_circuit_diagram':
       return subject === 'Electrical'
-        ? `One or more steps (models, KCL/KVL, gain/Rin/Rout, superposition, Thevenin) are missing @diagram specs. Electrical problems need a diagram on nearly every step.`
+        ? `One or more visual state-changing steps (models, KCL/KVL, gain/Rin/Rout, superposition, Thevenin) are missing a closed @diagram spec. Electrical: OMIT diagrams on unit conversion only; NEVER skip the circuit when components exist.`
         : `One or more visual ${subject} steps are missing @diagram specs. Add a typed spec for every draw/sketch/model/graph/pathway/state step.`;
     case 'insufficient_diagrams':
-      return `Visual problem needs at least ${need} step diagrams (found ${have} on ${steps} steps). Add complete specs on setup, models, derivations, and topology changes — never skip.`;
+      return `Every visual state-changing step needs a closed @diagram spec (found ${have} of ${visualNeed}). Algebra and unit conversion may omit figures; never skip a topology/model/state change.`;
     case 'diagram_lacks_graphics':
       return `A @diagram block has no drawable content. Emit a typed spec (plot/scene/graph/table/circuit/template) naming every object, not a text-only legend.`;
     case 'diagram_incomplete':
       return subject === 'Electrical'
-        ? `A @diagram spec omits components named in @body (e.g. R_C, R_E, r_π, g_m). Every analyzed id must appear as a named key in the spec (hybrid-π needs rpi, gm, RE, RC).`
+        ? `A @diagram spec omits components named in @body (e.g. R_C, R_E, r_π, g_m). Every analyzed id must appear as a named key in the spec (hybrid-π needs rpi, gm, re, rc).`
         : `A @diagram spec omits objects named in @body. Every analyzed structure, axis, force, curve, species, or node must appear as a named id in the spec.`;
     case 'diagram_bad_viewbox':
       return `A compiled @diagram has an invalid frame. The compiler owns bounds; do not emit viewBox or path coordinates.`;

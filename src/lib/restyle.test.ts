@@ -23,6 +23,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
   const emptyState = read('src/components/EmptyState.tsx');
   const wxt = read('wxt.config.ts');
   const contentScript = read('entrypoints/content/index.ts');
+  const hosts = read('src/platforms/hosts.ts');
   const mermaid = read('src/lib/mermaid.ts');
   const svgPresent = read('src/lib/svg-present.ts');
   const emit = read('src/lib/figure/emit.ts');
@@ -69,9 +70,8 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(mermaid).toContain('FONT_SANS');
   });
 
-  it('ships dark canvas #151515, inset boxes #111111, body text #ededed, theme ≤180ms', () => {
+  it('ships dark canvas #151515, canvas-family formula wells, body text #ededed, theme ≤180ms', () => {
     expect(tokens).toContain('--slm-bg: #151515');
-    expect(tokens).toContain('--slm-formula-bg: #111111');
     expect(tokens).toContain('--slm-fg: #ededed');
     const duration = /--slm-theme-duration:\s*(\d+)ms/.exec(tokens);
     expect(duration).toBeTruthy();
@@ -79,7 +79,21 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
 
     expect(tokens).toContain('--slm-bg: #f5f5f5');
     expect(tokens).toContain('--slm-formula-bg: #efefef');
-    expect(tokens).toContain('--slm-fg: #171717');
+    expect(tokens).not.toContain('--slm-formula-bg: #111111');
+    expect(tokens).not.toContain('--slm-fg: #171717');
+
+    const darkBlock = tokens.slice(tokens.indexOf("[data-stemlm-theme='dark']"));
+    const formulaBg = /--slm-formula-bg:\s*(#[0-9a-fA-F]{6})/.exec(darkBlock)?.[1]?.toLowerCase();
+    const canvas = /--slm-bg:\s*(#[0-9a-fA-F]{6})/.exec(darkBlock)?.[1]?.toLowerCase();
+    expect(formulaBg).toBeTruthy();
+    expect(canvas).toBe('#151515');
+    expect(hexLuma(formulaBg!)).toBeGreaterThanOrEqual(hexLuma('#151515') - 0.5);
+
+    const lightFg = /--slm-fg:\s*(#[0-9a-fA-F]{6})/.exec(tokens)?.[1]?.toLowerCase();
+    expect(lightFg).toBeTruthy();
+    expect(lightFg).not.toBe('#000000');
+    expect(lightFg).not.toBe('#000');
+    expect(hexLuma(lightFg!)).toBeLessThan(hexLuma('#171717'));
   });
 
   it('caps the question row and rounds the study panel on all corners', () => {
@@ -99,9 +113,16 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(panel).not.toMatch(/\.slm-stepnav--overlay\s*\{[^}]*width:\s*50%/);
     expect(panel).not.toMatch(/\.slm-stepnav\s*\{[^}]*justify-content:\s*space-between/);
     expect(panel).not.toContain('#3c3b3b');
-    expect(panel).toMatch(
-      /\.slm-panel\[data-stemlm-theme='light'\] \.slm-stepnav--overlay\s*\{[^}]*color-mix/,
-    );
+    expect(panel).not.toContain('#2f2e2e');
+    expect(panel).not.toContain('#3f3e3e');
+    expect(panel).not.toMatch(/\.slm-stepnav--overlay\s*\{[^}]*left:\s*50%/);
+    expect(panel).not.toMatch(/translateX\(-50%\)/);
+    expect(panel).toMatch(/\.slm-stepnav--overlay\s*\{[^}]*right:\s*var\(--slm-pad-x\)/);
+    expect(panel).not.toMatch(/\.slm-stepnav--overlay\s*\{[^}]*border-radius:\s*999px/);
+    expect(panel).not.toMatch(/\.slm-stepnav-btn\s*\{[^}]*border-radius:\s*999px/);
+    expect(panel).toMatch(/\.slm-stepnav--overlay\s*\{[^}]*background:\s*var\(--slm-nav-shell\)/);
+    expect(tokens).toContain('--slm-nav-shell');
+    expect(tokens).toMatch(/--slm-nav-shell var\(--slm-theme-duration\)/);
     expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*overflow-x:\s*auto/);
     expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*scrollbar-width:\s*none/);
     expect(panel).toContain('.slm-session-switch::-webkit-scrollbar');
@@ -111,7 +132,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(panel).toMatch(/\.slm-tabs\s*\{[\s\S]*height:\s*calc\(var\(--slm-brand-size/);
   });
 
-  it('popup overlay uses panel tokens, a wider rounded shell, and Gemini-only hosts', () => {
+  it('popup overlay uses panel tokens, a wider rounded shell, and the four shipped chat hosts', () => {
     const width = /\.slm-popup\s*\{[^}]*width:\s*(\d+)px/.exec(pages);
     expect(width).toBeTruthy();
     expect(Number(width![1])).toBeGreaterThan(420);
@@ -128,9 +149,76 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(popupApp).not.toContain('beside send');
     expect(emptyState).not.toContain('beside send');
     expect(emptyState).not.toContain('Open Gemini');
+    expect(wxt).toContain('*://chatgpt.com/*');
+    expect(wxt).toContain('*://chat.openai.com/*');
+    expect(wxt).toContain('*://claude.ai/*');
     expect(wxt).toContain('*://gemini.google.com/*');
-    expect(wxt).not.toMatch(/chatgpt|claude|grok\.com/i);
-    expect(contentScript).toContain("*://gemini.google.com/*");
-    expect(contentScript).not.toMatch(/chatgpt|claude\.ai|grok\.com/i);
+    expect(wxt).toContain('*://grok.com/*');
+    expect(hosts).toContain('*://chatgpt.com/*');
+    expect(hosts).toContain('*://claude.ai/*');
+    expect(hosts).toContain('*://gemini.google.com/*');
+    expect(hosts).toContain('*://grok.com/*');
+    expect(contentScript).toContain('CHAT_CONTENT_MATCHES');
+    expect(contentScript).toContain("@/src/platforms/hosts");
+  });
+
+  it('interpolates theme tokens once — no nested bg/color transitions on rail, solution, formula, overlay', () => {
+    const duration = /--slm-theme-duration:\s*(\d+)ms/.exec(tokens);
+    expect(Number(duration![1])).toBeLessThanOrEqual(180);
+
+    for (const selector of [
+      '.slm-step-rail-btn',
+      '.slm-tab',
+      '.slm-stepnav-btn',
+      '.slm-formula',
+      '.slm-takeaway',
+      '.slm-solution-step',
+      '.slm-step-work-body',
+    ]) {
+      const block = cssRule(panel, selector);
+      expect(block.length, selector).toBeGreaterThan(0);
+      expect(transitionedProps(block), selector).not.toContain('background');
+      expect(transitionedProps(block), selector).not.toContain('color');
+    }
+
+    const headerSrc = read('src/components/PanelHeader.tsx');
+    expect(headerSrc).not.toMatch(/key=\{themeToBrandVariant/);
+
+    const darkNav = /\[data-stemlm-theme='dark'\][\s\S]*?--slm-nav-shell:\s*(#[0-9a-fA-F]{6})/.exec(
+      tokens,
+    )?.[1]?.toLowerCase();
+    expect(darkNav).toBeTruthy();
+    expect(hexLuma(darkNav!)).toBeLessThan(hexLuma('#2f2e2e'));
+
+    expect(panel).toMatch(/\.slm-step-work-body\s*\{[^}]*color:\s*var\(--slm-fg\)/);
+    expect(panel).toMatch(/\.slm-card-body\s*\{[^}]*color:\s*var\(--slm-fg\)/);
+    expect(panel).toMatch(/\.slm-solution\s*\{[^}]*color:\s*var\(--slm-fg\)/);
   });
 });
+
+function hexLuma(hex: string): number {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function cssRule(source: string, selector: string): string {
+  const needle = `${selector} {`;
+  const at = source.indexOf(needle);
+  if (at < 0) return '';
+  const open = source.indexOf('{', at);
+  const close = source.indexOf('}', open);
+  if (open < 0 || close < 0) return '';
+  return source.slice(open + 1, close);
+}
+
+function transitionedProps(block: string): string[] {
+  const m = /(?:^|;)\s*transition:\s*([^;]+)/.exec(block);
+  if (!m) return [];
+  return m[1]!
+    .split(',')
+    .map((part) => part.trim().split(/\s+/)[0] ?? '')
+    .filter(Boolean);
+}

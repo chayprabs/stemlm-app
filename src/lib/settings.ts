@@ -24,10 +24,10 @@ export interface Settings {
   splitRatio: number;
 }
 
-import { clampSplitRatio } from './split-ratio';
+import { clampSplitRatio, DEFAULT_SPLIT_RATIO, hydrateSplitRatio } from './split-ratio';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
-export { clampSplitRatio };
+export { clampSplitRatio, DEFAULT_SPLIT_RATIO, hydrateSplitRatio };
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
@@ -35,7 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoOpenOnAnswer: true,
   promptVariant: 'balanced',
   analyticsOptOut: false,
-  splitRatio: 0.5,
+  splitRatio: DEFAULT_SPLIT_RATIO,
 };
 
 const KEY = 'stemlm_settings';
@@ -69,7 +69,7 @@ export function hydrateSettings(stored: StoredSettings = {}): Settings {
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
     analyticsOptOut: Boolean(stored.analyticsOptOut),
     promptVariant: normalizePromptVariant(stored.promptVariant),
-    splitRatio: clampSplitRatio(stored.splitRatio ?? DEFAULT_SETTINGS.splitRatio),
+    splitRatio: hydrateSplitRatio(stored.splitRatio),
   };
 }
 

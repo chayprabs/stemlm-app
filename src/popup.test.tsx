@@ -181,18 +181,39 @@ describe('popup chrome', () => {
     unmount();
   });
 
-  it('hides Start here and Ask here on unsupported hosts and names Gemini only', async () => {
+  it('hides Start here and Ask here on unsupported hosts and names the four shipped chats', async () => {
     const { container, unmount } = await renderPopup();
     const text = container.textContent ?? '';
     expect(text).toContain('This website is not supported');
+    expect(text).toContain('ChatGPT');
+    expect(text).toContain('Claude');
     expect(text).toContain('Gemini');
-    expect(text).not.toMatch(/ChatGPT|Claude|Grok/);
+    expect(text).toContain('Grok');
     expect(container.querySelector('[data-launch="start-here"]')).toBeNull();
     expect(container.querySelector('[data-launch="ask-here"]')).toBeNull();
     expect(container.querySelector('[data-launch="start-new"]')).toBeTruthy();
     expect(container.querySelector('[data-launch="open-last"]')).toBeTruthy();
     expect(container.querySelector('[data-launch="open-last"]')).toHaveProperty('disabled', true);
     unmount();
+  });
+
+  it('treats Claude, ChatGPT, and Grok tabs as supported hosts', async () => {
+    activeTab = { id: 21, url: 'https://chatgpt.com/c/abc' };
+    const first = await renderPopup();
+    expect(first.container.querySelector('[data-launch="start-here"]')).toBeTruthy();
+    expect(first.container.querySelector('[data-launch="ask-here"]')).toBeTruthy();
+    expect(first.container.textContent).not.toContain('This website is not supported');
+    first.unmount();
+
+    activeTab = { id: 22, url: 'https://claude.ai/new' };
+    const second = await renderPopup();
+    expect(second.container.querySelector('[data-launch="start-here"]')).toBeTruthy();
+    second.unmount();
+
+    activeTab = { id: 23, url: 'https://grok.com/' };
+    const third = await renderPopup();
+    expect(third.container.querySelector('[data-launch="ask-here"]')).toBeTruthy();
+    third.unmount();
   });
 
   it('Start here loads capsules when they exist and opens empty otherwise', async () => {

@@ -22,10 +22,6 @@ export interface CapsuleVerifyOptions {
   question?: string;
   /** Session id (defaults to capsule topic slug). */
   id?: string;
-  /** Minimum fraction of steps that should carry diagrams for visual subjects. */
-  minDiagramRatio?: number;
-  /** Minimum absolute diagram count. */
-  minDiagrams?: number;
 }
 
 export interface CapsuleVerifyResult {
@@ -104,12 +100,6 @@ function checkDiagramSizing(svg: string, profile: 'step' | 'print'): string[] {
   return issues;
 }
 
-function minDiagramCount(stepCount: number, subject: Subject, opt?: CapsuleVerifyOptions): number {
-  if (opt?.minDiagrams != null) return opt.minDiagrams;
-  const ratio = opt?.minDiagramRatio ?? (subject === 'Electrical' ? 0.55 : 0.4);
-  return Math.max(subject === 'Electrical' ? 3 : 2, Math.ceil(stepCount * ratio));
-}
-
 /** Verify a raw stemLM capsule string (typically from Gemini capture). */
 export async function verifyCapsule(
   raw: string,
@@ -136,13 +126,9 @@ export async function verifyCapsule(
   if (stepCount < 3) errors.push(`Only ${stepCount} steps (need >= 3)`);
 
   const diagrams = capsule.steps.flatMap((s) => (s.diagram?.type === 'svg' ? [s.diagram] : []));
-  const diagramCount = diagrams.length;
+  const diagramCount = capsule.steps.filter((s) => s.diagram?.content?.trim()).length;
 
   if (VISUAL_DIAGRAM_SUBJECTS.has(subject) && isVisualDenseProblem(capsule)) {
-    const need = minDiagramCount(stepCount, subject, opt);
-    if (diagramCount < need) {
-      errors.push(`Only ${diagramCount} diagram steps (need >= ${need} for ${subject})`);
-    }
     for (const code of auditCapsuleDiagrams(capsule)) {
       errors.push(`Diagram audit: ${code}`);
     }

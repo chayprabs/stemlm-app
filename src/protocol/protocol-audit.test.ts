@@ -177,6 +177,23 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
     const physicsLine = FILE.split('\n').find((l) => l.startsWith('PHYSICS\t'));
     expect(physicsLine, 'Physics TSV row').toBeTruthy();
     expect(physicsLine).not.toMatch(/(^|\t|,)sfd(,|\t|$)/);
+    expect(physicsLine).toMatch(/field/);
+  });
+
+  it('teaches typed field and circuit specs, not a prose SPEC paragraph', () => {
+    expect(FILE).toContain('@diagram id=f6 type=field');
+    expect(FILE).toContain('catalog: solenoid');
+    expect(FILE).toContain('core: mu_r=400');
+    expect(FILE).toContain('B: 1.0 T');
+    expect(FILE).toContain('H: ?');
+    expect(FILE).toContain('@diagram id=f1 type=circuit');
+    expect(FILE).toContain('std: ieee');
+    expect(FILE).toContain('V1: n_in 0 DC 12');
+    expect(FILE).toContain('R1: n_in n_a 4k');
+    expect(FILE).not.toMatch(/SPEC:\s+A /);
+    expect(FILE).not.toMatch(/viewBox="0 0 300 180"/);
+    expect(FILE).toMatch(/NEVER <svg>/i);
+    expect(FILE).toMatch(/never a prose paragraph/i);
   });
 
   it('ships TSV subject rows without duplicate paragraph chapters', () => {
@@ -185,6 +202,11 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
     expect(FILE).not.toContain('PHYSICS: subject=');
     expect(FILE).not.toContain('ELECTRICAL: subject=');
     expect(FILE).not.toMatch(/PRINCIPLES:/);
+    expect(FILE).toContain('NMR δ increases right-to-left');
+    expect(FILE).toContain('Fischer D/L ≠ R/S');
+    expect(FILE).toContain('Oh CFT t2g below eg');
+    expect(FILE).toContain('quote every mermaid node label');
+    expect(FILE).not.toContain('type=punnett');
   });
 
   it('copies locale circuit into std: and names the protocol file as not the problem', () => {

@@ -247,29 +247,65 @@ export function compileMohr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 export function compileGeneric(family: string, spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const b = frame(family, ctx, spec);
   const { width: w, height: h } = b;
-  b.rect('frame', 16, 16, w - 32, h - 32, { fill: 'none' });
-  b.label('fam', family, w / 2, 28, { protected: true });
-  let i = 0;
+  const boxW = Math.min(150, w * 0.46);
+  const boxH = Math.min(58, h * 0.38);
+  const bx = (w - boxW) / 2;
+  const by = Math.max(36, (h - boxH) / 2 - 6);
+  b.rect('apparatus', bx, by, boxW, boxH, { fill: 'none', width: 1.6 });
+  b.line('stand', bx + boxW / 2, by + boxH, bx + boxW / 2, by + boxH + 14, { width: 1.4 });
+  b.line('base', bx + 16, by + boxH + 14, bx + boxW - 16, by + boxH + 14, { width: 1.6 });
+  b.label('fam', family, w / 2, 16, { protected: true });
+
+  const skip = new Set(['caption', 'kind', 'std', 'highlight']);
+  const params: { k: string; v: string }[] = [];
   for (const [k, vals] of spec.values) {
-    if (k === 'caption' || k === 'kind') continue;
-    const y = 48 + (i % 6) * 16;
-    const x = 40 + Math.floor(i / 6) * 120;
-    b.label(k, `${k}=${vals[0]}`, x, y, { slot: 'E' });
-    i += 1;
-    if (i > 10) break;
+    if (skip.has(k)) continue;
+    const orig = spec.originals.get(k) ?? k;
+    params.push({ k: orig, v: vals[0] ?? '' });
+    if (params.length >= 8) break;
   }
-  b.line('g1', 24, h - 28, w - 24, 24, { color: 'guide', dash: true });
+  const anchors: { x: number; y: number; slot: 'W' | 'E' | 'S' | 'N' }[] = [
+    { x: 18, y: by + 10, slot: 'W' },
+    { x: w - 18, y: by + 10, slot: 'E' },
+    { x: 18, y: by + boxH - 6, slot: 'W' },
+    { x: w - 18, y: by + boxH - 6, slot: 'E' },
+    { x: w / 2 - 48, y: h - 14, slot: 'S' },
+    { x: w / 2 + 48, y: h - 14, slot: 'S' },
+    { x: w / 2 - 48, y: 30, slot: 'N' },
+    { x: w / 2 + 48, y: 30, slot: 'N' },
+  ];
+  params.forEach((p, i) => {
+    const pos = anchors[i] ?? { x: 20 + i * 10, y: h - 14, slot: 'S' as const };
+    b.label(p.k, `${p.k}=${p.v}`, pos.x, pos.y, { slot: pos.slot });
+  });
   return layoutAndCompile(b.scene());
 }
 
 export function compileTline(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const b = frame('tline', ctx, spec);
   const { width: w, height: h } = b;
-  for (let i = 0; i < 6; i++) {
-    b.line(`h${i}`, 30, 20 + i * 20, w - 30, 20 + i * 20 + 10, { color: 'muted' });
-    b.line(`v${i}`, 40 + i * 40, 16, 40 + i * 40, h - 16, { color: 'guide', dash: true });
-  }
-  b.label('z0', `Z0=${specGet(spec, 'z0') ?? ''}`, w / 2, 12, { protected: true });
+  const y1 = h * 0.36;
+  const y2 = h * 0.64;
+  const x0 = 48;
+  const xLoad = w - 72;
+  const midY = (y1 + y2) / 2;
+
+  b.line('cond-top', x0, y1, xLoad, y1, { width: 2.2 });
+  b.line('cond-bot', x0, y2, xLoad, y2, { width: 2.2 });
+
+  b.circle('src', 22, midY, 10, { fill: 'none' });
+  b.line('src-t', 22, midY - 8, x0, y1, { width: 1.2 });
+  b.line('src-b', 22, midY + 8, x0, y2, { width: 1.2 });
+  b.label('vs', specGet(spec, 'vs') ?? specGet(spec, 'source') ?? 'Vs', 22, 18, { protected: true });
+
+  const zl = specGet(spec, 'zl') ?? specGet(spec, 'load') ?? specGet(spec, 'zload') ?? 'ZL';
+  b.rect('load', xLoad, y1, 22, y2 - y1, { fill: 'none', color: 'accent', width: 1.6 });
+  b.label('zl', `ZL=${zl}`, w - 16, midY, { slot: 'E' });
+
+  const z0 = specGet(spec, 'z0') ?? '';
+  b.label('z0', `Z0=${z0}`, (x0 + xLoad) / 2, midY, { protected: true });
+  const td = specGet(spec, 'td') ?? specGet(spec, 'length');
+  if (td) b.label('td', `td=${td}`, (x0 + xLoad) / 2, y1 - 14, { slot: 'N' });
   return layoutAndCompile(b.scene());
 }
 
@@ -437,10 +473,18 @@ export function compileRing(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 export function compileXfmr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const b = frame('xfmr', ctx, spec);
   const { width: w, height: h } = b;
-  b.path('p', `M 80 40 q 12 12 0 24 q -12 12 0 24 q 12 12 0 24`, { width: 1.6 });
-  b.path('s', `M 120 40 q 12 12 0 24 q -12 12 0 24 q 12 12 0 24`, { width: 1.6 });
-  b.line('core1', 96, 36, 96, h - 36, { width: 2 });
-  b.line('core2', 104, 36, 104, h - 36, { width: 2 });
+  const cx = w / 2;
+  const top = 32;
+  b.path('p', `M ${cx - 30} ${top} q 12 12 0 24 q -12 12 0 24 q 12 12 0 24 q -12 12 0 24`, { width: 1.8 });
+  b.path('s', `M ${cx + 30} ${top} q -12 12 0 24 q 12 12 0 24 q -12 12 0 24 q 12 12 0 24`, { width: 1.8 });
+  b.line('core1', cx - 6, top - 6, cx - 6, h - 28, { width: 2.2 });
+  b.line('core2', cx + 6, top - 6, cx + 6, h - 28, { width: 2.2 });
+  b.line('p-lead1', cx - 30, top, 28, top, { width: 1.2 });
+  b.line('p-lead2', cx - 30, top + 96, 28, top + 96, { width: 1.2 });
+  b.line('s-lead1', cx + 30, top, w - 28, top, { width: 1.2 });
+  b.line('s-lead2', cx + 30, top + 96, w - 28, top + 96, { width: 1.2 });
+  b.label('plab', 'P', 32, top - 10, { protected: true });
+  b.label('slab', 'S', w - 32, top - 10, { protected: true });
   return layoutAndCompile(b.scene());
 }
 

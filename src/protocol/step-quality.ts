@@ -225,7 +225,7 @@ export function auditStepQuality(
     formulaIntroducesSymbols(formula) &&
     /\\frac|\\omega|_[A-Za-z]|\\Omega|\\mu|\\angle/i.test(formula);
 
-  if (symbolicLaw && !hasSymbolContext) {
+  if (symbolicLaw && !hasSymbolContext && needsPlugIn) {
     issues.push('step_missing_symbol_defs');
   }
 

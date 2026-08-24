@@ -28,6 +28,7 @@ vi.mock('wxt/browser', () => ({
 import {
   clampSplitRatio,
   DEFAULT_SETTINGS,
+  DEFAULT_SPLIT_RATIO,
   getSettings,
   setSettings,
   hydrateSettings,
@@ -44,13 +45,15 @@ describe('clampSplitRatio', () => {
     expect(clampSplitRatio(0.9, wide)).toBe(0.75);
   });
 
-  it('falls back to 0.5 for non-finite input', () => {
-    expect(clampSplitRatio(NaN, wide)).toBe(0.5);
-    expect(clampSplitRatio(Infinity, wide)).toBe(0.5);
+  it('falls back to the default split for non-finite input', () => {
+    expect(clampSplitRatio(NaN, wide)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(clampSplitRatio(Infinity, wide)).toBe(DEFAULT_SPLIT_RATIO);
   });
 
-  it('default split is 50/50', () => {
-    expect(DEFAULT_SETTINGS.splitRatio).toBe(0.5);
+  it('default split is a modest majority, not 50/50', () => {
+    expect(DEFAULT_SETTINGS.splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+    expect(DEFAULT_SPLIT_RATIO).toBeGreaterThan(0.5);
+    expect(DEFAULT_SPLIT_RATIO).toBeLessThanOrEqual(0.58);
   });
 
   it('defaults to the balanced prompt variant', () => {
@@ -79,6 +82,16 @@ describe('hydrateSettings', () => {
     const settings = hydrateSettings({ defaultSubject: 'Physics' });
     expect(settings).not.toHaveProperty('defaultSubject');
     expect(settings.theme).toBe('auto');
+  });
+
+  it('migrates stored exact 0.5 (legacy default) to the new majority split', () => {
+    expect(hydrateSettings({ splitRatio: 0.5 }).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+    expect(hydrateSettings({}).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('preserves a user-resized split that is not the legacy 0.5 default', () => {
+    expect(hydrateSettings({ splitRatio: 0.62 }).splitRatio).toBe(0.62);
+    expect(hydrateSettings({ splitRatio: 0.37 }).splitRatio).toBe(0.37);
   });
 });
 

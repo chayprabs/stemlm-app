@@ -76,7 +76,7 @@ const LEFTOVER_FAMILIES: Record<string, FamilyDef> = {
   mechanism: { kind: 'leftover', engine: 'mechanism', requiredAny: ['smiles', 'from', 'arrow'], section: '11.2' },
   splitting: { kind: 'leftover', engine: 'splitting', requiredAny: ['peak', 'j', 'mult'], section: '11.4' },
   echem: { kind: 'leftover', engine: 'echem', requiredAny: ['anode', 'cathode'], section: '11.5' },
-  field: { kind: 'leftover', engine: 'field', requiredAny: ['kind', 'catalog'], section: '11.6' },
+  field: { kind: 'leftover', engine: 'field', requiredAny: ['kind', 'catalog', 'core'], section: '11.6' },
   ray: { kind: 'leftover', engine: 'ray', requiredAny: ['f', 'do', 'element'], section: '11.6' },
   bz: { kind: 'leftover', engine: 'bz', requiredAny: ['lattice', 'path'], section: '11.7' },
   tline: { kind: 'leftover', engine: 'tline', requiredAny: ['z0', 'td'], section: '11.8' },

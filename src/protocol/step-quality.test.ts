@@ -128,6 +128,106 @@ describe('auditStepQuality', () => {
     expect(auditStepQuality(step, { archetype: 'lab' })).toContain('step_missing_substitution');
   });
 
+  it('does not flag step_missing_symbol_defs on proofs that name the rule in words', () => {
+    const proof = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Prove the law of sines',
+        formula: '$$\\frac{a}{\\sin A}=\\frac{b}{\\sin B}$$',
+        body: 'Law of sines relates each side to the sine of the opposite angle in triangle ABC.',
+      },
+      { archetype: 'proof' },
+    );
+    expect(proof).not.toContain('step_missing_symbol_defs');
+    expect(proof).not.toContain('step_missing_substitution');
+
+    const symbolic = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Rewrite the double angle',
+        formula: '$$\\sin 2\\theta = 2\\sin\\theta\\cos\\theta$$',
+        body: 'The double-angle identity rewrites the left-hand side before integrating.',
+      },
+      { archetype: 'symbolic' },
+    );
+    expect(symbolic).not.toContain('step_missing_symbol_defs');
+
+    const conceptual = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'State Faraday law',
+        formula: '$$\\mathcal{E}=-\\frac{d\\Phi_B}{dt}$$',
+        body: 'Faraday law says a changing flux through a loop induces an emf around that loop.',
+      },
+      { archetype: 'conceptual' },
+    );
+    expect(conceptual).not.toContain('step_missing_symbol_defs');
+
+    const code = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Name the recurrence',
+        formula: '$$T(n)=T(n/2)+\\Theta(1)$$',
+        body: 'Each halving step does constant work, which is the recurrence for binary search.',
+      },
+      { archetype: 'code' },
+    );
+    expect(code).not.toContain('step_missing_symbol_defs');
+
+    const proofLike = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Prove the sum formula',
+        formula: '$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$',
+        body: 'By induction the sum of the first n integers equals that closed form.',
+      },
+      { subject: 'Math', question: 'Prove the formula for the sum of the first n integers.' },
+    );
+    expect(proofLike).not.toContain('step_missing_symbol_defs');
+    expect(proofLike).not.toContain('step_missing_substitution');
+  });
+
+  it('still flags numeric XL/ω without symbol defs', () => {
+    const numeric = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Compute inductive reactance',
+        formula: '$$X_L = \\omega L$$',
+        body: 'The coil stores energy in its magnetic field.',
+      },
+      { archetype: 'numeric' },
+    );
+    expect(numeric).toContain('step_missing_symbol_defs');
+    expect(numeric).toContain('step_missing_substitution');
+
+    const lab = auditStepQuality(
+      {
+        id: 's1',
+        index: 1,
+        title: 'Compute inductive reactance',
+        formula: '$$X_L = \\omega L$$',
+        body: 'The coil stores energy in its magnetic field.',
+      },
+      { archetype: 'lab' },
+    );
+    expect(lab).toContain('step_missing_symbol_defs');
+
+    const legacy = auditStepQuality({
+      id: 's1',
+      index: 1,
+      title: 'Compute inductive reactance',
+      formula: '$$X_L = \\omega L$$',
+      body: 'The coil stores energy in its magnetic field.',
+    });
+    expect(legacy).toContain('step_missing_symbol_defs');
+  });
+
   it('enrichStepBody copies worked formula into empty body', () => {
     const step = {
       id: 's1',

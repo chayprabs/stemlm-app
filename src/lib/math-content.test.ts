@@ -41,6 +41,18 @@ describe('looksLikeRawLatex', () => {
     expect(looksLikeRawLatex(q)).toBe(false);
     expect(looksLikeRawLatex(a)).toBe(false);
   });
+
+  it('treats A(t)= and I_0= as math, not the English article A', () => {
+    const decay = 'A(t) = A_0 \\left(\\frac{1}{2}\\right)^{t / T_{1/2}}';
+    const half = 'A(t) = A_0 \\left(½\\right)^{t / T_{1/2}}';
+    expect(looksLikeProseWithMath(decay)).toBe(false);
+    expect(looksLikeProseWithMath(half)).toBe(false);
+    expect(looksLikeRawLatex(decay)).toBe(true);
+    expect(looksLikeRawLatex('I_0 = 5\\times 10^{-6}')).toBe(true);
+    expect(looksLikeProseWithMath('A battery is connected in series.')).toBe(true);
+    expect(looksLikeRawLatex('A battery is connected in series.')).toBe(false);
+    expect(looksLikeProseWithMath('An n-channel MOSFET is biased in saturation.')).toBe(true);
+  });
 });
 
 describe('prepareMathForRender', () => {
@@ -132,28 +144,32 @@ describe('prepareMathForRender', () => {
     const q =
       'A particle is rotating in a circular path and at any instant its motion can be described as \\theta = 5t^4/40 - t^3/3. The angular acceleration of the particle after 10 seconds is ______ rad/s^2.';
     const out = prepareMathForRender(q, 'auto');
-    expect(out).toContain('$\\theta$');
-    expect(out).toContain('$5t^4$');
-    expect(out).toContain('$t^3$');
-    expect(out).toContain('$s^2$');
+    expect(out).toContain('\\theta');
+    expect(out).toContain('5t^4');
+    expect(out).toContain('t^3');
+    expect(out).toMatch(/\$s\^2\$|\$rad\/s\^2\$/);
+    expect(out).toContain('circular path');
+    expect(out).toContain('described as');
     expect(out).not.toContain('described as \\theta');
     expect(out).not.toMatch(/^\$\$/);
     expect(prepareMathForRender(out, 'auto')).toBe(out);
   });
 
-  it('does not wrap ordinary English sentences that only mention V_C', () => {
+  it('token-wraps V_C in Ohm-law prose and keeps sentence spaces', () => {
     const a =
       "Because Ohm's law states current is the potential difference divided by resistance, and the potential at C minus the potential at D is V_C - V_D, so I = (V_C - V_D)/24Ω.";
     const out = prepareMathForRender(a, 'auto');
-    expect(out).toContain('V_C');
-    expect(out).not.toMatch(/\$V_C\$/);
+    expect(out).toContain('$V_C');
     expect(out).not.toMatch(/^\$Because/);
     expect(out).toContain("Because Ohm's law states");
+    expect(out).toContain('potential difference divided');
+    expect(out).not.toContain('BecauseOhms');
   });
 
   it('does not re-wrap Greek inside an already-delimited \\frac snippet', () => {
     const fracOmega = prepareMathForRender('where Z_C = \\frac{1}{j\\omega C} in series', 'auto');
-    expect(fracOmega).toContain('$\\frac{1}{j\\omega C}$');
+    expect(fracOmega).toContain('\\frac{1}{j\\omega C}');
+    expect(fracOmega).toMatch(/\$Z_C = \\frac\{1\}\{j\\omega C\}\$/);
     expect(fracOmega).not.toContain('$\\omega$');
     expect(fracOmega).not.toContain('$$\\omega$$');
 
@@ -161,6 +177,69 @@ describe('prepareMathForRender', () => {
     expect(fracTheta).toContain('$\\frac{\\theta}{2}$');
     expect(fracTheta).not.toContain('$\\theta$');
     expect(fracTheta).not.toContain('$$\\theta$$');
+  });
+
+  it('wraps a display-mode decay formula as one equation, including unicode ½', () => {
+    const formula = 'A(t) = A_0 \\left(\\frac{1}{2}\\right)^{t / T_{1/2}}';
+    const out = prepareMathForRender(formula, 'display');
+    expect(out).toBe(`$$${formula}$$`);
+    expect(out).not.toContain('$\\frac{1}{2}$');
+
+    const half = prepareMathForRender('A(t) = A_0 \\left(½\\right)^{t / T_{1/2}}', 'display');
+    expect(half.startsWith('$$')).toBe(true);
+    expect(half.endsWith('$$')).toBe(true);
+    expect(half).toContain('\\left(');
+    expect(half).toContain('\\frac{1}{2}');
+    expect(half).not.toContain('$\\frac{1}{2}$');
+    expect(half).toContain('A(t) = A_0');
+  });
+
+  it('wraps mixed-prose STEM tokens from the radiation work/check copy', () => {
+    const work =
+      'A_0 is the initial radiation level, A(t) is the radiation level at time t, and T_{1/2} is the half-life. With initial relative activity A_0 = 64 A_{safe}, permissible activity A(t) = A_{safe}, and half-life T_{1/2} = 18 days: A(t)/A_0 = 1/64.';
+    const workOut = prepareMathForRender(work, 'auto');
+    expect(workOut).toContain('$A_0$ is the initial radiation');
+    expect(workOut).toContain('$A(t)$ is the radiation');
+    expect(workOut).toContain('$T_{1/2}$ is the half-life');
+    expect(workOut).toMatch(/\$A_0 = 64 A_\{safe\}\$/);
+    expect(workOut).toMatch(/\$A\(t\) = A_\{safe\}\$/);
+    expect(workOut).toMatch(/\$A\(t\)\/A_0 = 1\/64\$/);
+    expect(workOut).not.toMatch(/^\$A_0 is the initial/);
+    expect(workOut).toContain('permissible activity');
+
+    const check = '1/2 because A(T_{1/2})/A_0 = (1/2)^1 = 0.5.';
+    const checkOut = prepareMathForRender(check, 'auto');
+    expect(checkOut).toContain('$1/2$ because');
+    expect(checkOut).toMatch(/\$A\(T_\{1\/2\}\)\/A_0/);
+    expect(checkOut).not.toMatch(/^\$1\/2 because/);
+    expect(prepareMathForRender(workOut, 'auto')).toBe(workOut);
+    expect(prepareMathForRender(checkOut, 'auto')).toBe(checkOut);
+  });
+
+  it('wraps Greek, mhchem, scientific notation, and \\left...\\right in mixed prose', () => {
+    const greek = prepareMathForRender('The wavelength is \\lambda = 500 nm.', 'auto');
+    expect(greek).toContain('$\\lambda');
+    expect(greek).toContain('The wavelength is');
+    expect(greek).not.toContain('is \\lambda');
+
+    const ce = prepareMathForRender('The molecule \\ce{H2O} is water.', 'auto');
+    expect(ce).toContain('$\\ce{H2O}$');
+    expect(ce).toContain('is water');
+    expect(ce).not.toContain('molecule \\ce');
+
+    const sci = prepareMathForRender('A nanometer is 10^{-9} m long.', 'auto');
+    expect(sci).toMatch(/\$10\^\{-9\}/);
+    expect(sci).toContain('nanometer is');
+    expect(sci).not.toContain('is 10^{-9}');
+
+    const lr = prepareMathForRender(
+      'Activity is scaled by \\left(\\frac{1}{2}\\right)^{n} after n half-lives.',
+      'auto',
+    );
+    expect(lr).toContain('$\\left(\\frac{1}{2}\\right)^{n}$');
+    expect(lr).toContain('scaled by');
+    expect(lr).toContain('after');
+    expect(lr).not.toContain('by \\left');
   });
 
 });

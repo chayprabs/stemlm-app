@@ -1,10 +1,8 @@
 /**
  * Adapter factory + shared DOM helpers.
  *
- * Gemini differs only in selectors and a couple of behaviours, so
- * we build each adapter from a declarative AdapterConfig. The fragile,
- * frequently-changing bits (selectors) live in the Gemini config file
- * for easy maintenance.
+ * Hosts differ in selectors; attach/insert/capsule behaviour is shared.
+ * Fragile, frequently-changing bits live in each host's config file.
  */
 import type { AdapterConfig, PlatformAdapter } from './types';
 import { COMPOSER_SLOT_SELECTOR } from '@/src/lib/composer-slot';
@@ -64,18 +62,53 @@ function outsideComposerSlot(el: HTMLElement | null): HTMLElement | null {
   return el;
 }
 
+function isHiddenComposerNode(el: HTMLElement): boolean {
+  if (el.hidden) return true;
+  if (el.getAttribute('aria-hidden') === 'true') return true;
+  try {
+    let node: HTMLElement | null = el;
+    for (let i = 0; i < 10 && node && node !== document.body && node !== document.documentElement; i++) {
+      const cs = getComputedStyle(node);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return true;
+      node = node.parentElement;
+    }
+  } catch {
+    /* getComputedStyle can throw on detached nodes */
+  }
+  return false;
+}
+
+/** Prefer the actual host + / attach control, never an inner SVG/icon. */
+function climbToHostControl(el: HTMLElement): HTMLElement {
+  const control = el.closest('button, [role="button"], [aria-haspopup]') as HTMLElement | null;
+  if (control && !control.closest(COMPOSER_SLOT_SELECTOR)) return control;
+  return el;
+}
+
+function sharesComposer(el: HTMLElement, editor: HTMLElement | null, shell: HTMLElement | null): boolean {
+  if (shell?.contains(el)) return true;
+  if (!editor) return true;
+  if (shell?.contains(editor) && shell.contains(el)) return true;
+  let node: HTMLElement | null = editor;
+  for (let i = 0; i < 8 && node && node !== document.body; i++) {
+    if (node.contains(el)) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 /** First match that is not inside the stemLM inject slot (avoids our own button). */
 function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     try {
       if (root instanceof HTMLElement && root.matches(sel)) {
         const hit = outsideComposerSlot(root);
-        if (hit) return hit;
+        if (hit && !isHiddenComposerNode(hit)) return hit;
       }
       const list = root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`);
       for (const el of list) {
         const hit = outsideComposerSlot(el);
-        if (hit) return hit;
+        if (hit && !isHiddenComposerNode(hit)) return hit;
       }
     } catch {
       /* invalid selector — skip */
@@ -180,21 +213,39 @@ function moveCursorToTextOffset(root: HTMLElement, targetOffset: number): void {
   moveCursorToEnd(root);
 }
 
+const COMPOSER_ROOT_SELECTOR = [
+  'input-area-v2',
+  'input-area',
+  'rich-textarea',
+  '.input-area',
+  '[class*="input-area"]',
+  'form',
+  'fieldset',
+  '[data-testid*="composer" i]',
+  '[class*="composer"]',
+  '[class*="chat-input"]',
+].join(', ');
+
 function composerAttachmentRoots(editor: HTMLElement): Set<ParentNode> {
   const roots = new Set<ParentNode>([editor]);
-  const closest = editor.closest(
-    'input-area-v2, input-area, rich-textarea, .input-area, [class*="input-area"]',
-  );
+  const closest = editor.closest(COMPOSER_ROOT_SELECTOR);
   if (closest) roots.add(closest);
   let node: HTMLElement | null = editor.parentElement;
-  for (let i = 0; i < 6 && node; i++) {
+  for (let i = 0; i < 8 && node; i++) {
+    if (node === document.body || node === document.documentElement) break;
     const tag = node.tagName;
+    const testid = (node.getAttribute('data-testid') ?? '').toLowerCase();
+    const cls = typeof node.className === 'string' ? node.className : '';
     if (
       tag === 'INPUT-AREA-V2' ||
       tag === 'INPUT-AREA' ||
       tag === 'RICH-TEXTAREA' ||
+      tag === 'FORM' ||
+      tag === 'FIELDSET' ||
       node.classList.contains('input-area') ||
-      node.querySelector('images-files-uploader, rich-textarea')
+      /composer|chat-input|input-area|prompt/i.test(cls) ||
+      testid.includes('composer') ||
+      node.querySelector('images-files-uploader, rich-textarea, input[type="file"]')
     ) {
       roots.add(node);
     }
@@ -349,7 +400,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     findEditor() {
-      return firstMatch(config.editor);
+      return firstMatchOutsideSlot(config.editor) ?? firstMatch(config.editor);
     },
 
     getEditorText() {
@@ -421,25 +472,39 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerLeadingAnchor() {
-      const root = this.getComposerShell() ?? document;
-      return config.composerLeading
-        ? firstMatchOutsideSlot(config.composerLeading, root)
-        : null;
+      if (!config.composerLeading) return null;
+      const shell = this.getComposerShell();
+      const editor = this.findEditor();
+      const roots: ParentNode[] = [];
+      if (shell) roots.push(shell);
+      const near = editor?.parentElement?.parentElement ?? editor?.parentElement ?? null;
+      if (near && near !== shell) roots.push(near);
+      roots.push(document);
+      for (const root of roots) {
+        const hit = firstMatchOutsideSlot(config.composerLeading, root);
+        if (!hit) continue;
+        const control = climbToHostControl(hit);
+        if (sharesComposer(control, editor, shell)) return control;
+      }
+      return null;
     },
 
     getComposerShell() {
-      const shell = config.composerShell ? firstMatch(config.composerShell) : null;
-      if (shell) return shell;
-      const editor = firstMatch(config.editor);
+      const shell = config.composerShell ? firstMatchOutsideSlot(config.composerShell) : null;
+      if (shell && !isHiddenComposerNode(shell)) return shell;
+      const editor = this.findEditor();
       if (!editor) return null;
       // Walk up to find a reasonable composer container (form, fieldset, or positioned wrapper).
       let el: HTMLElement | null = editor;
       for (let i = 0; i < 5 && el; i++) {
         const tag = el.tagName;
-        if (tag === 'FORM' || tag === 'FIELDSET' || el.getAttribute('role') === 'textbox') return el;
+        if (tag === 'FORM' || tag === 'FIELDSET' || el.getAttribute('role') === 'textbox') {
+          return isHiddenComposerNode(el) ? null : el;
+        }
         el = el.parentElement;
       }
-      return editor.parentElement ?? editor;
+      const fallback = editor.parentElement ?? editor;
+      return isHiddenComposerNode(fallback) ? null : fallback;
     },
 
     getAssistantBlocks() {

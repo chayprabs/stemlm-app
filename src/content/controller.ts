@@ -66,12 +66,25 @@ function allDiagrams(...groups: Diagram[][]): Diagram[] {
   return groups.flat();
 }
 
-/** Off-topic / mode:new / qid mismatch must open a new session, not overwrite. */
-export function followUpOpensNewSession(active: Session, incoming: Capsule): boolean {
+/**
+ * mode:new or a different qid must open a new session. Topic-only mismatch is
+ * handled by followUpOpensNewSession (Ask-in-chat); the post-inject
+ * shouldReplace path must not use topic, or a same-question retry would fork.
+ */
+export function incomingForcesNewSession(
+  active: Session | undefined,
+  incoming: Capsule,
+): boolean {
+  if (!active) return false;
   if (incoming.meta.mode === 'new') return true;
   const aQid = active.capsule.meta.qid;
   const iQid = incoming.meta.qid;
-  if (aQid && iQid && aQid !== iQid) return true;
+  return Boolean(aQid && iQid && aQid !== iQid);
+}
+
+/** Off-topic / mode:new / qid mismatch must open a new session, not overwrite. */
+export function followUpOpensNewSession(active: Session, incoming: Capsule): boolean {
+  if (incomingForcesNewSession(active, incoming)) return true;
   const aTopic = (active.capsule.meta.topic || '').trim().toLowerCase();
   const iTopic = (incoming.meta.topic || '').trim().toLowerCase();
   if (aTopic && iTopic && aTopic !== iTopic) {
@@ -299,7 +312,7 @@ export class StemController {
         .getState()
         .setStatus(
           'error',
-          'Could not insert the follow-up into Gemini. Click in the chat box and try again.',
+          'Could not insert the follow-up into the chat box. Click in the input and try again.',
         );
       return false;
     }
@@ -609,7 +622,7 @@ export class StemController {
     const store = useStore.getState();
     const active = store.sessions.find((s) => s.id === store.activeSessionId);
 
-    if (this.pendingFollowUpCapture && result.patch && result.patch.length && active) {
+    if (result.patch && result.patch.length && active) {
       const patched = applyStepPatch(active.capsule, result.patch);
       this.commitSession(
         { ...active, updatedAt: Date.now(), capsule: patched.capsule, raw: result.raw },
@@ -630,11 +643,24 @@ export class StemController {
       return;
     }
 
-    const followUpSameQuestion =
-      this.pendingFollowUpCapture &&
+    const incoming = questionCapsules[0]!;
+    const nativeSameQid =
       active &&
       questionCapsules.length === 1 &&
-      !followUpOpensNewSession(active, questionCapsules[0]!);
+      incoming.meta.mode !== 'new' &&
+      incoming.meta.mode !== 'full' &&
+      Boolean(active.capsule.meta.qid) &&
+      Boolean(incoming.meta.qid) &&
+      active.capsule.meta.qid === incoming.meta.qid &&
+      (incoming.meta.mode === 'resolve' ||
+        incoming.meta.mode === 'patch' ||
+        incoming.meta.mode == null);
+
+    const followUpSameQuestion =
+      (this.pendingFollowUpCapture || Boolean(nativeSameQid)) &&
+      active &&
+      questionCapsules.length === 1 &&
+      (nativeSameQid || !followUpOpensNewSession(active, incoming));
 
     if (followUpSameQuestion) {
       const cap = keepActiveQid(active, questionCapsules[0]!);
@@ -677,7 +703,8 @@ export class StemController {
         last &&
         store.activeSessionId === last.id &&
         last.platform === this.adapter.id &&
-        cleanSessionQuestion(last.question) === cleanedQuestion;
+        cleanSessionQuestion(last.question) === cleanedQuestion &&
+        !incomingForcesNewSession(active, cap);
 
       const session: Session = {
         id: shouldReplace ? last.id : makeId(),

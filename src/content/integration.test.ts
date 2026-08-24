@@ -4,6 +4,13 @@ import { geminiAdapter } from '@/src/platforms/gemini';
 import { useStore } from '@/src/state/store';
 import { FENCED_CHEMISTRY, FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { PROTOCOL_FILENAME } from '@/src/protocol/builder';
+import {
+  HOST_FIXTURES,
+  addNamedChip,
+  mountHostComposer,
+  pushAssistantCapsule as pushHostCapsule,
+  wireProtocolAttach,
+} from '@/src/platforms/host-fixtures';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 const CHEM_CAPSULE_BODY = FENCED_CHEMISTRY.replace(/```stemlm\n/, '').replace(/\n```$/, '');
@@ -144,3 +151,53 @@ describe('integration: Gemini adapter + controller capture', () => {
     c.stopWatching();
   });
 });
+
+describe.each(HOST_FIXTURES)(
+  'integration: $id inject attaches protocol file + stub then captures',
+  (spec) => {
+    beforeEach(() => {
+      resetStore();
+      const { composer } = mountHostComposer(spec, { capsule: false });
+      wireProtocolAttach(composer);
+    });
+
+    it('keeps the typed question and image/PDF chip, attaches stemlm-protocol.txt, writes only the short stub, then captures a capsule tagged with that platform', async () => {
+      const editor = spec.adapter.findEditor()!;
+      if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
+        (editor as HTMLTextAreaElement).value =
+          'Find the current in this 12V series resistor circuit (Kirchhoff).';
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        editor.textContent =
+          'Find the current in this 12V series resistor circuit (Kirchhoff).';
+      }
+      addNamedChip(document, 'problem.png');
+
+      const c = new StemController(spec.adapter);
+      const ok = await c.inject();
+      expect(ok).toBe(true);
+
+      const injected = spec.adapter.getEditorText();
+      expect(injected).toContain('12V series resistor');
+      expect(injected).toContain(PROTOCOL_FILENAME);
+      expect(injected).toContain('Follow the attached');
+      expect(injected).not.toContain('OUTPUT:');
+      expect(injected).not.toContain('--- stemLM instructions');
+      expect(document.body.textContent).toContain(PROTOCOL_FILENAME);
+      expect(document.body.textContent).toContain('problem.png');
+      expect(spec.adapter.composerHasAttachments()).toBe(true);
+      expect(useStore.getState().status).toBe('loading');
+
+      pushHostCapsule(spec.id, CAPSULE_BODY);
+      expect(spec.adapter.extractCapsules().join('\n')).toContain('@meta');
+      await wait(600);
+
+      const state = useStore.getState();
+      expect(state.sessions).toHaveLength(1);
+      expect(state.status).toBe('ready');
+      expect(state.sessions[0]!.platform).toBe(spec.id);
+      expect(state.sessions[0]!.capsule.meta.subject).toBe('Electrical');
+      c.stopWatching();
+    });
+  },
+);

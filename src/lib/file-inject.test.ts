@@ -77,6 +77,19 @@ describe('findFileInput', () => {
     expect(input).toBeNull();
     expect(clicked).toBe(false);
   });
+
+  it('does not click a + with aria-haspopup=menu even without the word menu', async () => {
+    document.body.innerHTML =
+      '<button aria-label="Add files and more" aria-haspopup="menu">+</button>';
+    const btn = document.querySelector('button')!;
+    let clicked = false;
+    btn.addEventListener('click', () => {
+      clicked = true;
+    });
+    const input = await findFileInput({ waitMs: 200 });
+    expect(input).toBeNull();
+    expect(clicked).toBe(false);
+  });
 });
 
 describe('attachTextFile', () => {
@@ -172,6 +185,46 @@ describe('attachTextFile', () => {
     expect(result.method).toBe('none');
     const input = document.getElementById('f') as HTMLInputElement;
     expect(input.files?.length ?? 0).toBe(0);
+  });
+
+  it('attaches additively on a ChatGPT-style composer with a + menu and hidden file input', async () => {
+    document.body.innerHTML = `
+      <form>
+        <button aria-label="Add files and more" aria-haspopup="menu">+</button>
+        <input type="file" id="f" multiple />
+        <div id="prompt-textarea" contenteditable="true"></div>
+        <div class="attachment-chip">problem.png</div>
+      </form>
+    `;
+    const input = document.getElementById('f') as HTMLInputElement;
+    const photo = new File(['img'], 'problem.png', { type: 'image/png' });
+    expect(assignFileToInput(input, photo, { keepExisting: false })).toBe(true);
+    const plus = document.querySelector('button')!;
+    let plusClicked = false;
+    plus.addEventListener('click', () => {
+      plusClicked = true;
+    });
+    input.addEventListener('change', () => {
+      if (!hasNamedAttachment('stemlm-protocol.txt')) {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        chip.textContent = 'stemlm-protocol.txt';
+        document.querySelector('form')!.appendChild(chip);
+      }
+    });
+    const result = await attachTextFile('OUTPUT:\n@end', {
+      preserveExisting: true,
+      dropTargets: [],
+      additiveTimeoutMs: 40,
+      waitMs: 200,
+      timeoutMs: 800,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.method).toBe('input');
+    expect(plusClicked).toBe(false);
+    const names = Array.from(input.files ?? []).map((f) => f.name);
+    expect(names).toContain('problem.png');
+    expect(names).toContain('stemlm-protocol.txt');
   });
 
   it('adds the protocol via drop beside an existing image', async () => {

@@ -34,13 +34,64 @@ function dropResumeLines(text: string): string {
     .join('\n');
 }
 
-function dropMeta(text: string): string {
+function dropFirstMeta(text: string): string {
   const lines = text.split('\n');
   const start = lines.findIndex((l) => l.trim() === '@meta');
   if (start === -1) return text;
   let end = lines.findIndex((l, i) => i > start && (l.trim() === '@endmeta' || l.trim() === '@metaend'));
   if (end === -1) return text;
   return [...lines.slice(0, start), ...lines.slice(end + 1)].join('\n');
+}
+
+function dropMeta(text: string): string {
+  let out = text;
+  for (;;) {
+    const next = dropFirstMeta(out);
+    if (next === out) return out;
+    out = next;
+  }
+}
+
+function questionOpenId(line: string): string | null {
+  const t = line.trim();
+  if (!/^@q\b/i.test(t)) return null;
+  const m = /\bid\s*=\s*([A-Za-z0-9_-]+)/i.exec(t);
+  return m?.[1] ?? '';
+}
+
+function isQuestionEnd(line: string): boolean {
+  const t = line.trim();
+  return t === '@endq' || t === '@qend' || /^@endq\b/i.test(t);
+}
+
+/** Question ids whose `@q` is still open (no matching `@endq`) in `text`. */
+function collectOpenQuestionIds(text: string): Set<string> {
+  const stack: string[] = [];
+  for (const line of text.split('\n')) {
+    const id = questionOpenId(line);
+    if (id !== null) stack.push(id);
+    else if (isQuestionEnd(line)) stack.pop();
+  }
+  const open = new Set<string>();
+  for (const id of stack) if (id) open.add(id);
+  return open;
+}
+
+/**
+ * If a continuation restates an already-open `@q id=…` wrapper, unwrap that
+ * pair so stitch does not duplicate the question. New `@q id=q2` is kept.
+ */
+function dropRepeatedQuestionWrapper(text: string, openIds: Set<string>): string {
+  if (!openIds.size) return text;
+  const lines = text.split('\n');
+  let start = 0;
+  while (start < lines.length && !lines[start]!.trim()) start++;
+  const id = questionOpenId(lines[start] ?? '');
+  if (!id || !openIds.has(id)) return text;
+  // Drop only the restated opening `@q`. Keep the matching `@endq` so the
+  // already-open question from earlier parts can close, and a later `@q id=q2`
+  // stays a sibling rather than being swallowed.
+  return [...lines.slice(0, start), ...lines.slice(start + 1)].join('\n');
 }
 
 function dropTrailingEnd(text: string): string {
@@ -55,7 +106,8 @@ function dropTrailingEnd(text: string): string {
 /**
  * Concatenate a truncated capsule and its continuation into one body the
  * parser can read. Drops @resume lines, extra fences, a repeated @meta on
- * the continuation, and extra @end on the first part.
+ * the continuation, a wrapping `@q`/`@endq` that restates an already-open
+ * question, and extra @end on the first part.
  */
 export function stitchResume(parts: string[]): string {
   const cleaned = parts.map((p) => dropResumeLines(stripFence(p))).filter((p) => p.trim());
@@ -63,9 +115,13 @@ export function stitchResume(parts: string[]): string {
   if (cleaned.length === 1) return cleaned[0]!;
 
   const head = dropTrailingEnd(cleaned[0]!);
+  let prefix = head;
   const rest = cleaned.slice(1).map((p, i) => {
-    const noMeta = dropMeta(p);
-    return i === cleaned.length - 2 ? noMeta : dropTrailingEnd(noMeta);
+    const openIds = collectOpenQuestionIds(prefix);
+    const noMeta = dropRepeatedQuestionWrapper(dropMeta(p), openIds);
+    const next = i === cleaned.length - 2 ? noMeta : dropTrailingEnd(noMeta);
+    prefix = `${prefix}\n${next}`;
+    return next;
   });
   const joined = [head, ...rest].join('\n').trim();
   const hasEnd = joined.split('\n').some((l) => l.trim() === CAPSULE_END_TOKEN);

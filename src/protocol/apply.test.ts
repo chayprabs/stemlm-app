@@ -70,6 +70,66 @@ describe('stitchResume', () => {
     expect(result.capsule?.meta.version).toBe(2);
     expect(result.capsule?.solution).toContain('40.8');
   });
+
+  it('drops a repeated wrapping @q id=q1 on the continuation and keeps a new @q id=q2', () => {
+    const part1 = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Range',
+      'question: Find the range.',
+      '@endmeta',
+      '@q id=q1',
+      '@step id=s1',
+      'title: Write the range formula',
+      '@body',
+      '$R$ is range.',
+      '@endbody',
+      '@endstep',
+      '@resume token=aa11bb22',
+    ].join('\n');
+    const part2 = [
+      '```stemlm',
+      '@resume token=aa11bb22',
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Range',
+      '@endmeta',
+      '@q id=q1',
+      '@step id=s2',
+      'title: Substitute the angle',
+      '@body',
+      'With $\\theta=45^\\circ$: $R=40.8\\,\\text{m}$.',
+      '@endbody',
+      '@endstep',
+      '@endq',
+      '@q id=q2',
+      '@step id=s3',
+      'title: State the units',
+      '@body',
+      'Range is in metres.',
+      '@endbody',
+      '@endstep',
+      '@endq',
+      '@solution',
+      'Range is $40.8\\,\\text{m}$.',
+      '@endsolution',
+      '@end',
+      '```',
+    ].join('\n');
+    const stitched = stitchResume([part1, part2]);
+    const q1Opens = stitched.match(/@q\s+id=q1\b/gi) ?? [];
+    expect(q1Opens).toHaveLength(1);
+    expect(stitched).toMatch(/@q\s+id=q2\b/i);
+    const result = parseCapsule(stitched);
+    expect(result.status).toBe('ok');
+    expect(result.capsule?.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(result.questions?.map((q) => q.meta.qid)).toEqual(['q1', 'q2']);
+    expect(result.questions?.[0]?.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(result.questions?.[1]?.steps.map((s) => s.id)).toEqual(['s3']);
+  });
 });
 
 describe('applyStepPatch', () => {

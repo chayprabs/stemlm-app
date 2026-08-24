@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { CATALOG_LEFTOVER_TOKENS, FAMILY_CATALOG, canonicalizeDiagramType, isRefuseType } from './catalog';
-import { leftoverRegistered } from './leftovers';
+import { leftoverRegistered, compileLeftover } from './leftovers';
 import { compileDiagramSpec } from './compile';
+import { parseSpec } from './spec';
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import type { Diagram } from '@/src/protocol/types';
 
@@ -40,6 +41,7 @@ const SECTION_EXTRAS: Record<string, string> = {
   cycle: 'name: Krebs\nnodes: A,B,C,D',
   gel: 'lanes: 1,2,3',
   field: 'catalog: dipole',
+  xfmr: 'kind: isolation',
   mechanism: 'from: lp:O@2\nto: atom:C@1',
   kmap: 'vars: AB,CD\nminterms: 0,1,3',
 };
@@ -157,6 +159,75 @@ describe('leftover compilers through compileDiagramSpec', () => {
       const result = await compileDiagramSpec(d(type, 'kind: dump'), 'step');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.code).toBe('refused');
+    }
+  });
+
+  it('type=tline compiles to two conductors with Z0 and load, not a hatch grid', async () => {
+    const result = await compileDiagramSpec(d('tline', 'z0: 50\nzl: 100\ntd: 5n'), 'step');
+    expect(result.ok, result.ok ? 'tline' : result.reason).toBe(true);
+    if (!result.ok) return;
+    expect(svgMarkupHasGraphicShapes(result.svg)).toBe(true);
+    const ids = [
+      ...result.scene.strokes.map((s) => s.id),
+      ...result.scene.labels.map((l) => l.id),
+    ].join(' ');
+    expect(ids).toMatch(/cond-top/);
+    expect(ids).toMatch(/cond-bot/);
+    expect(ids).toMatch(/\bz0\b/i);
+    expect(ids).toMatch(/\bzl\b|\bload\b/i);
+    expect(ids).not.toMatch(/\bh0\b/);
+    expect(ids).not.toMatch(/\bv0\b/);
+    const horiz = result.scene.strokes.filter((s) => s.id.startsWith('cond-'));
+    expect(horiz.length).toBe(2);
+    const labelText = result.scene.labels.map((l) => l.text ?? l.katex ?? '').join(' ');
+    expect(labelText).toMatch(/Z0/i);
+    expect(labelText).toMatch(/ZL/i);
+    const hatchHoriz = result.scene.strokes.filter((s) => /^h\d+$/.test(s.id));
+    expect(hatchHoriz.length).toBeLessThan(3);
+  });
+
+  it('generic leftover compile is a labeled apparatus, not a dashed completeness slash', async () => {
+    const spec = parseSpec('apparatus', 'T: 300K\nP: 1atm\nV: 2L');
+    const result = await compileLeftover('apparatus', spec, { profile: 'step', family: 'apparatus' });
+    expect(result.ok, result.ok ? 'generic' : result.reason).toBe(true);
+    if (!result.ok) return;
+    expect(svgMarkupHasGraphicShapes(result.svg)).toBe(true);
+    expect(result.scene.strokes.some((s) => s.id === 'apparatus')).toBe(true);
+    expect(result.scene.strokes.some((s) => s.dash)).toBe(false);
+    const labelText = result.scene.labels.map((l) => l.text ?? l.katex ?? '').join(' ');
+    expect(labelText).toMatch(/T=300K/);
+    expect(labelText).toMatch(/P=1atm/);
+    expect(labelText).toMatch(/V=2L/);
+    const slash = result.scene.strokes.find((s) => s.id === 'g1' && s.dash);
+    expect(slash).toBeUndefined();
+  });
+
+  it('does not smuggle research-only names as FAMILY_CATALOG families', () => {
+    const forbidden = [
+      'nline',
+      'shaft',
+      'punnett',
+      'pedigree',
+      'magcirc',
+      'devicemodel',
+      'crispr',
+      'western',
+      'karyo',
+      'IL',
+      'sfd-bmd',
+      'cv',
+      'rcm',
+      'pid',
+      'airfoil',
+      'ttt',
+      'poincare',
+      'penrose',
+      'heap',
+      'dfa',
+    ];
+    for (const token of forbidden) {
+      expect(FAMILY_CATALOG[token], token).toBeUndefined();
+      expect(FAMILY_CATALOG[token.toLowerCase()], token).toBeUndefined();
     }
   });
 });
