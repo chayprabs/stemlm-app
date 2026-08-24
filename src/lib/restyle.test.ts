@@ -19,6 +19,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
   const popupHtml = read('entrypoints/popup/index.html');
   const optionsHtml = read('entrypoints/options/index.html');
   const savedPdfHtml = read('entrypoints/saved-pdf/index.html');
+  const savedLibraryHtml = read('entrypoints/saved-library/index.html');
   const popupApp = read('entrypoints/popup/App.tsx');
   const emptyState = read('src/components/EmptyState.tsx');
   const wxt = read('wxt.config.ts');
@@ -132,21 +133,37 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(panel).toMatch(/\.slm-tabs\s*\{[\s\S]*height:\s*calc\(var\(--slm-brand-size/);
   });
 
-  it('popup overlay uses panel tokens, a wider rounded shell, and the four shipped chat hosts', () => {
+  it('popup overlay uses panel tokens, a compact action shell, and the four shipped chat hosts', () => {
     const width = /\.slm-popup\s*\{[^}]*width:\s*(\d+)px/.exec(pages);
     expect(width).toBeTruthy();
-    expect(Number(width![1])).toBeGreaterThan(420);
+    expect(Number(width![1])).toBeLessThan(420);
+    expect(Number(width![1])).toBeLessThanOrEqual(340);
     expect(pages).toContain('border-radius: var(--radius-xl)');
     expect(pages).toContain('--slm-bg');
     expect(pages).toContain('--slm-solid');
-    expect(pages).toContain('slm-launch-grid');
+    expect(pages).not.toContain('slm-launch-grid');
+    expect(pages).toContain('slm-popup-actions');
+    expect(pages).toMatch(/\.slm-popup-actions\s*\{[^}]*flex-direction:\s*column/);
     expect(pages).toContain('slm-library-overlay');
+    const libWidth = /\.slm-library-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    const libHeight = /\.slm-library-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(
+      pages,
+    );
+    expect(libWidth).toBeTruthy();
+    expect(libHeight).toBeTruthy();
+    expect(Number(libWidth![1])).toBeGreaterThanOrEqual(36 * 1.4);
+    expect(Number(libHeight![1])).toBeGreaterThanOrEqual(40 * 1.4);
+    const libraryCss = pages.slice(pages.indexOf('.slm-library-dialog {'));
+    expect(libraryCss).not.toMatch(/--slm-accent/);
+    expect(pages).toContain('-webkit-line-clamp: 2');
     expect(popupHtml).toContain('IBM+Plex+Sans');
     expect(optionsHtml).toContain('IBM+Plex+Sans');
     expect(savedPdfHtml).toContain('IBM+Plex+Sans');
-    expect(popupApp).not.toContain('Open study panel');
-    expect(popupApp).not.toContain('Load conversation from this chat');
+    expect(savedLibraryHtml).toContain('IBM+Plex+Sans');
+    expect(popupApp).toContain('Open study panel');
+    expect(popupApp).not.toContain('Start here');
     expect(popupApp).not.toContain('beside send');
+    expect(emptyState).toContain('Load conversation from this chat');
     expect(emptyState).not.toContain('beside send');
     expect(emptyState).not.toContain('Open Gemini');
     expect(wxt).toContain('*://chatgpt.com/*');

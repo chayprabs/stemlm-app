@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Session } from '@/src/protocol/types';
 
 const { storageData, mockLocalStorage, tabsCreateMock, tabsSendMessageMock, deliverStemLmMessage } =
@@ -36,9 +38,13 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-vi.mock('@/src/lib/pdf', () => ({
-  exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
-}));
+vi.mock('@/src/lib/pdf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/pdf')>();
+  return {
+    ...actual,
+    exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+  };
+});
 
 vi.mock('@/src/lib/tab-bridge', () => ({
   deliverStemLmMessage,
@@ -48,7 +54,7 @@ vi.mock('@/src/lib/tab-bridge', () => ({
 
 import { SavedSessionList } from './SavedSessionList';
 import { SavedLibraryOverlay } from './SavedLibraryOverlay';
-import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
+import { SAVED_SEARCH_PLACEHOLDER, SAVED_TIME_FILTERS } from '@/src/lib/saved-library';
 import {
   SAVED_SESSIONS_KEY,
   sessionToSnapshot,
@@ -120,18 +126,23 @@ function seed(list: SavedSessionSnapshot[]) {
   storageData[SAVED_SESSIONS_KEY] = list;
 }
 
-function mount(
-  list: SavedSessionSnapshot[],
-  props?: { variant?: 'compact' | 'full'; onOpenAll?: () => void },
-) {
+function installLibraryStyles() {
+  let style = document.getElementById('slm-pages-css') as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'slm-pages-css';
+    document.head.appendChild(style);
+  }
+  style.textContent = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+}
+
+function mount(list: SavedSessionSnapshot[]) {
   const container = document.createElement('div');
   document.body.appendChild(container);
   let root: Root | undefined;
   act(() => {
     root = createRoot(container);
-    root.render(
-      <SavedSessionList sessions={list} variant={props?.variant} onOpenAll={props?.onOpenAll} />,
-    );
+    root.render(<SavedSessionList sessions={list} />);
   });
   return {
     container,
@@ -159,60 +170,85 @@ function setInputValue(el: HTMLInputElement, value: string) {
   });
 }
 
+function captureDownload() {
+  const captured = { download: '', href: '' };
+  const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:stemlm-report');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    captured.download = this.download;
+    captured.href = this.href;
+  });
+  return { captured, createObjectURL };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const key of Object.keys(storageData)) {
     delete storageData[key];
   }
+  installLibraryStyles();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('SavedSessionList', () => {
-  it('empty library shows the bookmark mark and help, not a tap-to-download hint', () => {
+  it('empty library shows the bookmark mark, not a tap-to-download hint', () => {
     const { container, unmount } = mount([]);
     expect(container.textContent).toContain('Nothing saved yet.');
     expect(container.textContent).not.toContain('Tap a question to download its PDF.');
     expect(container.textContent).not.toContain('No saved questions yet.');
     expect(container.querySelector('.slm-saved-empty-mark')).toBeTruthy();
     expect(container.querySelector('.slm-icon-save')).toBeTruthy();
-    const help = container.querySelector('.slm-saved-help-btn') as HTMLButtonElement;
-    expect(help?.getAttribute('aria-label')).toContain('Bookmark it in the panel');
-    expect(container.querySelector('#slm-saved-help-tip')?.textContent).toContain('PDF');
+    expect(container.querySelector('button[aria-label="Filter by subject"]')).toBeNull();
     unmount();
   });
 
-  it('renders question text and subject, not topic-only rows', () => {
+  it('renders question text as written, search copy, categories, and no filter icon on search', () => {
     const list = snapshots();
     seed(list);
     const { container, unmount } = mount(list);
 
-    expect(container.textContent).toContain('Find the impedance of the series RLC circuit at 60 Hz.');
-    expect(container.textContent).toContain('Electrical');
-    expect(container.textContent).toContain('A 2 kg mass accelerates at 3 m/s^2. What is the net force?');
-    expect(container.textContent).toContain('Physics');
-    expect(container.querySelector('.slm-saved-question-text')?.textContent).not.toBe('RLC impedance');
-    expect(container.textContent).not.toContain('Tap a question to download its PDF.');
-    expect(container.querySelector('select')).toBeNull();
-    expect(container.querySelector('button[aria-label="Filter by subject"]')).toBeTruthy();
-    expect((container.querySelector('.slm-saved-search') as HTMLInputElement).placeholder).toBe(
-      'Search',
+    expect(container.textContent).toContain(
+      'Find the impedance of the series RLC circuit at 60 Hz.',
     );
+    expect(container.textContent).toContain('Electrical');
+    expect(container.textContent).toContain(
+      'A 2 kg mass accelerates at 3 m/s^2. What is the net force?',
+    );
+    expect(container.textContent).toContain('Physics');
+    expect(container.querySelector('.slm-saved-question-text')?.textContent).not.toBe(
+      'RLC impedance',
+    );
+    expect(container.querySelector('select')).toBeNull();
+    expect(container.querySelector('button[aria-label="Filter by subject"]')).toBeNull();
+    expect(container.querySelector('.slm-library-search-wrap .slm-saved-filter')).toBeNull();
+    const search = container.querySelector(
+      'input[aria-label="Search saved questions"]',
+    ) as HTMLInputElement;
+    expect(search.placeholder).toBe(SAVED_SEARCH_PLACEHOLDER);
+    expect(container.textContent).toContain('All categories');
+    expect(container.querySelector('button[aria-label="Filter by time"]')).toBeTruthy();
+
+    const q = container.querySelector('.slm-library-row-q') as HTMLElement;
+    expect(q.classList.contains('slm-saved-question-text')).toBe(true);
+    const pagesCss = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+    expect(pagesCss).toMatch(/\.slm-library-row-q[\s\S]*?-webkit-line-clamp:\s*2/);
 
     unmount();
   });
 
-  it('hides non-matching subjects and queries', async () => {
+  it('filters by category chips and a fuzzy query', async () => {
     const list = snapshots();
     seed(list);
     const { container, unmount } = mount(list);
 
-    const filterBtn = container.querySelector(
-      'button[aria-label="Filter by subject"]',
-    ) as HTMLButtonElement;
-    act(() => {
-      filterBtn.click();
-    });
-    const physics = [...container.querySelectorAll('[role="option"]')].find(
-      (el) => el.textContent?.includes('Physics'),
+    const physics = [...container.querySelectorAll('.slm-library-chip')].find((el) =>
+      el.textContent?.includes('Physics'),
     ) as HTMLButtonElement;
     act(() => {
       physics.click();
@@ -221,14 +257,11 @@ describe('SavedSessionList', () => {
     expect(container.textContent).not.toContain('series RLC');
     expect(container.textContent).not.toContain('x^2 - 5x + 6');
 
-    act(() => {
-      filterBtn.click();
-    });
-    const allSubjects = [...container.querySelectorAll('[role="option"]')].find(
-      (el) => el.textContent?.includes('All subjects'),
+    const all = [...container.querySelectorAll('.slm-library-chip')].find((el) =>
+      el.textContent?.includes('All categories'),
     ) as HTMLButtonElement;
     act(() => {
-      allSubjects.click();
+      all.click();
     });
 
     const search = container.querySelector(
@@ -239,16 +272,55 @@ describe('SavedSessionList', () => {
     expect(container.textContent).not.toContain('series RLC');
     expect(container.textContent).not.toContain('net force');
 
+    setInputValue(search, 'impednace of RLC circut');
+    expect(container.textContent).toContain('series RLC');
+    expect(container.textContent).not.toContain('net force');
+
     setInputValue(search, 'organic stereochemistry');
     expect(container.textContent).toContain('No questions match.');
-    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(0);
+    expect(container.querySelectorAll('.slm-library-row')).toHaveLength(0);
 
     unmount();
   });
 
-  it('downloads the stored snapshot PDF and does not load the Gemini conversation', async () => {
+  it('time filter menu lists the four windows and hides older savedAt items', () => {
+    const now = Date.now();
+    const list = snapshots().map((item, i) => ({
+      ...item,
+      savedAt: i === 0 ? now - 60 * 60 * 1000 : now - 40 * 24 * 60 * 60 * 1000,
+    }));
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    const timeBtn = container.querySelector(
+      'button[aria-label="Filter by time"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      timeBtn.click();
+    });
+    const labels = [...container.querySelectorAll('[role="option"]')].map(
+      (el) => el.textContent ?? '',
+    );
+    for (const filter of SAVED_TIME_FILTERS) {
+      expect(labels.some((text) => text.includes(filter.label))).toBe(true);
+    }
+
+    const lastDay = [...container.querySelectorAll('[role="option"]')].find((el) =>
+      el.textContent?.includes('Last 24 hours'),
+    ) as HTMLButtonElement;
+    act(() => {
+      lastDay.click();
+    });
+    expect(container.textContent).toContain('series RLC');
+    expect(container.textContent).not.toContain('net force');
+    expect(container.textContent).not.toContain('x^2 - 5x + 6');
+    unmount();
+  });
+
+  it('download starts a file download and open creates a viewer tab that does not auto-print', async () => {
     const list = snapshots();
     seed(list);
+    const download = captureDownload();
     const onDownloaded = vi.fn();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -258,29 +330,49 @@ describe('SavedSessionList', () => {
       root.render(<SavedSessionList sessions={list} onDownloaded={onDownloaded} />);
     });
 
-    const row = container.querySelector(
+    const rowDownload = container.querySelector(
       'button[aria-label="Download PDF for Find the impedance of the series RLC circuit at 60 Hz."]',
     ) as HTMLButtonElement;
-    expect(row).toBeTruthy();
+    expect(rowDownload).toBeTruthy();
 
     await act(async () => {
-      row.click();
+      rowDownload.click();
+      await Promise.resolve();
       await Promise.resolve();
     });
     await flush();
 
-    expect(tabsCreateMock).toHaveBeenCalledOnce();
+    expect(download.createObjectURL).toHaveBeenCalled();
+    expect(download.captured?.download).toMatch(/\.html$/);
+    expect(download.captured?.href).toMatch(/^blob:/);
+    expect(download.captured?.href).not.toMatch(/gemini\.google/);
+    expect(onDownloaded).toHaveBeenCalledOnce();
+    expect(tabsSendMessageMock).not.toHaveBeenCalled();
+    expect(deliverStemLmMessage).not.toHaveBeenCalled();
+
+    tabsCreateMock.mockClear();
+    const rowOpen = container.querySelector(
+      'button[aria-label="Open PDF for Find the impedance of the series RLC circuit at 60 Hz."]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      rowOpen.click();
+      await Promise.resolve();
+    });
+    await flush();
+
     expect(tabsCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=rlc') }),
+      expect.objectContaining({
+        url: expect.stringContaining('saved-pdf.html?id=rlc'),
+        active: true,
+      }),
     );
     const created = (tabsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
     const url = String(created?.url ?? '');
+    expect(url).toMatch(/mode=view/);
+    expect(url).not.toMatch(/mode=print/);
+    expect(url).not.toMatch(/print=/);
     expect(url).not.toMatch(/gemini\.google/);
     expect(url).not.toContain('stemlm:load-conversation');
-    expect(url).not.toContain('stemlm:open-panel');
-    expect(tabsSendMessageMock).not.toHaveBeenCalled();
-    expect(deliverStemLmMessage).not.toHaveBeenCalled();
-    expect(onDownloaded).toHaveBeenCalledOnce();
 
     act(() => {
       root?.unmount();
@@ -311,45 +403,13 @@ describe('SavedSessionList', () => {
 
     unmount();
   });
-
-  it('compact mode shows the latest 3, hides search, and offers open-all', () => {
-    const fourth = sessionToSnapshot(
-      makeSession({
-        id: 'extra',
-        question: 'Fourth saved question about inductance',
-        capsule: {
-          meta: { version: 1, subject: 'Electrical', topic: 'Inductance' },
-          steps: [{ id: 's1', index: 1, title: 'L', body: 'L' }],
-          solution: 'done',
-          solutionDiagrams: [],
-        },
-      }),
-    );
-    const list = [...snapshots(), fourth].map((item, i) => ({ ...item, savedAt: i + 1 }));
-    seed(list);
-    const onOpenAll = vi.fn();
-    const { container, unmount } = mount(list, { variant: 'compact', onOpenAll });
-
-    expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeNull();
-    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(3);
-    expect(container.textContent).toContain('Fourth saved question');
-    expect(container.textContent).not.toContain('Find the impedance of the series RLC');
-    const openAll = [...container.querySelectorAll('button')].find((el) =>
-      el.textContent?.includes(OPEN_ALL_SAVED_LABEL),
-    );
-    expect(openAll).toBeTruthy();
-    act(() => {
-      openAll!.click();
-    });
-    expect(onOpenAll).toHaveBeenCalledOnce();
-    unmount();
-  });
 });
 
 describe('SavedLibraryOverlay', () => {
-  it('lists every saved question with search and still downloads PDFs', async () => {
+  it('lists every saved question with logo, search, categories, and still downloads', async () => {
     const list = snapshots();
     seed(list);
+    const download = captureDownload();
     const container = document.createElement('div');
     document.body.appendChild(container);
     let root: Root | undefined;
@@ -359,8 +419,10 @@ describe('SavedLibraryOverlay', () => {
     });
 
     expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+    expect(container.querySelector('.slm-wordmark, .slm-library-dialog-title svg')).toBeTruthy();
     expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeTruthy();
-    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(3);
+    expect(container.querySelectorAll('.slm-library-row')).toHaveLength(3);
+    expect(container.textContent).toContain('All categories');
 
     const search = container.querySelector(
       'input[aria-label="Search saved questions"]',
@@ -376,11 +438,11 @@ describe('SavedLibraryOverlay', () => {
     await act(async () => {
       row.click();
       await Promise.resolve();
+      await Promise.resolve();
     });
     await flush();
-    expect(tabsCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=rlc') }),
-    );
+    expect(download.createObjectURL).toHaveBeenCalled();
+    expect(download.captured?.download).toMatch(/\.html$/);
 
     act(() => {
       root?.unmount();

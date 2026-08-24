@@ -83,13 +83,39 @@ export const IconSave = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** Lucide FileDown — document + down arrow. PDF export, not session bookmark. */
+/** Lucide FileText — saved report document. */
 export const IconPdf = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ strokeWidth: 1.75, ...p })}>
     <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
     <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-    <path d="M12 18v-6" />
-    <path d="m9 15 3 3 3-3" />
+    <path d="M8 13h8" />
+    <path d="M8 17h6" />
+  </svg>
+);
+
+/** Arrow into tray — start a file download. */
+export const IconDownload = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M5 21h14" />
+  </svg>
+);
+
+/** Open in another tab. */
+export const IconOpen = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M14 4h6v6" />
+    <path d="M10 14 20 4" />
+    <path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5" />
+  </svg>
+);
+
+/** Study panel (sidebar). */
+export const IconPanel = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16" />
   </svg>
 );
 

@@ -729,6 +729,22 @@ describe('StemController.loadConversation', () => {
     c.stopWatching();
   });
 
+  it('hasConversationToLoad is true when capsules exist and the panel is empty', () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [CAPSULE_BODY];
+    const c = new StemController(adapter);
+    expect(c.hasConversationToLoad()).toBe(true);
+    c.stopWatching();
+  });
+
+  it('hasConversationToLoad is false when nothing is on the page', () => {
+    document.body.replaceChildren();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    expect(c.hasConversationToLoad()).toBe(false);
+    c.stopWatching();
+  });
+
   it('polls until capsules appear in the chat', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);

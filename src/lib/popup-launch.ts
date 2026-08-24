@@ -2,6 +2,7 @@
  * Toolbar popup launch decisions. The popup UI calls these helpers — tests
  * exercise the same functions, not a reimplementation.
  */
+import { browser } from 'wxt/browser';
 import {
   deliverStemLmMessage,
   deliverStemLmMessageToTab,
@@ -10,66 +11,31 @@ import {
   type DeliverableStemLmMessage,
   type StemLmDeliveryResult,
 } from '@/src/lib/tab-bridge';
-import { getLastChat, lastChatFromUrl, rememberLastChat } from '@/src/lib/last-chat';
+import { lastChatFromUrl, rememberLastChat } from '@/src/lib/last-chat';
 import { adapterForUrl, isSupportedChatUrl, supportedChatLabels } from '@/src/platforms/detect';
-import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
-import { BACKGROUND_LAUNCH, enqueueBackgroundLaunch } from '@/src/lib/background-launch';
+import { CHAT_HOST_LAUNCH, type ChatHostLaunch } from '@/src/platforms/hosts';
+import type { PlatformId } from '@/src/platforms/types';
+import {
+  LIBRARY_WINDOW_HEIGHT_PX,
+  LIBRARY_WINDOW_WIDTH_PX,
+  OPEN_STUDY_PANEL_LABEL,
+  POPUP_WIDTH_PX,
+  SAVED_QUESTIONS_LABEL,
+} from '@/src/lib/saved-library';
 
-export { OPEN_ALL_SAVED_LABEL };
-
-export type LaunchId = 'start-here' | 'start-new' | 'open-last' | 'ask-here';
-
-export const LAUNCH_LABELS: Record<LaunchId, string> = {
-  'start-here': 'Start here',
-  'start-new': 'Start new',
-  'open-last': 'Open last',
-  'ask-here': 'Ask here',
+export {
+  CHAT_HOST_LAUNCH,
+  LIBRARY_WINDOW_HEIGHT_PX,
+  LIBRARY_WINDOW_WIDTH_PX,
+  OPEN_STUDY_PANEL_LABEL,
+  POPUP_WIDTH_PX,
+  SAVED_QUESTIONS_LABEL,
 };
-
-export interface LaunchTile {
-  id: LaunchId;
-  label: string;
-  disabled: boolean;
-  visible: boolean;
-  emphasis: 'primary' | 'default';
-}
-
-export function launchTiles(opts: { supported: boolean; hasLastChat: boolean }): LaunchTile[] {
-  return [
-    {
-      id: 'start-here',
-      label: LAUNCH_LABELS['start-here'],
-      visible: opts.supported,
-      disabled: false,
-      emphasis: 'primary',
-    },
-    {
-      id: 'start-new',
-      label: LAUNCH_LABELS['start-new'],
-      visible: true,
-      disabled: false,
-      emphasis: opts.supported ? 'default' : 'primary',
-    },
-    {
-      id: 'open-last',
-      label: LAUNCH_LABELS['open-last'],
-      visible: true,
-      disabled: !opts.hasLastChat,
-      emphasis: 'default',
-    },
-    {
-      id: 'ask-here',
-      label: LAUNCH_LABELS['ask-here'],
-      visible: opts.supported,
-      disabled: false,
-      emphasis: 'default',
-    },
-  ];
-}
+export type { ChatHostLaunch };
 
 export function unsupportedHostNotice(labels: string[] = supportedChatLabels()): string {
   const names = labels.length > 0 ? labels.join(', ') : 'Gemini';
-  return `This website is not supported. stemLM currently only works on ${names}.`;
+  return `Open a ${names} tab to use the study panel.`;
 }
 
 export type LaunchResult =
@@ -84,11 +50,6 @@ async function rememberUrl(url: string | undefined): Promise<void> {
   if (record) await rememberLastChat(record);
 }
 
-async function rememberActiveTab(): Promise<void> {
-  const tab = await getActiveTab();
-  await rememberUrl(tab?.url);
-}
-
 function launchErrorMessage(err: unknown): string {
   const code = err instanceof Error ? err.message : '';
   if (code === 'not-gemini' || code === 'not-supported') {
@@ -99,45 +60,62 @@ function launchErrorMessage(err: unknown): string {
   return 'Could not start stemLM. Try refreshing the page.';
 }
 
-async function startHere(): Promise<LaunchResult> {
-  const res = await deliverStemLmMessage('stemlm:load-conversation');
-  if ((res.loaded ?? 0) > 0) await rememberActiveTab();
-  return { ok: true, loaded: res.loaded ?? 0 };
-}
-
-async function startNew(): Promise<LaunchResult> {
-  await enqueueBackgroundLaunch({ type: BACKGROUND_LAUNCH, kind: 'start-new' });
-  return { ok: true };
-}
-
-async function openLast(): Promise<LaunchResult> {
-  const last = await getLastChat();
-  if (!last) return { ok: false, empty: true };
-  await enqueueBackgroundLaunch({ type: BACKGROUND_LAUNCH, kind: 'open-last', url: last.url });
-  return { ok: true };
-}
-
-async function askHere(): Promise<LaunchResult> {
-  const res = await deliverStemLmMessage('stemlm:ask-here');
-  await rememberActiveTab();
-  return { ok: true, loaded: res.loaded };
-}
-
-export async function runLaunchAction(id: LaunchId): Promise<LaunchResult> {
+/** Open the study panel without loading the conversation. */
+export async function openStudyPanel(): Promise<LaunchResult> {
   try {
-    if (id === 'start-here') return await startHere();
-    if (id === 'start-new') return await startNew();
-    if (id === 'open-last') return await openLast();
-    return await askHere();
+    await deliverStemLmMessage('stemlm:open-panel');
+    const tab = await getActiveTab();
+    await rememberUrl(tab?.url);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: launchErrorMessage(err) };
   }
 }
 
-export type SavedLibraryTarget = 'tab' | 'fallback';
+export async function openChatHost(id: PlatformId): Promise<LaunchResult> {
+  const host = CHAT_HOST_LAUNCH.find((item) => item.id === id);
+  if (!host) return { ok: false, error: 'Unknown chat host.' };
+  try {
+    await browser.tabs.create({ url: host.url, active: true });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: launchErrorMessage(err) };
+  }
+}
 
-/** Overlay on a Gemini tab when the content script can host it; otherwise in-popup. */
+export type SavedLibraryTarget = 'window' | 'tab' | 'fallback';
+
+function libraryPageUrl(): string {
+  const runtime = browser.runtime as typeof browser.runtime & { getURL: (path: string) => string };
+  return runtime.getURL('/saved-library.html');
+}
+
+/**
+ * Open the saved-questions library in a dedicated window (large enough for the
+ * new chrome). Falls back to the chat overlay, then an in-popup overlay.
+ */
 export async function openSavedQuestionsLibrary(): Promise<SavedLibraryTarget> {
+  const url = libraryPageUrl();
+  try {
+    await browser.windows.create({
+      url,
+      type: 'popup',
+      width: LIBRARY_WINDOW_WIDTH_PX,
+      height: LIBRARY_WINDOW_HEIGHT_PX,
+      focused: true,
+    });
+    return 'window';
+  } catch {
+    /* windows.create unavailable — try a tab, then overlay */
+  }
+
+  try {
+    await browser.tabs.create({ url, active: true });
+    return 'tab';
+  } catch {
+    /* fall through */
+  }
+
   const tab = await getActiveTab();
   if (!tab?.id || isRestrictedTabUrl(tab.url) || !isSupportedChatUrl(tab.url)) {
     return 'fallback';

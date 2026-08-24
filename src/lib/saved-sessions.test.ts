@@ -35,9 +35,10 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-vi.mock('./pdf', () => ({
-  exportSessionPdf: exportSessionPdfMock,
-}));
+vi.mock('./pdf', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./pdf')>();
+  return { ...actual, exportSessionPdf: exportSessionPdfMock };
+});
 
 import {
   SAVED_SESSIONS_KEY,
@@ -47,6 +48,7 @@ import {
   deleteSavedSession,
   isSessionSaved,
   downloadSavedSessionPdf,
+  openSavedSessionPdf,
   refreshSavedSession,
   sessionToSnapshot,
   snapshotToSession,
@@ -99,6 +101,8 @@ describe('saved-sessions', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   describe('sessionToSnapshot', () => {
@@ -394,28 +398,55 @@ describe('saved-sessions', () => {
   });
 
   describe('downloadSavedSessionPdf', () => {
-    it('opens the saved-pdf export tab for a stored snapshot', async () => {
+    it('starts a file download for a stored snapshot', async () => {
       seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
+      const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:stemlm-report');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      const captured = { download: '', href: '' };
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        captured.download = this.download;
+        captured.href = this.href;
+      });
 
       const result = await downloadSavedSessionPdf('lib-1');
-      expect(result.ok).toBe(true);
-      expect(tabsCreateMock).toHaveBeenCalledOnce();
-      expect(tabsCreateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ url: expect.stringContaining('saved-pdf.html?id=lib-1') }),
-      );
+      expect(result).toEqual({ ok: true, method: 'download' });
+      expect(createObjectURL).toHaveBeenCalled();
+      expect(captured.download).toMatch(/\.html$/);
+      expect(captured.href).toBe('blob:stemlm-report');
+      expect(captured.href).not.toMatch(/gemini\.google/);
+      expect(tabsCreateMock).not.toHaveBeenCalled();
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
       expect(tabsSendMessageMock).not.toHaveBeenCalled();
-      const created = (tabsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
-      const url = String(created?.url ?? '');
-      expect(url).not.toMatch(/gemini\.google/);
-      expect(url).not.toContain('stemlm:load-conversation');
-      expect(url).not.toContain('stemlm:open-panel');
+      vi.unstubAllGlobals();
     });
 
     it('returns failed when the id is missing', async () => {
       const result = await downloadSavedSessionPdf('missing');
       expect(result.ok).toBe(false);
       expect(tabsCreateMock).not.toHaveBeenCalled();
+      expect(exportSessionPdfMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('openSavedSessionPdf', () => {
+    it('opens a viewer tab that does not auto-print', async () => {
+      seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
+      const result = await openSavedSessionPdf('lib-1');
+      expect(result).toEqual({ ok: true, method: 'view' });
+      expect(tabsCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining('saved-pdf.html?id=lib-1'),
+          active: true,
+        }),
+      );
+      const created = (tabsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
+      const url = String(created?.url ?? '');
+      expect(url).toMatch(/mode=view/);
+      expect(url).not.toMatch(/mode=print/);
+      expect(url).not.toMatch(/gemini\.google/);
+      expect(url).not.toContain('stemlm:load-conversation');
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
     });
   });

@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { LAST_CHAT_KEY } from './last-chat';
-import { GEMINI_APP_URL } from './tab-bridge';
 
 const localStore: Record<string, unknown> = {};
 const sessionStore = new Map<string, unknown>();
@@ -19,9 +17,14 @@ const tabs = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
+const windows = vi.hoisted(() => ({
+  create: vi.fn(),
+  update: vi.fn(async () => undefined),
+}));
+
 vi.mock('wxt/browser', () => ({
   browser: {
-    runtime: { id: 'test', getURL: (p: string) => p },
+    runtime: { id: 'test', getURL: (p: string) => (p.startsWith('/') ? p : `/${p}`) },
     tabs: {
       query: tabs.query,
       create: tabs.create,
@@ -32,7 +35,7 @@ vi.mock('wxt/browser', () => ({
       onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
     },
-    windows: { update: vi.fn(async () => undefined) },
+    windows,
     storage: {
       local: {
         get: vi.fn(async (key: string) =>
@@ -59,9 +62,12 @@ vi.mock('wxt/browser', () => ({
 }));
 
 import {
-  launchTiles,
+  CHAT_HOST_LAUNCH,
+  LIBRARY_WINDOW_HEIGHT_PX,
+  LIBRARY_WINDOW_WIDTH_PX,
+  openChatHost,
   openSavedQuestionsLibrary,
-  runLaunchAction,
+  openStudyPanel,
   unsupportedHostNotice,
 } from './popup-launch';
 
@@ -77,6 +83,8 @@ describe('popup launch helpers', () => {
     tabs.sendMessage.mockClear();
     tabs.reload.mockClear();
     tabs.get.mockClear();
+    windows.create.mockReset();
+    windows.create.mockResolvedValue({ id: 3 });
     tabs.query.mockImplementation(async (info?: { active?: boolean }) => {
       if (info?.active) return [activeTab];
       return [activeTab];
@@ -90,105 +98,68 @@ describe('popup launch helpers', () => {
     tabs.get.mockImplementation(async (id: number) => ({ id, url: activeTab.url, status: 'complete' }));
   });
 
-  it('builds a 2×2 grid on supported hosts and hides current-tab tiles otherwise', () => {
-    const supported = launchTiles({ supported: true, hasLastChat: true });
-    expect(supported.filter((t) => t.visible).map((t) => t.label)).toEqual([
-      'Start here',
-      'Start new',
-      'Open last',
-      'Ask here',
-    ]);
-    const unsupported = launchTiles({ supported: false, hasLastChat: false });
-    expect(unsupported.find((t) => t.id === 'start-here')?.visible).toBe(false);
-    expect(unsupported.find((t) => t.id === 'ask-here')?.visible).toBe(false);
-    expect(unsupported.find((t) => t.id === 'open-last')?.disabled).toBe(true);
-    expect(unsupportedHostNotice()).toBe(
-      'This website is not supported. stemLM currently only works on ChatGPT, Claude, Gemini, Grok.',
-    );
+  it('names the four shipped chats and does not advertise a 2×2 launch grid', () => {
+    expect(CHAT_HOST_LAUNCH.map((h) => h.label)).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
     expect(unsupportedHostNotice()).toMatch(/ChatGPT/);
     expect(unsupportedHostNotice()).toMatch(/Claude/);
+    expect(unsupportedHostNotice()).toMatch(/Gemini/);
     expect(unsupportedHostNotice()).toMatch(/Grok/);
+    expect(unsupportedHostNotice()).not.toMatch(/Start here/);
   });
 
-  it('Start here loads when capsules exist and still succeeds when the chat is empty', async () => {
+  it('Open study panel delivers stemlm:open-panel, not load-conversation', async () => {
     activeTab = { id: 3, url: 'https://gemini.google.com/app/c1' };
-    sendMessageImpl = async (_id, msg) => {
-      if ((msg as { type?: string }).type === 'stemlm:load-conversation') {
-        return { ok: true, loaded: 2 };
-      }
-      return { ok: true };
-    };
-    const loaded = await runLaunchAction('start-here');
-    expect(loaded).toEqual({ ok: true, loaded: 2 });
-    expect(localStore[LAST_CHAT_KEY]).toMatchObject({
-      url: 'https://gemini.google.com/app/c1',
-      platform: 'gemini',
-    });
-
-    sendMessageImpl = async (_id, msg) => {
-      if ((msg as { type?: string }).type === 'stemlm:load-conversation') {
-        return { ok: true, loaded: 0 };
-      }
-      return { ok: true };
-    };
-    const empty = await runLaunchAction('start-here');
-    expect(empty).toEqual({ ok: true, loaded: 0 });
-  });
-
-  it('Start new opens a new Gemini tab and auto-starts the panel', async () => {
-    const result = await runLaunchAction('start-new');
+    const result = await openStudyPanel();
     expect(result).toEqual({ ok: true });
-    expect(tabs.create).toHaveBeenCalledWith({ url: GEMINI_APP_URL, active: false });
-    expect(tabs.update).toHaveBeenCalledWith(99, { active: true });
-    expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'stemlm:open-panel' });
+    expect(tabs.sendMessage).toHaveBeenCalledWith(3, { type: 'stemlm:open-panel' });
+    expect(tabs.sendMessage).not.toHaveBeenCalledWith(3, { type: 'stemlm:load-conversation' });
   });
 
-  it('Open last is a quiet empty when nothing is stored', async () => {
-    const result = await runLaunchAction('open-last');
-    expect(result).toEqual({ ok: false, empty: true });
-    expect(tabs.create).not.toHaveBeenCalled();
-    expect(tabs.sendMessage).not.toHaveBeenCalled();
-  });
-
-  it('Open last focuses the stored URL and loads the conversation', async () => {
-    localStore[LAST_CHAT_KEY] = {
-      url: 'https://gemini.google.com/app/keep',
-      platform: 'gemini',
-      savedAt: 9,
+  it('Open study panel on an unsupported tab returns a host notice', async () => {
+    activeTab = { id: 1, url: 'https://example.com' };
+    sendMessageImpl = async () => {
+      throw new Error('not-supported');
     };
-    const result = await runLaunchAction('open-last');
-    expect(result.ok).toBe(true);
-    expect(tabs.create).toHaveBeenCalledWith({
-      url: 'https://gemini.google.com/app/keep',
-      active: false,
-    });
-    expect(tabs.update).toHaveBeenCalledWith(99, { active: true });
-    expect(tabs.sendMessage).toHaveBeenCalledWith(99, { type: 'stemlm:load-conversation' });
-  });
-
-  it('Ask here on ChatGPT, Claude, and Grok is a supported host path', async () => {
-    for (const url of [
-      'https://chatgpt.com/c/1',
-      'https://claude.ai/chat/1',
-      'https://grok.com/chat',
-    ]) {
-      tabs.sendMessage.mockClear();
-      activeTab = { id: 11, url };
-      const result = await runLaunchAction('ask-here');
-      expect(result.ok).toBe(true);
-      expect(tabs.sendMessage).toHaveBeenCalledWith(11, { type: 'stemlm:ask-here' });
-      expect(localStore[LAST_CHAT_KEY]).toMatchObject({ url });
+    const result = await openStudyPanel();
+    expect(result.ok).toBe(false);
+    if (!result.ok && 'error' in result) {
+      expect(result.error).toMatch(/ChatGPT/);
     }
   });
 
-  it('Ask here delivers the composer inject message', async () => {
-    activeTab = { id: 5, url: 'https://gemini.google.com/app' };
-    const result = await runLaunchAction('ask-here');
-    expect(result.ok).toBe(true);
-    expect(tabs.sendMessage).toHaveBeenCalledWith(5, { type: 'stemlm:ask-here' });
+  it('opens each shipped chat host in a new tab', async () => {
+    for (const host of CHAT_HOST_LAUNCH) {
+      tabs.create.mockClear();
+      const result = await openChatHost(host.id);
+      expect(result.ok).toBe(true);
+      expect(tabs.create).toHaveBeenCalledWith({ url: host.url, active: true });
+    }
   });
 
-  it('opens the saved library on a Gemini tab and falls back on restricted pages', async () => {
+  it('opens the saved library in a dedicated window large enough for the new chrome', async () => {
+    const target = await openSavedQuestionsLibrary();
+    expect(target).toBe('window');
+    expect(windows.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expect.stringContaining('saved-library.html'),
+        type: 'popup',
+        width: LIBRARY_WINDOW_WIDTH_PX,
+        height: LIBRARY_WINDOW_HEIGHT_PX,
+        focused: true,
+      }),
+    );
+    expect(LIBRARY_WINDOW_WIDTH_PX).toBeGreaterThanOrEqual(Math.round(36 * 16 * 1.4));
+    expect(LIBRARY_WINDOW_HEIGHT_PX).toBeGreaterThanOrEqual(Math.round(40 * 16 * 1.4));
+  });
+
+  it('falls back to a library tab, then the chat overlay, then in-popup', async () => {
+    windows.create.mockRejectedValue(new Error('no window'));
+    expect(await openSavedQuestionsLibrary()).toBe('tab');
+    expect(tabs.create).toHaveBeenCalledWith(
+      expect.objectContaining({ url: expect.stringContaining('saved-library.html'), active: true }),
+    );
+
+    tabs.create.mockRejectedValue(new Error('no tab'));
     activeTab = { id: 6, url: 'https://gemini.google.com/app' };
     expect(await openSavedQuestionsLibrary()).toBe('tab');
     expect(tabs.sendMessage).toHaveBeenCalledWith(6, { type: 'stemlm:open-saved-library' });

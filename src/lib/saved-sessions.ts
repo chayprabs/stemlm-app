@@ -1,12 +1,18 @@
 /**
  * Persistence for explicitly-saved study sessions. Each save stores a compact
- * snapshot (question, steps, solution) for PDF export. Clicking a saved item
- * in the popup downloads/prints the PDF.
+ * snapshot (question, steps, solution) for PDF export. Library rows download
+ * a file or open a viewer tab — they do not print or jump to Gemini.
  */
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { isPlatformId, type PlatformId } from '@/src/platforms/types';
-import { exportSessionPdf, type PdfExportResult } from './pdf';
+import {
+  exportSessionPdf,
+  renderSessionReportHtml,
+  reportFilename,
+  type PdfExportResult,
+} from './pdf';
+import { downloadTextFile } from './file-download';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
@@ -235,22 +241,42 @@ export async function deleteSavedSession(id: string): Promise<void> {
   });
 }
 
+function savedPdfUrl(id: string, mode: 'view' | 'print' | 'download'): string {
+  const runtime = browser.runtime as typeof browser.runtime & {
+    getURL: (path: string) => string;
+  };
+  const url = new URL(runtime.getURL('/saved-pdf.html'));
+  url.searchParams.set('id', id);
+  url.searchParams.set('mode', mode);
+  return url.href;
+}
+
 /**
- * Open the system print / Save-as-PDF dialog for a saved snapshot.
- * Uses a dedicated extension tab — the popup cannot host a reliable print iframe.
+ * Start a file download of the saved report in the current document.
+ * Does not open Gemini or the print dialog.
  */
 export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
   if (!snapshot) return { ok: false, method: 'failed' };
 
   try {
-    const runtime = browser.runtime as typeof browser.runtime & {
-      getURL: (path: string) => string;
-    };
-    const url = new URL(runtime.getURL('/saved-pdf.html'));
-    url.searchParams.set('id', id);
-    await browser.tabs.create({ url: url.href, active: true });
-    return { ok: true, method: 'print' };
+    const session = snapshotToSession(snapshot);
+    const html = await renderSessionReportHtml(session);
+    downloadTextFile(html, `${reportFilename(session)}.html`);
+    return { ok: true, method: 'download' };
+  } catch {
+    return { ok: false, method: 'failed' };
+  }
+}
+
+/** Open the saved report in another tab without auto-print or auto-download. */
+export async function openSavedSessionPdf(id: string): Promise<PdfExportResult> {
+  const snapshot = await getSavedSession(id);
+  if (!snapshot) return { ok: false, method: 'failed' };
+
+  try {
+    await browser.tabs.create({ url: savedPdfUrl(id, 'view'), active: true });
+    return { ok: true, method: 'view' };
   } catch {
     return { ok: false, method: 'failed' };
   }

@@ -14,9 +14,11 @@ import { PRINT_DIAGRAM_MM } from './diagram-bounds';
 import { trackEvent } from './analytics';
 import { FONT_CSS_HREF, FONT_MONO, FONT_SANS } from './fonts';
 
+export type PdfExportMethod = 'print' | 'download' | 'view' | 'failed';
+
 export interface PdfExportResult {
   ok: boolean;
-  method: 'print' | 'failed';
+  method: PdfExportMethod;
 }
 
 /** Design tokens — current light reading canvas (IBM Plex, ink, formula wash). */
@@ -125,6 +127,10 @@ math{font-size:1.02em;}
 .slm-signals{margin:0 0 14px;}
 .slm-signal--flag{font-size:10pt;font-weight:600;color:${T.fg};background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusSm};padding:6px 10px;margin:0 0 8px;}
 .slm-answer-notes{margin:8px 0 0;font-size:10.5pt;line-height:1.5;color:${T.fg};}
+@media screen{
+body{padding:28px 18px 56px;background:${T.bgSubtle};}
+.slm-report{background:${T.bg};padding:22px 26px 28px;border:0.5px solid ${T.border};border-radius:${T.radiusMd};box-shadow:0 8px 28px rgba(15,15,18,.08);}
+}
 `;
 }
 
@@ -144,6 +150,12 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** Self-contained report HTML (print-styled). Used for view + file download. */
+export async function renderSessionReportHtml(session: Session): Promise<string> {
+  const resolved = await resolveDiagrams(session);
+  return buildReportDocument(session, resolved.svg, resolved.overlays);
 }
 
 export async function exportSessionPdf(session: Session): Promise<PdfExportResult> {

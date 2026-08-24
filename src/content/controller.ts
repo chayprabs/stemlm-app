@@ -780,6 +780,20 @@ export class StemController {
   }
 
   /**
+   * True when this chat already has stemLM answers that are not loaded into
+   * the panel. Empty-state uses this to offer “Load conversation from this chat”.
+   */
+  hasConversationToLoad(): boolean {
+    if (useStore.getState().sessions.length > 0) return false;
+    const capsules = this.adapter.extractCapsules();
+    for (const candidate of capsules) {
+      const text = findCapsuleRaw(candidate) ?? candidate;
+      if (text.includes('@meta')) return true;
+    }
+    return pageThreadHasProtocol(document, this.adapter.findEditor());
+  }
+
+  /**
    * Rebuild sessions from the chatbot's own visible history (no server). Used
    * when the panel was lost (tab closed) but the chat history remains.
    *

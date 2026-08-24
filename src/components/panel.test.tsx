@@ -497,7 +497,7 @@ describe('Panel empty / loading / banner states', () => {
     expect(container.textContent).toContain('Type a question in the chat, then start stemLM.');
     expect(container.textContent).not.toContain('beside send');
     expect(container.textContent).not.toContain('Open Gemini');
-    expect(container.textContent).toContain('Load from conversation');
+    expect(container.textContent).not.toContain('Load conversation from this chat');
     expect(container.querySelector('.slm-empty')).toBeTruthy();
     expect(container.querySelector('.slm-tabs')).toBeNull();
     unmount();

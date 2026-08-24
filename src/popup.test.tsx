@@ -2,10 +2,14 @@ import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
-import { LAST_CHAT_KEY } from '@/src/lib/last-chat';
-import { GEMINI_APP_URL } from '@/src/lib/tab-bridge';
-import { LAUNCH_LABELS } from '@/src/lib/popup-launch';
-import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
+import {
+  CHAT_HOST_LAUNCH,
+  LIBRARY_WINDOW_HEIGHT_PX,
+  LIBRARY_WINDOW_WIDTH_PX,
+  OPEN_STUDY_PANEL_LABEL,
+  SAVED_QUESTIONS_LABEL,
+} from '@/src/lib/popup-launch';
+import { SAVED_SEARCH_PLACEHOLDER } from '@/src/lib/saved-library';
 import type { SavedSessionSnapshot } from '@/src/lib/saved-sessions';
 
 const localStore: Record<string, unknown> = {};
@@ -24,6 +28,7 @@ const {
   tabsSendMessage,
   tabsReload,
   tabsGet,
+  windowsCreate,
   openOptionsPage,
   watchAndApplyToolbarIcon,
   getSavedSessions,
@@ -34,6 +39,7 @@ const {
   tabsSendMessage: vi.fn(),
   tabsReload: vi.fn(),
   tabsGet: vi.fn(),
+  windowsCreate: vi.fn(),
   openOptionsPage: vi.fn(async () => undefined),
   watchAndApplyToolbarIcon: vi.fn(() => () => {}),
   getSavedSessions: vi.fn(async () => [] as SavedSessionSnapshot[]),
@@ -42,7 +48,7 @@ const {
 vi.mock('wxt/browser', () => ({
   browser: {
     runtime: {
-      getURL: (path: string) => `chrome-extension://test/${path}`,
+      getURL: (path: string) => `chrome-extension://test${path.startsWith('/') ? path : `/${path}`}`,
       openOptionsPage,
       id: 'test',
     },
@@ -57,6 +63,7 @@ vi.mock('wxt/browser', () => ({
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
     },
     windows: {
+      create: windowsCreate,
       update: vi.fn(async () => undefined),
     },
     storage: {
@@ -100,7 +107,8 @@ vi.mock('@/src/lib/toolbar-icon', () => ({
 
 import App from '@/entrypoints/popup/App';
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
 
 async function renderPopup() {
   const container = document.createElement('div');
@@ -150,9 +158,17 @@ describe('popup chrome', () => {
       id,
       url: info?.url ?? activeTab.url,
     }));
-    tabsSendMessage.mockImplementation(async (tabId: number, msg: unknown) => sendMessageImpl(tabId, msg));
+    tabsSendMessage.mockImplementation(async (tabId: number, msg: unknown) =>
+      sendMessageImpl(tabId, msg),
+    );
     tabsReload.mockResolvedValue(undefined);
-    tabsGet.mockImplementation(async (id: number) => ({ id, url: activeTab.url, status: 'complete' }));
+    tabsGet.mockImplementation(async (id: number) => ({
+      id,
+      url: activeTab.url,
+      status: 'complete',
+    }));
+    windowsCreate.mockReset();
+    windowsCreate.mockResolvedValue({ id: 3 });
     getSavedSessions.mockResolvedValue([]);
     openOptionsPage.mockClear();
     vi.stubGlobal('close', vi.fn());
@@ -163,174 +179,117 @@ describe('popup chrome', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders the 2×2 launch labels and drops the old stacked buttons and beside-send copy', async () => {
-    activeTab = { id: 2, url: 'https://gemini.google.com/app' };
+  it('renders Open study panel, Saved questions, and four host logos — not the 2×2 launch tiles', async () => {
     const { container, unmount } = await renderPopup();
     const text = container.textContent ?? '';
-    expect(text).toContain(LAUNCH_LABELS['start-here']);
-    expect(text).toContain(LAUNCH_LABELS['start-new']);
-    expect(text).toContain(LAUNCH_LABELS['open-last']);
-    expect(text).toContain(LAUNCH_LABELS['ask-here']);
-    expect(text).not.toContain('Open study panel');
-    expect(text).not.toContain('Load conversation from this chat');
-    expect(text).not.toContain('Open Gemini');
-    expect(text).not.toContain('beside send');
-    expect(text).not.toContain('Open Gemini, type your question');
-    expect(container.querySelector('.slm-launch-grid')).toBeTruthy();
-    expect(container.querySelector('.slm-popup-settings')?.getAttribute('aria-label')).toBe('Settings');
-    unmount();
-  });
-
-  it('hides Start here and Ask here on unsupported hosts and names the four shipped chats', async () => {
-    const { container, unmount } = await renderPopup();
-    const text = container.textContent ?? '';
-    expect(text).toContain('This website is not supported');
+    expect(text).toContain(OPEN_STUDY_PANEL_LABEL);
+    expect(text).toContain(SAVED_QUESTIONS_LABEL);
     expect(text).toContain('ChatGPT');
     expect(text).toContain('Claude');
     expect(text).toContain('Gemini');
     expect(text).toContain('Grok');
-    expect(container.querySelector('[data-launch="start-here"]')).toBeNull();
-    expect(container.querySelector('[data-launch="ask-here"]')).toBeNull();
-    expect(container.querySelector('[data-launch="start-new"]')).toBeTruthy();
-    expect(container.querySelector('[data-launch="open-last"]')).toBeTruthy();
-    expect(container.querySelector('[data-launch="open-last"]')).toHaveProperty('disabled', true);
+    expect(text).not.toContain('Start here');
+    expect(text).not.toContain('Start new');
+    expect(text).not.toContain('Open last');
+    expect(text).not.toContain('Ask here');
+    expect(text).not.toContain('Nothing saved yet.');
+    expect(text).not.toContain('Open all saved questions');
+    expect(container.querySelector('.slm-launch-grid')).toBeNull();
+    expect(container.querySelector('.slm-popup-actions')).toBeTruthy();
+    expect(container.querySelectorAll('[data-host]')).toHaveLength(4);
+    for (const host of CHAT_HOST_LAUNCH) {
+      const btn = container.querySelector(`[data-host="${host.id}"]`);
+      expect(btn?.querySelector('svg')).toBeTruthy();
+      expect(btn?.textContent).toContain(host.label);
+    }
+    expect(container.querySelector('.slm-popup-settings')?.getAttribute('aria-label')).toBe(
+      'Settings',
+    );
     unmount();
   });
 
-  it('treats Claude, ChatGPT, and Grok tabs as supported hosts', async () => {
+  it('Open study panel on a supported tab sends stemlm:open-panel, not load-conversation', async () => {
+    activeTab = { id: 4, url: 'https://gemini.google.com/app/chat-1' };
+    const { container, unmount } = await renderPopup();
+    await act(async () => {
+      clickLaunch(container, 'open-study-panel');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(tabsSendMessage).toHaveBeenCalledWith(4, { type: 'stemlm:open-panel' });
+    expect(tabsSendMessage).not.toHaveBeenCalledWith(4, { type: 'stemlm:load-conversation' });
+    unmount();
+  });
+
+  it('treats Claude, ChatGPT, and Grok tabs as supported hosts for Open study panel', async () => {
     activeTab = { id: 21, url: 'https://chatgpt.com/c/abc' };
     const first = await renderPopup();
-    expect(first.container.querySelector('[data-launch="start-here"]')).toBeTruthy();
-    expect(first.container.querySelector('[data-launch="ask-here"]')).toBeTruthy();
+    expect(first.container.querySelector('[data-launch="open-study-panel"]')).toBeTruthy();
     expect(first.container.textContent).not.toContain('This website is not supported');
     first.unmount();
 
     activeTab = { id: 22, url: 'https://claude.ai/new' };
     const second = await renderPopup();
-    expect(second.container.querySelector('[data-launch="start-here"]')).toBeTruthy();
-    second.unmount();
-
-    activeTab = { id: 23, url: 'https://grok.com/' };
-    const third = await renderPopup();
-    expect(third.container.querySelector('[data-launch="ask-here"]')).toBeTruthy();
-    third.unmount();
-  });
-
-  it('Start here loads capsules when they exist and opens empty otherwise', async () => {
-    activeTab = { id: 4, url: 'https://gemini.google.com/app/chat-1' };
-    sendMessageImpl = async (_id, msg) => {
-      const type = (msg as { type?: string }).type;
-      if (type === 'stemlm:load-conversation') return { ok: true, loaded: 3 };
-      return { ok: true };
-    };
-    const { container, unmount } = await renderPopup();
     await act(async () => {
-      clickLaunch(container, 'start-here');
+      clickLaunch(second.container, 'open-study-panel');
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(tabsSendMessage).toHaveBeenCalledWith(4, { type: 'stemlm:load-conversation' });
-    expect(localStore[LAST_CHAT_KEY]).toMatchObject({
-      url: 'https://gemini.google.com/app/chat-1',
-      platform: 'gemini',
-    });
-    unmount();
-
-    tabsSendMessage.mockClear();
-    sendMessageImpl = async (_id, msg) => {
-      const type = (msg as { type?: string }).type;
-      if (type === 'stemlm:load-conversation') return { ok: true, loaded: 0 };
-      return { ok: true };
-    };
-    const second = await renderPopup();
-    await act(async () => {
-      clickLaunch(second.container, 'start-here');
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(tabsSendMessage).toHaveBeenCalledWith(4, { type: 'stemlm:load-conversation' });
+    expect(tabsSendMessage).toHaveBeenCalledWith(22, { type: 'stemlm:open-panel' });
     second.unmount();
   });
 
-  it('Start new always creates a Gemini tab and auto-starts stemLM', async () => {
+  it('Saved questions opens the dedicated library window', async () => {
     const { container, unmount } = await renderPopup();
     await act(async () => {
-      clickLaunch(container, 'start-new');
+      clickLaunch(container, 'saved-questions');
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(tabsCreate).toHaveBeenCalledWith({ url: GEMINI_APP_URL, active: false });
-    expect(tabsUpdate).toHaveBeenCalledWith(99, { active: true });
-    expect(tabsSendMessage).toHaveBeenCalledWith(99, { type: 'stemlm:open-panel' });
+    expect(windowsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expect.stringContaining('saved-library.html'),
+        type: 'popup',
+        width: LIBRARY_WINDOW_WIDTH_PX,
+        height: LIBRARY_WINDOW_HEIGHT_PX,
+      }),
+    );
     unmount();
   });
 
-  it('Open last reopens the stored chat and loads the conversation', async () => {
-    localStore[LAST_CHAT_KEY] = {
-      url: 'https://gemini.google.com/app/last-chat',
-      platform: 'gemini',
-      savedAt: 10,
-    };
-    const { container, unmount } = await renderPopup();
-    const tile = container.querySelector('[data-launch="open-last"]') as HTMLButtonElement;
-    expect(tile.disabled).toBe(false);
-    await act(async () => {
-      tile.click();
-      await Promise.resolve();
-      await Promise.resolve();
+  it('Saved questions falls back to the in-popup library UI when a window cannot open', async () => {
+    windowsCreate.mockRejectedValue(new Error('no window'));
+    tabsCreate.mockImplementation(async (info: { url?: string }) => {
+      if (String(info.url ?? '').includes('saved-library')) throw new Error('no tab');
+      return { id: 99, url: info.url };
     });
-    expect(tabsCreate).toHaveBeenCalledWith({
-      url: 'https://gemini.google.com/app/last-chat',
-      active: false,
-    });
-    expect(tabsUpdate).toHaveBeenCalledWith(99, { active: true });
-    expect(tabsSendMessage).toHaveBeenCalledWith(99, { type: 'stemlm:load-conversation' });
-    unmount();
-  });
-
-  it('Ask here injects stemLM on the current composer and opens the workspace', async () => {
-    activeTab = { id: 8, url: 'https://gemini.google.com/app' };
     const { container, unmount } = await renderPopup();
     await act(async () => {
-      clickLaunch(container, 'ask-here');
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(tabsSendMessage).toHaveBeenCalledWith(8, { type: 'stemlm:ask-here' });
-    unmount();
-  });
-
-  it('compact saved strip lists at most 3 questions, has no search, and opens the overlay', async () => {
-    const snapshots: SavedSessionSnapshot[] = [1, 2, 3, 4].map((n) => ({
-      id: `q${n}`,
-      question: `Question number ${n} about circuits`,
-      savedAt: n * 1000,
-      platform: 'gemini',
-      meta: { version: 1, subject: 'Electrical', topic: `T${n}` },
-      steps: [{ id: 's1', index: 1, title: 'Work', body: 'body' }],
-      solution: 'done',
-      solutionDiagrams: [],
-    }));
-    getSavedSessions.mockResolvedValue(snapshots);
-    const { container, unmount } = await renderPopup();
-    expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeNull();
-    expect(container.querySelectorAll('.slm-saved-item')).toHaveLength(3);
-    expect(container.textContent).toContain('Question number 4');
-    expect(container.textContent).toContain('Question number 2');
-    expect(container.textContent).not.toContain('Question number 1 about circuits');
-    expect(container.textContent).toContain(OPEN_ALL_SAVED_LABEL);
-
-    await act(async () => {
-      const openAll = [...container.querySelectorAll('button')].find((el) =>
-        el.textContent?.includes(OPEN_ALL_SAVED_LABEL),
-      ) as HTMLButtonElement;
-      openAll.click();
+      clickLaunch(container, 'saved-questions');
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(container.querySelector('[role="dialog"][aria-labelledby="slm-library-title"]')).toBeTruthy();
     expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeTruthy();
-    expect(container.querySelectorAll('.slm-library-dialog .slm-saved-item')).toHaveLength(4);
+    expect(
+      (container.querySelector('input[aria-label="Search saved questions"]') as HTMLInputElement)
+        .placeholder,
+    ).toBe(SAVED_SEARCH_PLACEHOLDER);
+    unmount();
+  });
+
+  it('each host control opens that chat website', async () => {
+    const { container, unmount } = await renderPopup();
+    for (const host of CHAT_HOST_LAUNCH) {
+      tabsCreate.mockClear();
+      const btn = container.querySelector(`[data-host="${host.id}"]`) as HTMLButtonElement;
+      await act(async () => {
+        btn.click();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(tabsCreate).toHaveBeenCalledWith({ url: host.url, active: true });
+    }
     unmount();
   });
 });

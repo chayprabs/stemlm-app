@@ -1,70 +1,49 @@
 /**
- * Toolbar saved-questions library: search, subject filter, question-first rows.
- * Activating a row downloads the stored snapshot as PDF — it does not open Gemini.
+ * Saved-questions library: search, category chips, time filter, 2-line rows
+ * with download + open actions.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   deleteSavedSession,
   downloadSavedSessionPdf,
   getSavedSessions,
+  openSavedSessionPdf,
   type SavedSessionSnapshot,
 } from '@/src/lib/saved-sessions';
 import {
   ALL_SAVED_SUBJECTS,
+  ALL_SAVED_TIME,
+  SAVED_SEARCH_PLACEHOLDER,
+  SAVED_TIME_ANY_LABEL,
+  SAVED_TIME_FILTERS,
   filterSavedSessions,
-  latestSavedSessions,
-  savedSessionHeading,
+  savedSessionQuestion,
   savedSessionSubject,
   savedSessionSubjects,
+  savedTimeFilterLabel,
+  type SavedTimeFilter,
 } from '@/src/lib/saved-library';
-import { OPEN_ALL_SAVED_LABEL } from '@/src/lib/saved-library';
-import { IconCheck, IconClose, IconFilter, IconHelp, IconPdf, IconSave, IconSearch } from './icons';
+import {
+  IconCheck,
+  IconChevronDown,
+  IconClose,
+  IconDownload,
+  IconOpen,
+  IconPdf,
+  IconSave,
+  IconSearch,
+} from './icons';
 
-const SAVED_HELP = 'Bookmark it in the panel. Click a question here for the PDF.';
-
-function SavedHelp() {
-  return (
-    <span className="slm-saved-help">
-      <button
-        type="button"
-        className="slm-popup-settings slm-saved-help-btn"
-        aria-label={SAVED_HELP}
-        aria-describedby="slm-saved-help-tip"
-      >
-        <IconHelp />
-      </button>
-      <span id="slm-saved-help-tip" role="tooltip" className="slm-saved-help-tip">
-        {SAVED_HELP}
-      </span>
-    </span>
-  );
-}
-
-function SavedHead({ countLabel, hide }: { countLabel?: string; hide?: boolean }) {
-  if (hide) return null;
-  return (
-    <div className="slm-saved-head">
-      <h2 className="slm-popup-section-title">
-        Saved questions
-        {countLabel ? <span className="slm-saved-count">{countLabel}</span> : null}
-      </h2>
-      <SavedHelp />
-    </div>
-  );
-}
-
-function SubjectFilter({
-  subject,
-  subjects,
+function TimeFilter({
+  value,
   onChange,
 }: {
-  subject: string;
-  subjects: string[];
-  onChange: (next: string) => void;
+  value: SavedTimeFilter;
+  onChange: (next: SavedTimeFilter) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const filtered = subject !== ALL_SAVED_SUBJECTS;
+  const filtered = value !== ALL_SAVED_TIME;
 
   useEffect(() => {
     if (!open) return;
@@ -82,37 +61,38 @@ function SubjectFilter({
     };
   }, [open]);
 
-  const options = [
-    { value: ALL_SAVED_SUBJECTS, label: 'All subjects' },
-    ...subjects.map((name) => ({ value: name, label: name })),
+  const options: { id: SavedTimeFilter; label: string }[] = [
+    { id: ALL_SAVED_TIME, label: SAVED_TIME_ANY_LABEL },
+    ...SAVED_TIME_FILTERS,
   ];
 
   return (
-    <div className="slm-saved-filter-wrap" ref={rootRef}>
+    <div className="slm-library-time" ref={rootRef}>
       <button
         type="button"
-        className="slm-saved-filter"
-        aria-label="Filter by subject"
+        className="slm-library-time-btn"
+        aria-label="Filter by time"
         aria-haspopup="listbox"
         aria-expanded={open}
         data-active={filtered ? 'true' : undefined}
         onClick={() => setOpen((v) => !v)}
       >
-        <IconFilter />
+        <span className="slm-library-time-label">{savedTimeFilterLabel(value)}</span>
+        <IconChevronDown width={12} height={12} />
       </button>
       {open && (
-        <ul className="slm-saved-menu" role="listbox" aria-label="Filter by subject">
+        <ul className="slm-library-time-menu" role="listbox" aria-label="Filter by time">
           {options.map((opt) => {
-            const selected = opt.value === subject;
+            const selected = opt.id === value;
             return (
-              <li key={opt.value} role="presentation">
+              <li key={opt.id} role="presentation">
                 <button
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  className={`slm-saved-menu-item ${selected ? 'is-selected' : ''}`}
+                  className={`slm-library-time-item ${selected ? 'is-selected' : ''}`}
                   onClick={() => {
-                    onChange(opt.value);
+                    onChange(opt.id);
                     setOpen(false);
                   }}
                 >
@@ -132,23 +112,17 @@ export function SavedSessionList({
   sessions,
   onSessionsChange,
   onDownloaded,
-  variant = 'full',
-  hideHeading = false,
-  onOpenAll,
 }: {
   sessions: SavedSessionSnapshot[];
   onSessionsChange?: (sessions: SavedSessionSnapshot[]) => void;
   onDownloaded?: () => void;
-  variant?: 'compact' | 'full';
-  hideHeading?: boolean;
-  onOpenAll?: () => void;
 }) {
   const [items, setItems] = useState(sessions);
   const [query, setQuery] = useState('');
   const [subject, setSubject] = useState(ALL_SAVED_SUBJECTS);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [time, setTime] = useState<SavedTimeFilter>(ALL_SAVED_TIME);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const compact = variant === 'compact';
 
   useEffect(() => {
     setItems(sessions);
@@ -156,24 +130,37 @@ export function SavedSessionList({
 
   const subjects = useMemo(() => savedSessionSubjects(items), [items]);
   const visible = useMemo(
-    () => (compact ? latestSavedSessions(items) : filterSavedSessions(items, { query, subject })),
-    [compact, items, query, subject],
+    () => filterSavedSessions(items, { query, subject, time }),
+    [items, query, subject, time],
   );
 
   async function download(id: string) {
     setError(null);
-    setDownloadingId(id);
+    setBusyId(id);
     try {
       const result = await downloadSavedSessionPdf(id);
       if (!result.ok) {
-        setError('PDF export failed. Try again.');
+        setError('Download failed. Try again.');
         return;
       }
       onDownloaded?.();
     } catch {
-      setError('Could not export PDF. Try again.');
+      setError('Could not download the report. Try again.');
     } finally {
-      setDownloadingId(null);
+      setBusyId(null);
+    }
+  }
+
+  async function open(id: string) {
+    setError(null);
+    setBusyId(id);
+    try {
+      const result = await openSavedSessionPdf(id);
+      if (!result.ok) setError('Could not open the report. Try again.');
+    } catch {
+      setError('Could not open the report. Try again.');
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -189,104 +176,116 @@ export function SavedSessionList({
     }
   }
 
-  if (items.length === 0) {
-    return (
-      <section className="slm-popup-section" aria-label="Saved questions">
-        <SavedHead hide={hideHeading} />
-        <div className="slm-saved-empty">
-          <span className="slm-saved-empty-mark" aria-hidden="true">
-            <IconSave width={22} height={22} />
-          </span>
-          <p className="slm-popup-empty">Nothing saved yet.</p>
-        </div>
-      </section>
-    );
-  }
-
-  const countLabel =
-    compact || visible.length === items.length
-      ? `${items.length}`
-      : `${visible.length} / ${items.length}`;
-
   return (
-    <section
-      className={`slm-popup-section ${compact ? 'slm-saved-compact' : 'slm-saved-full'}`}
-      aria-label="Saved questions"
-    >
-      <SavedHead countLabel={countLabel} hide={hideHeading} />
+    <section className="slm-library-main" aria-label="Saved questions">
+      <div className="slm-library-search-wrap">
+        <IconSearch width={15} height={15} aria-hidden="true" />
+        <input
+          type="text"
+          className="slm-library-search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={SAVED_SEARCH_PLACEHOLDER}
+          aria-label="Search saved questions"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </div>
 
-      {!compact && (
-        <div className="slm-saved-toolbar">
-          <div className="slm-saved-search-wrap">
-            <IconSearch width={14} height={14} aria-hidden="true" />
-            <input
-              type="text"
-              className="slm-saved-search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search"
-              aria-label="Search saved questions"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <SubjectFilter subject={subject} subjects={subjects} onChange={setSubject} />
-          </div>
+      <div className="slm-library-body">
+        <aside className="slm-library-cats" aria-label="Categories">
+          <TimeFilter value={time} onChange={setTime} />
+          <button
+            type="button"
+            className={`slm-library-chip ${subject === ALL_SAVED_SUBJECTS ? 'is-active' : ''}`}
+            aria-pressed={subject === ALL_SAVED_SUBJECTS}
+            onClick={() => setSubject(ALL_SAVED_SUBJECTS)}
+          >
+            All categories
+          </button>
+          {subjects.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`slm-library-chip ${subject === name ? 'is-active' : ''}`}
+              aria-pressed={subject === name}
+              onClick={() => setSubject(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </aside>
+
+        <div className="slm-library-results">
+          {error && <p className="slm-popup-error">{error}</p>}
+
+          {items.length === 0 ? (
+            <div className="slm-library-empty">
+              <span className="slm-saved-empty-mark" aria-hidden="true">
+                <IconSave width={22} height={22} />
+              </span>
+              <p className="slm-popup-empty">Nothing saved yet.</p>
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="slm-popup-empty" role="status">
+              No questions match.
+            </p>
+          ) : (
+            <ul className="slm-library-list">
+              {visible.map((item) => {
+                const question = savedSessionQuestion(item);
+                const subjectLabel = savedSessionSubject(item);
+                const busy = busyId === item.id;
+                return (
+                  <li key={item.id} className="slm-library-row slm-saved-item">
+                    <span className="slm-library-row-icon" aria-hidden="true">
+                      <IconPdf width={16} height={16} />
+                    </span>
+                    <span className="slm-library-row-copy">
+                      <span className="slm-library-row-q slm-saved-question-text">{question}</span>
+                      <span className="slm-library-row-meta">{subjectLabel}</span>
+                    </span>
+                    <span className="slm-library-row-actions">
+                      <button
+                        type="button"
+                        className="slm-library-icon-btn"
+                        data-action="download"
+                        title="Download"
+                        aria-label={`Download PDF for ${question}`}
+                        disabled={busy}
+                        onClick={() => void download(item.id)}
+                      >
+                        <IconDownload width={14} height={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="slm-library-icon-btn"
+                        data-action="open"
+                        title="Open"
+                        aria-label={`Open PDF for ${question}`}
+                        disabled={busy}
+                        onClick={() => void open(item.id)}
+                      >
+                        <IconOpen width={14} height={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="slm-library-icon-btn slm-library-icon-btn--quiet"
+                        data-action="delete"
+                        title="Delete saved question"
+                        aria-label={`Delete ${question}`}
+                        onClick={() => void remove(item.id)}
+                      >
+                        <IconClose width={14} height={14} />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
-      )}
-
-      {error && <p className="slm-popup-error">{error}</p>}
-
-      {visible.length === 0 ? (
-        <p className="slm-popup-empty" role="status">
-          No questions match.
-        </p>
-      ) : (
-        <ul className="slm-saved-list">
-          {visible.map((item) => {
-            const heading = savedSessionHeading(item);
-            const subjectLabel = savedSessionSubject(item);
-            const busy = downloadingId === item.id;
-            return (
-              <li key={item.id} className="slm-saved-item">
-                <button
-                  type="button"
-                  className="slm-saved-open"
-                  onClick={() => void download(item.id)}
-                  disabled={busy}
-                  title="Download PDF"
-                  aria-label={`Download PDF for ${heading}`}
-                >
-                  <span className="slm-saved-meta">
-                    <span className="slm-saved-question">
-                      <IconPdf width={13} height={13} aria-hidden="true" />
-                      <span className="slm-saved-question-text">{heading}</span>
-                    </span>
-                    <span className="slm-saved-sub">
-                      <span className="slm-saved-chip">{subjectLabel}</span>
-                      <span>{busy ? 'Preparing PDF…' : 'PDF'}</span>
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="slm-saved-del"
-                  title="Delete saved question"
-                  aria-label={`Delete ${heading}`}
-                  onClick={() => void remove(item.id)}
-                >
-                  <IconClose width={14} height={14} />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {compact && onOpenAll && (
-        <button type="button" className="slm-saved-open-all" onClick={onOpenAll}>
-          {OPEN_ALL_SAVED_LABEL}
-        </button>
-      )}
+      </div>
     </section>
   );
 }

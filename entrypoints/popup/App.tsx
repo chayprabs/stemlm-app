@@ -1,35 +1,24 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { getSavedSessions, type SavedSessionSnapshot } from '@/src/lib/saved-sessions';
 import { getSettings } from '@/src/lib/settings';
 import { resolveTheme, applyTheme, type ResolvedTheme } from '@/src/lib/theme';
 import { BrandWordmark, themeToBrandVariant } from '@/src/components/brand';
-import { SavedSessionList } from '@/src/components/SavedSessionList';
 import { SavedLibraryOverlay } from '@/src/components/SavedLibraryOverlay';
-import { IconHistory, IconPlay, IconPlus, IconSettings, IconSpark } from '@/src/components/icons';
+import { IconPanel, IconSave, IconSettings } from '@/src/components/icons';
+import { HostLogo } from '@/src/components/host-logos';
 import { getActiveTab } from '@/src/lib/tab-bridge';
-import { getLastChat, type LastChatRecord } from '@/src/lib/last-chat';
 import {
-  launchTiles,
+  CHAT_HOST_LAUNCH,
+  openChatHost,
   openSavedQuestionsLibrary,
-  runLaunchAction,
-  unsupportedHostNotice,
-  type LaunchId,
+  openStudyPanel,
 } from '@/src/lib/popup-launch';
-import { isSupportedChatUrl, supportedChatLabels } from '@/src/platforms/detect';
+import { isSupportedChatUrl } from '@/src/platforms/detect';
 import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
-
-const TILE_ICONS: Record<LaunchId, ReactNode> = {
-  'start-here': <IconPlay width={16} height={16} />,
-  'start-new': <IconPlus width={16} height={16} />,
-  'open-last': <IconHistory width={16} height={16} />,
-  'ask-here': <IconSpark width={16} height={16} />,
-};
+import type { PlatformId } from '@/src/platforms/types';
 
 export default function App() {
-  const [saved, setSaved] = useState<SavedSessionSnapshot[]>([]);
   const [supported, setSupported] = useState(false);
-  const [lastChat, setLastChat] = useState<LastChatRecord | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [theme, setTheme] = useState<ResolvedTheme>('light');
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -41,8 +30,6 @@ export default function App() {
       applyTheme(document.documentElement, resolved);
       applyTheme(document.body, resolved);
     });
-    getSavedSessions().then(setSaved);
-    getLastChat().then(setLastChat);
 
     const refreshTab = () => {
       void getActiveTab().then((tab) => setSupported(isSupportedChatUrl(tab?.url)));
@@ -69,38 +56,41 @@ export default function App() {
     });
   }
 
-  async function onLaunch(id: LaunchId) {
+  async function onOpenPanel() {
     setSendError(null);
-    const result = await runLaunchAction(id);
+    const result = await openStudyPanel();
     if (result.ok) {
-      if (id === 'start-here' || id === 'ask-here' || id === 'open-last') {
-        void getLastChat().then(setLastChat);
-      }
       window.close();
       return;
     }
-    if ('error' in result) {
-      setSendError(result.error);
-    }
+    if ('error' in result) setSendError(result.error);
   }
 
-  async function onOpenAllSaved() {
+  async function onOpenLibrary() {
+    setSendError(null);
     const target = await openSavedQuestionsLibrary();
-    if (target === 'tab') {
+    if (target === 'window' || target === 'tab') {
       window.close();
       return;
     }
     setLibraryOpen(true);
   }
 
-  const tiles = launchTiles({ supported, hasLastChat: lastChat != null });
-  const visibleTiles = tiles.filter((tile) => tile.visible);
+  async function onOpenHost(id: PlatformId) {
+    setSendError(null);
+    const result = await openChatHost(id);
+    if (result.ok) {
+      window.close();
+      return;
+    }
+    if ('error' in result) setSendError(result.error);
+  }
 
   return (
     <div className="slm-popup">
       <header className="slm-popup-head">
         <h1>
-          <BrandWordmark variant={themeToBrandVariant(theme)} height={30} />
+          <BrandWordmark variant={themeToBrandVariant(theme)} height={24} />
         </h1>
         <button
           type="button"
@@ -113,49 +103,55 @@ export default function App() {
         </button>
       </header>
 
-      <section className="slm-popup-card" aria-label="Start stemLM">
-        {!supported && (
-          <p className="slm-popup-notice" role="status">
-            {unsupportedHostNotice(supportedChatLabels())}
-          </p>
-        )}
-        <div className="slm-launch-grid">
-          {visibleTiles.map((tile) => (
+      <div className="slm-popup-actions">
+        <button
+          type="button"
+          data-launch="open-study-panel"
+          className="slm-popup-action is-primary"
+          onClick={() => void onOpenPanel()}
+        >
+          <span className="slm-popup-action-icon" aria-hidden="true">
+            <IconPanel width={15} height={15} />
+          </span>
+          Open study panel
+        </button>
+        <button
+          type="button"
+          data-launch="saved-questions"
+          className="slm-popup-action"
+          onClick={() => void onOpenLibrary()}
+        >
+          <span className="slm-popup-action-icon" aria-hidden="true">
+            <IconSave width={15} height={15} />
+          </span>
+          Saved questions
+        </button>
+      </div>
+      {sendError && <p className="slm-popup-error">{sendError}</p>}
+
+      <section className="slm-popup-hosts" aria-label="Open a supported chat">
+        <p className="slm-popup-hosts-label">{supported ? 'Study on' : 'Open a chat'}</p>
+        <div className="slm-popup-host-row">
+          {CHAT_HOST_LAUNCH.map((host) => (
             <button
-              key={tile.id}
+              key={host.id}
               type="button"
-              data-launch={tile.id}
-              className={`slm-launch-tile ${tile.emphasis === 'primary' ? 'is-primary' : ''}`}
-              disabled={tile.disabled}
-              title={
-                tile.id === 'open-last' && tile.disabled ? 'No recent stemLM chat' : tile.label
-              }
-              onClick={() => void onLaunch(tile.id)}
+              data-host={host.id}
+              className="slm-popup-host"
+              title={host.label}
+              aria-label={host.label}
+              onClick={() => void onOpenHost(host.id)}
             >
-              <span className="slm-launch-icon" aria-hidden="true">
-                {TILE_ICONS[tile.id]}
+              <span className="slm-popup-host-logo" aria-hidden="true">
+                <HostLogo id={host.id} size={18} />
               </span>
-              <span className="slm-launch-label">{tile.label}</span>
+              <span className="slm-popup-host-name">{host.label}</span>
             </button>
           ))}
         </div>
-        {sendError && <p className="slm-popup-error">{sendError}</p>}
       </section>
 
-      <SavedSessionList
-        sessions={saved}
-        onSessionsChange={setSaved}
-        variant="compact"
-        onOpenAll={() => void onOpenAllSaved()}
-      />
-
-      {libraryOpen && (
-        <SavedLibraryOverlay
-          sessions={saved}
-          onSessionsChange={setSaved}
-          onClose={() => setLibraryOpen(false)}
-        />
-      )}
+      {libraryOpen && <SavedLibraryOverlay onClose={() => setLibraryOpen(false)} />}
     </div>
   );
 }
