@@ -107,6 +107,9 @@ export default defineConfig({
     action: {
       default_title: 'stemLM — study overlay',
     },
+    options_ui: {
+      open_in_tab: true,
+    },
     web_accessible_resources: [
       {
         resources: ['icon/*.png'],

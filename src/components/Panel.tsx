@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
 import { StepList } from './StepList';
+import { FollowupCard } from './FollowupCard';
+import { buildStepEntries, SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
@@ -114,8 +116,15 @@ export function Panel() {
     return () => ro.disconnect();
   }, [panelOpen]);
 
-  const total = session?.capsule.steps.length ?? 0;
-  const step = session?.capsule.steps[activeStepIndex];
+  const entries = useMemo(() => buildStepEntries(session), [session]);
+  const total = entries.length;
+  const activeEntry = entries[activeStepIndex];
+  const step =
+    activeEntry?.kind === 'step'
+      ? activeEntry.step
+      : activeEntry?.kind === 'followup'
+        ? session?.capsule.steps[activeEntry.anchorStepIndex]
+        : undefined;
   async function onToggleSave() {
     if (!session) return;
     saveEpoch.current += 1;
@@ -252,18 +261,28 @@ export function Panel() {
           <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
             <div className="slm-steps-layout">
               <StepList
-                steps={session.capsule.steps}
+                entries={entries}
                 activeIndex={activeStepIndex}
                 onSelect={setActiveStep}
               />
               <div className="slm-steps-detail">
                 <div className="slm-read">
                   <AnimatePresence mode="wait">
-                    {step && (
+                    {activeEntry?.kind === 'step' && (
                       <StepCard
-                        key={step.id}
+                        key={activeEntry.key}
                         session={session}
-                        index={activeStepIndex}
+                        index={activeEntry.stepIndex}
+                        theme={theme}
+                      />
+                    )}
+                    {activeEntry?.kind === 'followup' && (
+                      <FollowupCard
+                        key={activeEntry.key}
+                        session={session}
+                        followup={activeEntry.followup}
+                        anchorStepNumber={activeEntry.anchorStepIndex + 1}
+                        ordinal={activeEntry.ordinal}
                         theme={theme}
                       />
                     )}
@@ -312,6 +331,12 @@ export function Panel() {
           containerRef={panelRef}
           subject={session.capsule.meta.subject}
           stepTitle={view === 'steps' ? step?.title : undefined}
+          intent={view === 'solution' ? 'ask-solution' : 'ask'}
+          anchor={
+            view === 'steps' && step
+              ? { sessionId: session.id, anchorStepId: step.id }
+              : { sessionId: session.id, anchorStepId: SOLUTION_ANCHOR_ID }
+          }
         />
       )}
     </motion.aside>

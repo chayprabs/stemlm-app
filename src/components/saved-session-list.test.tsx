@@ -449,4 +449,31 @@ describe('SavedLibraryOverlay', () => {
     });
     container.remove();
   });
+
+  it('closes from the header X and the backdrop', () => {
+    const onClose = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    act(() => {
+      root = createRoot(container);
+      root.render(<SavedLibraryOverlay sessions={[]} onClose={onClose} />);
+    });
+
+    expect(container.querySelector('.slm-library-overlay-backdrop')).toBeTruthy();
+    act(() => {
+      (container.querySelector('.slm-library-close') as HTMLButtonElement).click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      (container.querySelector('.slm-library-overlay-backdrop') as HTMLButtonElement).click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
 });

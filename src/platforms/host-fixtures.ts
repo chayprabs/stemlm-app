@@ -101,10 +101,11 @@ function makeAssistant(id: PlatformId, capsule: string): HTMLElement {
 function composerHtml(id: PlatformId, plusLabel: string, sendLabel: string): string {
   const file = '<input type="file" multiple />';
   if (id === 'chatgpt') {
-    // Landing pill: + sits in a flex row with "Ask anything"; send appears after typing.
+    // Landing pill: + / editor / trailing actions in a tight grid that clips
+    // extra in-row children — the inject control must dock outside this box.
     return `
       <form>
-        <div class="composer-pill" style="display:flex;align-items:center;flex-direction:row">
+        <div class="composer-pill" style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;overflow:hidden;border-radius:28px">
           <button type="button" data-testid="composer-plus-btn" aria-label="${plusLabel}" aria-haspopup="menu">+</button>
           ${file}
           <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true" role="textbox" data-placeholder="Ask anything"></div>
@@ -125,13 +126,14 @@ function composerHtml(id: PlatformId, plusLabel: string, sendLabel: string): str
       </fieldset>`;
   }
   if (id === 'grok') {
-    // Landing pill: native + is position:absolute over the placeholder.
+    // Live landing pill: native + is in-flow inside the box. Docking beside it
+    // shifts Grok's composer, so the inject control stays outside the form.
     return `
-      <div class="composer-wrap" style="display:flex;align-items:center;flex-direction:row">
-        <form class="chat-input" style="position:relative;display:block">
-          <button type="button" aria-label="${plusLabel}" aria-haspopup="menu" style="position:absolute;left:8px;top:8px">+</button>
+      <div class="composer-wrap" style="display:flex;flex-direction:column;align-items:center">
+        <form class="chat-input" style="position:relative;display:flex;align-items:center;flex-direction:row;width:640px;border-radius:28px">
+          <button type="button" aria-label="${plusLabel}" aria-haspopup="menu">+</button>
           ${file}
-          <textarea aria-label="Ask Grok anything" placeholder="How can I help you today?"></textarea>
+          <textarea aria-label="Ask Grok anything" placeholder="What do you want to know?"></textarea>
           <button type="button" aria-label="${sendLabel}">Submit</button>
         </form>
       </div>`;

@@ -325,8 +325,23 @@ describe('buildFollowupPrompt', () => {
 
   it('uses ask intent copy for free-form last-step follow-ups', () => {
     const prompt = buildFollowupPrompt({ ...opts, intent: 'ask' });
-    expect(prompt).toContain('finished the step-by-step solution');
-    expect(prompt).toContain('type a follow-up');
+    expect(prompt).toContain('asking a question about this step');
+    expect(prompt).toContain('ASK-IN-CHAT CONTRACT');
+    expect(prompt).toContain('inline step answer');
+  });
+
+  it('uses whole-solution copy for Solution-tab Ask in chat', () => {
+    const prompt = buildFollowupPrompt({
+      ...opts,
+      intent: 'ask-solution',
+      selection: 'Problem: Find I\nSolution route (2 steps): 1. Add R; 2. Ohm',
+    });
+    expect(prompt).toContain('WHOLE solution');
+    expect(prompt).toContain('whole-solution answer');
+    expect(prompt).not.toContain('asking a question about this step');
+    expect(prompt).not.toContain('from the step');
+    expect(prompt).not.toContain('OUTPUT:');
+    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(4000);
   });
 
   it('buildFollowupComposerText references the attached protocol file', () => {
@@ -471,7 +486,7 @@ describe('follow-up copy and empty slot', () => {
       intent: 'ask',
     });
     expect(text).toMatch(/^Ask your question here:/);
-    expect(text).toContain('FOLLOW-UP CONTRACT');
+    expect(text).toContain('ASK-IN-CHAT CONTRACT');
     expect(text).not.toContain('--- stemLM instructions');
     expect(text).not.toContain('OUTPUT:');
   });

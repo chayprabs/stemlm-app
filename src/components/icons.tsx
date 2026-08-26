@@ -207,6 +207,14 @@ export const IconSettings = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+/** Lucide Power — on/off for the popup stemlm switch. */
+export const IconPower = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M12 2v10" />
+    <path d="M18.4 6.6a9 9 0 1 1-12.8 0" />
+  </svg>
+);
+
 export const IconReply = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M9 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3" />
@@ -217,6 +225,14 @@ export const IconReply = (p: SVGProps<SVGSVGElement>) => (
 export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <polygon points="6 4 20 12 6 20 6 4" />
+  </svg>
+);
+
+/** Lucide Eye — reveal a hidden answer. */
+export const IconEye = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 

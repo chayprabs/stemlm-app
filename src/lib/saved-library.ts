@@ -24,16 +24,24 @@ export const ALL_SAVED_TIME = 'all';
 export const SAVED_SEARCH_PLACEHOLDER = 'Search a question to find it';
 export const OPEN_STUDY_PANEL_LABEL = 'Open study panel';
 export const SAVED_QUESTIONS_LABEL = 'Saved questions';
+export const STEMLM_TOGGLE_LABEL = 'stemlm';
+export const SETTINGS_LABEL = 'Settings';
 export const LOAD_FROM_CHAT_LABEL = 'Load conversation from this chat';
 
 /** Library dialog is ≥ 40% larger than the previous 36rem × 40rem overlay. */
 export const LIBRARY_DIALOG_WIDTH_REM = 52;
 export const LIBRARY_DIALOG_HEIGHT_REM = 56;
-/** Dedicated popup window so the library is not trapped in the action popup. */
-export const LIBRARY_WINDOW_WIDTH_PX = 860;
-export const LIBRARY_WINDOW_HEIGHT_PX = 940;
+/** Landscape settings sheet — wider than tall, unlike the old options popup. */
+export const SETTINGS_DIALOG_WIDTH_REM = 44;
+export const SETTINGS_DIALOG_MAX_HEIGHT_REM = 28;
 /** Compact toolbar action popup (well below the old 492px launch grid). */
 export const POPUP_WIDTH_PX = 312;
+/** Settings sheet window — sized to the 2×2 card grid, then shrink-wrapped to content. */
+export const SETTINGS_WINDOW_WIDTH_PX = 720;
+export const SETTINGS_WINDOW_HEIGHT_PX = 430;
+/** Saved-questions window — wide enough for sidebar + list, short enough to avoid empty void. */
+export const LIBRARY_WINDOW_WIDTH_PX = 700;
+export const LIBRARY_WINDOW_HEIGHT_PX = 460;
 
 export type SavedTimeFilter = 'all' | '24h' | '7d' | 'month' | '6m';
 

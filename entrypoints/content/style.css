@@ -31,6 +31,7 @@
 .slm-panel,
 .slm-fab-wrap,
 .slm-selpop,
-.slm-library-overlay {
+.slm-library-overlay,
+.slm-settings-overlay {
   pointer-events: auto;
 }

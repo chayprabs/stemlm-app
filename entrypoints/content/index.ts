@@ -10,6 +10,7 @@ import { CHAT_CONTENT_MATCHES } from '@/src/platforms/hosts';
 import { initController, getController } from '@/src/content/controller';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
+import { applyLiveSettings } from '@/src/lib/live-settings';
 import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
 import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
 import { trackEvent } from '@/src/lib/analytics';
@@ -213,29 +214,7 @@ export default defineContentScript({
     const stopSettingsWatch = onSettingsChanged((next) => {
       const prev = lastSettings;
       lastSettings = next;
-
-      useStore.getState().setSettings(next);
-      useStore.getState().setTheme(resolveTheme(next.theme));
-
-      const state = useStore.getState();
-      if (
-        !state.splitDragging &&
-        Math.abs(state.splitRatio - next.splitRatio) > 0.001
-      ) {
-        state.setSplitRatio(next.splitRatio);
-      }
-
-      if (next.shareAcrossTabs && !prev.shareAcrossTabs) {
-        if (state.sessions.length) {
-          void mirrorActiveSessions(state.sessions);
-        } else {
-          void loadMirroredSessions().then((shared) => {
-            if (shared.length) useStore.getState().setSessions(shared);
-          });
-        }
-      } else if (!next.shareAcrossTabs && prev.shareAcrossTabs) {
-        void mirrorActiveSessions([]);
-      }
+      applyLiveSettings(next, prev);
     });
 
     ctx.onInvalidated(() => {

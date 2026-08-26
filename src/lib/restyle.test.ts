@@ -125,6 +125,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(tokens).toContain('--slm-nav-shell');
     expect(tokens).toMatch(/--slm-nav-shell var\(--slm-theme-duration\)/);
     expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*overflow-x:\s*auto/);
+    expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*border-bottom:\s*1px solid var\(--slm-border-subtle\)/);
     expect(panel).toMatch(/\.slm-session-switch\s*\{[^}]*scrollbar-width:\s*none/);
     expect(panel).toContain('.slm-session-switch::-webkit-scrollbar');
     expect(panel).toContain('scrollbar-width: none');
@@ -143,8 +144,18 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(pages).toContain('--slm-solid');
     expect(pages).not.toContain('slm-launch-grid');
     expect(pages).toContain('slm-popup-actions');
+    expect(pages).not.toContain('.slm-popup.is-settings');
+    expect(pages).not.toContain('.slm-popup.is-library');
+    expect(pages).toMatch(/html\.slm-popup-page[\s\S]{0,180}width:\s*312px/);
+    expect(popupApp).toContain('window.close');
+    expect(popupApp).not.toContain('is-sheet');
+    expect(pages).not.toMatch(/\.slm-popup \.slm-settings-body\s*\{[^}]*grid-template-columns:\s*1fr/);
+    expect(pages).not.toMatch(/\.slm-popup \.slm-library-body\s*\{[^}]*grid-template-columns:\s*1fr/);
     expect(pages).toMatch(/\.slm-popup-actions\s*\{[^}]*flex-direction:\s*column/);
     expect(pages).toContain('slm-library-overlay');
+    expect(pages).toContain('slm-settings-overlay');
+    expect(pages).not.toContain('slm-options');
+    expect(pages).not.toContain('slm-opt-card');
     const libWidth = /\.slm-library-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
     const libHeight = /\.slm-library-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(
       pages,
@@ -153,14 +164,34 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(libHeight).toBeTruthy();
     expect(Number(libWidth![1])).toBeGreaterThanOrEqual(36 * 1.4);
     expect(Number(libHeight![1])).toBeGreaterThanOrEqual(40 * 1.4);
+    const settingsWidth = /\.slm-settings-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(
+      pages,
+    );
+    const settingsHeight =
+      /\.slm-settings-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    expect(settingsWidth).toBeTruthy();
+    expect(settingsHeight).toBeTruthy();
+    expect(Number(settingsWidth![1])).toBeGreaterThan(Number(settingsHeight![1]));
     const libraryCss = pages.slice(pages.indexOf('.slm-library-dialog {'));
     expect(libraryCss).not.toMatch(/--slm-accent/);
     expect(pages).toContain('-webkit-line-clamp: 2');
     expect(popupHtml).toContain('IBM+Plex+Sans');
+    expect(popupHtml).toContain('stemlm_theme_boot');
+    expect(popupHtml).toContain('color-scheme');
+    expect(popupHtml).not.toMatch(/<body[^>]*data-stemlm-theme=/);
+    expect(pages).toContain('--slm-popup-tile');
+    expect(pages).toContain('slm-popup-toggle');
+    expect(pages).toContain('slm-popup-switch');
+    expect(pages).toMatch(/\.slm-popup-toggle-copy\s*\{[^}]*min-width:\s*0/);
+    expect(pages).toMatch(/html\.slm-popup-page[\s\S]*?transition:\s*none/);
+    expect(pages).not.toMatch(/html\.slm-popup-page[\s\S]{0,80}background:\s*transparent/);
     expect(optionsHtml).toContain('IBM+Plex+Sans');
     expect(savedPdfHtml).toContain('IBM+Plex+Sans');
     expect(savedLibraryHtml).toContain('IBM+Plex+Sans');
     expect(popupApp).toContain('Open study panel');
+    expect(popupApp).toContain('stemlm-enabled');
+    expect(popupApp).toContain('STEMLM_TOGGLE_LABEL');
+    expect(popupApp).not.toContain('openOptionsPage');
     expect(popupApp).not.toContain('Start here');
     expect(popupApp).not.toContain('beside send');
     expect(emptyState).toContain('Load conversation from this chat');

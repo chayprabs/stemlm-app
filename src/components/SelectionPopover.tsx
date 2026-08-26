@@ -5,6 +5,7 @@ import { getController } from '@/src/content/controller';
 import { readPanelSelection } from '@/src/lib/followup-selection';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
+import type { FollowupIntent } from '@/src/protocol/builder';
 
 interface Sel {
   text: string;
@@ -21,10 +22,15 @@ export function SelectionPopover({
   containerRef,
   subject,
   stepTitle,
+  anchor,
+  intent = 'ask',
 }: {
   containerRef: React.RefObject<HTMLElement | null>;
   subject: Subject;
   stepTitle?: string;
+  /** When set, the answer is attached inline after this step in the rail. */
+  anchor?: { sessionId: string; anchorStepId: string };
+  intent?: FollowupIntent;
 }) {
   const [sel, setSel] = useState<Sel | null>(null);
   const selRef = useRef<Sel | null>(null);
@@ -82,7 +88,7 @@ export function SelectionPopover({
         .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
       return;
     }
-    const ok = await ctrl.followUp(current.text, stepTitle, subject);
+    const ok = await ctrl.followUp(current.text, stepTitle, subject, { intent, anchor });
     if (!ok) {
       useStore
         .getState()

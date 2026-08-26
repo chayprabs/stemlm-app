@@ -44,9 +44,7 @@ const SLOT_CSS = `
   box-sizing: border-box;
   vertical-align: middle;
 }
-[data-stemlm-composer-slot][data-dock="outside-shell"] {
-  margin-right: ${SLOT_GAP_PX}px;
-}
+[data-stemlm-composer-slot][data-dock="outside-shell"],
 [data-stemlm-composer-slot][data-dock="fixed"] {
   position: fixed;
   z-index: 2147483640;
@@ -257,6 +255,134 @@ function isInsideComposerSlot(el: Element | null): boolean {
   return !!el?.closest(COMPOSER_SLOT_SELECTOR);
 }
 
+function mountViewportSlot(): HTMLElement {
+  const slot = getSharedSlot();
+  ensureStyles();
+  if (slot.parentElement !== document.documentElement) {
+    document.documentElement.appendChild(slot);
+  }
+  slot.style.position = 'fixed';
+  slot.style.zIndex = '2147483640';
+  slot.style.marginRight = '0';
+  if (!slot.style.top) slot.style.top = '-999px';
+  if (!slot.style.left) slot.style.left = '-999px';
+  return slot;
+}
+
+const OPEN_FRAME_TAGS = new Set(['BODY', 'HTML', 'MAIN']);
+
+function isUsableComposerFrame(el: HTMLElement | null): el is HTMLElement {
+  return !!el?.isConnected && !OPEN_FRAME_TAGS.has(el.tagName);
+}
+
+function frameRect(el: HTMLElement): { width: number; height: number } {
+  try {
+    const r = el.getBoundingClientRect();
+    return { width: r.width, height: r.height };
+  } catch {
+    return { width: 0, height: 0 };
+  }
+}
+
+function pickComposerFrame(
+  candidates: HTMLElement[],
+  editor: HTMLElement | null,
+  leading: HTMLElement | null,
+): HTMLElement | null {
+  const usable = candidates.filter((el) => {
+    if (!isUsableComposerFrame(el)) return false;
+    if (el === editor || el === leading) return false;
+    if (editor?.isConnected && !el.contains(editor)) return false;
+    return true;
+  });
+  if (!usable.length) return null;
+  const vw = window.innerWidth || 1200;
+  const vh = window.innerHeight || 800;
+  const scored = usable.map((el) => {
+    const { width, height } = frameRect(el);
+    return {
+      el,
+      area: width * height,
+      real: width > 0 && height > 0,
+      tooOpen: width > vw * 0.92 && height > vh * 0.45,
+      hasLeading: !!(leading?.isConnected && el.contains(leading) && el !== leading),
+    };
+  });
+  if (!scored.some((s) => s.real)) return usable[0] ?? null;
+  const compact = scored.filter((s) => s.real && !s.tooOpen);
+  const compactWithLeading = leading?.isConnected ? compact.filter((s) => s.hasLeading) : compact;
+  const pool = compactWithLeading.length
+    ? compactWithLeading
+    : compact.length
+      ? compact
+      : scored.filter((s) => s.real);
+  pool.sort((a, b) => a.area - b.area);
+  return pool[0]?.el ?? usable[0] ?? null;
+}
+
+/**
+ * Tight visual composer box: smallest compact ancestor of the editor that
+ * also contains the host +, otherwise the declared shell. Oversized page
+ * wrappers (common ancestor of a stray + and the editor) are skipped so
+ * outside-shell docking stays next to the rounded pill.
+ */
+export function resolveComposerFrame(adapter: PlatformAdapter): HTMLElement | null {
+  const editor = adapter.findEditor();
+  const leading = adapter.getComposerLeadingAnchor();
+  const shell = adapter.getComposerShell();
+  const box = adapter.getComposerBox();
+  const candidates: HTMLElement[] = [];
+
+  if (editor?.isConnected && leading?.isConnected) {
+    let node: HTMLElement | null = editor.parentElement;
+    while (node && !OPEN_FRAME_TAGS.has(node.tagName)) {
+      if (node.contains(leading) && node !== leading) {
+        candidates.push(node);
+        break;
+      }
+      node = node.parentElement;
+    }
+  }
+
+  if (isUsableComposerFrame(shell)) candidates.push(shell);
+  if (isUsableComposerFrame(box)) candidates.push(box);
+  if (editor?.parentElement && isUsableComposerFrame(editor.parentElement)) {
+    candidates.push(editor.parentElement);
+  }
+  return pickComposerFrame(candidates, editor, leading);
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+export type FrameRect = Pick<DOMRect, 'top' | 'left' | 'right' | 'bottom' | 'width' | 'height'>;
+
+/**
+ * Place the inject control just left of the composer when there is room;
+ * otherwise sit immediately above (then below) so a narrow viewport cannot
+ * pin the button on top of the pill.
+ */
+export function outsideShellCoords(box: FrameRect, align: FrameRect, size: number): {
+  top: number;
+  left: number;
+} {
+  const vw = window.innerWidth || 1200;
+  const vh = window.innerHeight || 800;
+  const maxTop = Math.max(8, vh - size - 8);
+  const maxLeft = Math.max(8, vw - size - 8);
+  const desiredLeft = box.left - size - SLOT_GAP_PX;
+  const alignedTop = align.top + (align.height - size) / 2;
+  if (desiredLeft >= 8) {
+    return { top: clamp(alignedTop, 8, maxTop), left: clamp(desiredLeft, 8, maxLeft) };
+  }
+  const aboveTop = box.top - size - SLOT_GAP_PX;
+  if (box.top > vh * 0.72 && aboveTop >= 8) {
+    return { top: clamp(aboveTop, 8, maxTop), left: clamp(box.left, 8, maxLeft) };
+  }
+  return { top: clamp(alignedTop, 8, maxTop), left: 8 };
+}
+
 function mountSlotBefore(anchor: HTMLElement, opts?: { flex?: boolean }): HTMLElement | null {
   if (!anchor.isConnected) return null;
   if (isInsideComposerSlot(anchor)) {
@@ -291,6 +417,7 @@ export function syncComposerSlotGeometry(adapter: PlatformAdapter): void {
   const slot = sharedSlot;
   if (!slot?.isConnected) return;
   const leading = adapter.getComposerLeadingAnchor();
+  const frame = resolveComposerFrame(adapter);
   const shell = adapter.getComposerShell();
   const size = sizeFromLeading(leading);
   slot.style.setProperty('--slm-inject-size', `${size}px`);
@@ -302,31 +429,63 @@ export function syncComposerSlotGeometry(adapter: PlatformAdapter): void {
     return;
   }
 
-  const target = (slot.dataset.dock === 'outside-shell' ? shell : leading) ?? shell ?? leading;
-  if (!target?.isConnected) return;
-  const parent = slot.parentElement;
-  const parentDisplay = parent ? getComputedStyle(parent).display : '';
-  const inFlowRow =
-    parent != null &&
-    !UNFLEXABLE.has(parent.tagName) &&
-    (parentDisplay.includes('flex') || parentDisplay.includes('grid')) &&
-    slot.nextElementSibling === (shell ?? target);
+  const viewportParent =
+    slot.parentElement === document.documentElement || slot.parentElement === document.body;
 
-  if (inFlowRow && slot.dataset.dock === 'outside-shell') {
-    slot.style.position = '';
-    slot.style.top = '';
-    slot.style.left = '';
+  if (!viewportParent && slot.dataset.dock === 'outside-shell') {
+    const parent = slot.parentElement;
+    let parentDisplay = '';
+    let dir = '';
+    try {
+      if (parent) {
+        const cs = getComputedStyle(parent);
+        parentDisplay = cs.display;
+        dir = cs.flexDirection;
+      }
+    } catch {
+      /* ignore */
+    }
+    const rowDir = dir === 'row' || dir === 'row-reverse' || dir === 'initial' || dir === '';
+    const inFlowRow =
+      parent != null &&
+      !UNFLEXABLE.has(parent.tagName) &&
+      (parentDisplay === 'flex' || parentDisplay === 'inline-flex') &&
+      rowDir &&
+      slot.nextElementSibling === (shell ?? frame);
+    if (inFlowRow) {
+      slot.style.position = '';
+      slot.style.top = '';
+      slot.style.left = '';
+      return;
+    }
+  }
+
+  const box = frame ?? shell ?? leading;
+  const vh = window.innerHeight || 800;
+  const applyFixed = (top: number, left: number) => {
+    slot.dataset.dock = slot.dataset.dock === 'outside-shell' ? 'outside-shell' : 'fixed';
+    slot.style.position = 'fixed';
+    slot.style.top = `${top}px`;
+    slot.style.left = `${left}px`;
+    slot.style.zIndex = '2147483640';
+    slot.style.marginRight = '0';
+  };
+
+  if (!box?.isConnected) {
+    applyFixed(clamp(vh - size - 72, 8, Math.max(8, vh - size - 8)), 24);
     return;
   }
 
-  const r = target.getBoundingClientRect();
-  if (r.width === 0 && r.height === 0) return;
-  slot.dataset.dock = slot.dataset.dock === 'outside-shell' ? 'outside-shell' : 'fixed';
-  slot.style.position = 'fixed';
-  slot.style.top = `${Math.max(8, r.top + (r.height - size) / 2)}px`;
-  slot.style.left = `${Math.max(8, r.left - size - SLOT_GAP_PX)}px`;
-  slot.style.zIndex = '2147483640';
-  slot.style.marginRight = '0';
+  const boxR = box.getBoundingClientRect();
+  const alignR =
+    leading?.isConnected && box.contains(leading) ? leading.getBoundingClientRect() : boxR;
+  if (boxR.width === 0 && boxR.height === 0 && alignR.width === 0 && alignR.height === 0) {
+    applyFixed(clamp(vh - size - 72, 8, Math.max(8, vh - size - 8)), 24);
+    return;
+  }
+
+  const next = outsideShellCoords(boxR, alignR, size);
+  applyFixed(next.top, next.left);
 }
 
 export function ensureComposerSlot(
@@ -338,11 +497,17 @@ export function ensureComposerSlot(
   let slot: HTMLElement | null = null;
   let dock: 'before-plus' | 'outside-shell' | 'fixed' = 'fixed';
 
-  const preferBeforePlus = leading != null && canDockBeforePlus(leading);
+  const forceOutside = adapter.composerDock === 'outside-shell';
+  const preferBeforePlus = !forceOutside && leading != null && canDockBeforePlus(leading);
 
   if (leading && preferBeforePlus) {
     slot = mountSlotBefore(leading);
     if (slot) dock = 'before-plus';
+  }
+
+  if (forceOutside) {
+    slot = mountViewportSlot();
+    dock = 'outside-shell';
   }
 
   if (!slot && shell?.parentElement) {

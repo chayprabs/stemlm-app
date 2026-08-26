@@ -29,9 +29,14 @@ import {
   clampSplitRatio,
   DEFAULT_SETTINGS,
   DEFAULT_SPLIT_RATIO,
+  ENABLED_BOOT_KEY,
+  ENABLED_FLAG_KEY,
   getSettings,
-  setSettings,
   hydrateSettings,
+  persistStemlmEnabledBoot,
+  setSettings,
+  stemlmEnabledFromBootCache,
+  writeStemlmEnabled,
 } from './settings';
 
 const KEY = 'stemlm_settings';
@@ -58,6 +63,10 @@ describe('clampSplitRatio', () => {
 
   it('defaults to the balanced prompt variant', () => {
     expect(DEFAULT_SETTINGS.promptVariant).toBe('balanced');
+  });
+
+  it('defaults stemlm to on so the attach control stays visible', () => {
+    expect(DEFAULT_SETTINGS.stemlmEnabled).toBe(true);
   });
 });
 
@@ -89,9 +98,22 @@ describe('hydrateSettings', () => {
     expect(hydrateSettings({}).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
   });
 
+  it('migrates stored exact 0.75 (popup-window clamp) back to 55/45', () => {
+    expect(hydrateSettings({ splitRatio: 0.75 }).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
   it('preserves a user-resized split that is not the legacy 0.5 default', () => {
     expect(hydrateSettings({ splitRatio: 0.62 }).splitRatio).toBe(0.62);
     expect(hydrateSettings({ splitRatio: 0.37 }).splitRatio).toBe(0.37);
+  });
+
+  it('keeps stemlm on for stored settings that predate the toggle', () => {
+    expect(hydrateSettings({}).stemlmEnabled).toBe(true);
+    expect(hydrateSettings({ theme: 'dark' }).stemlmEnabled).toBe(true);
+  });
+
+  it('honours an explicit stemlm off flag', () => {
+    expect(hydrateSettings({ stemlmEnabled: false }).stemlmEnabled).toBe(false);
   });
 });
 
@@ -99,13 +121,14 @@ describe('setSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete storageData[KEY];
+    delete storageData[ENABLED_FLAG_KEY];
+    localStorage.removeItem(ENABLED_BOOT_KEY);
   });
 
   it('clamps splitRatio before persisting', async () => {
     const next = await setSettings({ splitRatio: 0.05 });
-    const expected = clampSplitRatio(0.05);
-    expect(next.splitRatio).toBe(expected);
-    expect((storageData[KEY] as { splitRatio: number }).splitRatio).toBe(expected);
+    expect(next.splitRatio).toBe(0.25);
+    expect((storageData[KEY] as { splitRatio: number }).splitRatio).toBe(0.25);
   });
 
   it('persists prompt variant changes', async () => {
@@ -119,6 +142,43 @@ describe('setSettings', () => {
     const loaded = await getSettings();
     expect(loaded.shareAcrossTabs).toBe(true);
     expect(loaded.promptVariant).toBe('ultra');
+    expect(loaded.stemlmEnabled).toBe(true);
     expect(loaded).not.toHaveProperty('defaultSubject');
+  });
+
+  it('persists turning stemlm off', async () => {
+    const next = await setSettings({ stemlmEnabled: false });
+    expect(next.stemlmEnabled).toBe(false);
+    expect((storageData[KEY] as { stemlmEnabled: boolean }).stemlmEnabled).toBe(false);
+    expect(storageData[ENABLED_FLAG_KEY]).toBe(false);
+    expect((await getSettings()).stemlmEnabled).toBe(false);
+  });
+
+  it('keeps stemlm off across a later getSettings even if the settings blob is stale', async () => {
+    await writeStemlmEnabled(false);
+    storageData[KEY] = { ...(storageData[KEY] as object), stemlmEnabled: true };
+    expect((await getSettings()).stemlmEnabled).toBe(false);
+  });
+
+  it('keeps stemlm off if only the dedicated flag was written (popup closed mid-merge)', async () => {
+    storageData[ENABLED_FLAG_KEY] = false;
+    expect((await getSettings()).stemlmEnabled).toBe(false);
+    await writeStemlmEnabled(true);
+    expect((await getSettings()).stemlmEnabled).toBe(true);
+    expect(storageData[ENABLED_FLAG_KEY]).toBe(true);
+  });
+});
+
+describe('stemlm enabled boot cache', () => {
+  beforeEach(() => {
+    localStorage.removeItem(ENABLED_BOOT_KEY);
+  });
+
+  it('defaults to on, then remembers off until it is turned on again', () => {
+    expect(stemlmEnabledFromBootCache()).toBe(true);
+    persistStemlmEnabledBoot(false);
+    expect(stemlmEnabledFromBootCache()).toBe(false);
+    persistStemlmEnabledBoot(true);
+    expect(stemlmEnabledFromBootCache()).toBe(true);
   });
 });

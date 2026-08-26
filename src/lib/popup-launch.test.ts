@@ -20,6 +20,8 @@ const tabs = vi.hoisted(() => ({
 const windows = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(async () => undefined),
+  getAll: vi.fn(async () => [] as Array<{ id?: number; tabs?: Array<{ url?: string }> }>),
+  getCurrent: vi.fn(async () => ({ id: 1, left: 100, top: 40, width: 1400, height: 900 })),
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -65,8 +67,11 @@ import {
   CHAT_HOST_LAUNCH,
   LIBRARY_WINDOW_HEIGHT_PX,
   LIBRARY_WINDOW_WIDTH_PX,
+  SETTINGS_WINDOW_HEIGHT_PX,
+  SETTINGS_WINDOW_WIDTH_PX,
   openChatHost,
   openSavedQuestionsLibrary,
+  openSettingsOverlay,
   openStudyPanel,
   unsupportedHostNotice,
 } from './popup-launch';
@@ -85,6 +90,10 @@ describe('popup launch helpers', () => {
     tabs.get.mockClear();
     windows.create.mockReset();
     windows.create.mockResolvedValue({ id: 3 });
+    windows.getAll.mockReset();
+    windows.getAll.mockResolvedValue([]);
+    windows.getCurrent.mockReset();
+    windows.getCurrent.mockResolvedValue({ id: 1, left: 100, top: 40, width: 1400, height: 900 });
     tabs.query.mockImplementation(async (info?: { active?: boolean }) => {
       if (info?.active) return [activeTab];
       return [activeTab];
@@ -136,35 +145,88 @@ describe('popup launch helpers', () => {
     }
   });
 
-  it('opens the saved library in a dedicated window large enough for the new chrome', async () => {
-    const target = await openSavedQuestionsLibrary();
-    expect(target).toBe('window');
+  it('opens saved questions in a sized popup window without reloading the chat tab', async () => {
+    activeTab = { id: 6, url: 'https://gemini.google.com/app' };
+    sendMessageImpl = async () => {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    };
+    const result = await openSavedQuestionsLibrary();
+    expect(result).toEqual({ ok: true });
+    expect(tabs.sendMessage).not.toHaveBeenCalled();
+    expect(tabs.reload).not.toHaveBeenCalled();
+    expect(tabs.create).not.toHaveBeenCalled();
     expect(windows.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: expect.stringContaining('saved-library.html'),
+        url: '/saved-library.html',
         type: 'popup',
         width: LIBRARY_WINDOW_WIDTH_PX,
         height: LIBRARY_WINDOW_HEIGHT_PX,
         focused: true,
       }),
     );
-    expect(LIBRARY_WINDOW_WIDTH_PX).toBeGreaterThanOrEqual(Math.round(36 * 16 * 1.4));
-    expect(LIBRARY_WINDOW_HEIGHT_PX).toBeGreaterThanOrEqual(Math.round(40 * 16 * 1.4));
+    expect(LIBRARY_WINDOW_WIDTH_PX).toBeLessThanOrEqual(740);
+    expect(LIBRARY_WINDOW_HEIGHT_PX).toBeLessThanOrEqual(500);
   });
 
-  it('falls back to a library tab, then the chat overlay, then in-popup', async () => {
-    windows.create.mockRejectedValue(new Error('no window'));
-    expect(await openSavedQuestionsLibrary()).toBe('tab');
-    expect(tabs.create).toHaveBeenCalledWith(
-      expect.objectContaining({ url: expect.stringContaining('saved-library.html'), active: true }),
-    );
+  it('opens saved questions in a sized window off a chat tab, not a new tab', async () => {
+    activeTab = { id: 1, url: 'https://example.com' };
+    expect(await openSavedQuestionsLibrary()).toEqual({ ok: true });
+    expect(tabs.create).not.toHaveBeenCalled();
+    expect(windows.create).toHaveBeenCalled();
 
-    tabs.create.mockRejectedValue(new Error('no tab'));
-    activeTab = { id: 6, url: 'https://gemini.google.com/app' };
-    expect(await openSavedQuestionsLibrary()).toBe('tab');
-    expect(tabs.sendMessage).toHaveBeenCalledWith(6, { type: 'stemlm:open-saved-library' });
-
+    windows.create.mockClear();
     activeTab = { id: 7, url: 'chrome://extensions' };
-    expect(await openSavedQuestionsLibrary()).toBe('fallback');
+    expect(await openSavedQuestionsLibrary()).toEqual({ ok: true });
+    expect(tabs.sendMessage).not.toHaveBeenCalled();
+    expect(tabs.reload).not.toHaveBeenCalled();
+  });
+
+  it('opens settings in a compact popup window without reloading the chat tab', async () => {
+    activeTab = { id: 6, url: 'https://gemini.google.com/app' };
+    sendMessageImpl = async () => {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    };
+    const result = await openSettingsOverlay();
+    expect(result).toEqual({ ok: true });
+    expect(tabs.sendMessage).not.toHaveBeenCalled();
+    expect(tabs.reload).not.toHaveBeenCalled();
+    expect(tabs.create).not.toHaveBeenCalled();
+    expect(windows.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/options.html',
+        type: 'popup',
+        width: SETTINGS_WINDOW_WIDTH_PX,
+        height: SETTINGS_WINDOW_HEIGHT_PX,
+        focused: true,
+      }),
+    );
+    expect(SETTINGS_WINDOW_WIDTH_PX).toBeLessThanOrEqual(740);
+    expect(SETTINGS_WINDOW_HEIGHT_PX).toBeLessThanOrEqual(460);
+    expect(SETTINGS_WINDOW_WIDTH_PX).toBeGreaterThan(SETTINGS_WINDOW_HEIGHT_PX);
+  });
+
+  it('opens settings in a sized window off a chat tab, not a new tab', async () => {
+    activeTab = { id: 1, url: 'https://example.com' };
+    expect(await openSettingsOverlay()).toEqual({ ok: true });
+    expect(tabs.create).not.toHaveBeenCalled();
+    expect(windows.create).toHaveBeenCalled();
+
+    windows.create.mockClear();
+    activeTab = { id: 7, url: 'edge://extensions/?id=test' };
+    expect(await openSettingsOverlay()).toEqual({ ok: true });
+    expect(tabs.sendMessage).not.toHaveBeenCalled();
+    expect(tabs.reload).not.toHaveBeenCalled();
+  });
+
+  it('focuses an existing settings window instead of opening a second one', async () => {
+    windows.getAll.mockResolvedValue([
+      {
+        id: 44,
+        tabs: [{ url: '/options.html' }],
+      },
+    ]);
+    expect(await openSettingsOverlay()).toEqual({ ok: true });
+    expect(windows.update).toHaveBeenCalledWith(44, { focused: true });
+    expect(windows.create).not.toHaveBeenCalled();
   });
 });

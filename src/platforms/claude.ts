@@ -10,6 +10,7 @@ const config: AdapterConfig = {
   id: 'claude',
   label: 'Claude',
   hosts: /(^|\.)claude\.ai$/i,
+  composerDock: 'before-plus',
   editor: [
     'fieldset div.ProseMirror[contenteditable="true"]',
     'div.ProseMirror[contenteditable="true"]',

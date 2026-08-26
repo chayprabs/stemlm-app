@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import type { Session, Step } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
@@ -8,6 +8,10 @@ import { StepIndexMark } from './step-index';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { FollowupBar } from './FollowupBar';
+import { FollowupAnswerBody } from './FollowupCard';
+import { SOLUTION_ANCHOR_ID, solutionFollowups } from '@/src/lib/step-entries';
+import { buildSolutionFollowupSelection } from '@/src/lib/followup-selection';
 
 function SolutionStep({
   step,
@@ -61,6 +65,17 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   const hasSteps = steps.length > 0;
   const hasSolutionText = solution.trim().length > 0;
 
+  // Solution-tab follow-ups chain below the solution; scroll to the newest.
+  const followups = solutionFollowups(session);
+  const followupsEndRef = useRef<HTMLDivElement>(null);
+  const prevCount = useRef(followups.length);
+  useEffect(() => {
+    if (followups.length > prevCount.current) {
+      followupsEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+    prevCount.current = followups.length;
+  }, [followups.length]);
+
   return (
     <div className="slm-solution">
       <CapsuleSignals capsule={session.capsule} />
@@ -97,6 +112,33 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
         </section>
       )}
       <StudentAnswerNotes capsule={session.capsule} />
+
+      {followups.map((f, i) => (
+        <section
+          key={f.id}
+          className="slm-solution-followup"
+          aria-label={`Follow-up answer ${i + 1}`}
+        >
+          <header className="slm-card-head">
+            <span className="slm-followup-card-kicker">
+              Follow-up{followups.length > 1 ? ` ${i + 1}` : ''} · whole solution
+            </span>
+            <h2 className="slm-card-title">
+              {f.question || f.capsule.meta.topic || 'Your question'}
+            </h2>
+          </header>
+          <FollowupAnswerBody capsule={f.capsule} theme={theme} />
+        </section>
+      ))}
+      <div ref={followupsEndRef} />
+
+      <FollowupBar
+        followup={buildSolutionFollowupSelection(session)}
+        subject={session.capsule.meta.subject}
+        stepTitle=""
+        intent="ask-solution"
+        anchor={{ sessionId: session.id, anchorStepId: SOLUTION_ANCHOR_ID }}
+      />
     </div>
   );
 }

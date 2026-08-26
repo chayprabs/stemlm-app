@@ -490,6 +490,16 @@
 .slm-header-title .slm-topic p {
   margin: 0;
 }
+.slm-topic-scroll.is-single {
+  max-height: none;
+  overflow-y: hidden;
+}
+.slm-topic-scroll.is-single .slm-topic,
+.slm-topic-scroll.is-single .slm-topic p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .slm-header-nav,
 .slm-header-bottom {
   display: flex;
@@ -556,6 +566,7 @@
   overscroll-behavior-x: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  border-bottom: 1px solid var(--slm-border-subtle);
 }
 .slm-session-switch::-webkit-scrollbar {
   display: none;
@@ -736,6 +747,20 @@
   border-color: var(--slm-solid);
   background: var(--slm-solid);
   color: var(--slm-solid-fg);
+}
+/* Inline Ask-in-chat answer tile: smaller, pill-shaped, dashed until active. */
+.slm-step-rail-btn--followup {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  border-style: dashed;
+}
+.slm-step-rail-btn--followup .slm-step-rail-mark {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+.slm-step-rail-item--followup.is-active .slm-step-rail-btn {
+  border-style: solid;
 }
 
 /* ---------- progress rail (unused in panel; keep usable) ---------- */
@@ -985,23 +1010,7 @@
   color: var(--slm-fg-subtle);
 }
 .slm-quickcheck-reveal {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 0.45rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--slm-fg-muted);
-  font-size: 13px;
-  font-weight: 520;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--slm-border);
-}
-.slm-quickcheck-reveal:hover {
-  color: var(--slm-fg);
-  text-decoration-color: var(--slm-fg-muted);
+  margin-top: 0.6rem;
 }
 .slm-quickcheck-q {
   margin: 0.35rem 0 0.15rem;
@@ -1074,6 +1083,48 @@
 .slm-followup-action--ask {
   background: var(--slm-bg-subtle);
   color: var(--slm-fg);
+}
+
+/* ---------- inline Ask-in-chat answer card ---------- */
+.slm-card--followup {
+  border-left: 2px solid var(--slm-border);
+  padding-left: 0.85rem;
+}
+.slm-followup-card-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 520;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--slm-fg-subtle);
+  margin-bottom: 0.3rem;
+}
+.slm-followup-answer-block + .slm-followup-answer-block {
+  border-top: 1px dashed var(--slm-border);
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+}
+.slm-followup-answer-title {
+  margin: 0 0 0.35rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--slm-fg);
+}
+.slm-followup-answer-summary {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--slm-bg-subtle);
+}
+
+/* Whole-solution Ask-in-chat answers: chained below the solution with the
+   same section line as between stacked steps, scrolled to — never a new window. */
+.slm-solution-followup {
+  padding: 1.05rem 0 1.15rem;
+  border-top: 1px solid var(--slm-border-subtle);
+}
+.slm-solution .slm-followup {
+  margin-top: 0.35rem;
 }
 
 .slm-stepnav {

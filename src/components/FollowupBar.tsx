@@ -4,6 +4,7 @@ import { getController } from '@/src/content/controller';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import {
   buildFollowupCopyText,
+  isAskIntent,
   isEmptyFollowupSelection,
   type FollowupIntent,
 } from '@/src/protocol/builder';
@@ -19,16 +20,22 @@ export function FollowupBar({
   subject,
   stepTitle,
   intent = 'dig-deeper',
+  anchor,
+  hint,
 }: {
   followup: string;
   subject: Subject;
   stepTitle: string;
   intent?: FollowupIntent;
+  /** When set, the answer is attached inline after this step in the rail. */
+  anchor?: { sessionId: string; anchorStepId: string };
+  /** Optional helper text shown under the label (e.g. suggested question). */
+  hint?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const promptVariant = useStore((s) => s.settings.promptVariant);
-  const isAsk = intent === 'ask';
-  const displayFollowup = isAsk ? null : stripProtocolMarkers(followup);
+  const isAsk = isAskIntent(intent);
+  const displayFollowup = isAsk ? hint ?? null : stripProtocolMarkers(followup);
 
   function buildPrompt() {
     return buildFollowupCopyText({
@@ -62,7 +69,7 @@ export function FollowupBar({
         .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
       return;
     }
-    const ok = await ctrl.followUp(followup, stepTitle, subject, { intent });
+    const ok = await ctrl.followUp(followup, stepTitle, subject, { intent, anchor });
     if (ok === false) {
       useStore
         .getState()

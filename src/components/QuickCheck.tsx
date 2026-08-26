@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { QuickCheck as QuickCheckType } from '@/src/protocol/types';
 import { MathMarkdown } from './MathMarkdown';
+import { IconEye } from './icons';
 import { trackEvent } from '@/src/lib/analytics';
 
 export function QuickCheck({
@@ -28,12 +29,13 @@ export function QuickCheck({
       {!revealed ? (
         <button
           type="button"
-          className="slm-quickcheck-reveal"
+          className="slm-btn slm-btn-soft slm-quickcheck-reveal"
           onClick={() => {
             setRevealed(true);
             void trackEvent('quickcheck_revealed', { platform });
           }}
         >
+          <IconEye />
           Reveal answer
         </button>
       ) : (

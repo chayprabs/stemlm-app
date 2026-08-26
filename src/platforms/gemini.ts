@@ -10,6 +10,7 @@ const config: AdapterConfig = {
   id: 'gemini',
   label: 'Gemini',
   hosts: /(^|\.)gemini\.google\.com$/i,
+  composerDock: 'before-plus',
   editor: [
     'rich-textarea div.ql-editor[contenteditable="true"]',
     'div.ql-editor[contenteditable="true"]',

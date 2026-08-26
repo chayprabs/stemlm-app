@@ -226,6 +226,21 @@ export interface ParseResult {
   raw: string;
 }
 
+/**
+ * An Ask-in-chat answer. Anchored after a step in the rail, or after the
+ * whole solution (`anchorStepId === '@solution'`) — never a new session.
+ */
+export interface StepFollowup {
+  id: string;
+  /** Step id this follow-up answer hangs after in the rail. */
+  anchorStepId: string;
+  /** The question the student typed in the composer (best-effort capture). */
+  question?: string;
+  /** Compact answer capsule (its own steps + solution). */
+  capsule: Capsule;
+  createdAt: number;
+}
+
 /** A study session = one captured answer plus user progress + provenance. */
 export interface Session {
   id: string;
@@ -234,6 +249,8 @@ export interface Session {
   platform: PlatformId;
   question: string;
   capsule: Capsule;
+  /** Inline Ask-in-chat answers, anchored to steps (rendered between rail steps). */
+  followups?: StepFollowup[];
   /** Raw capsule text, kept so we can re-parse / debug / export. */
   raw: string;
 }

@@ -4,7 +4,12 @@
  * components, and is naturally isolated per browser tab.
  */
 import { create } from 'zustand';
-import type { Session } from '@/src/protocol/types';
+import type { Session, StepFollowup } from '@/src/protocol/types';
+import {
+  buildStepEntries,
+  findFollowupEntryIndex,
+  SOLUTION_ANCHOR_ID,
+} from '@/src/lib/step-entries';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { DEFAULT_SETTINGS, type Settings } from '@/src/lib/settings';
 import { clampSplitRatio } from '@/src/lib/split-ratio';
@@ -16,6 +21,7 @@ export interface StoreState {
   // UI
   panelOpen: boolean;
   savedLibraryOpen: boolean;
+  settingsOpen: boolean;
   status: PanelStatus;
   errorMessage?: string;
   view: PanelView;
@@ -34,6 +40,7 @@ export interface StoreState {
   // Data
   sessions: Session[];
   activeSessionId?: string;
+  /** Index into the flattened rail entries (steps + inline follow-up answers). */
   activeStepIndex: number;
 
   // Actions
@@ -42,6 +49,8 @@ export interface StoreState {
   togglePanel: () => void;
   openSavedLibrary: () => void;
   closeSavedLibrary: () => void;
+  openSettings: () => void;
+  closeSettings: () => void;
   setStatus: (status: PanelStatus, errorMessage?: string) => void;
   setView: (view: PanelView) => void;
   setTheme: (theme: ResolvedTheme) => void;
@@ -51,6 +60,8 @@ export interface StoreState {
   setSplitDragging: (dragging: boolean) => void;
 
   addSession: (session: Session) => void;
+  /** Attach an Ask-in-chat answer inline after its anchor step and focus it. */
+  addFollowup: (sessionId: string, followup: StepFollowup) => void;
   /** Replace all sessions (used by "Load conversation"). */
   setSessions: (sessions: Session[]) => void;
   setActiveSession: (id: string) => void;
@@ -63,6 +74,7 @@ export interface StoreState {
 export const useStore = create<StoreState>((set, get) => ({
   panelOpen: false,
   savedLibraryOpen: false,
+  settingsOpen: false,
   status: 'idle',
   view: 'steps',
   theme: 'light',
@@ -76,8 +88,10 @@ export const useStore = create<StoreState>((set, get) => ({
   openPanel: () => set({ panelOpen: true }),
   closePanel: () => set({ panelOpen: false }),
   togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
-  openSavedLibrary: () => set({ savedLibraryOpen: true }),
+  openSavedLibrary: () => set({ savedLibraryOpen: true, settingsOpen: false }),
   closeSavedLibrary: () => set({ savedLibraryOpen: false }),
+  openSettings: () => set({ settingsOpen: true, savedLibraryOpen: false }),
+  closeSettings: () => set({ settingsOpen: false }),
   setStatus: (status, errorMessage) => set({ status, errorMessage }),
   setView: (view) => set({ view }),
   setTheme: (theme) => set({ theme }),
@@ -105,11 +119,42 @@ export const useStore = create<StoreState>((set, get) => ({
       errorMessage: undefined,
     })),
 
+  addFollowup: (sessionId, followup) =>
+    set((s) => {
+      const sessions = s.sessions.map((sess) =>
+        sess.id === sessionId
+          ? { ...sess, updatedAt: Date.now(), followups: [...(sess.followups ?? []), followup] }
+          : sess,
+      );
+      // Solution-tab asks stay in the solution view; step asks focus the new
+      // rail entry. Neither leaks into the other.
+      if (followup.anchorStepId === SOLUTION_ANCHOR_ID) {
+        return {
+          sessions,
+          activeSessionId: sessionId,
+          view: 'solution',
+          status: 'ready',
+          errorMessage: undefined,
+        };
+      }
+      const target = sessions.find((sess) => sess.id === sessionId);
+      const entries = buildStepEntries(target);
+      const idx = findFollowupEntryIndex(entries, followup.id);
+      return {
+        sessions,
+        activeSessionId: sessionId,
+        activeStepIndex: idx >= 0 ? idx : s.activeStepIndex,
+        view: 'steps',
+        status: 'ready',
+        errorMessage: undefined,
+      };
+    }),
+
   setActiveSession: (id) => set({ activeSessionId: id, activeStepIndex: 0, view: 'steps' }),
 
   setActiveStep: (index) => {
     const session = getActiveSession(get());
-    const max = session ? session.capsule.steps.length - 1 : 0;
+    const max = session ? buildStepEntries(session).length - 1 : 0;
     set({ activeStepIndex: Math.max(0, Math.min(index, Math.max(0, max))) });
   },
 

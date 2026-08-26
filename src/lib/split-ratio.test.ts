@@ -8,6 +8,7 @@ import {
   panelWidthVw,
   ratioFromPointer,
   MIN_PANEL_PX,
+  MAX_SPLIT_RATIO,
   DEFAULT_SPLIT_RATIO,
   hydrateSplitRatio,
 } from './split-ratio';
@@ -43,6 +44,7 @@ describe('split-ratio', () => {
     expect(DEFAULT_SPLIT_RATIO).toBeLessThanOrEqual(0.58);
     expect(clampSplitRatio(Number.NaN, 1600)).toBe(DEFAULT_SPLIT_RATIO);
     expect(hydrateSplitRatio(0.5)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(hydrateSplitRatio(0.75)).toBe(DEFAULT_SPLIT_RATIO);
     expect(hydrateSplitRatio(0.61)).toBe(0.61);
 
     const panelCss = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
@@ -50,5 +52,10 @@ describe('split-ratio', () => {
     expect(width).toBeTruthy();
     expect(Number(width![1]) / 100).toBe(DEFAULT_SPLIT_RATIO);
     expect(panelCss).not.toMatch(/\.slm-panel\s*\{[^}]*width:\s*50vw/);
+  });
+
+  it('does not rewrite the stored 55/45 split using the popup window width', () => {
+    expect(hydrateSplitRatio(DEFAULT_SPLIT_RATIO)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(clampSplitRatio(DEFAULT_SPLIT_RATIO, 312)).toBe(MAX_SPLIT_RATIO);
   });
 });

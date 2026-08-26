@@ -1,14 +1,17 @@
 import { useEffect, useRef } from 'react';
-import type { Step } from '@/src/protocol/types';
-import { StepIndexMark } from './step-index';
+import type { StepEntry } from '@/src/lib/step-entries';
+import { StepIndexMark, FollowupIndexMark } from './step-index';
 
-/** Compact step pager — index tiles only; titles live on the card and in the tooltip. */
+/**
+ * Compact step pager — numbered tiles for solution steps, chat-bubble tiles
+ * for inline Ask-in-chat answers anchored between them (1, 2, 3, ●, 4).
+ */
 export function StepList({
-  steps,
+  entries,
   activeIndex,
   onSelect,
 }: {
-  steps: Step[];
+  entries: StepEntry[];
   activeIndex: number;
   onSelect: (index: number) => void;
 }) {
@@ -19,30 +22,46 @@ export function StepList({
     if (!rail) return;
     const active = rail.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
     active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeIndex, steps.length]);
+  }, [activeIndex, entries.length]);
 
   return (
     <nav ref={railRef} className="slm-step-rail" aria-label="Solution steps">
       <ol className="slm-step-rail-track">
-        {steps.map((step, i) => {
-          const n = i + 1;
+        {entries.map((entry, i) => {
           const active = i === activeIndex;
+          const isFollowup = entry.kind === 'followup';
+          const label = isFollowup
+            ? `Follow-up answer after step ${entry.anchorStepIndex + 1}${
+                entry.followup.question ? `: ${entry.followup.question}` : ''
+              }`
+            : `Step ${entry.stepNumber}: ${entry.step.title}`;
 
           return (
             <li
-              key={step.id}
-              className={['slm-step-rail-item', active ? 'is-active' : ''].filter(Boolean).join(' ')}
+              key={entry.key}
+              className={[
+                'slm-step-rail-item',
+                isFollowup ? 'slm-step-rail-item--followup' : '',
+                active ? 'is-active' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               <button
                 type="button"
-                className="slm-step-rail-btn"
+                className={[
+                  'slm-step-rail-btn',
+                  isFollowup ? 'slm-step-rail-btn--followup' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 onClick={() => onSelect(i)}
                 aria-current={active ? 'step' : undefined}
-                aria-label={`Step ${n}: ${step.title}`}
-                title={step.title}
+                aria-label={label}
+                title={isFollowup ? entry.followup.question || 'Follow-up answer' : entry.step.title}
               >
                 <span className="slm-step-rail-mark" aria-hidden="true">
-                  <StepIndexMark n={n} />
+                  {isFollowup ? <FollowupIndexMark /> : <StepIndexMark n={entry.stepNumber} />}
                 </span>
               </button>
             </li>

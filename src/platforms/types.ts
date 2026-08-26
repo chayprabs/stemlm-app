@@ -26,11 +26,19 @@ export interface ComposerLayout {
   actionRow: HTMLElement;
 }
 
+/** Where the inject control should live relative to the host composer. */
+export type ComposerDock = 'before-plus' | 'outside-shell';
+
 export interface PlatformAdapter {
   readonly id: PlatformId;
   readonly label: string;
   /** Brand palette for the overlay button. */
   readonly brand: PlatformBrand;
+  /**
+   * How the inject control docks. Defaults to `before-plus` when omitted
+   * (test doubles / older adapters).
+   */
+  readonly composerDock?: ComposerDock;
   /** Selectors for page containers to shrink when splitting the screen. */
   readonly layoutRoots: string[];
 
@@ -97,6 +105,12 @@ export interface AdapterConfig {
   id: PlatformId;
   label: string;
   hosts: RegExp;
+  /**
+   * `before-plus` inserts into the composer row (Claude / Gemini).
+   * `outside-shell` viewport-fixes just left of the visual box (ChatGPT / Grok)
+   * so host grid/overflow/React reconciliation cannot hide or shift the control.
+   */
+  composerDock?: ComposerDock;
   /** Editor selectors, tried in order. */
   editor: string[];
   /** Outer composer container — tried in order. */

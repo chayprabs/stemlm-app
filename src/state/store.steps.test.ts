@@ -80,4 +80,35 @@ describe('store step navigation (10 steps)', () => {
     useStore.getState().setActiveSession(a.id);
     expect(useStore.getState().activeStepIndex).toBe(0);
   });
+
+  it('keeps solution-tab follow-ups on the solution view and step ones on the rail', () => {
+    const s = longSession();
+    useStore.getState().addSession(s);
+    useStore.setState({ view: 'solution', activeStepIndex: 3 });
+    const mini = {
+      meta: s.capsule.meta,
+      steps: [{ id: 'a1', index: 1, title: 'Scale', body: 'I doubles' }],
+      solution: 'I doubles',
+      solutionDiagrams: [] as [],
+    };
+    useStore.getState().addFollowup(s.id, {
+      id: 'f-sol',
+      anchorStepId: '@solution',
+      capsule: mini,
+      createdAt: 1,
+    });
+    expect(useStore.getState().view).toBe('solution');
+    expect(useStore.getState().activeStepIndex).toBe(3);
+    expect(useStore.getState().sessions[0]!.followups).toHaveLength(1);
+
+    useStore.getState().addFollowup(s.id, {
+      id: 'f-step',
+      anchorStepId: s.capsule.steps[1]!.id,
+      capsule: mini,
+      createdAt: 2,
+    });
+    expect(useStore.getState().view).toBe('steps');
+    expect(useStore.getState().activeStepIndex).toBeGreaterThan(1);
+    expect(useStore.getState().sessions[0]!.followups).toHaveLength(2);
+  });
 });

@@ -18,6 +18,7 @@ const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSave
       theme: 'auto',
       shareAcrossTabs: false,
       autoOpenOnAnswer: true,
+      stemlmEnabled: true,
       promptVariant: 'balanced',
       analyticsOptOut: false,
       splitRatio: 0.5,
@@ -1025,8 +1026,12 @@ describe('Panel theme, split, and width density', () => {
     expect(PANEL_CSS).toMatch(/\.slm-step-rail\s*\{[\s\S]*scrollbar-width:\s*none/);
     const scroll = container.querySelector('.slm-topic-scroll') as HTMLElement;
     expect(scroll).toBeTruthy();
-    expect(getComputedStyle(scroll).overflowY).toBe('auto');
-    expect(getComputedStyle(scroll).maxHeight).not.toBe('none');
+    expect(scroll.classList.contains('is-single')).toBe(true);
+    expect(getComputedStyle(scroll).overflowY).toBe('hidden');
+    expect(getComputedStyle(scroll).maxHeight).toBe('none');
+    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\s*\{[\s\S]*max-height:\s*9\.25rem/);
+    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\s*\{[\s\S]*overflow-y:\s*auto/);
+    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\.is-single \.slm-topic(?: p)?\s*\{[\s\S]*white-space:\s*nowrap/);
     expect(getComputedStyle(panel).borderRadius).not.toBe('0px');
 
     const leading = container.querySelector('.slm-header-leading') as HTMLElement;
@@ -1266,7 +1271,7 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     unmount();
   });
 
-  it('draws a header/body rule for a single session without doubling it when the strip is present', async () => {
+  it('draws a header/body rule and a matching rule under the session strip', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
@@ -1276,7 +1281,7 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     const headerCss = cssBlock(PANEL_CSS, '.slm-header');
     const stripCss = cssBlock(PANEL_CSS, '.slm-session-switch');
     expect(headerCss).toMatch(/border-bottom:\s*1px solid var\(--slm-border-subtle\)/);
-    expect(stripCss).not.toMatch(/border-bottom:/);
+    expect(stripCss).toMatch(/border-bottom:\s*1px solid var\(--slm-border-subtle\)/);
     expect(container.querySelector('.slm-session-switch')).toBeNull();
     const header = container.querySelector('.slm-header') as HTMLElement;
     const body = container.querySelector('.slm-body') as HTMLElement;
@@ -1297,8 +1302,8 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     const strip = container.querySelector('.slm-session-switch') as HTMLElement;
     expect(strip).toBeTruthy();
     const stripBorder = getComputedStyle(strip).borderBottomWidth;
-    if (stripBorder && headerBorder && headerBorder !== '0px') {
-      expect(stripBorder === '0px' || stripBorder !== headerBorder).toBe(true);
+    if (stripBorder && stripBorder !== '') {
+      expect(stripBorder).not.toBe('0px');
     }
     unmount();
   });

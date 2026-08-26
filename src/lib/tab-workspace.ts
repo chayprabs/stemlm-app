@@ -24,7 +24,12 @@ export interface TabWorkspaceBackup {
 
 export interface PendingPanelAction {
   tabId: number;
-  type: 'stemlm:open-panel' | 'stemlm:load-conversation' | 'stemlm:ask-here';
+  type:
+    | 'stemlm:open-panel'
+    | 'stemlm:load-conversation'
+    | 'stemlm:ask-here'
+    | 'stemlm:open-saved-library'
+    | 'stemlm:open-settings';
 }
 
 type TabWorkspaceMap = Record<string, TabWorkspaceBackup>;

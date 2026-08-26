@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
+import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import { HOST_FIXTURES, mountHostComposer } from '@/src/platforms/host-fixtures';
 import { removeComposerSlot } from '@/src/lib/composer-slot';
 import { injectControlEnabled } from '@/src/platforms/routes';
@@ -39,6 +40,7 @@ describe.each(HOST_FIXTURES)('$id overlay docks beside the shipped leading +', (
       buttonInjected: false,
       panelOpen: false,
       status: 'idle',
+      settings: DEFAULT_SETTINGS,
     });
   });
 
@@ -66,8 +68,13 @@ describe.each(HOST_FIXTURES)('$id overlay docks beside the shipped leading +', (
     const slot = document.querySelector('[data-stemlm-composer-slot]');
     expect(slot).not.toBeNull();
     const shell = spec.adapter.getComposerShell();
-    const next = slot!.nextElementSibling;
-    expect(next === plus || next === shell).toBe(true);
+    if (spec.adapter.composerDock === 'outside-shell') {
+      expect(slot!.getAttribute('data-dock')).toBe('outside-shell');
+      expect(shell?.contains(slot!)).toBe(false);
+    } else {
+      const next = slot!.nextElementSibling;
+      expect(next === plus || next === shell).toBe(true);
+    }
     expect(slot!.querySelector('button')).not.toBeNull();
     expect(slot!.contains(plus!)).toBe(false);
 
@@ -131,7 +138,7 @@ describe('inject control hides on image-gen SPA routes', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     mountHostComposer(grok, { capsule: false });
-    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle' });
+    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle', settings: DEFAULT_SETTINGS });
     window.history.replaceState({}, '', '/chat');
   });
 
@@ -171,5 +178,173 @@ describe('inject control hides on image-gen SPA routes', () => {
     });
     expect(injectControlEnabled('grok', location.pathname)).toBe(true);
     expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
+  });
+});
+
+describe('inject control hides when stemlm is turned off', () => {
+  const grok = HOST_FIXTURES.find((s) => s.id === 'grok')!;
+  let container: HTMLDivElement;
+  let root: Root | undefined;
+
+  beforeEach(() => {
+    activeAdapter = grok.adapter;
+    document.body.innerHTML = '';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    mountHostComposer(grok, { capsule: false });
+    useStore.setState({
+      buttonInjected: false,
+      panelOpen: false,
+      status: 'idle',
+      settings: DEFAULT_SETTINGS,
+    });
+    window.history.replaceState({}, '', '/chat');
+  });
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    container.remove();
+    removeComposerSlot();
+    document.body.innerHTML = '';
+    window.history.replaceState({}, '', '/');
+    useStore.setState({ settings: DEFAULT_SETTINGS });
+  });
+
+  it('removes the composer attach control and restores it when turned back on', async () => {
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
+    expect(document.querySelector('[data-stemlm-composer-slot]')).not.toBeNull();
+
+    await act(async () => {
+      useStore.setState({ settings: { ...DEFAULT_SETTINGS, stemlmEnabled: false } });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.querySelector('[data-stemlm-inject]')).toBeNull();
+    expect(document.querySelector('[data-stemlm-composer-slot]')).toBeNull();
+
+    await act(async () => {
+      useStore.setState({ settings: DEFAULT_SETTINGS });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
+  });
+});
+
+describe('outside-shell overlay stays visible and tracks the composer', () => {
+  const chatgpt = HOST_FIXTURES.find((s) => s.id === 'chatgpt')!;
+  let container: HTMLDivElement;
+  let root: Root | undefined;
+
+  function mockBox(el: Element, box: { left: number; top: number; width: number; height: number }) {
+    vi.spyOn(el, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          x: box.left,
+          y: box.top,
+          width: box.width,
+          height: box.height,
+          top: box.top,
+          left: box.left,
+          bottom: box.top + box.height,
+          right: box.left + box.width,
+          toJSON() {},
+        }) as DOMRect,
+    );
+  }
+
+  beforeEach(() => {
+    activeAdapter = chatgpt.adapter;
+    document.body.innerHTML = '';
+    mountHostComposer(chatgpt, { capsule: false });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    useStore.setState({
+      buttonInjected: false,
+      panelOpen: false,
+      status: 'idle',
+      splitRatio: 0.5,
+      splitDragging: false,
+      settings: DEFAULT_SETTINGS,
+    });
+  });
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    container.remove();
+    removeComposerSlot();
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  });
+
+  it('repositions immediately on scroll instead of waiting for the dock debounce', async () => {
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgpt.adapter.getComposerLeadingAnchor()!;
+    const pillBox = { left: 200, top: 400, width: 640, height: 52 };
+    const plusBox = { left: 212, top: 410, width: 36, height: 36 };
+    mockBox(pill, pillBox);
+    mockBox(plus, plusBox);
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const slot = document.querySelector('[data-stemlm-composer-slot]') as HTMLElement;
+    expect(slot).not.toBeNull();
+    expect(Number.parseFloat(slot.style.left)).toBe(200 - 36 - 8);
+
+    pillBox.left = 140;
+    pillBox.top = 320;
+    plusBox.left = 152;
+    plusBox.top = 330;
+    mockBox(pill, pillBox);
+    mockBox(plus, plusBox);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+
+    expect(Number.parseFloat(slot.style.left)).toBe(140 - 36 - 8);
+    expect(Number.parseFloat(slot.style.top)).toBe(330);
+  });
+
+  it('falls back to a visible fixed wrap if the dock slot is disconnected', async () => {
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    mockBox(pill, { left: 200, top: 400, width: 640, height: 52 });
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const slot = document.querySelector('[data-stemlm-composer-slot]') as HTMLElement;
+    expect(slot?.querySelector('[data-stemlm-inject]')).not.toBeNull();
+    slot.remove();
+
+    await act(async () => {
+      useStore.setState({ panelOpen: true });
+    });
+
+    const wrap = container.querySelector('.slm-fab-wrap') as HTMLElement;
+    expect(wrap).not.toBeNull();
+    expect(wrap.className).toMatch(/slm-fab-wrap--fixed/);
+    expect(wrap.querySelector('[data-stemlm-inject]')).not.toBeNull();
+    expect(wrap.closest('[data-stemlm-composer-slot]')).toBeNull();
   });
 });

@@ -35,6 +35,7 @@ export function PanelHeader({
   onToggleTheme: () => void;
 }) {
   const heading = session ? sessionQuestionHeading(session) : '';
+  const singleLine = Boolean(heading) && !heading.includes('\n');
 
   return (
     <header className="slm-header">
@@ -126,7 +127,7 @@ export function PanelHeader({
           <span className="slm-question-icon" aria-hidden="true">
             Q.
           </span>
-          <div className="slm-topic-scroll">
+          <div className={`slm-topic-scroll${singleLine ? ' is-single' : ''}`}>
             <MathMarkdown content={heading} className="slm-topic" />
           </div>
         </div>

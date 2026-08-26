@@ -14,13 +14,13 @@ import { detectHostScheme } from '@/src/lib/theme';
 import {
   ensureComposerSlot,
   isolateStemLmPointer,
+  outsideShellCoords,
   removeComposerSlot,
+  resolveComposerFrame,
   syncComposerSlotGeometry,
-  _composerSlotGap,
 } from '@/src/lib/composer-slot';
 
 const BTN_SIZE = 32;
-const SLOT_GAP = _composerSlotGap;
 const DOCK_RETRY_MS = 400;
 const FIXED_FALLBACK_MS = 900;
 
@@ -35,29 +35,26 @@ function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
   const PAD = 8;
   const leading = adapter.getComposerLeadingAnchor();
   const leadingR = leading?.isConnected ? leading.getBoundingClientRect() : undefined;
+  const frame = resolveComposerFrame(adapter);
+  const frameR = frame?.isConnected ? frame.getBoundingClientRect() : undefined;
+  if (frameR && frameR.width > 0) {
+    const align = leadingR && leadingR.width > 0 ? leadingR : frameR;
+    return outsideShellCoords(frameR, align, BTN_SIZE);
+  }
   if (leadingR && leadingR.width > 0) {
-    return {
-      top: clamp(leadingR.top + (leadingR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
-      left: clamp(leadingR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
-    };
+    return outsideShellCoords(leadingR, leadingR, BTN_SIZE);
   }
 
   const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
   const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
   if (boxR && boxR.width > 0) {
-    return {
-      top: clamp(boxR.top + (boxR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
-      left: clamp(boxR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
-    };
+    return outsideShellCoords(boxR, boxR, BTN_SIZE);
   }
 
   const editor = adapter.findEditor();
   const editorR = editor?.isConnected ? editor.getBoundingClientRect() : undefined;
   if (editorR && editorR.width > 0) {
-    return {
-      top: clamp(editorR.top + (editorR.height - BTN_SIZE) / 2, PAD, window.innerHeight - BTN_SIZE - PAD),
-      left: clamp(editorR.left - BTN_SIZE - SLOT_GAP, PAD, window.innerWidth - BTN_SIZE - PAD),
-    };
+    return outsideShellCoords(editorR, editorR, BTN_SIZE);
   }
 
   return {
@@ -71,12 +68,15 @@ function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
  * positioning after the composer slot has been missing for a sustained period —
  * avoids flicker when Gemini briefly rebuilds the composer row.
  */
-function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' } {
+function useInjectMount(
+  stemlmEnabled: boolean,
+): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' } {
   const adapter = detectAdapter();
   const [path, setPath] = useState(() => (typeof location === 'undefined' ? '/' : location.pathname));
   const [mount, setMount] = useState<
     { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' }
   >(() => {
+    if (!stemlmEnabled) return { mode: 'hidden' };
     if (adapter && !injectControlEnabled(adapter.id, path)) return { mode: 'hidden' };
     return adapter
       ? { mode: 'fixed', ...fixedCoords(adapter) }
@@ -90,7 +90,7 @@ function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixe
     const platform = detectAdapter();
     if (!platform) return;
 
-    const enabled = injectControlEnabled(platform.id, path);
+    const enabled = stemlmEnabled && injectControlEnabled(platform.id, path);
     if (!enabled) {
       removeComposerSlot();
       setMount({ mode: 'hidden' });
@@ -100,8 +100,13 @@ function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixe
     let timer: ReturnType<typeof setTimeout> | null = null;
     let observer: MutationObserver | null = null;
 
+    const syncGeometry = () => {
+      if (!stemlmEnabled || !injectControlEnabled(platform.id, location.pathname)) return;
+      syncComposerSlotGeometry(platform);
+    };
+
     const sync = () => {
-      if (!injectControlEnabled(platform.id, location.pathname)) {
+      if (!stemlmEnabled || !injectControlEnabled(platform.id, location.pathname)) {
         removeComposerSlot();
         setMount({ mode: 'hidden' });
         return;
@@ -132,19 +137,46 @@ function useInjectMount(): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixe
       timer = setTimeout(sync, DOCK_RETRY_MS);
     };
 
+    const onResize = () => {
+      syncGeometry();
+      schedule();
+    };
+
     observer = new MutationObserver(schedule);
-    observer.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('scroll', schedule, true);
-    window.addEventListener('resize', schedule);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    window.addEventListener('scroll', syncGeometry, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener('resize', syncGeometry);
+    visualViewport?.addEventListener('scroll', syncGeometry);
+    const layoutTimers: number[] = [];
+    const unsubLayout = useStore.subscribe((state, prev) => {
+      if (
+        state.panelOpen === prev.panelOpen &&
+        state.splitRatio === prev.splitRatio &&
+        state.splitDragging === prev.splitDragging
+      ) {
+        return;
+      }
+      syncGeometry();
+      requestAnimationFrame(syncGeometry);
+      layoutTimers.push(window.setTimeout(syncGeometry, 300));
+    });
     sync();
 
     return () => {
       if (timer) clearTimeout(timer);
+      for (const id of layoutTimers) clearTimeout(id);
       observer?.disconnect();
-      window.removeEventListener('scroll', schedule, true);
-      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', syncGeometry, true);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      visualViewport?.removeEventListener('resize', syncGeometry);
+      visualViewport?.removeEventListener('scroll', syncGeometry);
+      unsubLayout();
     };
-  }, [adapter?.id ?? 'none', path]);
+  }, [adapter?.id ?? 'none', path, stemlmEnabled]);
 
   return mount;
 }
@@ -194,7 +226,8 @@ export function InjectGlyph({ attached }: { attached: boolean }) {
 }
 
 export function OverlayButton() {
-  const mount = useInjectMount();
+  const stemlmEnabled = useStore((s) => s.settings.stemlmEnabled !== false);
+  const mount = useInjectMount(stemlmEnabled);
   const [pasting, setPasting] = useState(false);
   const injected = useStore((s) => s.buttonInjected);
   const panelOpen = useStore((s) => s.panelOpen);
@@ -259,6 +292,8 @@ export function OverlayButton() {
 
   onMainRef.current = onMain;
 
+  const docked = mount.mode === 'docked' && mount.slot.isConnected;
+
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -271,13 +306,13 @@ export function OverlayButton() {
       onMainRef.current();
     };
     return isolateStemLmPointer(wrap, activate, true);
-  }, [mount.mode]);
+  }, [docked]);
 
-  if (mount.mode === 'hidden') return null;
+  if (!stemlmEnabled || mount.mode === 'hidden') return null;
 
   const wrapClass = [
     'slm-fab-wrap',
-    mount.mode === 'fixed' ? 'slm-fab-wrap--fixed' : '',
+    docked ? '' : 'slm-fab-wrap--fixed',
     neutral ? 'slm-fab-wrap--neutral' : '',
     `slm-fab-wrap--${hostScheme}`,
   ]
@@ -328,7 +363,11 @@ export function OverlayButton() {
   }
 
   const { top, left } =
-    mount.mode === 'fixed' ? mount : { top: window.innerHeight - 108, left: 24 };
+    mount.mode === 'fixed'
+      ? mount
+      : adapter
+        ? fixedCoords(adapter)
+        : { top: window.innerHeight - 108, left: 24 };
 
   return (
     <div ref={wrapRef} className={wrapClass} style={{ top, left }}>

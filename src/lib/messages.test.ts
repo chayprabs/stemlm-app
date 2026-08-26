@@ -17,6 +17,7 @@ describe('messages', () => {
     expect(isStemLmMessage({ type: 'stemlm:load-conversation' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:ask-here' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:open-saved-library' })).toBe(true);
+    expect(isStemLmMessage({ type: 'stemlm:open-settings' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:evil' })).toBe(false);
     expect(isStemLmMessage(null)).toBe(false);
   });

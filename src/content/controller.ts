@@ -23,11 +23,21 @@ import {
   normalizeFollowupSelection,
   FOLLOWUP_CONTEXT_HEADER,
   PROTOCOL_FILENAME,
+  THREAD_PROTOCOL_SELECTORS,
 } from '@/src/protocol/builder';
+import { buildStepEntries } from '@/src/lib/step-entries';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import { applyStepPatch, findResumeToken, stitchResume, groupResumeParts } from '@/src/protocol/apply';
-import type { Capsule, Diagram, ParseResult, Session, Subject } from '@/src/protocol/types';
+import type {
+  Capsule,
+  Diagram,
+  ParseResult,
+  Session,
+  Step,
+  StepFollowup,
+  Subject,
+} from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
@@ -118,6 +128,11 @@ export class StemController {
   private lastQuestion = '';
   /** True while waiting for a dig-deeper / ask follow-up answer. */
   private pendingFollowUpCapture = false;
+  /**
+   * When set, the next captured capsule is attached inline after this step
+   * (Ask-in-chat) instead of replacing the session or opening a new one.
+   */
+  private pendingFollowUpAnchor: { sessionId: string; anchorStepId: string } | null = null;
   /** Truncated capsule waiting for a `@resume` continuation. */
   private pendingResume: { token: string; raw: string } | null = null;
   private watching = false;
@@ -242,6 +257,7 @@ export class StemController {
 
     store.setButtonInjected(true);
     store.setStatus('loading');
+    this.pendingFollowUpAnchor = null;
     this.beginCaptureEpoch();
     this.armAnswerDetection();
     void rememberCurrentChat(this.adapter.id);
@@ -261,7 +277,11 @@ export class StemController {
     selection: string,
     stepTitle: string | undefined,
     subject: Subject,
-    opt?: { intent?: FollowupIntent },
+    opt?: {
+      intent?: FollowupIntent;
+      /** Attach the answer inline after this step instead of replacing the session. */
+      anchor?: { sessionId: string; anchorStepId: string };
+    },
   ): Promise<boolean> {
     const normalized = normalizeFollowupSelection(selection);
     if (isEmptyFollowupSelection(selection)) {
@@ -320,13 +340,42 @@ export class StemController {
     this.adapter.focusComposerQuestionSlot();
     this.lastQuestion = normalized;
     this.pendingFollowUpCapture = true;
+    this.pendingFollowUpAnchor = opt?.anchor ?? null;
     useStore.getState().setButtonInjected(true);
-    useStore.getState().setStatus('loading');
     this.beginCaptureEpoch();
+    // The student has NOT asked anything yet — only the context was inserted.
+    // Every capsule already visible in the chat is stale for this ask: seed it
+    // as captured so nothing attaches until the student types, sends, and the
+    // assistant produces a genuinely NEW answer.
+    this.seedCapturedFromPage();
+    if (this.pendingFollowUpAnchor) {
+      // Quietly wait for the student to type + send; no banner, no loading.
+      useStore.getState().setStatus('ready');
+    } else {
+      useStore.getState().setStatus('loading');
+    }
     this.armAnswerDetection();
     void trackEvent('followup_used', { platform: this.adapter.id });
     this.startWatching();
     return true;
+  }
+
+  /**
+   * Mark every capsule currently on the page as already captured, so a fresh
+   * Ask-in-chat can only pick up an answer generated after the student sends.
+   */
+  private seedCapturedFromPage(): void {
+    try {
+      for (const candidate of this.adapter.extractCapsules()) {
+        this.rememberCaptured(candidate.trim());
+        const raw = findCapsuleRaw(candidate);
+        if (raw) this.rememberCaptured(raw.trim());
+      }
+      const latest = this.adapter.getLatestAssistantText();
+      if (latest && latest.includes('@meta')) this.rememberCaptured(latest.trim());
+    } catch {
+      /* page not readable yet — nothing to seed */
+    }
   }
 
   /**
@@ -617,10 +666,55 @@ export class StemController {
     }
   }
 
+  /**
+   * Attach an Ask-in-chat mini-capsule to the originating step / solution tab.
+   * Returns false when there is nothing usable to hang off the anchor.
+   */
+  private attachAnchoredFollowup(result: ParseResult): boolean {
+    const anchor = this.pendingFollowUpAnchor;
+    if (!anchor) return false;
+    const store = useStore.getState();
+    const target = store.sessions.find((s) => s.id === anchor.sessionId);
+    if (!target) return false;
+
+    let cap = result.questions?.[0] ?? result.capsule;
+    if (!cap?.steps.length) {
+      const steps = (result.patch ?? [])
+        .map((p) => p.step)
+        .filter((s): s is Step => Boolean(s));
+      if (!steps.length) return false;
+      cap = {
+        meta: { ...target.capsule.meta, mode: 'resolve' },
+        steps,
+        solution: result.patch?.find((p) => p.solution)?.solution ?? '',
+        solutionDiagrams: [],
+      };
+    }
+
+    const followup: StepFollowup = {
+      id: makeId(),
+      anchorStepId: anchor.anchorStepId,
+      question: this.extractTypedFollowupQuestion(),
+      capsule: cap,
+      createdAt: Date.now(),
+    };
+    store.addFollowup(anchor.sessionId, followup);
+    this.finishCapture(cap, result);
+    return true;
+  }
+
   private captureFromText(text: string, question: string, parsed?: ParseResult): void {
     const result = parsed ?? parse(text);
     const store = useStore.getState();
     const active = store.sessions.find((s) => s.id === store.activeSessionId);
+
+    // Anchored Ask-in-chat (step or whole-solution): never patch, never replace,
+    // never open a new session. The answer hangs off the originating view only.
+    if (this.pendingFollowUpCapture && this.pendingFollowUpAnchor) {
+      if (this.attachAnchoredFollowup(result)) return;
+      this.offerRepairPrompt(result);
+      return;
+    }
 
     if (result.patch && result.patch.length && active) {
       const patched = applyStepPatch(active.capsule, result.patch);
@@ -732,14 +826,43 @@ export class StemController {
     }
     void rememberCurrentChat(this.adapter.id);
     this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
     this.resetInjection();
+  }
+
+  /**
+   * Best-effort read of what the student actually typed into the follow-up
+   * question slot: the last user turn's text before the context header.
+   */
+  private extractTypedFollowupQuestion(): string | undefined {
+    let latest: string | undefined;
+    for (const sel of THREAD_PROTOCOL_SELECTORS) {
+      let nodes: NodeListOf<Element>;
+      try {
+        nodes = document.querySelectorAll(sel);
+      } catch {
+        continue;
+      }
+      for (const el of nodes) {
+        const text = el.textContent ?? '';
+        if (text.includes(FOLLOWUP_CONTEXT_HEADER)) latest = text;
+      }
+    }
+    if (!latest) return undefined;
+    const head = latest.slice(0, latest.indexOf(FOLLOWUP_CONTEXT_HEADER));
+    const typed = head
+      .replace(/ask your question here:/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!typed) return undefined;
+    return typed.length > 400 ? `${typed.slice(0, 400)}…` : typed;
   }
 
   private commitSession(session: Session, replace: boolean): void {
     if (replace) {
       const id = session.id;
       useStore.setState((s) => {
-        const maxStep = Math.max(0, session.capsule.steps.length - 1);
+        const maxStep = Math.max(0, buildStepEntries(session).length - 1);
         return {
           sessions: s.sessions.map((sess) => (sess.id === id ? session : sess)),
           activeStepIndex: Math.min(s.activeStepIndex, maxStep),
@@ -763,6 +886,7 @@ export class StemController {
     const diagramIssues = auditCapsuleDiagrams(capsule);
     void rememberCurrentChat(this.adapter.id);
     this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
     this.resetInjection();
     void trackEvent('question_solved', {
       platform: this.adapter.id,
@@ -917,6 +1041,7 @@ export class StemController {
     useStore.setState({ status: 'ready', errorMessage: undefined });
     this.resetInjection();
     this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
   }
 }
 

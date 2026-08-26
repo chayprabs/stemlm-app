@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { detectAdapter, adapterById, adapterForUrl, isSupportedChatUrl, supportedChatLabels, injectControlEnabled } from './detect';
 import { isImageGenPath, watchComposerRoute } from './routes';
 import { geminiAdapter } from './gemini';
+import { chatgptAdapter } from './chatgpt';
+import { grokAdapter } from './grok';
 import { buildComposerStub, buildInjectionPrompt } from '@/src/protocol/builder';
 import {
   appendEditorText,
@@ -76,6 +78,13 @@ describe('detectAdapter', () => {
 
   it('exposes getComposerShell', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
+  });
+
+  it('docks ChatGPT and Grok outside the composer, Claude and Gemini beside the +', () => {
+    expect(adapterById('chatgpt')!.composerDock).toBe('outside-shell');
+    expect(adapterById('grok')!.composerDock).toBe('outside-shell');
+    expect(adapterById('gemini')!.composerDock).toBe('before-plus');
+    expect(adapterById('claude')!.composerDock).toBe('before-plus');
   });
 
   it('resolves adapters from page URLs and lists the four shipped hosts', () => {
@@ -454,5 +463,36 @@ describe('editorReflectsText', () => {
     expect(editorReflectsText(el, stub)).toBe(true);
     expect(getEditorTextOf(el)).not.toContain('stemLM instructions');
     expect(getEditorTextOf(el)).not.toContain('OUTPUT:');
+  });
+});
+
+describe('ChatGPT / Grok leading control selection', () => {
+  it('prefers ChatGPT’s composer + over a nearby Add files chip', () => {
+    setBody(`
+      <div class="page">
+        <button type="button" aria-label="Add files. Log in to use.">Add files</button>
+        <form>
+          <div class="composer-pill">
+            <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more" aria-haspopup="menu">+</button>
+            <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+          </div>
+        </form>
+      </div>
+    `);
+    expect(chatgptAdapter.getComposerLeadingAnchor()?.getAttribute('data-testid')).toBe(
+      'composer-plus-btn',
+    );
+  });
+
+  it('finds a Grok thread ProseMirror editor and ignores a header search box', () => {
+    setBody(`
+      <header><textarea placeholder="Search Grok"></textarea></header>
+      <form class="chat-input">
+        <button type="button" aria-label="Upload a file" aria-haspopup="menu">+</button>
+        <div class="tiptap ProseMirror" contenteditable="true"></div>
+      </form>
+    `);
+    expect(grokAdapter.findEditor()?.classList.contains('ProseMirror')).toBe(true);
+    expect(grokAdapter.getComposerLeadingAnchor()?.getAttribute('aria-label')).toBe('Upload a file');
   });
 });

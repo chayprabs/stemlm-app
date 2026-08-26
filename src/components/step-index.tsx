@@ -29,6 +29,24 @@ function Figure({ n, tx = 0 }: { n: number; tx?: number }) {
   return <path d={d} transform={tx ? `translate(${tx} 0)` : undefined} />;
 }
 
+/**
+ * Rail mark for an inline Ask-in-chat answer: a filled speech bubble in the
+ * same geometric 24×24 currentColor language as the step numerals.
+ */
+export function FollowupIndexMark({ className, ...rest }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...BOX}
+      className={['slm-step-index', 'slm-followup-index', className].filter(Boolean).join(' ')}
+      fillRule="evenodd"
+      clipRule="evenodd"
+      {...rest}
+    >
+      <path d="M12 4.2c4.55 0 7.9 2.85 7.9 6.7 0 3.85-3.35 6.7-7.9 6.7-.6 0-1.2-.05-1.75-.15L6.5 19.8c-.45.25-1-.1-.95-.6l.3-3.05C4.5 14.9 3.7 13 3.7 10.9c0-3.85 3.75-6.7 8.3-6.7Zm-4.1 5.55a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm4.1 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm4.1 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Z" />
+    </svg>
+  );
+}
+
 export function StepIndexMark({
   n,
   className,

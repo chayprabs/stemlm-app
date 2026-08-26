@@ -9,7 +9,8 @@ export type StemLmMessage =
   | { type: 'stemlm:open-panel' }
   | { type: 'stemlm:load-conversation' }
   | { type: 'stemlm:ask-here' }
-  | { type: 'stemlm:open-saved-library' };
+  | { type: 'stemlm:open-saved-library' }
+  | { type: 'stemlm:open-settings' };
 
 const ALLOWED: StemLmMessage['type'][] = [
   'stemlm:ping',
@@ -17,6 +18,7 @@ const ALLOWED: StemLmMessage['type'][] = [
   'stemlm:load-conversation',
   'stemlm:ask-here',
   'stemlm:open-saved-library',
+  'stemlm:open-settings',
 ];
 
 export function isStemLmMessage(msg: unknown): msg is StemLmMessage {

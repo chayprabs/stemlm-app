@@ -78,8 +78,10 @@ export function formatQuestionHeading(raw: string): string {
   const lines = normalizeLines(raw);
   if (lines.length === 0) return 'Study question';
   const full = lines.join('\n');
-  if (full.length <= FULL_QUESTION_MAX) return full;
-  return compactLongQuestion(lines);
+  if (full.length > FULL_QUESTION_MAX) return compactLongQuestion(lines);
+  // Keep (a)/(b) structure; a single question is one line so markdown cannot split it.
+  if (lines.some((line) => /^\([a-z]\)/i.test(line))) return full;
+  return lines.join(' ');
 }
 
 /** Question text for the panel header (full question or a short layman summary). */

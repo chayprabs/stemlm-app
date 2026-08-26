@@ -4,7 +4,26 @@ import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
 import { getSavedSessions, type SavedSessionSnapshot } from '@/src/lib/saved-sessions';
 import { getSettings } from '@/src/lib/settings';
-import { applyTheme, resolveTheme, type ResolvedTheme } from '@/src/lib/theme';
+import {
+  applyTheme,
+  persistThemeBoot,
+  resolveTheme,
+  themeFromBootCache,
+  type ResolvedTheme,
+  type ThemePref,
+} from '@/src/lib/theme';
+
+function applyLibraryPageTheme(
+  pref: ThemePref,
+  resolved: ResolvedTheme,
+  layout: 'overlay' | 'page',
+) {
+  if (layout === 'page' || document.documentElement.classList.contains('slm-popup-page')) {
+    persistThemeBoot(pref, resolved);
+    applyTheme(document.documentElement, resolved);
+    applyTheme(document.body, resolved);
+  }
+}
 
 export function SavedLibraryOverlay({
   sessions,
@@ -18,7 +37,7 @@ export function SavedLibraryOverlay({
   layout?: 'overlay' | 'page';
 }) {
   const [items, setItems] = useState<SavedSessionSnapshot[]>(sessions ?? []);
-  const [theme, setTheme] = useState<ResolvedTheme>('light');
+  const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
 
   useEffect(() => {
     if (sessions) {
@@ -32,10 +51,9 @@ export function SavedLibraryOverlay({
     void getSettings().then((s) => {
       const resolved = resolveTheme(s.theme);
       setTheme(resolved);
-      applyTheme(document.documentElement, resolved);
-      applyTheme(document.body, resolved);
+      applyLibraryPageTheme(s.theme, resolved, layout);
     });
-  }, []);
+  }, [layout]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -51,7 +69,11 @@ export function SavedLibraryOverlay({
   }
 
   return (
-    <div className={`slm-library-overlay slm-library-overlay--${layout}`} role="presentation">
+    <div
+      className={`slm-library-overlay slm-library-overlay--${layout}`}
+      data-stemlm-theme={theme}
+      role="presentation"
+    >
       {layout === 'overlay' && (
         <button
           type="button"

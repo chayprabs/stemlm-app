@@ -388,11 +388,113 @@ export function getEditorTextOf(el: HTMLElement | null): string {
 /** Generic layout-root fallbacks appended to every adapter's own selectors. */
 const GENERIC_LAYOUT_ROOTS = ['#__next', '#root', '#app', 'main', '[role="main"]'];
 
+const TRAILING_COMPOSER_LABEL =
+  /send|submit|stop|think|voice|microphone|\bmic\b|audio|dictate|speech|search|fast|model|reason|upgrade|dismiss/i;
+const LEADING_COMPOSER_LABEL = /add |attach|upload|file|photo|plus|composer-plus|composer menu/i;
+const OPEN_LEADING_ROOTS = new Set(['BODY', 'HTML']);
+
+function leadingSearchRoots(shell: HTMLElement | null, editor: HTMLElement | null): ParentNode[] {
+  const roots: ParentNode[] = [];
+  const seen = new Set<ParentNode>();
+  const add = (node: ParentNode | null | undefined) => {
+    if (!node || seen.has(node)) return;
+    if (node instanceof HTMLElement && OPEN_LEADING_ROOTS.has(node.tagName)) return;
+    seen.add(node);
+    roots.push(node);
+  };
+  add(shell);
+  add(editor?.parentElement?.parentElement);
+  add(editor?.parentElement);
+  add(shell?.parentElement);
+  return roots;
+}
+
+function hopsUntilContains(from: HTMLElement, target: HTMLElement): number {
+  let hops = 0;
+  let node: HTMLElement | null = from;
+  while (node && hops < 24) {
+    if (node.contains(target)) return hops;
+    node = node.parentElement;
+    hops++;
+  }
+  return 99;
+}
+
+function leadingTieBreak(el: HTMLElement): number {
+  const testid = (el.getAttribute('data-testid') ?? '').toLowerCase();
+  if (testid.includes('composer-plus')) return -0.25;
+  if (el.getAttribute('aria-haspopup')) return -0.1;
+  return 0;
+}
+
+function pickClosestToEditor(hits: HTMLElement[], editor: HTMLElement | null): HTMLElement | null {
+  if (!hits.length) return null;
+  if (!editor || hits.length === 1) return hits[0] ?? null;
+  let best = hits[0]!;
+  let bestScore = hopsUntilContains(editor, best) + leadingTieBreak(best);
+  for (const hit of hits.slice(1)) {
+    const score = hopsUntilContains(editor, hit) + leadingTieBreak(hit);
+    if (score < bestScore) {
+      best = hit;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function collectLeadingHits(
+  selectors: string[],
+  roots: ParentNode[],
+  editor: HTMLElement | null,
+  shell: HTMLElement | null,
+): HTMLElement[] {
+  const hits: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>();
+  for (const root of roots) {
+    for (const sel of selectors) {
+      try {
+        const list: HTMLElement[] = [];
+        if (root instanceof HTMLElement && root.matches(sel)) list.push(root);
+        root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`).forEach((el) => list.push(el));
+        for (const el of list) {
+          const hit = outsideComposerSlot(el);
+          if (!hit || isHiddenComposerNode(hit)) continue;
+          const control = climbToHostControl(hit);
+          if (seen.has(control) || isHiddenComposerNode(control)) continue;
+          if (!sharesComposer(control, editor, shell)) continue;
+          seen.add(control);
+          hits.push(control);
+        }
+      } catch {
+        /* invalid selector */
+      }
+    }
+  }
+  return hits;
+}
+
+/** Last-resort: first non-trailing button in the composer (usually the host +). */
+function guessLeadingComposerButton(root: HTMLElement): HTMLElement | null {
+  const buttons = root.querySelectorAll<HTMLElement>('button, [role="button"]');
+  let fallback: HTMLElement | null = null;
+  for (const raw of buttons) {
+    const hit = outsideComposerSlot(raw);
+    if (!hit || isHiddenComposerNode(hit)) continue;
+    const control = climbToHostControl(hit);
+    const label = `${control.getAttribute('aria-label') ?? ''} ${control.getAttribute('title') ?? ''} ${control.getAttribute('data-testid') ?? ''}`;
+    if (LEADING_COMPOSER_LABEL.test(label)) return control;
+    if (TRAILING_COMPOSER_LABEL.test(label)) continue;
+    if (!fallback) fallback = control;
+  }
+  return fallback;
+}
+
 export function createAdapter(config: AdapterConfig): PlatformAdapter {
   return {
     id: config.id,
     label: config.label,
     brand: config.brand,
+    composerDock: config.composerDock ?? 'before-plus',
     layoutRoots: [...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS],
 
     matches(host = location.hostname) {
@@ -472,19 +574,29 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerLeadingAnchor() {
-      if (!config.composerLeading) return null;
       const shell = this.getComposerShell();
       const editor = this.findEditor();
-      const roots: ParentNode[] = [];
-      if (shell) roots.push(shell);
-      const near = editor?.parentElement?.parentElement ?? editor?.parentElement ?? null;
-      if (near && near !== shell) roots.push(near);
-      roots.push(document);
-      for (const root of roots) {
-        const hit = firstMatchOutsideSlot(config.composerLeading, root);
-        if (!hit) continue;
-        const control = climbToHostControl(hit);
-        if (sharesComposer(control, editor, shell)) return control;
+      if (config.composerLeading) {
+        const local = collectLeadingHits(
+          config.composerLeading,
+          leadingSearchRoots(shell, editor),
+          editor,
+          shell,
+        );
+        const localBest = pickClosestToEditor(local, editor);
+        if (localBest) return localBest;
+        const global = collectLeadingHits(config.composerLeading, [document], editor, shell);
+        const globalBest = pickClosestToEditor(global, editor);
+        if (globalBest) return globalBest;
+      }
+      const guessRoot =
+        shell ??
+        (editor?.closest('form, fieldset, [role="form"]') as HTMLElement | null) ??
+        editor?.parentElement ??
+        null;
+      if (guessRoot) {
+        const guess = guessLeadingComposerButton(guessRoot);
+        if (guess && sharesComposer(guess, editor, shell)) return guess;
       }
       return null;
     },

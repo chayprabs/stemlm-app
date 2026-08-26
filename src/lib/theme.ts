@@ -67,6 +67,43 @@ export function applyTheme(host: HTMLElement, theme: ResolvedTheme): void {
 }
 
 /**
+ * Extension-page theme boot cache (popup / options / library).
+ * Must NOT be written from content scripts — that would land in the host page.
+ * Keep in sync with the inline script in entrypoints/popup/index.html.
+ */
+export const THEME_CACHE_KEY = 'stemlm_theme_boot';
+
+export type ThemeBootCache = { pref: ThemePref; resolved: ResolvedTheme };
+
+export function persistThemeBoot(pref: ThemePref, resolved: ResolvedTheme): void {
+  try {
+    localStorage.setItem(THEME_CACHE_KEY, JSON.stringify({ pref, resolved } satisfies ThemeBootCache));
+  } catch {
+    /* private mode / tests without storage */
+  }
+}
+
+export function readThemeBoot(): ThemeBootCache | null {
+  try {
+    const raw = localStorage.getItem(THEME_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ThemeBootCache>;
+    const pref = parsed.pref === 'light' || parsed.pref === 'dark' || parsed.pref === 'auto' ? parsed.pref : null;
+    const resolved = parsed.resolved === 'light' || parsed.resolved === 'dark' ? parsed.resolved : null;
+    if (!pref || !resolved) return null;
+    return { pref, resolved };
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve the first-paint theme from the boot cache, else the OS scheme. */
+export function themeFromBootCache(cache: ThemeBootCache | null = readThemeBoot()): ResolvedTheme {
+  if (cache?.pref === 'light' || cache?.pref === 'dark') return cache.pref;
+  return getSystemTheme();
+}
+
+/**
  * Watch the system color scheme. Returns an unsubscribe fn. Only fires while
  * the preference is "auto" (the caller passes the current pref getter).
  */

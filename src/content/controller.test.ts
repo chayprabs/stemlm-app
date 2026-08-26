@@ -10,6 +10,7 @@ import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
+import { SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 const TEN_STEP_BODY = TEN_STEP_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
@@ -573,6 +574,116 @@ describe('StemController.followUp', () => {
     expect(sessions[0]!.capsule.steps[1]!.id).toBe('s2');
     expect(sessions[0]!.capsule.steps[1]!.title).toContain('correct units');
     expect(sessions[0]!.capsule.steps[0]!.id).toBe('s1');
+    c.stopWatching();
+  });
+
+  it('hangs an anchored solution ask off the same session instead of opening a new one', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [FENCED_ELECTRICAL];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const original = useStore.getState().sessions[0]!;
+    expect(original).toBeTruthy();
+    const originalSteps = original.capsule.steps.length;
+    c.stopWatching();
+
+    await c.followUp('What if V doubles?', 'the whole solution', 'Electrical', {
+      intent: 'ask-solution',
+      anchor: { sessionId: original.id, anchorStepId: SOLUTION_ANCHOR_ID },
+    });
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Scale the source',
+        'qid: q1',
+        'mode: resolve',
+        '@endmeta',
+        '@step id=s1',
+        'title: Scale linearly',
+        '@body',
+        'Current doubles with the source.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'I doubles.',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const state = useStore.getState();
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.id).toBe(original.id);
+    expect(state.sessions[0]!.capsule.steps).toHaveLength(originalSteps);
+    expect(state.sessions[0]!.followups).toHaveLength(1);
+    expect(state.sessions[0]!.followups![0]!.anchorStepId).toBe(SOLUTION_ANCHOR_ID);
+    expect(state.sessions[0]!.followups![0]!.capsule.steps[0]!.title).toContain('Scale');
+    expect(state.view).toBe('solution');
+    c.stopWatching();
+  });
+
+  it('waits for a NEW answer: never attaches a capsule already on the page when Ask in chat is clicked', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    // A previous answer (e.g. an old "missing problem statement" capsule) is
+    // already visible in the chat history.
+    adapter.capsules = [FENCED_ELECTRICAL];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const original = useStore.getState().sessions[0]!;
+    c.stopWatching();
+
+    await c.followUp('Problem: circuit\nStep 1 of 2: Add resistors', 'Add resistors', 'Electrical', {
+      intent: 'ask',
+      anchor: { sessionId: original.id, anchorStepId: original.capsule.steps[0]!.id },
+    });
+    // Not loading, no banner: the student still has to type + send their question.
+    expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().errorMessage).toBeUndefined();
+
+    // Watcher runs over the unchanged page — the stale capsule must NOT attach.
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions[0]!.followups ?? []).toHaveLength(0);
+
+    // The student sends; the assistant produces a genuinely new answer.
+    c.stopWatching();
+    adapter.capsules = [
+      FENCED_ELECTRICAL,
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Why series adds',
+        'qid: q1',
+        'mode: resolve',
+        '@endmeta',
+        '@step id=s1',
+        'title: Series carries one current',
+        '@body',
+        'The same current flows through both, so drops add.',
+        '@endbody',
+        '@endstep',
+        '@solution',
+        'Resistances add in series.',
+        '@endsolution',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const state = useStore.getState();
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.followups).toHaveLength(1);
+    expect(state.sessions[0]!.followups![0]!.capsule.meta.topic).toBe('Why series adds');
     c.stopWatching();
   });
 

@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
+import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 
 const inject = vi.fn(async () => true);
 const getLastQuestion = vi.fn(() => 'Old circuit question');
@@ -37,6 +38,8 @@ vi.mock('@/src/lib/composer-slot', () => ({
   removeComposerSlot: () => {},
   syncComposerSlotGeometry: () => {},
   isolateStemLmPointer: () => () => {},
+  resolveComposerFrame: () => document.body,
+  outsideShellCoords: () => ({ top: 100, left: 24 }),
   _composerSlotGap: 8,
 }));
 
@@ -60,6 +63,7 @@ describe('OverlayButton re-inject vs panel toggle', () => {
       buttonInjected: true,
       panelOpen: false,
       status: 'ready',
+      settings: DEFAULT_SETTINGS,
     });
   });
 
@@ -68,6 +72,7 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     act(() => root.unmount());
     container.remove();
     document.getElementById('ed')?.remove();
+    useStore.setState({ settings: DEFAULT_SETTINGS });
   });
 
   it('injects a pointer when protocol is present and the question changed', async () => {
@@ -178,5 +183,19 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(css).not.toMatch(/\.slm-inject-btn\s*\{[^}]*border-radius:\s*50%/);
     const tokens = readFileSync(resolve(process.cwd(), 'assets/tokens.css'), 'utf8');
     expect(tokens).toMatch(/--slm-signal:\s*#ff6b2c/i);
+  });
+
+  it('hides the attach control when stemlm is turned off', async () => {
+    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle' });
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    expect(container.querySelector('.slm-inject-btn')).toBeTruthy();
+
+    await act(async () => {
+      useStore.setState({ settings: { ...DEFAULT_SETTINGS, stemlmEnabled: false } });
+    });
+    expect(container.querySelector('.slm-inject-btn')).toBeNull();
   });
 });

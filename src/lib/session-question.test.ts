@@ -57,6 +57,17 @@ describe('sessionQuestionHeading', () => {
     expect(sessionQuestionHeading(session)).toBe('What is 2 + 2?');
   });
 
+  it('collapses a short single question onto one line', () => {
+    const session = makeSession({
+      question:
+        'A particle is rotating with angular position θ = t³ - 6t² + 9t. Find the\nangular acceleration at t = 2s. rad/s²',
+    });
+    const heading = sessionQuestionHeading(session);
+    expect(heading).not.toContain('\n');
+    expect(heading).toContain('angular acceleration at t = 2s');
+    expect(heading).toContain('rad/s²');
+  });
+
   it('strips stemLM instruction blocks from the composer text', () => {
     const session = makeSession({
       question: `Find the derivative of x^2

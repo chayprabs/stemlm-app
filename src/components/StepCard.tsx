@@ -7,7 +7,8 @@ import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { StepWork } from './StepWork';
-import { buildLastStepFollowupSelection } from '@/src/lib/followup-selection';
+import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
+import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
 
 export function StepCard({
@@ -22,9 +23,11 @@ export function StepCard({
   const step = session.capsule.steps[index];
   if (!step) return null;
 
-  const isLastStep = index === session.capsule.steps.length - 1;
-  const followupSelection =
-    step.followup ?? (isLastStep ? buildLastStepFollowupSelection(session, step) : undefined);
+  // Every step carries its own Ask-in-chat: step-specific context goes into
+  // the composer, the student types the question, and the answer comes back
+  // anchored right after this step in the rail.
+  const followupSelection = buildStepFollowupSelection(session, step);
+  const suggested = step.followup ? stripProtocolMarkers(step.followup) : undefined;
   return (
     <motion.article
       key={step.id}
@@ -67,14 +70,14 @@ export function StepCard({
         <QuickCheck check={step.quickCheck} platform={session.platform} checkNumber={step.index} />
       )}
 
-      {followupSelection && (
-        <FollowupBar
-          followup={followupSelection}
-          subject={session.capsule.meta.subject}
-          stepTitle={step.title}
-          intent={step.followup ? 'dig-deeper' : 'ask'}
-        />
-      )}
+      <FollowupBar
+        followup={followupSelection}
+        subject={session.capsule.meta.subject}
+        stepTitle={step.title}
+        intent="ask"
+        anchor={{ sessionId: session.id, anchorStepId: step.id }}
+        hint={suggested ? `Try: ${suggested}` : undefined}
+      />
     </motion.article>
   );
 }

@@ -367,7 +367,11 @@ export function buildInjectionPrompt(question: string, opt?: BuildOptions): Buil
   return { prompt, subject, variant };
 }
 
-export type FollowupIntent = 'dig-deeper' | 'ask';
+export type FollowupIntent = 'dig-deeper' | 'ask' | 'ask-solution';
+
+export function isAskIntent(intent?: FollowupIntent): boolean {
+  return intent === 'ask' || intent === 'ask-solution';
+}
 
 export interface FollowupOptions {
   selection: string;
@@ -404,26 +408,77 @@ const FOLLOWUP_CONTRACT_SHORT = [
   'empty follow-up → NO-OP; emit nothing',
 ].join('\n');
 
-export function buildFollowupContextBlock(opt: FollowupOptions): string {
-  const selection = normalizeFollowupSelection(opt.selection);
+/**
+ * Ask-in-chat contract: the answer must be a compact standalone mini-capsule
+ * that stemLM attaches inline after the quoted step — never a rewrite, patch,
+ * or new question object.
+ */
+const ASK_IN_CHAT_CONTRACT = [
+  'ASK-IN-CHAT CONTRACT (inline step answer — NOT new homework, NOT a rewrite):',
+  'The student typed a question at the very top about the quoted step of the CURRENT problem.',
+  'Answer ONLY that typed question, grounded in the quoted step context.',
+  '@meta: keep the SAME qid and topic as the current question; mode: resolve.',
+  'Emit 1-3 compact @step blocks (each id=sN, non-empty @body) that answer the question directly.',
+  'Do NOT re-emit the original solution steps. Do NOT emit @patch ops. Do NOT open a new @q object.',
+  '@solution: 2-4 sentences that answer the typed question directly.',
+  'If the question needs a figure, include a @diagram spec (never SVG).',
+  'If the student typed nothing above, emit nothing.',
+].join('\n');
+
+/**
+ * Whole-solution Ask-in-chat: same mini-capsule shape as a step ask, but the
+ * question spans the entire solution rather than one step.
+ */
+const ASK_SOLUTION_CONTRACT = [
+  'ASK-IN-CHAT CONTRACT (whole-solution answer — NOT new homework, NOT a rewrite):',
+  'The student typed a question at the very top about the CURRENT problem\'s full solution (not one step).',
+  'Answer ONLY that typed question, using the quoted solution overview as context.',
+  '@meta: keep the SAME qid and topic as the current question; mode: resolve.',
+  'Emit 1-3 compact @step blocks (each id=sN, non-empty @body) that answer the question directly.',
+  'Do NOT re-emit the original solution steps. Do NOT emit @patch ops. Do NOT open a new @q object.',
+  '@solution: 2-4 sentences that answer the typed question directly.',
+  'If the question needs a figure, include a @diagram spec (never SVG).',
+  'If the student typed nothing above, emit nothing.',
+].join('\n');
+
+function followupCopy(opt: FollowupOptions): { lead: string; contract: string } {
+  if (opt.intent === 'ask-solution') {
+    return {
+      lead: 'The student is asking a question about the WHOLE solution of the current problem (not one step). Their question is at the very top; the quoted lines are the solution overview.',
+      contract: ASK_SOLUTION_CONTRACT,
+    };
+  }
   const context = opt.stepTitle?.trim()
     ? ` (from the step "${opt.stepTitle.trim()}")`
     : '';
-  const lead =
-    opt.intent === 'ask'
-      ? `The student finished the step-by-step solution and will type a follow-up question in the composer above${context}. Classify it with the contract below and answer on the CURRENT question unless off-topic.`
-      : `Dig deeper into this specific part of your previous answer${context}. Patch or split the named step; do not open a new homework blob.`;
+  if (opt.intent === 'ask') {
+    return {
+      lead: `The student is asking a question about this step${context}. Their question is at the very top of this message; the quoted lines below are the step context.`,
+      contract: ASK_IN_CHAT_CONTRACT,
+    };
+  }
+  return {
+    lead: `Dig deeper into this specific part of your previous answer${context}. Patch or split the named step; do not open a new homework blob.`,
+    contract: FOLLOWUP_CONTRACT_SHORT,
+  };
+}
+
+export function buildFollowupContextBlock(opt: FollowupOptions): string {
+  const selection = normalizeFollowupSelection(opt.selection);
+  const { lead, contract } = followupCopy(opt);
   const guidance =
-    opt.intent === 'ask'
-      ? 'Emit one fenced stemlm block ending @end. mode: patch|resolve|new as the contract says. Patch ops name existing ids.'
-      : 'Split into smaller atomic @step blocks when needed. Keep the current qid. mode: patch unless the student asked for another method (resolve).';
+    opt.intent === 'ask' || opt.intent === 'ask-solution'
+      ? contract
+      : [
+          contract,
+          'Split into smaller atomic @step blocks when needed. Keep the current qid. mode: patch unless the student asked for another method (resolve).',
+        ].join('\n');
   return [
     FOLLOWUP_CONTEXT_HEADER,
     lead,
     '',
     formatQuotedSelection(selection),
     '',
-    FOLLOWUP_CONTRACT_SHORT,
     guidance,
     `Reply in ONE fenced stemlm block ending @end (@meta … @step id=sN … @end). No prose outside.`,
     STEP_BODY_REMINDER,
@@ -432,20 +487,13 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
 
 export function buildFollowupComposerText(opt: FollowupOptions): string {
   const selection = normalizeFollowupSelection(opt.selection);
-  const context = opt.stepTitle?.trim()
-    ? ` (from the step "${opt.stepTitle.trim()}")`
-    : '';
-  const lead =
-    opt.intent === 'ask'
-      ? `The student finished the step-by-step solution and will type a follow-up above${context}. Classify with the contract. Stay on the CURRENT question unless off-topic.`
-      : `Dig deeper into this part of your previous answer${context}. Patch or split the named step.`;
-
+  const { lead, contract } = followupCopy(opt);
   return [
     FOLLOWUP_CONTEXT_HEADER,
-    `Follow the attached ${PROTOCOL_FILENAME} FOLLOW-UP CONTRACT. Do not treat this as new homework.`,
+    `Follow the attached ${PROTOCOL_FILENAME}. Do not treat this as new homework.`,
     lead,
     formatQuotedSelection(selection),
-    FOLLOWUP_CONTRACT_SHORT,
+    contract,
     'Reply with one fenced stemlm block ending @end. No prose outside.',
   ].join('\n');
 }

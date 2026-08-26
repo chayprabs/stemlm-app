@@ -9,9 +9,14 @@ export const MIN_SPLIT_RATIO_FLOOR = 0.25;
 export const DEFAULT_SPLIT_RATIO = 0.55;
 /** Pre-majority default. Stored exact 0.5 hydrates to DEFAULT_SPLIT_RATIO. */
 export const LEGACY_DEFAULT_SPLIT_RATIO = 0.5;
+/**
+ * Wide canonical viewport for reading/writing settings. Never use the popup's
+ * 312px window here — MIN_PANEL_PX / 312 clamps the stored split up to 0.75.
+ */
+export const STORAGE_VIEWPORT_PX = 1600;
 
 export function viewportWidth(): number {
-  if (typeof window === 'undefined') return 1280;
+  if (typeof window === 'undefined') return STORAGE_VIEWPORT_PX;
   return window.visualViewport?.width ?? window.innerWidth;
 }
 
@@ -28,11 +33,16 @@ export function clampSplitRatio(ratio: number, vw = viewportWidth()): number {
 }
 
 /**
- * Stored split hydration. Exact 0.5 is the legacy never-resized default and
- * becomes DEFAULT_SPLIT_RATIO; any other finite value is clamped as-is.
+ * Stored split hydration. Exact 0.5 is the legacy never-resized default.
+ * Exact 0.75 is the popup-window clamp artifact (312px × MIN_PANEL_PX) and
+ * also restores to the 55/45 default. Other finite values stay as-is.
  */
-export function hydrateSplitRatio(value: unknown, vw = viewportWidth()): number {
-  if (value === LEGACY_DEFAULT_SPLIT_RATIO || value == null) {
+export function hydrateSplitRatio(value: unknown, vw = STORAGE_VIEWPORT_PX): number {
+  if (
+    value === LEGACY_DEFAULT_SPLIT_RATIO ||
+    value === MAX_SPLIT_RATIO ||
+    value == null
+  ) {
     return clampSplitRatio(DEFAULT_SPLIT_RATIO, vw);
   }
   if (typeof value !== 'number') {

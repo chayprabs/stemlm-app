@@ -12,6 +12,11 @@ export interface Settings {
   shareAcrossTabs: boolean;
   /** Auto-open the study panel when the assistant starts answering. */
   autoOpenOnAnswer: boolean;
+  /**
+   * Show the composer + attach control. Default on = current behaviour.
+   * Off hides only that button; the study panel and library still work.
+   */
+  stemlmEnabled: boolean;
   /** Prompt protocol variant used for injected questions. */
   promptVariant: PromptVariant;
   /** Opt out of anonymous usage analytics. */
@@ -33,12 +38,44 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
+  stemlmEnabled: true,
   promptVariant: 'balanced',
   analyticsOptOut: false,
   splitRatio: DEFAULT_SPLIT_RATIO,
 };
 
 const KEY = 'stemlm_settings';
+/** Dedicated on/off flag so a killed popup cannot lose the choice mid-merge. */
+export const ENABLED_FLAG_KEY = 'stemlm_enabled';
+/**
+ * Extension-page first-paint cache for the popup switch.
+ * Must NOT be written from content scripts — that would land in the host page.
+ */
+export const ENABLED_BOOT_KEY = 'stemlm_enabled_boot';
+
+function readEnabledFlag(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+export function persistStemlmEnabledBoot(enabled: boolean): void {
+  try {
+    localStorage.setItem(ENABLED_BOOT_KEY, enabled ? '1' : '0');
+  } catch {
+    /* private mode / tests without storage */
+  }
+}
+
+/** Last popup paint of the stemlm switch. Default on when never set. */
+export function stemlmEnabledFromBootCache(): boolean {
+  try {
+    const raw = localStorage.getItem(ENABLED_BOOT_KEY);
+    if (raw === '0') return false;
+    if (raw === '1') return true;
+  } catch {
+    /* private mode / tests without storage */
+  }
+  return DEFAULT_SETTINGS.stemlmEnabled;
+}
 
 function normalizeTheme(value: unknown): ThemePref {
   return value === 'light' || value === 'dark' || value === 'auto' ? value : DEFAULT_SETTINGS.theme;
@@ -67,6 +104,7 @@ export function hydrateSettings(stored: StoredSettings = {}): Settings {
     theme: normalizeTheme(stored.theme),
     autoOpenOnAnswer: Boolean(autoOpenOnAnswer),
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
+    stemlmEnabled: Boolean(stored.stemlmEnabled ?? DEFAULT_SETTINGS.stemlmEnabled),
     analyticsOptOut: Boolean(stored.analyticsOptOut),
     promptVariant: normalizePromptVariant(stored.promptVariant),
     splitRatio: hydrateSplitRatio(stored.splitRatio),
@@ -76,7 +114,11 @@ export function hydrateSettings(stored: StoredSettings = {}): Settings {
 export async function getSettings(): Promise<Settings> {
   try {
     const stored = (await browser.storage.local.get(KEY))[KEY] as Partial<Settings> | undefined;
-    return hydrateSettings(stored);
+    const flag = readEnabledFlag((await browser.storage.local.get(ENABLED_FLAG_KEY))[ENABLED_FLAG_KEY]);
+    return hydrateSettings({
+      ...stored,
+      stemlmEnabled: flag ?? stored?.stemlmEnabled,
+    });
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -86,7 +128,7 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
   const next = hydrateSettings({ ...current, ...patch });
   try {
-    await browser.storage.local.set({ [KEY]: next });
+    await browser.storage.local.set({ [KEY]: next, [ENABLED_FLAG_KEY]: next.stemlmEnabled });
   } catch (err) {
     if (isStorageQuotaError(err)) throw new StorageQuotaError();
     throw err;
@@ -94,15 +136,24 @@ export async function setSettings(patch: Partial<Settings>): Promise<Settings> {
   return next;
 }
 
+/**
+ * Pin stemlm on/off immediately, then merge it into the settings blob.
+ * The dedicated flag is the source of truth if the popup is closed mid-write.
+ */
+export async function writeStemlmEnabled(enabled: boolean): Promise<Settings> {
+  await browser.storage.local.set({ [ENABLED_FLAG_KEY]: enabled });
+  try {
+    return await setSettings({ stemlmEnabled: enabled });
+  } catch {
+    return hydrateSettings({ stemlmEnabled: enabled });
+  }
+}
+
 export function onSettingsChanged(cb: (settings: Settings) => void): () => void {
   const handler = (changes: Record<string, { newValue?: unknown }>, area: string) => {
-    if (area === 'local' && changes[KEY]) {
-      if (changes[KEY].newValue) {
-        cb(hydrateSettings(changes[KEY].newValue as Partial<Settings>));
-      } else {
-        cb(DEFAULT_SETTINGS);
-      }
-    }
+    if (area !== 'local') return;
+    if (!changes[KEY] && !changes[ENABLED_FLAG_KEY]) return;
+    void getSettings().then(cb, () => cb(DEFAULT_SETTINGS));
   };
   browser.storage.onChanged.addListener(handler);
   return () => browser.storage.onChanged.removeListener(handler);

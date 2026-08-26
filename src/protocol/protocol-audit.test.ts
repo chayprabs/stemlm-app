@@ -133,8 +133,8 @@ describe('composer stubs stay short and isolated', () => {
       subject: 'Electrical',
       intent: 'ask',
     });
-    expect(text).toContain('FOLLOW-UP CONTRACT');
-    expect(text).toContain('mode: patch');
+    expect(text).toContain('ASK-IN-CHAT CONTRACT');
+    expect(text).toContain('mode: resolve');
     expect(text).not.toContain('OUTPUT:');
     expect(text).not.toContain('ARCHETYPE REGISTRY');
     expect(text).not.toContain('PHYSICS: subject=');

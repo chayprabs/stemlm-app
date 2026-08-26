@@ -9,6 +9,8 @@ import {
   ensureComposerSlot,
   isolateStemLmPointer,
   removeComposerSlot,
+  resolveComposerFrame,
+  syncComposerSlotGeometry,
   _slotCss,
 } from './composer-slot';
 import { HOST_FIXTURES, mountHostComposer } from '@/src/platforms/host-fixtures';
@@ -122,7 +124,13 @@ describe.each(HOST_FIXTURES)('$id composer slot docks beside the leading +', (sp
     expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
     expect(slot!.contains(plus!)).toBe(false);
     const shell = spec.adapter.getComposerShell();
-    expect(slot!.nextElementSibling === plus || slot!.nextElementSibling === shell).toBe(true);
+    if (spec.adapter.composerDock === 'outside-shell') {
+      expect(slot!.dataset.dock).toBe('outside-shell');
+      expect(shell?.contains(slot!)).toBe(false);
+      expect(slot!.parentElement).toBe(document.documentElement);
+    } else {
+      expect(slot!.nextElementSibling === plus || slot!.nextElementSibling === shell).toBe(true);
+    }
 
     slot!.innerHTML =
       '<div class="slm-fab-wrap"><button type="button" class="slm-inject-btn">+</button></div>';
@@ -157,7 +165,30 @@ describe('landing-page composer markup', () => {
     document.body.innerHTML = '';
   });
 
-  it('docks ChatGPT inject to the left of a plus that sits beside the form', () => {
+  it('keeps ChatGPT inject outside a grid pill that would clip extra children', () => {
+    document.body.innerHTML = `
+      <form>
+        <div class="composer-pill" style="display:grid;grid-template-columns:auto 1fr auto;overflow:hidden">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more" aria-haspopup="menu">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true" role="textbox" data-placeholder="Ask anything"></div>
+          <button type="button" aria-label="Think">Think</button>
+        </div>
+      </form>
+    `;
+    const plus = chatgptAdapter.getComposerLeadingAnchor();
+    expect(plus).not.toBeNull();
+    expect(plus!.getAttribute('data-testid')).toBe('composer-plus-btn');
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    expect(resolveComposerFrame(chatgptAdapter)).toBe(pill);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark');
+    expect(slot).not.toBeNull();
+    expect(slot!.dataset.dock).toBe('outside-shell');
+    expect(pill.contains(slot!)).toBe(false);
+    expect(slot!.parentElement).toBe(document.documentElement);
+    expect(chatgptAdapter.composerDock).toBe('outside-shell');
+  });
+
+  it('docks ChatGPT inject outside a plus that sits beside the form', () => {
     document.body.innerHTML = `
       <div class="composer" style="display:flex;align-items:center;flex-direction:row">
         <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more" aria-haspopup="menu">+</button>
@@ -168,11 +199,34 @@ describe('landing-page composer markup', () => {
     `;
     const plus = chatgptAdapter.getComposerLeadingAnchor();
     expect(plus).not.toBeNull();
-    expect(plus!.getAttribute('data-testid')).toBe('composer-plus-btn');
     const slot = ensureComposerSlot(chatgptAdapter, 'dark');
     expect(slot).not.toBeNull();
-    expect(slot!.nextElementSibling).toBe(plus);
     expect(slot!.contains(plus!)).toBe(false);
+    expect(slot!.dataset.dock).toBe('outside-shell');
+    expect(slot!.parentElement).toBe(document.documentElement);
+  });
+
+  it('keeps Grok inject outside the box even when the + is in-flow', () => {
+    document.body.innerHTML = `
+      <div class="wrap" style="display:flex;flex-direction:column;align-items:center">
+        <form class="chat-input" style="position:relative;display:flex;align-items:center;flex-direction:row">
+          <button type="button" aria-label="Upload a file" aria-haspopup="menu">+</button>
+          <textarea aria-label="Ask Grok anything" placeholder="What do you want to know?"></textarea>
+        </form>
+      </div>
+    `;
+    const plus = grokAdapter.getComposerLeadingAnchor();
+    const shell = grokAdapter.getComposerShell();
+    expect(plus).not.toBeNull();
+    expect(shell).not.toBeNull();
+    expect(grokAdapter.composerDock).toBe('outside-shell');
+    const slot = ensureComposerSlot(grokAdapter, 'dark');
+    expect(slot).not.toBeNull();
+    expect(slot!.contains(plus!)).toBe(false);
+    expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
+    expect(shell!.contains(slot!)).toBe(false);
+    expect(slot!.dataset.dock).toBe('outside-shell');
+    expect(slot!.parentElement).toBe(document.documentElement);
   });
 
   it('does not sit on Grok’s absolutely positioned +', () => {
@@ -192,8 +246,204 @@ describe('landing-page composer markup', () => {
     expect(slot).not.toBeNull();
     expect(slot!.contains(plus!)).toBe(false);
     expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
-    expect(slot!.nextElementSibling === plus || slot!.nextElementSibling === shell).toBe(true);
-    expect(slot!.dataset.dock === 'outside-shell' || slot!.nextElementSibling === shell).toBe(true);
+    expect(shell!.contains(slot!)).toBe(false);
+    expect(slot!.dataset.dock).toBe('outside-shell');
+  });
+
+  it('viewport-fixes ChatGPT just left of the visual pill', () => {
+    document.body.innerHTML = `
+      <form>
+        <div class="composer-pill">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+        </div>
+      </form>
+    `;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 400, width: 640, height: 52, top: 400, left: 200, bottom: 452, right: 840, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
+      x: 212, y: 410, width: 36, height: 36, top: 410, left: 212, bottom: 446, right: 248, toJSON() {},
+    } as DOMRect);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(slot.style.position).toBe('fixed');
+    expect(Number.parseFloat(slot.style.left)).toBe(200 - 36 - 8);
+    expect(Number.parseFloat(slot.style.top)).toBe(410 + (36 - 36) / 2);
+  });
+
+  it('finds the unauthenticated ChatGPT textarea composer and docks outside it', () => {
+    document.body.innerHTML = `
+      <form class="wm-composer-composer" data-landing>
+        <button type="button" aria-label="Add files and more">+</button>
+        <textarea id="mobile-composer-prompt" placeholder="Ask ChatGPT" aria-label="Chat with ChatGPT"></textarea>
+        <button type="button" aria-label="Send message">Send</button>
+      </form>
+    `;
+    expect(chatgptAdapter.findEditor()?.id).toBe('mobile-composer-prompt');
+    expect(chatgptAdapter.getComposerLeadingAnchor()?.getAttribute('aria-label')).toBe('Add files and more');
+    const slot = ensureComposerSlot(chatgptAdapter, 'light');
+    expect(slot?.dataset.dock).toBe('outside-shell');
+    expect(document.querySelector('form')!.contains(slot!)).toBe(false);
+  });
+
+  it('pins a narrow centered pill to the left edge instead of covering the heading', () => {
+    document.body.innerHTML = `
+      <form>
+        <div class="composer-pill">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+        </div>
+      </form>
+    `;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
+      x: 12, y: 520, width: 366, height: 52, top: 520, left: 12, bottom: 572, right: 378, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 528, width: 32, height: 32, top: 528, left: 20, bottom: 560, right: 52, toJSON() {},
+    } as DOMRect);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(Number.parseFloat(slot.style.left)).toBe(8);
+    expect(Number.parseFloat(slot.style.top)).toBe(528);
+    expect(Number.parseFloat(slot.style.top)).toBeGreaterThan(400);
+  });
+
+  it('sits above a bottom-docked narrow composer when there is no left room', () => {
+    document.body.innerHTML = `
+      <div class="thread"><p>assistant reply</p></div>
+      <form>
+        <div class="composer-pill">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+        </div>
+      </form>
+    `;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(844);
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390);
+    vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
+      x: 12, y: 780, width: 366, height: 52, top: 780, left: 12, bottom: 832, right: 378, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 788, width: 32, height: 32, top: 788, left: 20, bottom: 820, right: 52, toJSON() {},
+    } as DOMRect);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(Number.parseFloat(slot.style.left)).toBe(12);
+    expect(Number.parseFloat(slot.style.top)).toBe(780 - 32 - 8);
+    expect(Number.parseFloat(slot.style.top) + 32).toBeLessThanOrEqual(780);
+  });
+
+  it('prefers the inner pill over a page-sized wrapper that also contains a stray +', () => {
+    document.body.innerHTML = `
+      <div class="page">
+        <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+        <form>
+          <div class="composer-pill">
+            <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+          </div>
+        </form>
+      </div>
+    `;
+    const page = document.querySelector('.page') as HTMLElement;
+    const form = document.querySelector('form') as HTMLElement;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    vi.spyOn(page, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, width: 1440, height: 900, top: 0, left: 0, bottom: 900, right: 1440, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(form, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: 780, width: 720, height: 64, top: 780, left: 200, bottom: 844, right: 920, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
+      x: 220, y: 788, width: 680, height: 48, top: 788, left: 220, bottom: 836, right: 900, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1440);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900);
+    expect(resolveComposerFrame(chatgptAdapter)).toBe(pill);
+  });
+
+  it('docks beside a bottom-of-thread ChatGPT composer, not the page heading', () => {
+    document.body.innerHTML = `
+      <h1>Conversation</h1>
+      <div class="thread"><p>assistant reply</p></div>
+      <form>
+        <div class="composer-pill">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+        </div>
+      </form>
+    `;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
+      x: 180, y: 820, width: 720, height: 52, top: 820, left: 180, bottom: 872, right: 900, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
+      x: 192, y: 828, width: 36, height: 36, top: 828, left: 192, bottom: 864, right: 228, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900);
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1440);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(slot.dataset.dock).toBe('outside-shell');
+    expect(Number.parseFloat(slot.style.left)).toBe(180 - 36 - 8);
+    expect(Number.parseFloat(slot.style.top)).toBe(828);
+    expect(Number.parseFloat(slot.style.top)).toBeGreaterThan(700);
+  });
+
+  it('updates the outside-shell position when the composer rect moves', () => {
+    document.body.innerHTML = `
+      <form>
+        <div class="composer-pill">
+          <button type="button" data-testid="composer-plus-btn" aria-label="Add files and more">+</button>
+          <div id="prompt-textarea" data-testid="prompt-textarea" contenteditable="true"></div>
+        </div>
+      </form>
+    `;
+    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    const pillRect = { left: 200, top: 400, width: 640, height: 52 };
+    const plusRect = { left: 212, top: 410, width: 36, height: 36 };
+    const pillSpy = vi.spyOn(pill, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          x: pillRect.left,
+          y: pillRect.top,
+          width: pillRect.width,
+          height: pillRect.height,
+          top: pillRect.top,
+          left: pillRect.left,
+          bottom: pillRect.top + pillRect.height,
+          right: pillRect.left + pillRect.width,
+          toJSON() {},
+        }) as DOMRect,
+    );
+    vi.spyOn(plus, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          x: plusRect.left,
+          y: plusRect.top,
+          width: plusRect.width,
+          height: plusRect.height,
+          top: plusRect.top,
+          left: plusRect.left,
+          bottom: plusRect.top + plusRect.height,
+          right: plusRect.left + plusRect.width,
+          toJSON() {},
+        }) as DOMRect,
+    );
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(Number.parseFloat(slot.style.left)).toBe(200 - 36 - 8);
+    pillRect.left = 160;
+    pillRect.top = 360;
+    plusRect.left = 172;
+    plusRect.top = 370;
+    syncComposerSlotGeometry(chatgptAdapter);
+    expect(Number.parseFloat(slot.style.left)).toBe(160 - 36 - 8);
+    expect(Number.parseFloat(slot.style.top)).toBe(370);
+    pillSpy.mockRestore();
   });
 });
 

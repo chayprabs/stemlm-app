@@ -4,23 +4,28 @@ import type { AdapterConfig } from './types';
 /**
  * Grok (grok.com only — not x.com/i/grok).
  * Landing page uses a textarea; threads often use a TipTap/ProseMirror editor.
- * Leading + sits next to the input and opens an attach menu.
+ * Leading + sits inside the pill. Inserting beside it shifts Grok’s composer,
+ * so the inject control docks just outside the visual box on the left.
  */
 const config: AdapterConfig = {
   id: 'grok',
   label: 'Grok',
   hosts: /(^|\.)grok\.com$/i,
+  composerDock: 'outside-shell',
   editor: [
+    'textarea[placeholder*="What do you want to know" i]',
     'textarea[aria-label*="Ask Grok" i]',
     'textarea[placeholder*="Ask Grok" i]',
     'textarea[placeholder*="How can I help" i]',
     'textarea[aria-label*="How can I help" i]',
     '.tiptap.ProseMirror[contenteditable="true"]',
     'div.ProseMirror[contenteditable="true"]',
+    'form:has([class*="chat-input"]) textarea',
+    '[class*="chat-input"] textarea',
     'form textarea',
-    'textarea',
   ],
   composerBox: [
+    'form:has(textarea[placeholder*="What do you want to know" i])',
     'form:has(textarea[aria-label*="Ask Grok" i])',
     'form:has(.ProseMirror)',
     '[class*="chat-input"]',
@@ -40,6 +45,7 @@ const config: AdapterConfig = {
   composerLeading: [
     'button[aria-label*="Upload" i]',
     'button[aria-label*="Attach" i]',
+    'button[aria-label*="Add attachment" i]',
     'button[aria-label*="Add file" i]',
     'button[aria-label*="Add files" i]',
     'button[aria-label*="Add photos" i]',
@@ -50,6 +56,7 @@ const config: AdapterConfig = {
     'form button:first-of-type',
   ],
   composerShell: [
+    'form:has(textarea[placeholder*="What do you want to know" i])',
     'form:has(textarea[aria-label*="Ask Grok" i])',
     'form:has(.ProseMirror)',
     'form:has(textarea)',

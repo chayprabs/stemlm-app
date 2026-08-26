@@ -37,6 +37,8 @@ describe('SolutionView', () => {
     expect(html).toContain('katex');
     expect(session.capsule.steps.some((s) => s.diagram)).toBe(true);
     expect(html).not.toContain('slm-step-id');
+    expect(html).toContain('Ask in chat');
+    expect(html).toContain('slm-followup');
   });
 
   it('hides screenshot verification/uncertainty chrome and s1/s2 chips', () => {
@@ -137,5 +139,42 @@ describe('SolutionView', () => {
     expect(html).not.toContain('Verify that the launch angle');
     expect(html).not.toContain('slm-step-id');
     expect(html).not.toMatch(/>none</i);
+  });
+
+  it('renders solution-tab follow-ups below the solution and ignores step-rail ones', () => {
+    const session = buildSession();
+    session.followups = [
+      {
+        id: 'f-step',
+        anchorStepId: session.capsule.steps[0]!.id,
+        question: 'Why this step?',
+        capsule: {
+          meta: { version: 1, subject: 'Electrical', topic: 'Step ask' },
+          steps: [{ id: 'a1', index: 1, title: 'Because Kirchhoff', body: 'KVL around the loop.' }],
+          solution: 'KVL',
+          solutionDiagrams: [],
+        },
+        createdAt: 1,
+      },
+      {
+        id: 'f-sol',
+        anchorStepId: '@solution',
+        question: 'What if the source is 24 V?',
+        capsule: {
+          meta: { version: 1, subject: 'Electrical', topic: 'Scale' },
+          steps: [{ id: 'a1', index: 1, title: 'Scale linearly', body: 'Current doubles.' }],
+          solution: 'I doubles',
+          solutionDiagrams: [],
+        },
+        createdAt: 2,
+      },
+    ];
+    const html = renderToStaticMarkup(<SolutionView session={session} theme="light" />);
+    expect(html).toContain('slm-solution-followup');
+    expect(html).toContain('What if the source is 24 V?');
+    expect(html).toContain('whole solution');
+    expect(html).not.toContain('Why this step?');
+    expect(html).not.toContain('Because Kirchhoff');
+    expect(html).toContain('Ask in chat');
   });
 });

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildLastStepFollowupSelection,
+  buildSolutionFollowupSelection,
   normalizeFollowupSelection,
   readPanelSelection,
 } from './followup-selection';
+import { SOLUTION_ANCHOR_ID } from './step-entries';
 import type { Session } from '@/src/protocol/types';
 
 describe('normalizeFollowupSelection', () => {
@@ -45,6 +47,81 @@ describe('buildLastStepFollowupSelection', () => {
     expect(selection).toContain('Find the RLC impedance at 60 Hz.');
     expect(selection).toContain('Determine circuit nature');
     expect(selection).toContain('Capacitive when XC exceeds XL.');
+  });
+});
+
+describe('buildSolutionFollowupSelection', () => {
+  it('quotes the problem, route, and final answer — not a single step id', () => {
+    const session: Session = {
+      id: 's1',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find the RLC impedance at 60 Hz.',
+      raw: '',
+      capsule: {
+        meta: { version: 1, subject: 'Electrical', topic: 'RLC impedance' },
+        solution: 'Z is capacitive at 60 Hz.',
+        solutionDiagrams: [],
+        steps: [
+          { id: 's1', index: 1, title: 'Compute XL', body: 'XL = 2 pi f L.' },
+          { id: 's2', index: 2, title: 'Compare reactances', body: 'XC exceeds XL.' },
+        ],
+      },
+    };
+    const selection = buildSolutionFollowupSelection(session);
+    expect(selection).toContain('Find the RLC impedance at 60 Hz.');
+    expect(selection).toContain('Solution route (2 steps)');
+    expect(selection).toContain('Compute XL');
+    expect(selection).toContain('Z is capacitive at 60 Hz.');
+    expect(selection).not.toContain('s1');
+  });
+
+  it('chains earlier solution-tab follow-ups, ignoring step-rail ones', () => {
+    const session: Session = {
+      id: 's1',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question: 'Find I',
+      raw: '',
+      capsule: {
+        meta: { version: 1, subject: 'Electrical', topic: 'Ohm' },
+        solution: 'I = 2 A',
+        solutionDiagrams: [],
+        steps: [{ id: 's1', index: 1, title: 'Ohm', body: 'I = V/R' }],
+      },
+      followups: [
+        {
+          id: 'f-step',
+          anchorStepId: 's1',
+          question: 'Why this formula?',
+          capsule: {
+            meta: { version: 1, subject: 'Electrical', topic: 'Ohm' },
+            steps: [{ id: 'a1', index: 1, title: 'Because Ohm', body: 'definition' }],
+            solution: 'because Ohm',
+            solutionDiagrams: [],
+          },
+          createdAt: 1,
+        },
+        {
+          id: 'f-sol',
+          anchorStepId: SOLUTION_ANCHOR_ID,
+          question: 'What if V doubles?',
+          capsule: {
+            meta: { version: 1, subject: 'Electrical', topic: 'Ohm' },
+            steps: [{ id: 'a1', index: 1, title: 'Scale', body: 'I doubles' }],
+            solution: 'I becomes 4 A',
+            solutionDiagrams: [],
+          },
+          createdAt: 2,
+        },
+      ],
+    };
+    const selection = buildSolutionFollowupSelection(session);
+    expect(selection).toContain('What if V doubles?');
+    expect(selection).toContain('I becomes 4 A');
+    expect(selection).not.toContain('Why this formula?');
   });
 });
 
