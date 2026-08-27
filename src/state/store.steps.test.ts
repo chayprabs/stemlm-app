@@ -81,6 +81,40 @@ describe('store step navigation (10 steps)', () => {
     expect(useStore.getState().activeStepIndex).toBe(0);
   });
 
+  it('removeSession drops a background session and keeps the active one', () => {
+    const a = longSession();
+    const b = { ...longSession(), id: 's-other' };
+    useStore.getState().addSession(a);
+    useStore.getState().addSession(b);
+    useStore.getState().setActiveSession(b.id);
+    useStore.getState().setActiveStep(4);
+    useStore.getState().removeSession(a.id);
+    expect(useStore.getState().sessions.map((s) => s.id)).toEqual([b.id]);
+    expect(useStore.getState().activeSessionId).toBe(b.id);
+    expect(useStore.getState().activeStepIndex).toBe(4);
+  });
+
+  it('removeSession of the active session selects the neighbor', () => {
+    const a = { ...longSession(), id: 's-a' };
+    const b = { ...longSession(), id: 's-b' };
+    const c = { ...longSession(), id: 's-c' };
+    useStore.getState().setSessions([a, b, c]);
+    useStore.getState().setActiveSession(b.id);
+    useStore.getState().setActiveStep(3);
+    useStore.getState().removeSession(b.id);
+    expect(useStore.getState().sessions.map((s) => s.id)).toEqual(['s-a', 's-c']);
+    expect(useStore.getState().activeSessionId).toBe('s-c');
+    expect(useStore.getState().activeStepIndex).toBe(0);
+  });
+
+  it('removeSession of the last remaining session clears the workspace', () => {
+    useStore.getState().addSession(longSession());
+    useStore.getState().removeSession('s-long');
+    expect(useStore.getState().sessions).toEqual([]);
+    expect(useStore.getState().activeSessionId).toBeUndefined();
+    expect(useStore.getState().status).toBe('idle');
+  });
+
   it('keeps solution-tab follow-ups on the solution view and step ones on the rail', () => {
     const s = longSession();
     useStore.getState().addSession(s);

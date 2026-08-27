@@ -6,6 +6,7 @@ describe('decodeSvgText', () => {
     expect(decodeSvgText('R = 10 \\Omega')).toBe('R = 10 Ω');
     expect(decodeSvgText('C = 100 \\mu F')).toBe('C = 100 µF');
     expect(decodeSvgText('$X_L = 18.85 \\Omega$')).toBe('X_L = 18.85 Ω');
+    expect(decodeSvgText('\\alpha (rad/s^2)')).toBe('α (rad/s²)');
   });
 });
 

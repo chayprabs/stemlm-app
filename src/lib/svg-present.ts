@@ -15,6 +15,10 @@ import { FONT_SANS_SVG } from './fonts';
 const LATEX_IN_TEXT: [RegExp, string][] = [
   [/\\\s*Omega\b/gi, 'Ω'],
   [/\\Omega\b/g, 'Ω'],
+  [/\\alpha\b/g, 'α'],
+  [/\\theta\b/g, 'θ'],
+  [/\\omega\b/g, 'ω'],
+  [/\\pi\b/g, 'π'],
   [/\\\s*mu\s*F/gi, 'µF'],
   [/\\\s*mu\b/gi, 'µ'],
   [/\\cdot/g, '·'],
@@ -23,6 +27,7 @@ const LATEX_IN_TEXT: [RegExp, string][] = [
   [/\\le\b/g, '≤'],
   [/\\ge\b/g, '≥'],
   [/\\pm/g, '±'],
+  [/\^2\b/g, '²'],
   [/\\text\{([^}]*)\}/g, '$1'],
   [/\$\$/g, ''],
   [/\$/g, ''],

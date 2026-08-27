@@ -234,7 +234,7 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).not.toContain('M24 40V17');
   });
 
-  it('PDF report uses the mono outlined lockup', () => {
+  it('PDF report uses the colorful outlined lockup', () => {
     const session: Session = {
       id: 'brand-report',
       createdAt: 0,
@@ -253,7 +253,10 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).not.toContain('slm-wordmark-lm');
     expect(html).toContain('slm-report-wordmark');
     expect(html).toContain('<path');
-    expect(thereforeParts(parseSvg(html)).signal).toHaveLength(0);
+    const header = html.slice(html.indexOf('slm-report-wordmark'), html.indexOf('</header>'));
+    expect(thereforeParts(parseSvg(header)).signal.length).toBeGreaterThan(0);
+    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('https://stemlm.app');
   });
 
   it('panel loading state ships the animated mark', () => {

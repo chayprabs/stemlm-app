@@ -11,7 +11,7 @@ import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
 import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
-import { IconNavNext, IconNavPrev } from './icons';
+import { IconClose, IconNavNext, IconNavPrev } from './icons';
 import {
   saveSession,
   deleteSavedSession,
@@ -56,6 +56,7 @@ export function Panel() {
     nextStep,
     prevStep,
     setActiveSession,
+    removeSession,
     setSettings: setStoreSettings,
     setTheme,
     splitRatio,
@@ -230,15 +231,33 @@ export function Panel() {
       {sessions.length > 1 && (
         <div className="slm-session-switch">
           {sessions.map((s, i) => (
-            <button
+            <div
               key={s.id}
-              type="button"
-              className={`slm-session-pill ${s.id === session?.id ? 'is-active' : ''}`}
-              onClick={() => setActiveSession(s.id)}
-              title={s.capsule.meta.topic}
+              className={`slm-session-chip ${s.id === session?.id ? 'is-active' : ''}`}
             >
-              {i + 1}. {s.capsule.meta.topic}
-            </button>
+              <button
+                type="button"
+                className={`slm-session-pill ${s.id === session?.id ? 'is-active' : ''}`}
+                onClick={() => setActiveSession(s.id)}
+                title={s.capsule.meta.topic}
+              >
+                {i + 1}. {s.capsule.meta.topic}
+              </button>
+              <button
+                type="button"
+                className="slm-session-pill-remove"
+                title="Remove question"
+                aria-label={`Remove ${s.capsule.meta.topic}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeSession(s.id);
+                }}
+              >
+                <span className="slm-session-pill-remove-hit" aria-hidden="true">
+                  <IconClose width={12} height={12} strokeWidth={2.25} />
+                </span>
+              </button>
+            </div>
           ))}
         </div>
       )}

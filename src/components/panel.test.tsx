@@ -825,6 +825,59 @@ describe('Panel ready session', () => {
 
     unmount();
   });
+
+  it('removes a session from the strip without changing the open question', () => {
+    const first = buildStudySession();
+    const second = buildStudySession();
+    second.id = 'panel-study-2';
+    second.question = 'A different question';
+    second.capsule = {
+      ...second.capsule,
+      meta: { ...second.capsule.meta, topic: 'Other topic' },
+    };
+    useStore.getState().addSession(first);
+    useStore.getState().addSession(second);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    expect(useStore.getState().activeSessionId).toBe(second.id);
+    const remove = container.querySelectorAll('.slm-session-pill-remove');
+    expect(remove).toHaveLength(2);
+
+    act(() => {
+      (remove[0] as HTMLButtonElement).click();
+    });
+    expect(useStore.getState().sessions.map((s) => s.id)).toEqual([second.id]);
+    expect(useStore.getState().activeSessionId).toBe(second.id);
+    expect(container.querySelector('.slm-session-switch')).toBeNull();
+
+    unmount();
+  });
+
+  it('opens the neighbor when the active question is removed from the strip', () => {
+    const first = buildStudySession();
+    const second = buildStudySession();
+    second.id = 'panel-study-2';
+    second.question = 'A different question';
+    second.capsule = {
+      ...second.capsule,
+      meta: { ...second.capsule.meta, topic: 'Other topic' },
+    };
+    useStore.getState().addSession(first);
+    useStore.getState().addSession(second);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    const remove = container.querySelectorAll('.slm-session-pill-remove');
+    act(() => {
+      (remove[1] as HTMLButtonElement).click();
+    });
+    expect(useStore.getState().sessions.map((s) => s.id)).toEqual([first.id]);
+    expect(useStore.getState().activeSessionId).toBe(first.id);
+    expect(container.querySelector('.slm-topic')?.textContent).toContain('Show progressive diagrams');
+
+    unmount();
+  });
 });
 
 describe('Panel theme, split, and width density', () => {
@@ -1250,6 +1303,11 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     expect(stripCss).toMatch(/flex-wrap:\s*nowrap/);
     expect(stripCss).toMatch(/scrollbar-width:\s*none/);
     expect(PANEL_CSS).toMatch(/\.slm-session-switch::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
+    expect(cssBlock(PANEL_CSS, '.slm-session-pill-remove')).toMatch(/opacity:\s*0/);
+    expect(cssBlock(PANEL_CSS, '.slm-session-pill-remove')).toMatch(/padding:\s*0 0\.5rem 0 0\.62rem/);
+    expect(PANEL_CSS).toMatch(/\.slm-session-chip:hover \.slm-session-pill-remove/);
+    expect(PANEL_CSS).toMatch(/\.slm-session-chip:hover \.slm-session-pill/);
+    expect(container.querySelectorAll('.slm-session-pill-remove')).toHaveLength(24);
 
     const cs = getComputedStyle(strip);
     expect(cs.overflowX).toMatch(/auto|scroll/);

@@ -1,11 +1,9 @@
 /**
- * saved-pdf.html entry logic. `mode=view` (default) renders the report.
- * `mode=download` starts a file download. `mode=print` opens the print dialog
- * (panel export / legacy).
+ * pdf.html entry logic. Default mode renders the report.
+ * `mode=download` / `mode=print` open the print dialog (Save as PDF).
  */
 import { getSavedSession, snapshotToSession } from '@/src/lib/saved-sessions';
-import { downloadTextFile } from '@/src/lib/file-download';
-import { exportSessionPdf, renderSessionReportHtml, reportFilename } from '@/src/lib/pdf';
+import { exportSessionPdf, renderSessionReportHtml } from '@/src/lib/pdf';
 
 export type SavedPdfMode = 'view' | 'download' | 'print';
 
@@ -40,30 +38,26 @@ export async function runSavedPdfPage(
 
   const session = snapshotToSession(snapshot);
 
-  if (mode === 'print') {
+  if (mode === 'print' || mode === 'download') {
     setStatus('Opening print dialog — choose “Save as PDF”.');
     const result = await exportSessionPdf(session);
     if (result.ok) {
-      setStatus('Print dialog opened. Choose “Save as PDF”, then you can close this tab.');
+      setStatus('Print dialog opened. Choose “Save as PDF”, then you can close this window.');
       return { ok: true, mode };
     }
-    setStatus('Could not prepare the PDF. Try again from the extension popup.', true);
+    setStatus('Could not prepare the PDF. Try again from the extension.', true);
     return { ok: false, mode };
   }
 
   try {
     const html = await renderSessionReportHtml(session);
-    if (mode === 'download') {
-      downloadTextFile(html, `${reportFilename(session)}.html`);
-      setStatus('Download started. You can close this tab.');
-      return { ok: true, mode };
-    }
     document.open();
     document.write(html);
     document.close();
+    document.title = 'stemLM';
     return { ok: true, mode };
   } catch {
-    setStatus('Could not open the saved report. Try again from the extension popup.', true);
+    setStatus('Could not open the saved report. Try again from the extension.', true);
     return { ok: false, mode };
   }
 }

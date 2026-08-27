@@ -1,18 +1,12 @@
 /**
  * Persistence for explicitly-saved study sessions. Each save stores a compact
- * snapshot (question, steps, solution) for PDF export. Library rows download
- * a file or open a viewer tab — they do not print or jump to Gemini.
+ * snapshot (question, steps, solution) for PDF export. Library rows print-to-PDF
+ * or open a viewer window — they do not jump to Gemini.
  */
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { isPlatformId, type PlatformId } from '@/src/platforms/types';
-import {
-  exportSessionPdf,
-  renderSessionReportHtml,
-  reportFilename,
-  type PdfExportResult,
-} from './pdf';
-import { downloadTextFile } from './file-download';
+import { exportSessionPdf, type PdfExportResult } from './pdf';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
@@ -241,41 +235,38 @@ export async function deleteSavedSession(id: string): Promise<void> {
   });
 }
 
-function savedPdfUrl(id: string, mode: 'view' | 'print' | 'download'): string {
+function savedPdfUrl(id: string, mode?: 'print' | 'download'): string {
   const runtime = browser.runtime as typeof browser.runtime & {
     getURL: (path: string) => string;
   };
-  const url = new URL(runtime.getURL('/saved-pdf.html'));
+  const url = new URL(runtime.getURL('/pdf.html'));
   url.searchParams.set('id', id);
-  url.searchParams.set('mode', mode);
+  if (mode) url.searchParams.set('mode', mode);
   return url.href;
 }
 
-/**
- * Start a file download of the saved report in the current document.
- * Does not open Gemini or the print dialog.
- */
+/** Print-to-PDF in this page. Chrome’s Save as PDF uses the stemLM title. */
 export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
   if (!snapshot) return { ok: false, method: 'failed' };
-
-  try {
-    const session = snapshotToSession(snapshot);
-    const html = await renderSessionReportHtml(session);
-    downloadTextFile(html, `${reportFilename(session)}.html`);
-    return { ok: true, method: 'download' };
-  } catch {
-    return { ok: false, method: 'failed' };
-  }
+  const result = await exportSessionPdf(snapshotToSession(snapshot));
+  if (!result.ok) return result;
+  return { ok: true, method: 'download' };
 }
 
-/** Open the saved report in another tab without auto-print or auto-download. */
+/** Open the saved report in a popup window (no chat tab, no omnibox URL). */
 export async function openSavedSessionPdf(id: string): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
   if (!snapshot) return { ok: false, method: 'failed' };
 
   try {
-    await browser.tabs.create({ url: savedPdfUrl(id, 'view'), active: true });
+    await browser.windows.create({
+      url: savedPdfUrl(id),
+      type: 'popup',
+      width: 820,
+      height: 1040,
+      focused: true,
+    });
     return { ok: true, method: 'view' };
   } catch {
     return { ok: false, method: 'failed' };

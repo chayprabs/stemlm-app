@@ -103,6 +103,17 @@ describe('screenshot regression SLK contract', () => {
     expect(size.width).toBeLessThanOrEqual(480);
     expect(size.height).toBeLessThanOrEqual(275);
   });
+
+  it('plot ticks stay on the data range and never print padded floats', async () => {
+    const resolved = await resolveDiagram({ type: 'plot', content: PLOT_SPEC }, 'light', 'print');
+    const tickLabels = [...resolved.svg.matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)].map(
+      (m) => m[1] ?? '',
+    );
+    expect(tickLabels.some((t) => /33333|140\.45/.test(t))).toBe(false);
+    expect(tickLabels).toContain('100');
+    expect(tickLabels).toContain('130');
+    expect(tickLabels).toContain('0');
+  });
 });
 
 describe('step-sync stability', () => {

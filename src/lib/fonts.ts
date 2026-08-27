@@ -20,3 +20,6 @@ export const FONT_SANS_SVG = 'IBM Plex Sans, ui-sans-serif, system-ui, sans-seri
 
 export const FONT_CSS_HREF =
   'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap';
+
+/** Same KaTeX build the panel ships, so print math matches the Solution tab. */
+export const KATEX_CSS_HREF = 'https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.min.css';

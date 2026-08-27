@@ -51,13 +51,16 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).not.toMatch(/Jun \d+, \d{4}/);
     expect(html).toContain('slm-report-label">Q'); // question label
     expect(html).toContain('What is the current?'); // the full question
-    expect(html).toContain('slm-report-label">Answer'); // answer label
+    expect(html).not.toContain('slm-report-label">Answer');
     expect(html).toContain('Label the circuit'); // step title
+    expect(html).toContain('slm-step-index');
+    expect(html).toContain('slm-formula');
     expect(html).not.toContain('slm-report-solution');
     expect(html).toContain('s1'); // step diagram injected (vector svg)
-    // KaTeX rendered the formula (with MathML for font-independent printing)
     expect(html).toContain('katex');
-    expect(html).toContain('<math'); // MathML present for vector PDF
+    expect(html).toContain('<math');
+    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('https://stemlm.app');
   });
 
   it('hides screenshot verification/uncertainty chrome and step-id chips', () => {
@@ -235,7 +238,7 @@ describe('Report renderToStaticMarkup', () => {
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
 
     expect(html).toContain('What is the current?');
-    expect(html).toContain('Solution');
+    expect(html).toContain('slm-report-solution');
     expect(html).not.toContain('slm-report-step');
     expect(html).not.toContain('Label the circuit');
   });
@@ -249,13 +252,13 @@ describe('buildReportDocument (vector print PDF)', () => {
 
     expect(doc.startsWith('<!doctype html>')).toBe(true);
     expect(doc).toContain('<style>');
+    expect(doc).toContain('KaTeX_Main');
     expect(doc).toContain('stemLM');
     expect(doc).toContain('What is the current?'); // the question
     expect(doc).toContain('s1'); // vector svg diagram embedded
-    // Math shown via MathML, KaTeX HTML hidden → no webfonts needed.
-    expect(doc).toContain('.katex .katex-html{display:none');
+    expect(doc).not.toContain('.katex .katex-html{display:none');
+    expect(doc).toContain('katex-html');
     expect(doc).toContain('<math');
-    // No raster/AI image pipeline.
     expect(doc).not.toContain('html2canvas');
   });
 
@@ -267,7 +270,12 @@ describe('buildReportDocument (vector print PDF)', () => {
         'var: t',
         'domain: 0 10',
         'xlabel: t (s)',
+        'ylabel: \\alpha (rad/s^2)',
+        'point: 10, 130',
+        'point_label: 130',
+        'drop: both',
         'eq: \\alpha(t)=1.5t^{2}-2t',
+        'eq_slot: NE',
       ].join('\n'),
     };
     const resolved = await resolveDiagram(plot, 'light', 'print');
@@ -312,8 +320,9 @@ describe('buildReportDocument (vector print PDF)', () => {
   it('print styles target A4 and current light reading tokens', () => {
     expect(printStyles()).toContain('@page');
     expect(printStyles()).toContain('A4');
-    expect(printStyles()).toContain('#171717');
+    expect(printStyles()).toContain('#121212');
     expect(printStyles()).toContain('#efefef');
+    expect(printStyles()).toContain('#FF6B2C');
     expect(printStyles()).not.toContain('#0ea5a0');
     expect(printStyles()).toContain('IBM Plex Sans');
     expect(printStyles()).toContain('IBM Plex Mono');
@@ -321,6 +330,9 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(printStyles()).not.toContain('JetBrains Mono');
     expect(printStyles()).toContain('max-width:125mm');
     expect(printStyles()).toContain('max-height:72mm');
+    expect(printStyles()).toContain('font:11pt/1.5');
+    expect(printStyles()).toContain('font-size:8.5pt');
+    expect(printStyles()).not.toContain('border-radius:999px');
   });
 
   it('embeds admittance triangle with normalized markers for PDF export', async () => {
@@ -369,14 +381,105 @@ describe('buildReportDocument (vector print PDF)', () => {
 
   it('builds a sensible filename for save', () => {
     const session = buildSession();
-    expect(reportFilename(session)).toMatch(/^stemLM-[a-z0-9-]+-\d{4}-\d{2}-\d{2}$/);
+    expect(reportFilename(session)).toBe('stemLM');
+    expect(reportFilename(session)).not.toMatch(/gemini|chatgpt|claude|grok/i);
+    expect(reportFilename(session)).not.toMatch(/what-is-the-current|circuit/i);
   });
 
   it('uses a short print title without dates', () => {
     const session = buildSession();
     const doc = buildReportDocument(session, {});
-    expect(reportPrintTitle(session)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
-    expect(doc).toContain('<title>Circuit format check</title>');
+    expect(reportPrintTitle(session)).toBe('stemLM');
+    expect(doc).toContain('<title>stemLM</title>');
+    expect(doc).not.toContain('<title>Circuit format check</title>');
     expect(doc).not.toContain('stemLM-what-is-the-current');
+  });
+
+  it('writes a Solution-tab print preview for visual QA', async () => {
+    const plot = {
+      type: 'plot' as const,
+      content: [
+        'fn: 1.5*t^2 - 2*t',
+        'var: t',
+        'domain: 0 10',
+        'xlabel: t (s)',
+        'ylabel: \\alpha (rad/s^2)',
+        'point: 10, 130',
+        'point_label: 130',
+        'drop: both',
+        'eq: \\alpha(t)=1.5t^{2}-2t',
+        'eq_slot: NE',
+      ].join('\n'),
+    };
+    const session: Session = {
+      id: 'preview-angular',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'gemini',
+      question:
+        'A particle is rotating in a circular path and at any instant its motion can be described as $\\theta = \\frac{5t^4}{40} - \\frac{t^3}{3}$. The angular acceleration of the particle after 10 seconds is ______ rad/s².',
+      raw: '',
+      capsule: {
+        meta: { version: 2, subject: 'Physics', topic: 'Angular Acceleration from Position' },
+        solution: 'Evaluate $\\alpha(10)=130$ rad/s².',
+        solutionDiagrams: [],
+        steps: [
+          {
+            id: 's1',
+            index: 1,
+            title: 'Simplify the angular position function',
+            formula: '$\\theta(t) = \\frac{1}{8}t^4 - \\frac{1}{3}t^3$',
+            body: '$\\theta$ is the angular position in radians. We are given $\\theta(t) = \\frac{5t^4}{40} - \\frac{t^3}{3}$. We simplify the fraction by dividing the numerator and denominator of the first term by 5, which yields the simplified position function.',
+          },
+          {
+            id: 's2',
+            index: 2,
+            title: 'Differentiate to find angular velocity',
+            formula: '$\\omega = \\frac{d\\theta}{dt}$',
+            body: '$\\omega$ is the angular velocity in rad/s. Applying the power rule to differentiate $\\theta(t) = \\frac{1}{8}t^4 - \\frac{1}{3}t^3$ with respect to time $t$: $\\omega(t) = \\frac{4}{8}t^3 - \\frac{3}{3}t^2 = \\frac{1}{2}t^3 - t^2$.',
+          },
+          {
+            id: 's3',
+            index: 3,
+            title: 'Differentiate to find angular acceleration',
+            formula: '$\\alpha = \\frac{d\\omega}{dt}$',
+            body: '$\\alpha$ is the angular acceleration in $rad/s^2$. Applying the power rule again to differentiate $\\omega(t) = \\frac{1}{2}t^3 - t^2$ with respect to time $t$: $\\alpha(t) = \\frac{3}{2}t^2 - 2t = 1.5t^2 - 2t$.',
+            diagram: plot,
+            takeaway:
+              'Angular acceleration is the second time derivative of angular position: $\\alpha = \\frac{d^2\\theta}{dt^2}$.',
+          },
+          {
+            id: 's4',
+            index: 4,
+            title: 'Substitute the given time to calculate acceleration',
+            formula: '$\\alpha(10) = 1.5(10)^2 - 2(10)$',
+            body: 'With the target time $t = 10\\text{ s}$: $\\alpha = 1.5(100) - 20 = 150 - 20 = 130\\text{ rad/s}^2$.',
+          },
+        ],
+      },
+    };
+    const resolved = await resolveDiagram(plot, 'light', 'print');
+    const html = buildReportDocument(
+      session,
+      { [diagramKey('step', 3)]: resolved.svg },
+      { [diagramKey('step', 3)]: resolved.overlays },
+    );
+    const outDir = resolve(process.cwd(), 'output/pdf');
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(resolve(outDir, 'preview.html'), html, 'utf8');
+    expect(html).toContain('Angular Acceleration from Position');
+    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('#FF6B2C');
+    expect(html).not.toContain('slm-report-label">Answer');
+    const plotSvg =
+      html.match(/<svg[^>]*data-stemlm-family="plot"[\s\S]*?<\/svg>/)?.[0] ?? '';
+    expect(plotSvg.length).toBeGreaterThan(80);
+    const tickLabels = [...plotSvg.matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)].map(
+      (m) => m[1] ?? '',
+    );
+    expect(tickLabels.some((t) => /33333|140\.45/.test(t))).toBe(false);
+    expect(html).toContain('slm-diagram-overlay');
+    expect(html).toMatch(/class="slm-diagram-overlay"[^>]*left:\s*[\d.]+%/);
+    expect(html).not.toMatch(/class="slm-diagram-overlay"[^>]*left:\s*[\d.]+px/);
   });
 });

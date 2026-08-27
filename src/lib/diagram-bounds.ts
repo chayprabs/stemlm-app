@@ -14,7 +14,7 @@ export const DIAGRAM_BOUNDS: Record<DiagramSizeProfile, { maxW: number; maxH: nu
   print: { maxW: 480, maxH: 275 },
 };
 
-/** Hard print caps (mm) used by PDF CSS as a second line of defense. */
+/** Hard print caps (mm). Height tracks the print scene (275px ≈ 73mm) so axis type stays readable. */
 export const PRINT_DIAGRAM_MM = { maxW: 125, maxH: 72 } as const;
 
 /** Only PDF may upscale small viewBoxes; panel keeps native scale. */

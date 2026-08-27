@@ -44,18 +44,28 @@ function sampleFn(
   return { xs, ys };
 }
 
+function formatTick(n: number): string {
+  if (!Number.isFinite(n)) return '';
+  if (Math.abs(n) < 1e-12) return '0';
+  const abs = Math.abs(n);
+  const rounded =
+    abs >= 100 ? Math.round(n) : abs >= 10 ? Number(n.toPrecision(4)) : Number(n.toPrecision(3));
+  if (Math.abs(rounded) < 1e-12) return '0';
+  return String(rounded);
+}
+
 function niceTicks(min: number, max: number, count = 4): number[] {
-  if (max === min) return [min];
+  if (!(max > min)) return [min];
   const span = max - min;
   const raw = span / Math.max(1, count - 1);
-  const mag = 10 ** Math.floor(Math.log10(raw));
+  const mag = 10 ** Math.floor(Math.log10(Math.max(raw, 1e-12)));
   const nice = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((k) => k >= raw) ?? raw;
   const start = Math.ceil(min / nice) * nice;
   const ticks: number[] = [];
-  for (let t = start; t <= max + nice * 1e-6; t += nice) ticks.push(Number(t.toPrecision(8)));
-  if (!ticks.includes(min) && Math.abs(ticks[0]! - min) > nice * 0.2) ticks.unshift(min);
-  if (Math.abs(ticks[ticks.length - 1]! - max) > nice * 0.15) ticks.push(max);
-  return ticks.slice(0, 5);
+  for (let t = start; t <= max + nice * 1e-9; t += nice) {
+    ticks.push(Number(t.toPrecision(8)));
+  }
+  return ticks.length ? ticks.slice(0, 6) : [min, max];
 }
 
 export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
@@ -94,25 +104,25 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
     if (xs.length) series.push({ id: 'data', xs, ys });
   }
 
-  let yMin = 0;
-  let yMax = 1;
+  let dataYMin = 0;
+  let dataYMax = 1;
   const allY = series.flatMap((s) => s.ys);
   const allX = series.flatMap((s) => s.xs);
   if (allY.length) {
-    yMin = Math.min(...allY, 0);
-    yMax = Math.max(...allY, 0);
+    dataYMin = Math.min(...allY, 0);
+    dataYMax = Math.max(...allY, 0);
   }
   for (const pt of specGetAll(spec, 'point')) {
     const p = parsePair(pt);
     if (p) {
-      yMin = Math.min(yMin, p.y);
-      yMax = Math.max(yMax, p.y);
+      dataYMin = Math.min(dataYMin, p.y);
+      dataYMax = Math.max(dataYMax, p.y);
     }
   }
-  if (yMax === yMin) yMax = yMin + 1;
-  const yPad = (yMax - yMin) * 0.08;
-  yMin -= yPad;
-  yMax += yPad;
+  if (dataYMax === dataYMin) dataYMax = dataYMin + 1;
+  const yPad = (dataYMax - dataYMin) * 0.08;
+  const yMin = dataYMin - yPad;
+  const yMax = dataYMax + yPad;
   const xMin = allX.length ? Math.min(...allX, domain.min) : domain.min;
   const xMax = allX.length ? Math.max(...allX, domain.max) : domain.max;
 
@@ -137,22 +147,22 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
   b.line('yaxis', x0, y0, x0, padT, { markerEnd: true, color: 'neutral', protected: true });
 
   const xticks = niceTicks(xMin, xMax, 3);
-  const yticks = niceTicks(yMin, yMax, 3);
+  const yticks = niceTicks(dataYMin, dataYMax, 3);
   xticks.forEach((t, i) => {
     const x = mapX(t);
     b.line(`xtick${i}`, x, y0 - 3, x, y0 + 3, { protected: true, width: 1 });
-    b.label(`xtickl${i}`, String(t), x, y0 + 12, { protected: true });
+    b.label(`xtickl${i}`, formatTick(t), x, y0 + 12, { protected: true });
   });
   yticks.forEach((t, i) => {
     const y = mapY(t);
     b.line(`ytick${i}`, x0 - 3, y, x0 + 3, y, { protected: true, width: 1 });
-    b.label(`ytickl${i}`, String(t), x0 - 16, y, { protected: true, slot: 'W' });
+    b.label(`ytickl${i}`, formatTick(t), x0 - 16, y, { protected: true, slot: 'W' });
   });
 
   const xlabel = specGet(spec, 'xlabel');
   const ylabel = specGet(spec, 'ylabel');
   if (xlabel) b.label('xlabel', xlabel, x0 + plotW / 2, h - 10, { protected: true });
-  if (ylabel) b.label('ylabel', ylabel, 22, padT + 10, { protected: true });
+  if (ylabel) b.label('ylabel', ylabel, 16, padT + 26, { protected: true });
 
   const colors: Array<'accent' | 'muted' | 'danger'> = ['accent', 'muted', 'danger'];
   series.forEach((s, si) => {
@@ -180,7 +190,7 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
     const y = mapY(p.y);
     b.circle(`point${i}`, x, y, 3, { color: 'accent', fill: 'solid' });
     const pl = specGetAll(spec, 'point_label')[i] ?? specGet(spec, 'point_label');
-    if (pl) b.label(`pointl${i}`, pl, x + 8, y - 8, { slot: 'NE' });
+    if (pl) b.label(`pointl${i}`, pl, x - 12, y - 12, { slot: 'NW', protected: true });
     if (drop === 'both' || drop === 'x') b.line(`dropx${i}`, x, y, x, y0, { dash: true, color: 'guide' });
     if (drop === 'both' || drop === 'y') b.line(`dropy${i}`, x, y, x0, y, { dash: true, color: 'guide' });
   });

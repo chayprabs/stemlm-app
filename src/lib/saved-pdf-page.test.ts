@@ -1,13 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { getSavedSession, exportSessionPdf, renderSessionReportHtml, downloadTextFile } = vi.hoisted(
-  () => ({
-    getSavedSession: vi.fn(),
-    exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
-    renderSessionReportHtml: vi.fn(async () => '<html><body>VIEW-REPORT</body></html>'),
-    downloadTextFile: vi.fn(),
-  }),
-);
+const { getSavedSession, exportSessionPdf, renderSessionReportHtml } = vi.hoisted(() => ({
+  getSavedSession: vi.fn(),
+  exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+  renderSessionReportHtml: vi.fn(async () => '<html><body>VIEW-REPORT</body></html>'),
+}));
 
 vi.mock('wxt/browser', () => ({
   browser: {
@@ -37,11 +34,8 @@ vi.mock('@/src/lib/saved-sessions', () => ({
 vi.mock('@/src/lib/pdf', () => ({
   exportSessionPdf,
   renderSessionReportHtml,
-  reportFilename: () => 'stemLM-algebra-2026-08-24',
-}));
-
-vi.mock('@/src/lib/file-download', () => ({
-  downloadTextFile,
+  reportFilename: () => 'stemLM',
+  reportPrintTitle: () => 'stemLM',
 }));
 
 import { parseSavedPdfMode, runSavedPdfPage } from './saved-pdf-page';
@@ -51,7 +45,6 @@ describe('saved-pdf page', () => {
     getSavedSession.mockReset();
     exportSessionPdf.mockClear();
     renderSessionReportHtml.mockClear();
-    downloadTextFile.mockClear();
     document.body.innerHTML = '<main id="app"></main>';
     vi.spyOn(window, 'print').mockImplementation(() => undefined);
   });
@@ -73,15 +66,15 @@ describe('saved-pdf page', () => {
       solution: 'done',
       solutionDiagrams: [],
     });
-    const result = await runSavedPdfPage('id=lib-1&mode=view');
+    const result = await runSavedPdfPage('id=lib-1');
     expect(result).toEqual({ ok: true, mode: 'view' });
     expect(exportSessionPdf).not.toHaveBeenCalled();
-    expect(downloadTextFile).not.toHaveBeenCalled();
     expect(window.print).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('VIEW-REPORT');
+    expect(document.title).toBe('stemLM');
   });
 
-  it('download mode starts a file download without printing', async () => {
+  it('download mode opens print-to-PDF, not an HTML file', async () => {
     getSavedSession.mockResolvedValue({
       id: 'lib-1',
       question: 'Saved Q',
@@ -94,11 +87,8 @@ describe('saved-pdf page', () => {
     });
     const result = await runSavedPdfPage('id=lib-1&mode=download');
     expect(result).toEqual({ ok: true, mode: 'download' });
-    expect(downloadTextFile).toHaveBeenCalledWith(
-      '<html><body>VIEW-REPORT</body></html>',
-      'stemLM-algebra-2026-08-24.html',
-    );
-    expect(exportSessionPdf).not.toHaveBeenCalled();
+    expect(exportSessionPdf).toHaveBeenCalledOnce();
+    expect(renderSessionReportHtml).not.toHaveBeenCalled();
     expect(window.print).not.toHaveBeenCalled();
   });
 });

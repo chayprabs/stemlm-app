@@ -60,6 +60,8 @@ export interface StoreState {
   setSplitDragging: (dragging: boolean) => void;
 
   addSession: (session: Session) => void;
+  /** Drop a session from the question strip. */
+  removeSession: (id: string) => void;
   /** Attach an Ask-in-chat answer inline after its anchor step and focus it. */
   addFollowup: (sessionId: string, followup: StepFollowup) => void;
   /** Replace all sessions (used by "Load conversation"). */
@@ -109,6 +111,33 @@ export const useStore = create<StoreState>((set, get) => ({
       errorMessage: undefined,
       view: 'steps',
     })),
+
+  removeSession: (id) =>
+    set((s) => {
+      const idx = s.sessions.findIndex((sess) => sess.id === id);
+      if (idx < 0) return s;
+      const sessions = s.sessions.filter((sess) => sess.id !== id);
+      if (sessions.length === 0) {
+        return {
+          sessions,
+          activeSessionId: undefined,
+          activeStepIndex: 0,
+          status: 'idle' as const,
+          errorMessage: undefined,
+        };
+      }
+      if (s.activeSessionId !== id) {
+        return { sessions };
+      }
+      const neighbor = sessions[Math.min(idx, sessions.length - 1)];
+      return {
+        sessions,
+        activeSessionId: neighbor?.id,
+        activeStepIndex: 0,
+        view: 'steps' as const,
+        errorMessage: undefined,
+      };
+    }),
 
   setSessions: (sessions) =>
     set(() => ({

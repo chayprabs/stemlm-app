@@ -83,7 +83,8 @@
 .slm-tab:focus-visible,
 .slm-inject-btn:focus-visible,
 .slm-rail-dot:focus-visible,
-.slm-session-pill:focus-visible {
+.slm-session-pill:focus-visible,
+.slm-session-pill-remove:focus-visible {
   outline: 2px solid var(--slm-ring);
   outline-offset: 2px;
 }
@@ -573,8 +574,14 @@
   width: 0;
   height: 0;
 }
-.slm-session-pill {
+.slm-session-chip {
+  position: relative;
+  display: flex;
   flex: 0 0 auto;
+  max-width: 14rem;
+  min-width: 0;
+}
+.slm-session-pill {
   max-width: 14rem;
   white-space: nowrap;
   overflow: hidden;
@@ -587,11 +594,63 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  transition: padding-right 120ms ease;
 }
 .slm-session-pill.is-active {
   background: var(--slm-bg-subtle);
   color: var(--slm-fg);
   border-color: var(--slm-fg);
+}
+.slm-session-chip:hover .slm-session-pill,
+.slm-session-chip:has(.slm-session-pill-remove:focus-visible) .slm-session-pill {
+  padding-right: 2.15rem;
+}
+.slm-session-pill-remove {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 2.05rem;
+  padding: 0 0.5rem 0 0.62rem;
+  border: 0;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background: linear-gradient(to right, transparent 0%, var(--slm-bg) 38%);
+  color: var(--slm-fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+.slm-session-chip.is-active .slm-session-pill-remove {
+  background: linear-gradient(to right, transparent 0%, var(--slm-bg-subtle) 38%);
+}
+.slm-session-chip:hover .slm-session-pill-remove,
+.slm-session-pill-remove:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.slm-session-pill-remove-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--slm-fg) 8%, transparent);
+}
+.slm-session-pill-remove svg {
+  display: block;
+  flex-shrink: 0;
+}
+.slm-session-pill-remove:hover,
+.slm-session-pill-remove:focus-visible {
+  color: var(--slm-fg);
+}
+.slm-session-pill-remove:hover .slm-session-pill-remove-hit,
+.slm-session-pill-remove:focus-visible .slm-session-pill-remove-hit {
+  background: color-mix(in srgb, var(--slm-fg) 16%, transparent);
 }
 
 .slm-banner {
@@ -1830,7 +1889,9 @@
   .slm-theme-glyph .slm-theme-crescent,
   .slm-icon-save,
   .slm-save-glyph,
-  .slm-icon-btn--close svg {
+  .slm-icon-btn--close svg,
+  .slm-session-pill,
+  .slm-session-pill-remove {
     transition: none;
     animation: none;
   }

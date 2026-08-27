@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Session } from '@/src/protocol/types';
 
-const { storageData, mockLocalStorage, tabsCreateMock, tabsSendMessageMock, deliverStemLmMessage } =
+const { storageData, mockLocalStorage, tabsCreateMock, tabsSendMessageMock, windowsCreateMock, deliverStemLmMessage } =
   vi.hoisted(() => {
     const storageData: Record<string, unknown> = {};
     return {
@@ -18,6 +18,7 @@ const { storageData, mockLocalStorage, tabsCreateMock, tabsSendMessageMock, deli
       },
       tabsCreateMock: vi.fn(async () => ({ id: 1 })),
       tabsSendMessageMock: vi.fn(async () => ({ ok: true })),
+      windowsCreateMock: vi.fn(async () => ({ id: 9 })),
       deliverStemLmMessage: vi.fn(async () => ({ ok: true })),
     };
   });
@@ -30,6 +31,9 @@ vi.mock('wxt/browser', () => ({
     tabs: {
       create: tabsCreateMock,
       sendMessage: tabsSendMessageMock,
+    },
+    windows: {
+      create: windowsCreateMock,
     },
     runtime: {
       getURL: (path: string) => `chrome-extension://test${path}`,
@@ -52,6 +56,7 @@ vi.mock('@/src/lib/tab-bridge', () => ({
   isGeminiUrl: vi.fn(),
 }));
 
+import { exportSessionPdf } from '@/src/lib/pdf';
 import { SavedSessionList } from './SavedSessionList';
 import { SavedLibraryOverlay } from './SavedLibraryOverlay';
 import { SAVED_SEARCH_PLACEHOLDER, SAVED_TIME_FILTERS } from '@/src/lib/saved-library';
@@ -168,19 +173,6 @@ function setInputValue(el: HTMLInputElement, value: string) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
-}
-
-function captureDownload() {
-  const captured = { download: '', href: '' };
-  const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:stemlm-report');
-  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
-    captured.download = this.download;
-    captured.href = this.href;
-  });
-  return { captured, createObjectURL };
 }
 
 beforeEach(() => {
@@ -317,10 +309,9 @@ describe('SavedSessionList', () => {
     unmount();
   });
 
-  it('download starts a file download and open creates a viewer tab that does not auto-print', async () => {
+  it('download print-to-PDF and open creates a viewer window that does not auto-print', async () => {
     const list = snapshots();
     seed(list);
-    const download = captureDownload();
     const onDownloaded = vi.fn();
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -342,15 +333,12 @@ describe('SavedSessionList', () => {
     });
     await flush();
 
-    expect(download.createObjectURL).toHaveBeenCalled();
-    expect(download.captured?.download).toMatch(/\.html$/);
-    expect(download.captured?.href).toMatch(/^blob:/);
-    expect(download.captured?.href).not.toMatch(/gemini\.google/);
+    expect(exportSessionPdf).toHaveBeenCalledOnce();
     expect(onDownloaded).toHaveBeenCalledOnce();
     expect(tabsSendMessageMock).not.toHaveBeenCalled();
     expect(deliverStemLmMessage).not.toHaveBeenCalled();
 
-    tabsCreateMock.mockClear();
+    windowsCreateMock.mockClear();
     const rowOpen = container.querySelector(
       'button[aria-label="Open PDF for Find the impedance of the series RLC circuit at 60 Hz."]',
     ) as HTMLButtonElement;
@@ -360,19 +348,20 @@ describe('SavedSessionList', () => {
     });
     await flush();
 
-    expect(tabsCreateMock).toHaveBeenCalledWith(
+    expect(windowsCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: expect.stringContaining('saved-pdf.html?id=rlc'),
-        active: true,
+        url: expect.stringContaining('pdf.html?id=rlc'),
+        type: 'popup',
+        focused: true,
       }),
     );
-    const created = (tabsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
+    const created = (windowsCreateMock.mock.calls as Array<[{ url?: string }?]>)[0]?.[0];
     const url = String(created?.url ?? '');
-    expect(url).toMatch(/mode=view/);
-    expect(url).not.toMatch(/mode=print/);
+    expect(url).not.toMatch(/mode=/);
     expect(url).not.toMatch(/print=/);
     expect(url).not.toMatch(/gemini\.google/);
     expect(url).not.toContain('stemlm:load-conversation');
+    expect(tabsCreateMock).not.toHaveBeenCalled();
 
     act(() => {
       root?.unmount();
@@ -409,7 +398,6 @@ describe('SavedLibraryOverlay', () => {
   it('lists every saved question with logo, search, categories, and still downloads', async () => {
     const list = snapshots();
     seed(list);
-    const download = captureDownload();
     const container = document.createElement('div');
     document.body.appendChild(container);
     let root: Root | undefined;
@@ -441,8 +429,7 @@ describe('SavedLibraryOverlay', () => {
       await Promise.resolve();
     });
     await flush();
-    expect(download.createObjectURL).toHaveBeenCalled();
-    expect(download.captured?.download).toMatch(/\.html$/);
+    expect(exportSessionPdf).toHaveBeenCalledOnce();
 
     act(() => {
       root?.unmount();

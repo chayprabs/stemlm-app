@@ -46,3 +46,20 @@ export function overlayStyleAttr(
   const s = overlayStyle(overlay, viewBox, profile);
   return `position:absolute;left:${s.left}px;top:${s.top}px;transform:${s.transform};pointer-events:none;white-space:nowrap;color:#0f1117;`;
 }
+
+/**
+ * PDF-only: percent of the viewBox so labels stay on the SVG after CSS
+ * max-height shrinks it. Panel overlays keep pixel coords via overlayStyle.
+ */
+export function overlayPrintStyleAttr(
+  overlay: Overlay,
+  viewBox: string | null | undefined,
+): string {
+  const parsed = parseViewBox(viewBox) ?? { x: 0, y: 0, w: 300, h: 165 };
+  const left = Number((((overlay.x - parsed.x) / parsed.w) * 100).toFixed(3));
+  const top = Number((((overlay.y - parsed.y) / parsed.h) * 100).toFixed(3));
+  const ax = overlay.anchor === 'start' ? '0%' : overlay.anchor === 'end' ? '-100%' : '-50%';
+  const ay =
+    overlay.baseline === 'hanging' ? '0%' : overlay.baseline === 'alphabetic' ? '-100%' : '-50%';
+  return `position:absolute;left:${left}%;top:${top}%;transform:translate(${ax}, ${ay});pointer-events:none;white-space:nowrap;color:#0f1117;`;
+}

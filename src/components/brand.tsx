@@ -7,6 +7,7 @@ import logoMono from '@/temp-icon/stemlm-logo-mono.svg?raw';
 
 export const BRAND_INK = '#0E1013';
 export const BRAND_SIGNAL = '#FF6B2C';
+export const BRAND_SITE = 'https://stemlm.app';
 export const BRAND_MARK_TILE_MAX_PX = 28;
 
 const LOCKUP_VIEW_W = 226.7;

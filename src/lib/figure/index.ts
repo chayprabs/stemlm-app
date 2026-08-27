@@ -4,7 +4,7 @@ export { canonicalizeDiagramType, lookupFamily, FAMILY_CATALOG, CATALOG_LEFTOVER
 export { parseSpec, specGet, specIds } from './spec';
 export { evaluateExpr, compileExpr, ExprError } from './pratt';
 export { layoutScene, labelHitsStrokes, overlaysFromLayout } from './slk';
-export { renderOverlayHtml, overlayStyle, overlayStyleAttr } from './overlay';
+export { renderOverlayHtml, overlayStyle, overlayStyleAttr, overlayPrintStyleAttr } from './overlay';
 export { leftoverRegistered, LEFTOVER_TABLE } from './leftovers';
 export { samplePathD } from './geom';
 export { evaluatePlotFn } from './engines/plot';
