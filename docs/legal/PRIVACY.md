@@ -14,7 +14,7 @@ inside your browser.
 - Your study content stays on your device (and only goes to Gemini — the same
   place it was already going).
 - The only optional network call stemLM can make is **anonymous, aggregate usage
-  analytics**, which you can turn off, and which never includes your content.
+  analytics**, which never includes your content.
 
 ## What data stemLM handles
 
@@ -27,8 +27,8 @@ exactly as it would without stemLM.
 
 **2. Data stored locally on your device** (via the browser's extension storage):
 
-- **Settings** — theme, default subject, split‑screen ratio, auto‑open and
-  analytics preferences.
+- **Settings** — theme, split‑screen ratio, tab sharing, and auto‑open
+  preferences.
 - **Saved sessions** — only the study capsules you explicitly click "Save" on,
   so you can revisit them. You can delete them any time from the popup.
 - **A random client id** — a UUID used only to de‑duplicate anonymous analytics
@@ -36,17 +36,14 @@ exactly as it would without stemLM.
 
 This data never leaves your browser except as described under Analytics.
 
-**3. Anonymous usage analytics (optional, off‑switchable).**
-If analytics is configured by the distributor and you have **not** opted out,
-stemLM sends small, content‑free event pings (via the Google Analytics 4
-Measurement Protocol) such as `question_asked`, `question_solved`,
-`pdf_exported`, and `panel_opened`, each tagged only with the platform name
-(`gemini`) and a random session/client id. **No question text, answer text,
-selections, or personal data are ever included.** These counts exist only to
-understand how many people use the tool and how many questions get solved.
-
-You can disable analytics entirely in **Settings → Privacy → "Opt out of
-anonymous usage analytics."** In addition, analytics is a hard no‑op unless the
+**3. Anonymous usage analytics.**
+If analytics is configured by the distributor, stemLM sends small, content‑free
+event pings (via the Google Analytics 4 Measurement Protocol) such as
+`question_asked`, `question_solved`, `pdf_exported`, and `panel_opened`, each
+tagged only with the platform name (`gemini`) and a random session/client id.
+**No question text, answer text, selections, or personal data are ever
+included.** These counts exist only to understand how many people use the tool
+and how many questions get solved. Analytics is a hard no‑op unless the
 distributor has supplied GA credentials at build time.
 
 ## Permissions and why they're needed

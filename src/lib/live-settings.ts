@@ -6,7 +6,12 @@
  */
 import { useStore } from '@/src/state/store';
 import { resolveTheme } from '@/src/lib/theme';
-import { loadMirroredSessions, mirrorActiveSessions } from '@/src/lib/session-sync';
+import {
+  loadMirroredSessions,
+  mergeMirroredSessions,
+  mirrorActiveSessions,
+  sessionsMirrorFingerprint,
+} from '@/src/lib/session-sync';
 import type { Settings } from '@/src/lib/settings';
 
 export function applyLiveSettings(next: Settings, prev: Settings = useStore.getState().settings): void {
@@ -19,13 +24,15 @@ export function applyLiveSettings(next: Settings, prev: Settings = useStore.getS
   }
 
   if (next.shareAcrossTabs && !prev.shareAcrossTabs) {
-    if (state.sessions.length) {
-      void mirrorActiveSessions(state.sessions);
-    } else {
-      void loadMirroredSessions().then((shared) => {
-        if (shared.length) useStore.getState().setSessions(shared);
-      });
-    }
+    // Merge with whatever other tabs already mirrored — never clobber it.
+    void loadMirroredSessions().then((shared) => {
+      const local = useStore.getState().sessions;
+      const merged = mergeMirroredSessions(local, shared);
+      if (sessionsMirrorFingerprint(merged) !== sessionsMirrorFingerprint(local)) {
+        useStore.getState().setSessions(merged);
+      }
+      if (merged.length) void mirrorActiveSessions(merged);
+    });
   } else if (!next.shareAcrossTabs && prev.shareAcrossTabs) {
     void mirrorActiveSessions([]);
   }

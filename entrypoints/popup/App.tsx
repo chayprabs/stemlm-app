@@ -145,7 +145,6 @@ export default function App() {
           </span>
           <span className="slm-popup-toggle-copy">
             <span className="slm-popup-toggle-label">{STEMLM_TOGGLE_LABEL}</span>
-            <span className="slm-popup-toggle-state">{stemlmEnabled ? 'On' : 'Off'}</span>
           </span>
           <span className="slm-popup-switch" aria-hidden="true">
             <span className="slm-popup-switch-knob" />

@@ -3,6 +3,7 @@
 @import 'katex/dist/katex.min.css';
 @import '../../assets/panel.css';
 @import '../../assets/pages.css';
+@import '../../assets/settings.css';
 
 /*
  * WXT sets `:host { all: initial !important }`, which would otherwise make this

@@ -21,9 +21,9 @@ export default function App() {
   useEffect(() => {
     if (!ready || !shellRef.current) return;
     return watchFitCurrentWindowToContent(shellRef.current, {
-      minWidth: 680,
-      maxWidth: 740,
-      maxHeight: 540,
+      minWidth: 440,
+      maxWidth: 480,
+      maxHeight: 640,
     });
   }, [ready]);
 

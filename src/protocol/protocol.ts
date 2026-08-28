@@ -21,7 +21,6 @@ export const CAPSULE_FENCE_TAG = 'stemlm';
 export const CAPSULE_END_TOKEN = '@end';
 /** Version the protocol instructs the model to emit. Unknown higher versions still parse known blocks. */
 export const PROTOCOL_VERSION = 2;
-export type PromptVariant = 'balanced' | 'ultra';
 
 /** Hard parser bounds — simple problems may have 3 atomic steps. */
 export const STEP_COUNT_MIN = 3;
@@ -37,14 +36,6 @@ export function renderProtocol(template: string): string {
     .trim();
 }
 
-const DEPTH_BALANCED = [
-  'DEPTH: balanced',
-  'Emit 5-12 atomic @step blocks (3-4 if trivial). Last step is verification work.',
-  'Use the standard textbook path.',
-  'NUMERIC/LAB only: do not skip symbol definitions or substitution.',
-  'Proof/symbolic/conceptual/code/comparison/design/estimation: follow the ARCHETYPE REGISTRY — NEVER a numeric plug-in.',
-].join('\n');
-
 const DEPTH_DEEP = [
   'DEPTH: deep',
   'You are stemLM in DEEP mode.',
@@ -56,23 +47,12 @@ const DEPTH_DEEP = [
 
 const CORE_BODY = renderProtocol(coreTemplate);
 
-function withDepth(depth: string): string {
-  return `${depth}\n\n${CORE_BODY}`;
-}
-
-export const CORE_PROTOCOL_BY_VARIANT: Record<PromptVariant, string> = {
-  balanced: withDepth(DEPTH_BALANCED),
-  ultra: withDepth(DEPTH_DEEP),
-};
-
-export const DEFAULT_PROMPT_VARIANT: PromptVariant = 'balanced';
-
-export const CORE_PROTOCOL = CORE_PROTOCOL_BY_VARIANT[DEFAULT_PROMPT_VARIANT];
+export const CORE_PROTOCOL = `${DEPTH_DEEP}\n\n${CORE_BODY}`;
 
 /** Full attached-file payload: core + registries + subject rows. Same file every question. */
-export function assembleProtocolFile(variant: PromptVariant = DEFAULT_PROMPT_VARIANT): string {
+export function assembleProtocolFile(): string {
   return [
-    CORE_PROTOCOL_BY_VARIANT[variant],
+    CORE_PROTOCOL,
     renderArchetypeRegistry(),
     renderVerificationRegistry(),
     renderFollowupRegistry(),

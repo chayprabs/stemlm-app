@@ -109,7 +109,7 @@ export const useStore = create<StoreState>((set, get) => ({
       activeStepIndex: 0,
       status: 'ready',
       errorMessage: undefined,
-      view: 'steps',
+      view: s.settings.defaultView,
     })),
 
   removeSession: (id) =>
@@ -134,18 +134,19 @@ export const useStore = create<StoreState>((set, get) => ({
         sessions,
         activeSessionId: neighbor?.id,
         activeStepIndex: 0,
-        view: 'steps' as const,
+        view: s.settings.defaultView,
         errorMessage: undefined,
       };
     }),
 
   setSessions: (sessions) =>
-    set(() => ({
+    set((s) => ({
       sessions,
       activeSessionId: sessions[sessions.length - 1]?.id,
       activeStepIndex: 0,
       status: sessions.length ? 'ready' : 'idle',
       errorMessage: undefined,
+      view: s.settings.defaultView,
     })),
 
   addFollowup: (sessionId, followup) =>
@@ -179,7 +180,8 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }),
 
-  setActiveSession: (id) => set({ activeSessionId: id, activeStepIndex: 0, view: 'steps' }),
+  setActiveSession: (id) =>
+    set((s) => ({ activeSessionId: id, activeStepIndex: 0, view: s.settings.defaultView })),
 
   setActiveStep: (index) => {
     const session = getActiveSession(get());

@@ -29,7 +29,11 @@ function mergeSessionPair(local: Session, incoming: Session): Session {
   return local.raw.trim() ? local : { ...local, raw: incoming.raw };
 }
 
-/** Merge by session id — keep the copy with the latest updatedAt. */
+/**
+ * Merge by session id — keep the copy with the latest updatedAt.
+ * Sorted oldest-first so the newest session sits last, matching the store's
+ * append order and every `sessions[sessions.length - 1]` "latest" pick.
+ */
 export function mergeMirroredSessions(local: Session[], incoming: Session[]): Session[] {
   const byId = new Map<string, Session>();
   for (const session of [...local, ...incoming]) {
@@ -40,7 +44,7 @@ export function mergeMirroredSessions(local: Session[], incoming: Session[]): Se
     }
     byId.set(session.id, mergeSessionPair(existing, session));
   }
-  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
 }
 
 export function sessionsMirrorFingerprint(sessions: Session[]): string {

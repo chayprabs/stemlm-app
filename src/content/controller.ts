@@ -197,8 +197,7 @@ export class StemController {
     const hasUserContent = this.composerHasUserContent();
     this.lastQuestion = question;
 
-    const variant = store.settings.promptVariant;
-    const buildOpt = { variant, hasImageAttachment };
+    const buildOpt = { hasImageAttachment };
     const payload = buildInjectionPayload(question, buildOpt);
     const subject = payload.subject;
 
@@ -264,7 +263,6 @@ export class StemController {
     void trackEvent('question_asked', {
       platform: this.adapter.id,
       subject,
-      prompt_variant: variant,
       injection_method: injectionMethod,
     });
 
@@ -303,12 +301,10 @@ export class StemController {
       return false;
     }
 
-    const variant = store.settings.promptVariant;
     const followOpt = {
       selection: normalized,
       stepTitle,
       subject,
-      variant,
       intent: opt?.intent,
     };
     const payload = buildFollowupPayload(followOpt);
@@ -640,7 +636,6 @@ export class StemController {
       parse_error_code: code,
       warnings_count: result.warningCodes.length,
       repair_used: false,
-      prompt_variant: useStore.getState().settings.promptVariant,
     });
   }
 
@@ -814,7 +809,6 @@ export class StemController {
         platform: this.adapter.id,
         subject: cap.meta.subject,
         steps: cap.steps.length,
-        prompt_variant: useStore.getState().settings.promptVariant,
         parse_status: result.status,
         warnings_count: result.warningCodes.length,
         step_quality_warnings_count: stepQualityIssues.length,
@@ -892,7 +886,6 @@ export class StemController {
       platform: this.adapter.id,
       subject: capsule.meta.subject,
       steps: capsule.steps.length,
-      prompt_variant: useStore.getState().settings.promptVariant,
       parse_status: result.status,
       warnings_count: result.warningCodes.length,
       step_quality_warnings_count: stepQualityIssues.length,

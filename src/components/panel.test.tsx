@@ -19,8 +19,6 @@ const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSave
       shareAcrossTabs: false,
       autoOpenOnAnswer: true,
       stemlmEnabled: true,
-      promptVariant: 'balanced',
-      analyticsOptOut: false,
       splitRatio: 0.5,
       ...patch,
     })),

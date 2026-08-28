@@ -20,6 +20,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
   const optionsHtml = read('entrypoints/options/index.html');
   const savedPdfHtml = read('entrypoints/pdf/index.html');
   const savedLibraryHtml = read('entrypoints/saved-library/index.html');
+  const savedLibraryMain = read('entrypoints/saved-library/main.tsx');
   const popupApp = read('entrypoints/popup/App.tsx');
   const emptyState = read('src/components/EmptyState.tsx');
   const wxt = read('wxt.config.ts');
@@ -171,8 +172,12 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
       /\.slm-settings-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
     expect(settingsWidth).toBeTruthy();
     expect(settingsHeight).toBeTruthy();
-    expect(Number(settingsWidth![1])).toBeGreaterThan(Number(settingsHeight![1]));
-    const libraryCss = pages.slice(pages.indexOf('.slm-library-dialog {'));
+    // Settings sheet is a portrait single-column list.
+    expect(Number(settingsHeight![1])).toBeGreaterThan(Number(settingsWidth![1]));
+    const libraryCss = pages.slice(
+      pages.indexOf('.slm-library-dialog {'),
+      pages.indexOf('.slm-settings-overlay {'),
+    );
     expect(libraryCss).not.toMatch(/--slm-accent/);
     expect(pages).toContain('-webkit-line-clamp: 2');
     expect(popupHtml).toContain('IBM+Plex+Sans');
@@ -188,6 +193,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(optionsHtml).toContain('IBM+Plex+Sans');
     expect(savedPdfHtml).toContain('IBM+Plex+Sans');
     expect(savedLibraryHtml).toContain('IBM+Plex+Sans');
+    expect(savedLibraryMain).toContain("katex/dist/katex.min.css");
     expect(popupApp).toContain('Open study panel');
     expect(popupApp).toContain('stemlm-enabled');
     expect(popupApp).toContain('STEMLM_TOGGLE_LABEL');

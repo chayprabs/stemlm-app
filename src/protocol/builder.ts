@@ -7,11 +7,9 @@
 import type { Subject } from './types';
 import {
   assembleProtocolFile,
-  CORE_PROTOCOL_BY_VARIANT,
-  DEFAULT_PROMPT_VARIANT,
+  CORE_PROTOCOL,
   STEP_COUNT_MAX,
   STEP_COUNT_TARGET,
-  type PromptVariant,
 } from './protocol';
 import { SUBJECT_REGISTRY } from './playbooks';
 import { classifySubject } from './classifier';
@@ -208,21 +206,18 @@ export const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not rem
 
 export interface BuildOptions {
   subject?: Subject | 'Auto';
-  variant?: PromptVariant;
   hasImageAttachment?: boolean;
 }
 
 export interface BuildResult {
   prompt: string;
   subject: Subject;
-  variant: PromptVariant;
 }
 
 export interface InjectionPayload {
   composerText: string;
   fileContent: string;
   subject: Subject;
-  variant: PromptVariant;
 }
 
 export function resolveSubject(question: string, opt?: BuildOptions): Subject {
@@ -256,11 +251,9 @@ export const STEP_BODY_REMINDER =
 export function buildProtocolFileContent(opt?: BuildOptions & { question?: string }): {
   content: string;
   subject: Subject;
-  variant: PromptVariant;
 } {
   const subject = resolveSubject(opt?.question ?? '', opt);
-  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
-  return { content: assembleProtocolFile(variant), subject, variant };
+  return { content: assembleProtocolFile(), subject };
 }
 
 const IMAGE_STUB_LINE =
@@ -328,12 +321,11 @@ export function buildComposerPointer(
 }
 
 export function buildInjectionPayload(question: string, opt?: BuildOptions): InjectionPayload {
-  const { content, subject, variant } = buildProtocolFileContent({ ...opt, question });
+  const { content, subject } = buildProtocolFileContent({ ...opt, question });
   return {
     composerText: buildComposerStub(question, opt),
     fileContent: content,
     subject,
-    variant,
   };
 }
 
@@ -346,11 +338,10 @@ const IMAGE_QUESTION_PREAMBLE = [
 /** Last-resort composer paste: core template markers only — never leftover rows. */
 export function buildCoreFallbackAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
-  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL_BY_VARIANT[variant]}`;
-  return { prompt, subject, variant };
+  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL}`;
+  return { prompt, subject };
 }
 
 export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
@@ -359,12 +350,11 @@ export function buildInjectionAppendix(question: string, opt?: BuildOptions): Bu
 
 export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
-  const variant = opt?.variant ?? DEFAULT_PROMPT_VARIANT;
   const q = (question || '').trim();
   const head = q.length > 0 ? q : '(The student has not typed a question yet — ask them to type one.)';
   const { prompt: appendix } = buildInjectionAppendix(question, opt);
   const prompt = `${head}${appendix}`;
-  return { prompt, subject, variant };
+  return { prompt, subject };
 }
 
 export type FollowupIntent = 'dig-deeper' | 'ask' | 'ask-solution';
@@ -377,7 +367,6 @@ export interface FollowupOptions {
   selection: string;
   stepTitle?: string;
   subject?: Subject;
-  variant?: PromptVariant;
   intent?: FollowupIntent;
 }
 
@@ -500,14 +489,12 @@ export function buildFollowupComposerText(opt: FollowupOptions): string {
 
 export function buildFollowupPayload(opt: FollowupOptions): InjectionPayload {
   const subject = opt.subject ?? 'General';
-  const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
   const selection = normalizeFollowupSelection(opt.selection);
-  const { content } = buildProtocolFileContent({ subject, variant });
+  const { content } = buildProtocolFileContent({ subject });
   return {
-    composerText: buildFollowupComposerText({ ...opt, selection, subject, variant }),
+    composerText: buildFollowupComposerText({ ...opt, selection, subject }),
     fileContent: content,
     subject,
-    variant,
   };
 }
 
@@ -519,8 +506,7 @@ const COMPACT_GRAMMAR = [
 /** Attach-failed follow-up: short contract plus compact grammar — not leftover rows. */
 export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
-  const variant = opt.variant ?? DEFAULT_PROMPT_VARIANT;
-  const context = buildFollowupContextBlock({ ...opt, subject, variant });
+  const context = buildFollowupContextBlock({ ...opt, subject });
   return `${FOLLOWUP_QUESTION_SLOT}${context}\n${SEP}${COMPACT_GRAMMAR}`;
 }
 

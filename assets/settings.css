@@ -1,0 +1,119 @@
+/**
+ * Settings controls. Loaded after pages.css so these colors always win.
+ * Hardcoded tracks so dark mode never falls back to a white-on-white switch.
+ */
+.slm-set-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  padding: 0.9rem 0;
+}
+.slm-set-row + .slm-set-row {
+  border-top: 1px solid color-mix(in srgb, var(--slm-border) 70%, transparent);
+}
+.slm-set-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+.slm-set-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.slm-set-seg {
+  display: flex;
+  width: 100%;
+  padding: 0.18rem;
+  gap: 0.18rem;
+  box-sizing: border-box;
+  background: var(--slm-bg-muted);
+  border: 1px solid var(--slm-border);
+  border-radius: 999px;
+}
+.slm-set-seg-btn {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--slm-fg-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.slm-set-seg-btn:hover {
+  color: var(--slm-fg);
+}
+.slm-set-seg-btn.is-active {
+  background: #ffffff;
+  color: #171717;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+[data-stemlm-theme='dark'] .slm-set-seg-btn.is-active {
+  background: #3a3a3a;
+  color: #f5f5f5;
+  box-shadow: none;
+}
+.slm-set-seg-btn:focus {
+  outline: none;
+}
+.slm-set-seg-btn:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 1px;
+}
+
+.slm-set-switch {
+  position: relative;
+  width: 2.6rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #c8c8cc;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+[data-stemlm-theme='dark'] .slm-set-switch {
+  background: #4a4a4e;
+}
+.slm-set-switch.is-on {
+  background: #0e7c76;
+}
+[data-stemlm-theme='dark'] .slm-set-switch.is-on {
+  background: #3dcdc4;
+}
+.slm-set-knob {
+  position: absolute;
+  top: 0.16rem;
+  left: 0.16rem;
+  width: 1.18rem;
+  height: 1.18rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.16s ease;
+}
+.slm-set-switch.is-on .slm-set-knob {
+  transform: translateX(1.1rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .slm-set-knob {
+    transition: none;
+  }
+}
+.slm-set-switch:focus {
+  outline: none;
+}
+.slm-set-switch:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}

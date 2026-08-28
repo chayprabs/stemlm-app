@@ -61,8 +61,8 @@ describe('clampSplitRatio', () => {
     expect(DEFAULT_SPLIT_RATIO).toBeLessThanOrEqual(0.58);
   });
 
-  it('defaults to the balanced prompt variant', () => {
-    expect(DEFAULT_SETTINGS.promptVariant).toBe('balanced');
+  it('defaults answers to open on the steps tab', () => {
+    expect(DEFAULT_SETTINGS.defaultView).toBe('steps');
   });
 
   it('defaults stemlm to on so the attach control stays visible', () => {
@@ -76,20 +76,29 @@ describe('hydrateSettings', () => {
     expect(settings.autoOpenOnAnswer).toBe(false);
   });
 
-  it('rejects invalid theme and prompt variant values', () => {
+  it('rejects invalid theme values and clamps split ratio', () => {
     const settings = hydrateSettings({
       theme: 'purple' as never,
-      promptVariant: 'tiny' as never,
       splitRatio: 9,
     });
     expect(settings.theme).toBe('auto');
-    expect(settings.promptVariant).toBe('balanced');
     expect(settings.splitRatio).toBe(0.75);
   });
 
-  it('drops legacy defaultSubject from stored settings', () => {
-    const settings = hydrateSettings({ defaultSubject: 'Physics' });
+  it('normalizes defaultView and keeps a stored solution choice', () => {
+    expect(hydrateSettings({ defaultView: 'wat' as never }).defaultView).toBe('steps');
+    expect(hydrateSettings({ defaultView: 'solution' }).defaultView).toBe('solution');
+  });
+
+  it('drops legacy keys from stored settings', () => {
+    const settings = hydrateSettings({
+      defaultSubject: 'Physics',
+      promptVariant: 'ultra',
+      analyticsOptOut: true,
+    });
     expect(settings).not.toHaveProperty('defaultSubject');
+    expect(settings).not.toHaveProperty('promptVariant');
+    expect(settings).not.toHaveProperty('analyticsOptOut');
     expect(settings.theme).toBe('auto');
   });
 
@@ -131,17 +140,11 @@ describe('setSettings', () => {
     expect((storageData[KEY] as { splitRatio: number }).splitRatio).toBe(0.25);
   });
 
-  it('persists prompt variant changes', async () => {
-    const next = await setSettings({ promptVariant: 'ultra' });
-    expect(next.promptVariant).toBe('ultra');
-    expect((storageData[KEY] as { promptVariant: string }).promptVariant).toBe('ultra');
-  });
-
   it('round-trips through getSettings', async () => {
-    await setSettings({ shareAcrossTabs: true, promptVariant: 'ultra' });
+    await setSettings({ shareAcrossTabs: true, defaultView: 'solution' });
     const loaded = await getSettings();
     expect(loaded.shareAcrossTabs).toBe(true);
-    expect(loaded.promptVariant).toBe('ultra');
+    expect(loaded.defaultView).toBe('solution');
     expect(loaded.stemlmEnabled).toBe(true);
     expect(loaded).not.toHaveProperty('defaultSubject');
   });

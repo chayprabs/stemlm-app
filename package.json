@@ -25,6 +25,8 @@
     "dompurify": "^3.2.7",
     "framer-motion": "^12.23.30",
     "fuse.js": "^7.5.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "katex": "^0.16.25",
     "mermaid": "^11.12.1",
     "react": "^19.2.0",
@@ -50,5 +52,8 @@
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",
     "wxt": "^0.20.26"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": ["core-js"]
   }
 }

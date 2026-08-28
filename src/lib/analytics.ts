@@ -66,16 +66,6 @@ export function analyticsEnabled(): boolean {
   return Boolean(MEASUREMENT_ID && API_SECRET);
 }
 
-/** Respect a user opt-out flag stored in settings. */
-async function userOptedOut(): Promise<boolean> {
-  try {
-    const { stemlm_settings } = await browser.storage.local.get('stemlm_settings');
-    return Boolean((stemlm_settings as { analyticsOptOut?: boolean } | undefined)?.analyticsOptOut);
-  } catch {
-    return false;
-  }
-}
-
 export type StemLmEvent =
   | 'extension_installed'
   | 'panel_opened'
@@ -94,13 +84,12 @@ export type EventParams = Record<string, string | number | boolean | undefined>;
 const DEBUG = false;
 
 /**
- * Send a single event to GA4. No-ops silently when credentials are absent or
- * the user has opted out. Never throws.
+ * Send a single event to GA4. No-ops silently when credentials are absent.
+ * Never throws.
  */
 export async function trackEvent(name: StemLmEvent, params: EventParams = {}): Promise<void> {
   try {
     if (!analyticsEnabled()) return;
-    if (await userOptedOut()) return;
 
     const [clientId, sessionId] = await Promise.all([
       getOrCreateClientId(),

@@ -15,9 +15,10 @@ const base = (props: SVGProps<SVGSVGElement>) => ({
 
 export { StemMark } from './brand';
 
+/** Compact dropdown caret — Lucide’s 24-grid chevron is optically tiny at 12–16px. */
 export const IconChevronDown = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 12, height: 12, ...p })}>
-    <path d="m6 9 6 6 6-6" />
+  <svg {...base({ width: 16, height: 16, viewBox: '0 0 16 16', strokeWidth: 1.75, ...p })}>
+    <path d="m3.2 5.7 4.8 4.8 4.8-4.8" />
   </svg>
 );
 
@@ -63,6 +64,17 @@ export const IconNavNext = (p: SVGProps<SVGSVGElement>) => (
 export const IconClose = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ strokeWidth: 1.75, ...p })}>
     <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" />
+  </svg>
+);
+
+/** Lucide Trash2 — remove a saved question without looking like window close. */
+export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
   </svg>
 );
 
@@ -123,6 +135,14 @@ export const IconSearch = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <circle cx="11" cy="11" r="7" />
     <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+
+/** Lucide Clock — time-window filter. */
+export const IconClock = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 6v6l4 2" />
   </svg>
 );
 

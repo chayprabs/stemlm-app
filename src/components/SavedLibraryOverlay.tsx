@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SavedSessionList } from './SavedSessionList';
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
+import { SAVED_QUESTIONS_LABEL } from '@/src/lib/saved-library';
 import { getSavedSessions, type SavedSessionSnapshot } from '@/src/lib/saved-sessions';
 import { getSettings } from '@/src/lib/settings';
 import {
@@ -57,7 +58,11 @@ export function SavedLibraryOverlay({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (e.target instanceof Element && e.target.closest('.slm-library-time[data-open="true"]')) {
+        return;
+      }
+      onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -83,16 +88,18 @@ export function SavedLibraryOverlay({
         />
       )}
       <div className="slm-library-dialog" role="dialog" aria-modal="true" aria-labelledby="slm-library-title">
-        <div className="slm-library-dialog-head">
-          <h2 id="slm-library-title" className="slm-library-dialog-title">
-            <BrandWordmark variant={themeToBrandVariant(theme)} height={28} />
-            <span className="slm-sr-only">Saved questions</span>
-          </h2>
-          <button type="button" className="slm-library-close" aria-label="Close" onClick={onClose}>
-            <IconClose width={16} height={16} />
-          </button>
+        <div className="slm-library-frame">
+          <div className="slm-library-dialog-head">
+            <h2 id="slm-library-title" className="slm-library-dialog-title">
+              <BrandWordmark variant={themeToBrandVariant(theme)} height={28} />
+              <span className="slm-library-kicker">{SAVED_QUESTIONS_LABEL}</span>
+            </h2>
+            <button type="button" className="slm-library-close" aria-label="Close" onClick={onClose}>
+              <IconClose width={16} height={16} />
+            </button>
+          </div>
+          <SavedSessionList sessions={items} onSessionsChange={onChange} />
         </div>
-        <SavedSessionList sessions={items} onSessionsChange={onChange} />
       </div>
     </div>
   );

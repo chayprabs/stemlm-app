@@ -34,10 +34,9 @@ describe('applyLiveSettings', () => {
     });
   });
 
-  it('writes theme and prompt variant into the live store', () => {
-    applyLiveSettings({ ...DEFAULT_SETTINGS, theme: 'dark', promptVariant: 'ultra' });
+  it('writes theme into the live store', () => {
+    applyLiveSettings({ ...DEFAULT_SETTINGS, theme: 'dark' });
     expect(useStore.getState().settings.theme).toBe('dark');
-    expect(useStore.getState().settings.promptVariant).toBe('ultra');
     expect(useStore.getState().theme).toBe('dark');
   });
 
@@ -47,11 +46,9 @@ describe('applyLiveSettings', () => {
       shareAcrossTabs: true,
       autoOpenOnAnswer: false,
       stemlmEnabled: false,
-      analyticsOptOut: true,
     });
     expect(useStore.getState().settings.shareAcrossTabs).toBe(true);
     expect(useStore.getState().settings.autoOpenOnAnswer).toBe(false);
     expect(useStore.getState().settings.stemlmEnabled).toBe(false);
-    expect(useStore.getState().settings.analyticsOptOut).toBe(true);
   });
 });

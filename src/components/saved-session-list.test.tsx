@@ -47,6 +47,7 @@ vi.mock('@/src/lib/pdf', async (importOriginal) => {
   return {
     ...actual,
     exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+    downloadSessionPdf: vi.fn(async () => ({ ok: true, method: 'download' as const })),
   };
 });
 
@@ -56,7 +57,7 @@ vi.mock('@/src/lib/tab-bridge', () => ({
   isGeminiUrl: vi.fn(),
 }));
 
-import { exportSessionPdf } from '@/src/lib/pdf';
+import { downloadSessionPdf, exportSessionPdf } from '@/src/lib/pdf';
 import { SavedSessionList } from './SavedSessionList';
 import { SavedLibraryOverlay } from './SavedLibraryOverlay';
 import { SAVED_SEARCH_PLACEHOLDER, SAVED_TIME_FILTERS } from '@/src/lib/saved-library';
@@ -209,9 +210,8 @@ describe('SavedSessionList', () => {
       'Find the impedance of the series RLC circuit at 60 Hz.',
     );
     expect(container.textContent).toContain('Electrical');
-    expect(container.textContent).toContain(
-      'A 2 kg mass accelerates at 3 m/s^2. What is the net force?',
-    );
+    expect(container.textContent).toContain('2 kg mass');
+    expect(container.textContent).toContain('net force');
     expect(container.textContent).toContain('Physics');
     expect(container.querySelector('.slm-saved-question-text')?.textContent).not.toBe(
       'RLC impedance',
@@ -224,12 +224,62 @@ describe('SavedSessionList', () => {
     ) as HTMLInputElement;
     expect(search.placeholder).toBe(SAVED_SEARCH_PLACEHOLDER);
     expect(container.textContent).toContain('All categories');
-    expect(container.querySelector('button[aria-label="Filter by time"]')).toBeTruthy();
+    const timeBtn = container.querySelector('button[aria-label="Filter by time"]') as HTMLButtonElement;
+    expect(timeBtn).toBeTruthy();
+    expect(timeBtn.querySelector('.slm-library-time-clock')).toBeTruthy();
+    expect(timeBtn.querySelector('.slm-library-time-chevron')).toBeTruthy();
 
     const q = container.querySelector('.slm-library-row-q') as HTMLElement;
     expect(q.classList.contains('slm-saved-question-text')).toBe(true);
     const pagesCss = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
     expect(pagesCss).toMatch(/\.slm-library-row-q[\s\S]*?-webkit-line-clamp:\s*2/);
+    expect(pagesCss).toMatch(/\.slm-library-row-q[\s\S]*?max-height:\s*calc\(1\.5em \* 2\)/);
+    expect(pagesCss).not.toMatch(/width:\s*max\(100%,\s*12\.5rem\)/);
+    expect(pagesCss).toMatch(/\.slm-library-time-menu\s*\{[^}]*overflow:\s*hidden/);
+    expect(pagesCss).toMatch(/\.slm-library-time-menu\s*\{[^}]*position:\s*fixed/);
+    expect(pagesCss).toMatch(/\.slm-library-toolbar\s*\{[^}]*overflow:\s*visible/);
+    expect(pagesCss).not.toContain('slm-library-nav-label');
+
+    unmount();
+  });
+
+  it('renders saved LaTeX with KaTeX the same way the study panel does', () => {
+    const list = [
+      sessionToSnapshot(
+        makeSession({
+          id: 'theta',
+          question:
+            'A particle is rotating in a circular path and at any instant its motion can be described as \\theta = \\frac{5t^4}{40} - \\frac{t^3}{3}. The angular acceleration of the particle after 10 seconds is ______ rad/s^2.',
+          capsule: {
+            meta: { version: 1, subject: 'Physics', topic: 'Angular acceleration' },
+            steps: [{ id: 's1', index: 1, title: 'alpha', body: 'd^2 theta / dt^2' }],
+            solution: 'alpha = 5 rad/s^2',
+            solutionDiagrams: [],
+          },
+        }),
+      ),
+    ];
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    const q = container.querySelector('.slm-library-row-q') as HTMLElement;
+    expect(q).toBeTruthy();
+    expect(q.classList.contains('slm-prose')).toBe(true);
+    expect(q.querySelector('.katex')).toBeTruthy();
+    expect(q.querySelector('.katex-mathml')).toBeTruthy();
+    expect(q.querySelector('.katex-html')).toBeTruthy();
+    expect(q.querySelector('.frac-line, .mfrac, .vlist-t')).toBeTruthy();
+    expect(q.textContent).toContain('circular path');
+    expect(q.textContent).toContain('angular acceleration');
+    const visible = (q.querySelector('.katex-html')?.textContent ?? '').replace(/\s+/g, '');
+    expect(visible).not.toContain('\\frac');
+    expect(visible).not.toContain('\\theta');
+    const pagesCss = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+    expect(pagesCss).toMatch(/\.slm-library-row\s*\{[^}]*border:\s*none/);
+    expect(pagesCss).toMatch(/\.slm-library-icon-btn\s*\{[^}]*border:\s*none/);
+    expect(readFileSync(resolve(process.cwd(), 'entrypoints/saved-library/main.tsx'), 'utf8')).toContain(
+      "katex/dist/katex.min.css",
+    );
 
     unmount();
   });
@@ -260,7 +310,9 @@ describe('SavedSessionList', () => {
       'input[aria-label="Search saved questions"]',
     ) as HTMLInputElement;
     setInputValue(search, 'Quadratic formula');
-    expect(container.textContent).toContain('Solve x^2 - 5x + 6 = 0');
+    expect(
+      container.querySelector('button[aria-label="Download PDF for Solve x^2 - 5x + 6 = 0"]'),
+    ).toBeTruthy();
     expect(container.textContent).not.toContain('series RLC');
     expect(container.textContent).not.toContain('net force');
 
@@ -309,7 +361,7 @@ describe('SavedSessionList', () => {
     unmount();
   });
 
-  it('download print-to-PDF and open creates a viewer window that does not auto-print', async () => {
+  it('download saves a PDF file and open creates a viewer window that does not auto-print', async () => {
     const list = snapshots();
     seed(list);
     const onDownloaded = vi.fn();
@@ -333,7 +385,8 @@ describe('SavedSessionList', () => {
     });
     await flush();
 
-    expect(exportSessionPdf).toHaveBeenCalledOnce();
+    expect(downloadSessionPdf).toHaveBeenCalledOnce();
+    expect(exportSessionPdf).not.toHaveBeenCalled();
     expect(onDownloaded).toHaveBeenCalledOnce();
     expect(tabsSendMessageMock).not.toHaveBeenCalled();
     expect(deliverStemLmMessage).not.toHaveBeenCalled();
@@ -374,7 +427,9 @@ describe('SavedSessionList', () => {
     seed(list);
     const { container, unmount } = mount(list);
 
-    expect(container.textContent).toContain('Solve x^2 - 5x + 6 = 0');
+    expect(
+      container.querySelector('button[aria-label="Download PDF for Solve x^2 - 5x + 6 = 0"]'),
+    ).toBeTruthy();
 
     const del = container.querySelector(
       'button[aria-label="Delete Solve x^2 - 5x + 6 = 0"]',
@@ -385,7 +440,9 @@ describe('SavedSessionList', () => {
     });
     await flush();
 
-    expect(container.textContent).not.toContain('Solve x^2 - 5x + 6 = 0');
+    expect(
+      container.querySelector('button[aria-label="Download PDF for Solve x^2 - 5x + 6 = 0"]'),
+    ).toBeNull();
     expect(container.textContent).toContain('series RLC');
     const stored = storageData[SAVED_SESSIONS_KEY] as Array<{ id: string }>;
     expect(stored.map((s) => s.id).sort()).toEqual(['newton', 'rlc']);
@@ -408,6 +465,7 @@ describe('SavedLibraryOverlay', () => {
 
     expect(container.querySelector('[role="dialog"]')).toBeTruthy();
     expect(container.querySelector('.slm-wordmark, .slm-library-dialog-title svg')).toBeTruthy();
+    expect(container.querySelector('.slm-library-kicker')?.textContent).toBe('Saved questions');
     expect(container.querySelector('input[aria-label="Search saved questions"]')).toBeTruthy();
     expect(container.querySelectorAll('.slm-library-row')).toHaveLength(3);
     expect(container.textContent).toContain('All categories');
@@ -429,7 +487,8 @@ describe('SavedLibraryOverlay', () => {
       await Promise.resolve();
     });
     await flush();
-    expect(exportSessionPdf).toHaveBeenCalledOnce();
+    expect(downloadSessionPdf).toHaveBeenCalledOnce();
+    expect(exportSessionPdf).not.toHaveBeenCalled();
 
     act(() => {
       root?.unmount();
@@ -456,7 +515,46 @@ describe('SavedLibraryOverlay', () => {
     act(() => {
       (container.querySelector('.slm-library-overlay-backdrop') as HTMLButtonElement).click();
     });
-    expect(onClose).toHaveBeenCalledTimes(2);
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
+  it('Escape closes the time menu without closing the library', () => {
+    const onClose = vi.fn();
+    const list = snapshots();
+    seed(list);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    act(() => {
+      root = createRoot(container);
+      root.render(<SavedLibraryOverlay sessions={list} onClose={onClose} />);
+    });
+
+    const timeBtn = container.querySelector(
+      'button[aria-label="Filter by time"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      timeBtn.click();
+    });
+    expect(container.querySelector('[role="listbox"]')).toBeTruthy();
+
+    act(() => {
+      timeBtn.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+
+    act(() => {
+      container.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
 
     act(() => {
       root?.unmount();

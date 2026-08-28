@@ -14,14 +14,14 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
-const { exportSessionPdfMock, tabsCreateMock, tabsSendMessageMock, windowsCreateMock } = vi.hoisted(
-  () => ({
+const { exportSessionPdfMock, downloadSessionPdfMock, tabsCreateMock, tabsSendMessageMock, windowsCreateMock } =
+  vi.hoisted(() => ({
     exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+    downloadSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'download' as const })),
     tabsCreateMock: vi.fn(async () => ({ id: 1 })),
     tabsSendMessageMock: vi.fn(async () => ({ ok: true })),
     windowsCreateMock: vi.fn(async () => ({ id: 9 })),
-  }),
-);
+  }));
 
 vi.mock('wxt/browser', () => ({
   browser: {
@@ -43,7 +43,11 @@ vi.mock('wxt/browser', () => ({
 
 vi.mock('./pdf', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./pdf')>();
-  return { ...actual, exportSessionPdf: exportSessionPdfMock };
+  return {
+    ...actual,
+    exportSessionPdf: exportSessionPdfMock,
+    downloadSessionPdf: downloadSessionPdfMock,
+  };
 });
 
 import {
@@ -404,13 +408,16 @@ describe('saved-sessions', () => {
   });
 
   describe('downloadSavedSessionPdf', () => {
-    it('print-to-PDF for a stored snapshot, not an HTML file', async () => {
+    it('saves a PDF file for a stored snapshot, without printing', async () => {
       seedStorage([sessionToSnapshot(makeSession({ id: 'lib-1', question: 'Saved Q' }))]);
       const createObjectURL = vi.spyOn(URL, 'createObjectURL');
+      const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
 
       const result = await downloadSavedSessionPdf('lib-1');
       expect(result).toEqual({ ok: true, method: 'download' });
-      expect(exportSessionPdfMock).toHaveBeenCalledOnce();
+      expect(downloadSessionPdfMock).toHaveBeenCalledOnce();
+      expect(exportSessionPdfMock).not.toHaveBeenCalled();
+      expect(print).not.toHaveBeenCalled();
       expect(createObjectURL).not.toHaveBeenCalled();
       expect(tabsCreateMock).not.toHaveBeenCalled();
       expect(tabsSendMessageMock).not.toHaveBeenCalled();
@@ -422,6 +429,7 @@ describe('saved-sessions', () => {
       expect(result.ok).toBe(false);
       expect(tabsCreateMock).not.toHaveBeenCalled();
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
+      expect(downloadSessionPdfMock).not.toHaveBeenCalled();
     });
   });
 

@@ -166,7 +166,7 @@ export function renderNotationLocale(): string {
 
 export function renderLevelDial(): string {
   return [
-    'LEVEL DIAL — infer from vocabulary, given structure, and named theorems. Set @meta level:. DEPTH (balanced|deep) then scales verbosity inside that band.',
+    'LEVEL DIAL — infer from vocabulary, given structure, and named theorems. Set @meta level:. DEPTH deep then scales verbosity inside that band.',
     'band\tinfer when\twrite',
     'intro\tfind/calculate + high-school vocabulary, few givens\tName the law in words, substitute every given, keep symbols defined in English.',
     'undergrad\tstandard UG course (nodal, ICE, RREF, FBD, Punnett)\tName the law, state why it applies, one move per step, textbook diagram spec.',

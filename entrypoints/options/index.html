@@ -11,6 +11,14 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /* Hard fallback so settings never render the old white-on-white switch. */
+      .slm-set-switch { background: #c8c8cc; }
+      [data-stemlm-theme='dark'] .slm-set-switch { background: #4a4a4e; }
+      .slm-set-switch.is-on { background: #0e7c76; }
+      [data-stemlm-theme='dark'] .slm-set-switch.is-on { background: #3dcdc4; }
+      [data-stemlm-theme='dark'] .slm-set-seg-btn.is-active { background: #3a3a3a; color: #f5f5f5; }
+    </style>
   </head>
   <body data-stemlm-theme="light" class="slm-page slm-settings-page">
     <div id="root"></div>

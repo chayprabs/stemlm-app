@@ -12,3 +12,4 @@ dist/
 # or generated eval reports. Keep the QA corpus external to the repo.
 artifacts/
 eval-out/
+output/

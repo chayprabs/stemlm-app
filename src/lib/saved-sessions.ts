@@ -1,12 +1,12 @@
 /**
  * Persistence for explicitly-saved study sessions. Each save stores a compact
- * snapshot (question, steps, solution) for PDF export. Library rows print-to-PDF
- * or open a viewer window — they do not jump to Gemini.
+ * snapshot (question, steps, solution) for PDF export. Library rows download a
+ * PDF file or open a viewer window — they do not jump to Gemini.
  */
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { isPlatformId, type PlatformId } from '@/src/platforms/types';
-import { exportSessionPdf, type PdfExportResult } from './pdf';
+import { downloadSessionPdf, exportSessionPdf, type PdfExportResult } from './pdf';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
@@ -245,13 +245,11 @@ function savedPdfUrl(id: string, mode?: 'print' | 'download'): string {
   return url.href;
 }
 
-/** Print-to-PDF in this page. Chrome’s Save as PDF uses the stemLM title. */
+/** Download a real PDF into the default Downloads folder. No print dialog. */
 export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
   if (!snapshot) return { ok: false, method: 'failed' };
-  const result = await exportSessionPdf(snapshotToSession(snapshot));
-  if (!result.ok) return result;
-  return { ok: true, method: 'download' };
+  return downloadSessionPdf(snapshotToSession(snapshot));
 }
 
 /** Open the saved report in a popup window (no chat tab, no omnibox URL). */

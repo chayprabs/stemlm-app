@@ -233,7 +233,7 @@ describe('popup chrome', () => {
     expect(toggle.getAttribute('aria-label')).toBe(STEMLM_TOGGLE_LABEL);
     expect(toggle.className).toContain('is-on');
     expect(toggle.textContent).toContain(STEMLM_TOGGLE_LABEL);
-    expect(toggle.textContent).toContain('On');
+    expect(toggle.textContent).not.toMatch(/\bOn\b|\bOff\b/);
     expect(toggle.querySelector('.slm-popup-switch')).toBeTruthy();
     unmount();
   });
@@ -263,7 +263,6 @@ describe('popup chrome', () => {
     });
     expect(toggle.getAttribute('aria-checked')).toBe('false');
     expect(toggle.className).not.toContain('is-on');
-    expect(toggle.textContent).toContain('Off');
     expect(toggle.getAttribute('title')).toBe('Turn stemlm on');
     expect(window.close).not.toHaveBeenCalled();
     expect(localStore.stemlm_settings).toMatchObject({ stemlmEnabled: false });
@@ -291,7 +290,7 @@ describe('popup chrome', () => {
       '[data-launch="stemlm-enabled"]',
     ) as HTMLButtonElement;
     expect(secondToggle.getAttribute('aria-checked')).toBe('false');
-    expect(secondToggle.textContent).toContain('Off');
+    expect(secondToggle.className).not.toContain('is-on');
     expect(window.close).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -309,7 +308,7 @@ describe('popup chrome', () => {
       '[data-launch="stemlm-enabled"]',
     ) as HTMLButtonElement;
     expect(thirdToggle.getAttribute('aria-checked')).toBe('true');
-    expect(thirdToggle.textContent).toContain('On');
+    expect(thirdToggle.className).toContain('is-on');
     third.unmount();
   });
 

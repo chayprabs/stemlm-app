@@ -6,6 +6,7 @@ onlyBuiltDependencies:
   - sharp
   - spawn-sync
 allowBuilds:
+  core-js: set this to true or false
   esbuild: true
   sharp: true
   spawn-sync: true

@@ -102,8 +102,8 @@ describe('SettingsOverlay', () => {
     expect(container.textContent).toContain(SETTINGS_LABEL);
     expect(container.textContent).toContain('Appearance');
     expect(container.textContent).toContain('Behaviour');
-    expect(container.textContent).toContain('Protocol');
-    expect(container.textContent).toContain('Privacy');
+    expect(container.textContent).not.toContain('Protocol');
+    expect(container.textContent).not.toContain('Privacy');
     expect(container.querySelector('[aria-pressed="true"]')?.textContent).toBe('Light');
 
     unmount();
@@ -135,7 +135,7 @@ describe('SettingsOverlay', () => {
     container.remove();
   });
 
-  it('persists theme, behaviour, protocol, and privacy into extension storage and the live store', async () => {
+  it('persists theme and behaviour into extension storage and the live store', async () => {
     const { container, unmount } = await renderOverlay();
 
     await clickControl(container, 'Dark');
@@ -148,25 +148,48 @@ describe('SettingsOverlay', () => {
     expect((await getSettings()).shareAcrossTabs).toBe(true);
     expect(useStore.getState().settings.shareAcrossTabs).toBe(true);
 
+    await clickControl(container, 'Solution');
+    expect((await getSettings()).defaultView).toBe('solution');
+    expect(useStore.getState().settings.defaultView).toBe('solution');
+
     await clickControl(container, 'Open the panel automatically');
-    expect((await getSettings()).autoOpenOnAnswer).toBe(false);
-    expect(useStore.getState().settings.autoOpenOnAnswer).toBe(false);
-
-    await clickControl(container, 'Ultra');
-    expect((await getSettings()).promptVariant).toBe('ultra');
-    expect(useStore.getState().settings.promptVariant).toBe('ultra');
-
-    await clickControl(container, 'Opt out of anonymous usage analytics');
     const saved = await getSettings();
     expect(saved).toMatchObject({
       theme: 'dark',
       shareAcrossTabs: true,
       autoOpenOnAnswer: false,
-      promptVariant: 'ultra',
-      analyticsOptOut: true,
+      defaultView: 'solution',
     });
     expect(useStore.getState().settings).toMatchObject(saved);
 
     unmount();
+  });
+
+  it('opens new answers and session switches on the saved default view', () => {
+    const makeSession = (id: string) =>
+      ({
+        id,
+        createdAt: 1,
+        updatedAt: 1,
+        platform: 'gemini',
+        question: 'Q',
+        raw: '',
+        capsule: { meta: {}, steps: [], solution: '' },
+      }) as never;
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, defaultView: 'solution' },
+      sessions: [],
+      view: 'steps',
+    });
+    useStore.getState().addSession(makeSession('a'));
+    expect(useStore.getState().view).toBe('solution');
+
+    useStore.getState().setView('steps');
+    useStore.getState().addSession(makeSession('b'));
+    expect(useStore.getState().view).toBe('solution');
+
+    useStore.getState().setView('steps');
+    useStore.getState().setActiveSession('a');
+    expect(useStore.getState().view).toBe('solution');
   });
 });

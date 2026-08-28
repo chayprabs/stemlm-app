@@ -15,7 +15,6 @@ import {
   type ResolvedTheme,
   type ThemePref,
 } from '@/src/lib/theme';
-import type { PromptVariant } from '@/src/protocol/protocol';
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
 import { SETTINGS_LABEL } from '@/src/lib/saved-library';
@@ -40,12 +39,12 @@ function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="slm-settings-seg" role="group" aria-label={label}>
+    <div className="slm-set-seg" role="group" aria-label={label}>
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
-          className={`slm-settings-seg-btn ${value === option.id ? 'is-active' : ''}`}
+          className={`slm-set-seg-btn ${value === option.id ? 'is-active' : ''}`}
           aria-pressed={value === option.id}
           onClick={() => onChange(option.id)}
         >
@@ -68,21 +67,23 @@ function Toggle({
   hint: string;
 }) {
   return (
-    <div className="slm-settings-toggle">
-      <span className="slm-settings-copy">
-        <span className="slm-settings-label">{label}</span>
-        <span className="slm-settings-hint">{hint}</span>
-      </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        className={`slm-settings-switch ${checked ? 'is-on' : ''}`}
-        onClick={() => onChange(!checked)}
-      >
-        <span className="slm-settings-switch-knob" />
-      </button>
+    <div className="slm-set-row">
+      <div className="slm-set-row-top">
+        <span className="slm-set-copy">
+          <span className="slm-settings-label">{label}</span>
+          <span className="slm-settings-hint">{hint}</span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          aria-label={label}
+          className={`slm-set-switch ${checked ? 'is-on' : ''}`}
+          onClick={() => onChange(!checked)}
+        >
+          <span className="slm-set-knob" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -163,13 +164,10 @@ export function SettingsOverlay({
         <div className="slm-settings-body">
           <section className="slm-settings-group">
             <h3 className="slm-settings-group-title">Appearance</h3>
-            <div className="slm-settings-stack">
+            <div className="slm-set-row">
               <span className="slm-settings-copy">
                 <span className="slm-settings-label">Theme</span>
-                <span className="slm-settings-hint">
-                  Auto follows your system light/dark setting. The panel sun/moon toggle saves light
-                  or dark here.
-                </span>
+                <span className="slm-settings-hint">Follows your system.</span>
               </span>
               <Segmented
                 label="Theme"
@@ -188,52 +186,34 @@ export function SettingsOverlay({
 
           <section className="slm-settings-group">
             <h3 className="slm-settings-group-title">Behaviour</h3>
-            <div className="slm-settings-rows">
-              <Toggle
-                label="Share sessions across tabs"
-                hint="Off: each chat tab keeps its own workspace. On: the active study session follows you."
-                checked={settings.shareAcrossTabs}
-                onChange={(shareAcrossTabs) => void update({ shareAcrossTabs })}
-              />
-              <Toggle
-                label="Open the panel automatically"
-                hint="Open the study panel when the answer starts — not while you're still typing."
-                checked={settings.autoOpenOnAnswer}
-                onChange={(autoOpenOnAnswer) => void update({ autoOpenOnAnswer })}
-              />
-            </div>
-          </section>
-
-          <section className="slm-settings-group">
-            <h3 className="slm-settings-group-title">Protocol</h3>
-            <div className="slm-settings-stack">
+            <div className="slm-set-row">
               <span className="slm-settings-copy">
-                <span className="slm-settings-label">Prompt variant</span>
-                <span className="slm-settings-hint">
-                  Balanced is the production default. Ultra sends a shorter protocol to save tokens.
-                </span>
+                <span className="slm-settings-label">Answers open on</span>
+                <span className="slm-settings-hint">Steps or the full solution.</span>
               </span>
               <Segmented
-                label="Prompt variant"
-                value={settings.promptVariant}
+                label="Answers open on"
+                value={settings.defaultView}
                 options={
                   [
-                    { id: 'balanced', label: 'Balanced' },
-                    { id: 'ultra', label: 'Ultra' },
-                  ] as const satisfies readonly { id: PromptVariant; label: string }[]
+                    { id: 'steps', label: 'Steps' },
+                    { id: 'solution', label: 'Solution' },
+                  ] as const
                 }
-                onChange={(promptVariant) => void update({ promptVariant })}
+                onChange={(defaultView) => void update({ defaultView })}
               />
             </div>
-          </section>
-
-          <section className="slm-settings-group">
-            <h3 className="slm-settings-group-title">Privacy</h3>
             <Toggle
-              label="Opt out of anonymous usage analytics"
-              hint="We only count events like questions asked and PDFs exported — never your content."
-              checked={settings.analyticsOptOut}
-              onChange={(analyticsOptOut) => void update({ analyticsOptOut })}
+              label="Share sessions across tabs"
+              hint="Same session on every chat tab."
+              checked={settings.shareAcrossTabs}
+              onChange={(shareAcrossTabs) => void update({ shareAcrossTabs })}
+            />
+            <Toggle
+              label="Open the panel automatically"
+              hint="When the answer starts."
+              checked={settings.autoOpenOnAnswer}
+              onChange={(autoOpenOnAnswer) => void update({ autoOpenOnAnswer })}
             />
           </section>
         </div>

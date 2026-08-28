@@ -41,6 +41,12 @@ describe('mergeMirroredSessions', () => {
     expect(merged.map((s) => s.id).sort()).toEqual(['a', 'b']);
   });
 
+  it('keeps append order (oldest first) so sessions[length-1] is the newest', () => {
+    const oldSession = { ...makeSession('a'), createdAt: 5 };
+    const newSession = { ...makeSession('b'), createdAt: 50 };
+    expect(mergeMirroredSessions([newSession], [oldSession]).map((s) => s.id)).toEqual(['a', 'b']);
+  });
+
   it('preserves local raw text when a newer mirrored copy strips it', () => {
     const local = { ...makeSession('a'), updatedAt: 10, raw: 'full capsule raw' };
     const incoming = { ...makeSession('a'), updatedAt: 99, raw: '' };

@@ -23,8 +23,8 @@ import {
   STEMLM_SENTINEL,
   getDiagramRequirement,
 } from './builder';
-import coreBalancedTemplate from './core-protocol.md?raw';
-import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT, renderProtocol, PROTOCOL_VERSION } from './protocol';
+import coreTemplate from './core-protocol.md?raw';
+import { CORE_PROTOCOL, renderProtocol, PROTOCOL_VERSION } from './protocol';
 
 describe('buildInjectionPrompt', () => {
   it('includes the question, protocol, and every subject registry row', () => {
@@ -46,21 +46,19 @@ describe('buildInjectionPrompt', () => {
     expect(prompt).toContain('Physics');
   });
 
-  it('supports the ultra prompt variant as a depth dial, not a second essay', () => {
-    const { prompt, variant } = buildInjectionPrompt('trace binary search code', {
+  it('always uses the deep depth dial on the single protocol', () => {
+    const { prompt } = buildInjectionPrompt('trace binary search code', {
       subject: 'CS',
-      variant: 'ultra',
     });
-    expect(variant).toBe('ultra');
-    expect(prompt).toContain(CORE_PROTOCOL_BY_VARIANT.ultra);
+    expect(prompt).toContain(CORE_PROTOCOL);
     expect(prompt).toContain('DEPTH: deep');
     expect(prompt).toContain('Physics');
     expect(prompt).not.toMatch(/PHYSICS: one move\/step/);
   });
 
   it('normalizes CRLF in protocol templates so Windows checkouts stay consistent', () => {
-    const crlf = coreBalancedTemplate.replace(/\n/g, '\r\n');
-    expect(renderProtocol(crlf)).toBe(renderProtocol(coreBalancedTemplate));
+    const crlf = coreTemplate.replace(/\n/g, '\r\n');
+    expect(renderProtocol(crlf)).toBe(renderProtocol(coreTemplate));
   });
 
   it('keeps structural markers the parser relies on', () => {
@@ -75,16 +73,12 @@ describe('buildInjectionPrompt', () => {
     }
   });
 
-  it('ultra variant is the deeper depth dial on the same protocol body', () => {
-    const balanced = CORE_PROTOCOL_BY_VARIANT.balanced;
-    const ultra = CORE_PROTOCOL_BY_VARIANT.ultra;
-    expect(Buffer.byteLength(ultra, 'utf8')).toBeGreaterThan(Buffer.byteLength(balanced, 'utf8'));
-    expect(ultra).toContain('VERIFICATION');
-    expect(ultra).toMatch(/DEEP mode/i);
-    expect(ultra).toContain('DEPTH: deep');
-    expect(balanced).toContain('DEPTH: balanced');
+  it('the single protocol carries the deep depth dial', () => {
+    expect(CORE_PROTOCOL).toContain('VERIFICATION');
+    expect(CORE_PROTOCOL).toMatch(/DEEP mode/i);
+    expect(CORE_PROTOCOL).toContain('DEPTH: deep');
     for (const marker of ['@meta', '@step', '@body', '@diagram', '@solution', '@end']) {
-      expect(ultra).toContain(marker);
+      expect(CORE_PROTOCOL).toContain(marker);
     }
   });
 

@@ -88,7 +88,7 @@ export default defineConfig({
       'Turn ChatGPT, Claude, Gemini, and Grok into a guided STEM study workspace: step-by-step solutions, step-synced diagrams, quick-checks, and clean PDF export.',
     homepage_url: 'https://github.com/chayprabs/stemlm-app',
     minimum_chrome_version: '116',
-    permissions: ['storage', 'tabs'],
+    permissions: ['storage', 'tabs', 'downloads'],
     host_permissions: [
       'https://fonts.googleapis.com/*',
       'https://fonts.gstatic.com/*',

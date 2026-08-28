@@ -5,22 +5,22 @@
  */
 import { browser } from 'wxt/browser';
 import type { ThemePref } from './theme';
-import type { PromptVariant } from '@/src/protocol/protocol';
+/** Which panel tab a freshly opened answer lands on. */
+export type DefaultView = 'steps' | 'solution';
+
 export interface Settings {
   theme: ThemePref;
   /** Share active (unsaved) sessions across tabs. Default off = each tab fresh. */
   shareAcrossTabs: boolean;
   /** Auto-open the study panel when the assistant starts answering. */
   autoOpenOnAnswer: boolean;
+  /** Tab shown when an answer opens: step-by-step or the full solution. */
+  defaultView: DefaultView;
   /**
    * Show the composer + attach control. Default on = current behaviour.
    * Off hides only that button; the study panel and library still work.
    */
   stemlmEnabled: boolean;
-  /** Prompt protocol variant used for injected questions. */
-  promptVariant: PromptVariant;
-  /** Opt out of anonymous usage analytics. */
-  analyticsOptOut: boolean;
   /**
    * Split-screen width of the study panel as a fraction of the viewport
    * (0 = none, 1 = full). Shared across Gemini tabs via extension storage
@@ -38,9 +38,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
+  defaultView: 'steps',
   stemlmEnabled: true,
-  promptVariant: 'balanced',
-  analyticsOptOut: false,
   splitRatio: DEFAULT_SPLIT_RATIO,
 };
 
@@ -81,14 +80,18 @@ function normalizeTheme(value: unknown): ThemePref {
   return value === 'light' || value === 'dark' || value === 'auto' ? value : DEFAULT_SETTINGS.theme;
 }
 
-function normalizePromptVariant(value: unknown): PromptVariant {
-  return value === 'ultra' || value === 'balanced' ? value : DEFAULT_SETTINGS.promptVariant;
+function normalizeDefaultView(value: unknown): DefaultView {
+  return value === 'solution' || value === 'steps' ? value : DEFAULT_SETTINGS.defaultView;
 }
 
 type StoredSettings = Partial<Settings> & {
   autoOpenOnInject?: boolean;
   /** Legacy — subject is always auto-detected from the question now. */
   defaultSubject?: unknown;
+  /** Legacy — a single in-depth protocol ships now. */
+  promptVariant?: unknown;
+  /** Legacy — the opt-out toggle was removed. */
+  analyticsOptOut?: unknown;
 };
 
 /** Merge stored settings over defaults, migrating any legacy keys. */
@@ -96,17 +99,21 @@ export function hydrateSettings(stored: StoredSettings = {}): Settings {
   // Legacy: `autoOpenOnInject` was renamed to `autoOpenOnAnswer`.
   const autoOpenOnAnswer =
     stored.autoOpenOnAnswer ?? stored.autoOpenOnInject ?? DEFAULT_SETTINGS.autoOpenOnAnswer;
-  const { defaultSubject: _legacyDefaultSubject, autoOpenOnInject: _legacyAutoOpenOnInject, ...rest } =
-    stored;
+  const {
+    defaultSubject: _legacyDefaultSubject,
+    autoOpenOnInject: _legacyAutoOpenOnInject,
+    promptVariant: _legacyPromptVariant,
+    analyticsOptOut: _legacyAnalyticsOptOut,
+    ...rest
+  } = stored;
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
     theme: normalizeTheme(stored.theme),
+    defaultView: normalizeDefaultView(stored.defaultView),
     autoOpenOnAnswer: Boolean(autoOpenOnAnswer),
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
     stemlmEnabled: Boolean(stored.stemlmEnabled ?? DEFAULT_SETTINGS.stemlmEnabled),
-    analyticsOptOut: Boolean(stored.analyticsOptOut),
-    promptVariant: normalizePromptVariant(stored.promptVariant),
     splitRatio: hydrateSplitRatio(stored.splitRatio),
   };
 }

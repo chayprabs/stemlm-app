@@ -11,8 +11,8 @@ import { FAMILY_CATALOG } from '@/src/lib/figure/catalog';
 const FILE = buildProtocolFileContent({ question: 'sizing' }).content;
 
 describe('shipped protocol file (criterion 1)', () => {
-  it('is assembled by the shipped function and matches the variant assembler', () => {
-    expect(FILE).toBe(assembleProtocolFile('balanced'));
+  it('is assembled by the shipped function', () => {
+    expect(FILE).toBe(assembleProtocolFile());
     expect(FILE.length).toBeGreaterThan(2000);
   });
 
@@ -144,9 +144,9 @@ describe('composer stubs stay short and isolated', () => {
 });
 
 describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
-  it('scopes DEPTH substitution to numeric/lab and drops Prefer hedges', () => {
-    expect(FILE).toContain('DEPTH: balanced');
-    expect(FILE).toContain('NUMERIC/LAB only: do not skip symbol definitions or substitution');
+  it('ships the deep depth dial and drops Prefer hedges', () => {
+    expect(FILE).toContain('DEPTH: deep');
+    expect(FILE).not.toContain('DEPTH: balanced');
     expect(FILE).not.toMatch(/Prefer the standard textbook path\. Do not skip symbol definitions or substitution\./);
     expect(FILE).not.toMatch(/\bPrefer the standard textbook path\b/);
     expect(FILE).not.toMatch(/\bPrefer the upper step-count bound\b/);
@@ -214,7 +214,7 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
     expect(FILE).toContain('any attached file is the problem, not the protocol file');
     expect(FILE).toContain('intro + DEPTH deep');
     expect(FILE).toContain('Add skipped algebra and named substitutions');
-    expect(assembleProtocolFile('ultra')).toContain(
+    expect(FILE).toContain(
       'At intro, DEPTH deep adds skipped algebra and named substitutions',
     );
   });

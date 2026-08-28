@@ -7,7 +7,7 @@ import {
   UNIVERSAL_PLAYBOOK_HEADER,
   SUBJECT_REGISTRY,
 } from './playbooks';
-import { CORE_PROTOCOL, CORE_PROTOCOL_BY_VARIANT } from './protocol';
+import { CORE_PROTOCOL } from './protocol';
 import { buildComposerStub, buildInjectionPayload } from './builder';
 
 describe('subject registry', () => {
@@ -45,7 +45,6 @@ describe('subject registry', () => {
   it('lists the same subject names in the core template the parser accepts', () => {
     const listed = SUBJECTS.join('|');
     expect(CORE_PROTOCOL).toContain(listed);
-    expect(CORE_PROTOCOL_BY_VARIANT.ultra).toContain(listed);
     expect(UNIVERSAL_PLAYBOOK_HEADER).toContain(listed);
   });
 

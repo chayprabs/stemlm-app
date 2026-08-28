@@ -77,13 +77,20 @@ export default defineContentScript({
     useStore.getState().setSettings(settings);
     useStore.getState().setTheme(resolveTheme(settings.theme));
     useStore.getState().setSplitRatio(settings.splitRatio);
+    useStore.setState({ view: settings.defaultView });
 
     const tabId = await getContentTabId();
 
     if (settings.shareAcrossTabs) {
-      const shared = await loadMirroredSessions();
+      let shared = await loadMirroredSessions();
+      const backup = tabId != null ? await loadTabWorkspace(tabId) : null;
+      // New browser session: the mirror (storage.session) is empty but this
+      // tab's workspace backup survives — restore and re-seed the mirror.
+      if (!shared.length && backup?.sessions.length) {
+        shared = backup.sessions;
+        void mirrorActiveSessions(shared);
+      }
       if (shared.length) {
-        const backup = tabId != null ? await loadTabWorkspace(tabId) : null;
         const activeSessionId =
           backup?.activeSessionId && shared.some((s) => s.id === backup.activeSessionId)
             ? backup.activeSessionId

@@ -6,6 +6,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
+import { browser } from 'wxt/browser';
 import type { Session } from '@/src/protocol/types';
 import { Report, collectDiagrams } from '@/src/components/Report';
 import { resolveDiagram } from './resolve-diagram';
@@ -132,6 +133,8 @@ code{font-family:${FONT_MONO};font-size:.88em;}
 @media screen{
 body{padding:18px 14px 36px;background:${T.bgSubtle};}
 .slm-report{background:${T.bg};padding:18px 24px 20px;border:0.5px solid ${T.border};border-radius:${T.radiusMd};box-shadow:0 8px 28px rgba(15,15,18,.08);}
+html.slm-pdf-download body{padding:12mm 14mm;background:${T.bg};}
+html.slm-pdf-download .slm-report{max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;}
 }
 `;
 }
@@ -207,6 +210,162 @@ export async function exportSessionPdf(session: Session): Promise<PdfExportResul
     return { ok: true, method: 'print' };
   } catch {
     iframe?.remove();
+    void trackEvent('pdf_exported', { platform: session.platform, method: 'failed' });
+    return { ok: false, method: 'failed' };
+  }
+}
+
+const A4_WIDTH_PT = 595.28;
+const REPORT_CAPTURE_PX = 794;
+
+type DownloadsApi = {
+  download: (options: {
+    url: string;
+    filename?: string;
+    saveAs?: boolean;
+    conflictAction?: 'uniquify' | 'overwrite' | 'prompt';
+  }) => Promise<number>;
+};
+
+function pdfFileName(session?: Session): string {
+  return `${reportFilename(session)}.pdf`;
+}
+
+async function waitForReportDocument(doc: Document, win: Window): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const go = async () => {
+      try {
+        await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready;
+      } catch {
+        /* ignore */
+      }
+      resolve();
+    };
+    if (doc.readyState === 'complete') setTimeout(go, 80);
+    else win.addEventListener('load', () => setTimeout(go, 80), { once: true });
+  });
+}
+
+/** Put a PDF blob in the default Downloads folder. Never opens a save/print picker. */
+export async function triggerPdfFileDownload(blob: Blob, filename: string): Promise<void> {
+  const name = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+  const url = URL.createObjectURL(blob);
+  const downloads = (browser as typeof browser & { downloads?: DownloadsApi }).downloads;
+
+  try {
+    if (downloads && typeof downloads.download === 'function') {
+      await downloads.download({
+        url,
+        filename: name,
+        saveAs: false,
+        conflictAction: 'uniquify',
+      });
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    }
+  } catch {
+    /* fall through to an anchor click on pages that cannot use chrome.downloads */
+  }
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+async function reportHtmlToPdfBlob(html: string): Promise<Blob> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText =
+    'position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;opacity:1;pointer-events:none;z-index:-1;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  const win = iframe.contentWindow;
+  if (!doc || !win) {
+    iframe.remove();
+    throw new Error('no iframe document');
+  }
+
+  try {
+    doc.open();
+    doc.write(html);
+    doc.close();
+    doc.documentElement.classList.add('slm-pdf-download');
+    await waitForReportDocument(doc, win);
+    iframe.style.height = `${Math.max(doc.documentElement.scrollHeight, 1123)}px`;
+
+    const [{ jsPDF }] = await Promise.all([import('jspdf'), import('html2canvas')]);
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const fail = (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+      const timer = window.setTimeout(() => fail(new Error('pdf html timeout')), 120_000);
+      try {
+        const worker = pdf.html(doc.body, {
+          x: 0,
+          y: 0,
+          width: A4_WIDTH_PT,
+          windowWidth: Math.max(doc.body.scrollWidth, REPORT_CAPTURE_PX),
+          autoPaging: 'text',
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+          },
+          callback: () => {
+            window.clearTimeout(timer);
+            finish();
+          },
+        });
+        void Promise.resolve(worker).then(
+          () => {
+            window.clearTimeout(timer);
+            finish();
+          },
+          (err) => {
+            window.clearTimeout(timer);
+            fail(err);
+          },
+        );
+      } catch (err) {
+        window.clearTimeout(timer);
+        fail(err);
+      }
+    });
+
+    const blob = pdf.output('blob');
+    if (!(blob instanceof Blob) || blob.size < 5) throw new Error('empty pdf');
+    return blob;
+  } finally {
+    iframe.remove();
+  }
+}
+
+/** Build a real PDF and send it to Downloads. No print dialog. */
+export async function downloadSessionPdf(session: Session): Promise<PdfExportResult> {
+  try {
+    const html = await renderSessionReportHtml(session);
+    const blob = await reportHtmlToPdfBlob(html);
+    await triggerPdfFileDownload(blob, pdfFileName(session));
+    void trackEvent('pdf_exported', { platform: session.platform, method: 'download' });
+    return { ok: true, method: 'download' };
+  } catch {
     void trackEvent('pdf_exported', { platform: session.platform, method: 'failed' });
     return { ok: false, method: 'failed' };
   }

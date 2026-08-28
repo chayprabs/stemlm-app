@@ -3,7 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>stemLM — Saved questions</title>
+    <style>
+      html.slm-library-page {
+        background: #f5f5f5;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        html.slm-library-page:not([data-stemlm-theme='light']) {
+          background: #151515;
+          color-scheme: dark;
+        }
+      }
+      html.slm-library-page[data-stemlm-theme='dark'] {
+        background: #151515;
+        color-scheme: dark;
+      }
+      html.slm-library-page[data-stemlm-theme='light'] {
+        background: #f5f5f5;
+        color-scheme: light;
+      }
+    </style>
+    <script>
+      (function () {
+        var theme = 'light';
+        try {
+          var raw = localStorage.getItem('stemlm_theme_boot');
+          var cached = raw ? JSON.parse(raw) : null;
+          if (cached && (cached.resolved === 'light' || cached.resolved === 'dark')) {
+            theme = cached.resolved;
+          } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            theme = 'dark';
+          }
+        } catch (e) {
+          try {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
+          } catch (e2) {}
+        }
+        var root = document.documentElement;
+        root.setAttribute('data-stemlm-theme', theme);
+        root.style.colorScheme = theme;
+        if (document.body) {
+          document.body.setAttribute('data-stemlm-theme', theme);
+          document.body.style.colorScheme = theme;
+        }
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/icon/32.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,7 +58,7 @@
       rel="stylesheet"
     />
   </head>
-  <body data-stemlm-theme="light" class="slm-page slm-library-page">
+  <body class="slm-page slm-library-page">
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

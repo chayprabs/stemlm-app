@@ -33,7 +33,6 @@ export function FollowupBar({
   hint?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const promptVariant = useStore((s) => s.settings.promptVariant);
   const isAsk = isAskIntent(intent);
   const displayFollowup = isAsk ? hint ?? null : stripProtocolMarkers(followup);
 
@@ -42,7 +41,6 @@ export function FollowupBar({
       selection: followup,
       stepTitle,
       subject,
-      variant: promptVariant,
       intent,
     });
   }
