@@ -53,7 +53,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     verify: 'conservation,oom,units,alt',
     nodraw: 'definition-only vocab; naming a pathway already drawn',
     notation: 'gene vs protein italics/caps as in the problem; Punnett alleles exact',
-    traps: 'Punnett is table kind=punnett (never a punnett family token); pedigree≠flowchart; blunt vs pointed regulation; mermaid NEVER for Krebs',
+    traps: 'Punnett→table kind=punnett; pedigree≠flowchart; regulation: pointed activate, blunt inhibit; no mermaid Krebs; ecology energy flow: quantified source→trophic bands→loss/decomposer flows+legend, not only a web. It helps Ecosystem Energy Flow and Pyramids, Mineral Nutrition, and Biogeochemical Cycles.',
   },
   CS: {
     marker: 'CS',
@@ -136,6 +136,7 @@ export function getPlaybook(subject: Subject): string {
 export const UNIVERSAL_PLAYBOOK_HEADER = `SUBJECT REGISTRY: from the problem (text/image/PDF/file), set @meta subject: to exactly one of ${SUBJECTS.join('|')}. Apply that row. Mixed problems → the dominant subject. NEVER invent a subject name.`;
 
 export function getUniversalPlaybook(): string {
+  // ponytail: keep every subject row; traps are paid-for regression rules, not prose duplication.
   return [
     UNIVERSAL_PLAYBOOK_HEADER,
     'subject\tarchetypes\tdiagrams\tverify\tnodraw\tnotation\ttraps',

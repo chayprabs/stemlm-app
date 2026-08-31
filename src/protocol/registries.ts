@@ -11,6 +11,7 @@ import {
   SPEC_FAMILIES,
   type FamilyDef,
 } from '@/src/lib/figure/catalog';
+import { SUBJECT_REGISTRY } from './playbooks';
 import type { Archetype, VerifyMethod } from './types';
 
 export const PROTOCOL_EMIT_VERSION = 2;
@@ -22,18 +23,43 @@ function keysOf(def: FamilyDef): string {
   return parts.join(' ') || 'keys:see-engine';
 }
 
+const CATALOG_ENTRIES: Array<[string, FamilyDef]> = [
+  ...Object.entries(FAMILY_CATALOG),
+  ['ladder', FAMILY_CATALOG.ladder!],
+];
+const CATALOG_TYPES = new Set(CATALOG_ENTRIES.map(([type]) => type));
+const SUBJECT_DIAGRAM_FAMILIES = new Set(
+  Object.values(SUBJECT_REGISTRY)
+    .flatMap(({ diagrams }) => diagrams.match(/[a-z][a-z0-9.-]*/gi) ?? [])
+    .filter((type) => CATALOG_TYPES.has(type.toLowerCase()))
+    .map((type) => type.toLowerCase()),
+);
+// Topic-loop demand keeps the five engines; inventory evidence also retains schematic/sphere.
+const CORPUS_DEMAND_FAMILIES = new Set(['scene', 'plot', 'table', 'graph', 'circuit', 'schematic', 'sphere']);
+
+function isAdvertised(type: string, def: FamilyDef): boolean {
+  if (def.kind === 'engine' || SUBJECT_DIAGRAM_FAMILIES.has(type) || CORPUS_DEMAND_FAMILIES.has(type)) return true;
+  return CATALOG_ENTRIES.some(
+    ([canonical, candidate]) =>
+      (canonical === type || candidate.aliases?.includes(type)) &&
+      (SUBJECT_DIAGRAM_FAMILIES.has(canonical) || candidate.aliases?.some((alias) => SUBJECT_DIAGRAM_FAMILIES.has(alias))),
+  );
+}
+
 /** One line per compiler family — appended to the attached file. */
 export function renderDiagramRegistry(): string {
+  // ponytail: engine summaries stay beside catalog rows because fallback omits this registry.
   const engines: string[] = [];
   const leftovers: string[] = [];
   const refuse: string[] = [];
-  for (const [type, def] of Object.entries(FAMILY_CATALOG)) {
+  for (const [type, def] of CATALOG_ENTRIES) {
     if (def.kind === 'hatch') continue;
     if (def.kind === 'refuse') {
       refuse.push(type);
       continue;
     }
-    const row = `${type}\t${def.kind}\t${keysOf(def)}`;
+    if (!isAdvertised(type, def)) continue;
+    const row = `${type}\t${keysOf(def)}`;
     if (def.kind === 'engine') engines.push(row);
     else leftovers.push(row);
   }
@@ -41,16 +67,17 @@ export function renderDiagramRegistry(): string {
   leftovers.sort();
   refuse.sort();
   return [
-    'DIAGRAM REGISTRY — compiler draws; you name ids. NEVER <svg>, viewBox, path d=, text x= y=, markers, AI images.',
-    'Emit @diagram id=fN type=<token> then key: value lines, then @enddiagram. Max one @diagram per @step.',
-    'Every object named in that step\'s @body MUST appear as a named id in the spec.',
-    'Use ENGINE types first, then the subject row; emit a TEMPLATE type only when that row names it.',
+    'DIAGRAM REGISTRY — compiler draws; name ids. NEVER <svg>, viewBox, path d=, text x= y=, markers, AI images.',
+    'Use ENGINE types first, then the subject row; TEMPLATE only when row names it.',
     'ENGINE',
-    'type\tkind\tkeys',
+    'type\tkeys',
     ...engines,
+    'ENGINE SCHEMAS — the `any` column is admission only, not an allowed-key list. plot data: x,y; x,y; scene kind: fbd uses body/force/axes; graph edge: from to label words; rankdir: LR|TB|TD; highlight: declared node. never emit `kind:` as a graph key; table rows: choose comma or semicolon for each whole row; use semicolons if a cell has commas; no commas in semicolon cells; never mix or pipe-delimit; circuit std ieee|iec; device V/R/C/L/I/D/M/S n1 n2 value; A n1 n2 n3; wire endpoint endpoint; probe/highlight; no wire_top/wire_bottom.',
     'TEMPLATE',
-    'type\tkind\tkeys',
+    'type\tkeys',
     ...leftovers,
+    'TEMPLATE SAFE FORMS — unknown: omit. hash\tm: integer 1..10; buckets: bucket:value; datapath A,B,C+relation; array cells/rows; isometric gamma,t0; phasor vec LABEL magnitude∠degrees.',
+    'Unlisted families mean OMIT (including bz,dq,knot,mospi,rama).',
     'REFUSE — OMIT @diagram for these (do not emit a spec): ' + refuse.join(', '),
     'HATCH: mermaid is CS flow/sequence/state ONLY (quote every node label). NEVER emit type=svg.',
   ].join('\n');
@@ -87,7 +114,7 @@ export const ARCHETYPE_ROWS: Record<Archetype, string> = {
 
 export function renderArchetypeRegistry(): string {
   return [
-    'ARCHETYPE REGISTRY — set @meta archetype: to exactly one token. The row dictates step grammar. A proof MUST NOT grow a numeric-substitution step.',
+    'ARCHETYPE REGISTRY — set @meta archetype: to exactly one token. The row dictates step grammar.',
     'token\tstep grammar',
     ...Object.entries(ARCHETYPE_ROWS).map(([k, v]) => `${k}\t${v}`),
   ].join('\n');
@@ -95,20 +122,20 @@ export function renderArchetypeRegistry(): string {
 
 export const VERIFY_ROWS: Record<VerifyMethod, string> = {
   dimensional: 'Every term in the governing equation has identical dimensions. Fail → @verify status: fail and a visible @correction step, not a silent rewrite.',
-  units: 'Every numeric result carries coherent units; conversions are explicit. Fail → visible correction.',
-  limit: 'A boundary (x→0, open-circuit, T→∞, R→0) recovers a known result. Fail → visible correction.',
-  oom: 'The magnitude matches a back-of-envelope scale (or a textbook order). Fail → visible correction.',
-  backsub: 'Substitute the result into the original equation / ICE table / KCL node and recover 0 within rounding. Fail → visible correction.',
-  conservation: 'Mass, charge, energy, momentum, or KCL/KVL holds on the drawn system. Fail → visible correction.',
-  alt: 'A second method (Thevenin vs nodal, energy vs Newton, induction vs direct) agrees. Fail → visible correction.',
+  units: 'Every numeric result carries coherent units; conversions are explicit.',
+  limit: 'A boundary (x→0, open-circuit, T→∞, R→0) recovers a known result.',
+  oom: 'The magnitude matches a back-of-envelope scale (or a textbook order).',
+  backsub: 'Substitute the result into the original equation / ICE table / KCL node and recover 0 within rounding.',
+  conservation: 'Mass, charge, energy, momentum, or KCL/KVL holds on the drawn system.',
+  alt: 'A second method (Thevenin vs nodal, energy vs Newton, induction vs direct) agrees.',
 };
 
 export function renderVerificationRegistry(): string {
   return [
-    'VERIFICATION REGISTRY — last @step is verification work. Also emit @verify. On fail, EMIT a visible correction @step (title names the error) and set @verify status: fail. NEVER silently replace the wrong value.',
+    'VERIFICATION REGISTRY — last @step verifies; emit @verify. On fail, add a visible correction @step naming error and set status: fail; NEVER silently replace value.',
     'method\trule',
     ...Object.entries(VERIFY_ROWS).map(([k, v]) => `${k}\t${v}`),
-    'Pick every method that applies to this archetype/subject. Numeric: units + dimensional + one of limit|oom|backsub. Proof: alt or a named lemma check. Lab: units + uncertainty. Code: a concrete trace + complexity.',
+    'Pick applicable methods. Numeric: units + dimensional + one of limit|oom|backsub. Proof: alt/lemma. Lab: units + uncertainty. Code: trace + complexity.',
   ].join('\n');
 }
 
@@ -138,15 +165,17 @@ export function renderFollowupRegistry(): string {
 
 export function renderWhenNotToDraw(): string {
   return [
-    'WHEN NOT TO DRAW — over-diagramming is forbidden. OMIT @diagram when ANY of:',
-    '1. The step does not change spatial, topological, visual, or apparatus state.',
-    '2. Pure algebra / one-line rearrangement of a relation already used; the previous figure is unchanged.',
-    '3. Definition-only or vocabulary step with no structure to show.',
-    '4. Unit conversion, sig-fig rounding, or a numeric arithmetic line.',
-    '5. The family is on the REFUSE list.',
-    '6. A copyrighted textbook figure would be required — construct an original spec from the described physics instead, or OMIT if that is impossible.',
-    'Unchanged figure: OMIT rather than copy. If a later step changes one element, emit a new spec of the FULL state and set highlight: on what changed.',
-    'Max one @diagram per @step. NEVER a diagram "for completeness" on a non-visual move.',
+    'WHEN NOT TO DRAW — OMIT @diagram if ANY:',
+    '1. No spatial/topological/visual/apparatus state change.',
+    '2. Pure algebra/rearrangement of a used relation; the figure is unchanged.',
+    '3. Definition/vocabulary step with no structure.',
+    '4. Unit conversion, rounding, or numeric arithmetic.',
+    '5. Family is REFUSE.',
+    '6. Text/copyrighted source: original spec or OMIT; never infer.',
+    'Text/tabular source: keep its table/list/code layout; never substitute graph.',
+    'Transformation: show input, every structural/data-state change, and output; never only endpoint.',
+    'Unchanged figure: OMIT. If one element changes, emit the FULL new state and highlight it.',
+    'Max one @diagram/@step; never a non-visual "for completeness" diagram.',
   ].join('\n');
 }
 
@@ -157,7 +186,7 @@ export function renderNotationLocale(): string {
     'units\tSI unless the problem uses imperial/USCS; then stay imperial and say so in @uncertainty.',
     'decimal\t`.` unless the problem uses `,` as the decimal mark; then match the problem.',
     'sigfig\tFinal numbers match the least precise given. Keep one guard digit in intermediate @body lines and state it.',
-    'circuit\tstd: ieee (ANSI) when the problem uses US textbook symbols; std: iec otherwise. Set locale: circuit=IEEE|IEC. Copy @meta locale circuit=IEEE|IEC into diagram std: ieee|iec unless the problem figure shows the other. NEVER mix in one netlist.',
+    'circuit\tstd: ieee for US symbols, else iec; locale circuit=IEEE|IEC; copy to diagram std; NEVER mix.',
     'g\tUse the value given. If missing: 9.81 m/s^2 and list it under @uncertainty assumption:. NEVER silently use 10 or 9.8.',
     'angles\tRadians in analysis unless the problem states degrees; convert explicitly.',
     'current\tPassive sign convention unless the problem draws otherwise. State the choice once.',

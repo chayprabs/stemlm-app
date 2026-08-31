@@ -45,6 +45,7 @@ const DEPTH_DEEP = [
   'At intro, DEPTH deep adds skipped algebra and named substitutions — NEVER PhD jargon and NEVER a level-band change.',
 ].join('\n');
 
+// ponytail: CORE_PROTOCOL must stay fallback-complete because attach failure pastes it inline.
 const CORE_BODY = renderProtocol(coreTemplate);
 
 export const CORE_PROTOCOL = `${DEPTH_DEEP}\n\n${CORE_BODY}`;

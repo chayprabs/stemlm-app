@@ -7,7 +7,7 @@
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import { parseViewBox } from '@/src/lib/diagram-bounds';
 import type { Capsule, ParseWarningCode, Step, Subject } from './types';
-import { canonicalizeDiagramType, familyRequiredMissing } from '@/src/lib/figure/catalog';
+import { canonicalizeDiagramType, familyRequiredMissing, SPEC_FAMILIES } from '@/src/lib/figure/catalog';
 import { parseSpec, specIds, specHas } from '@/src/lib/figure/spec';
 import { samplePathD } from '@/src/lib/figure/geom';
 
@@ -181,11 +181,19 @@ function specCoversComponent(content: string, type: string, component: string): 
   const spec = parseSpec(type, content);
   const ids = specIds(spec).map(normalizeForMatch);
   const needle = normalizeForMatch(component);
-  if (ids.some((id) => id.includes(needle) || needle.includes(id))) return true;
-  const hay = normalizeForMatch(content);
-  if (hay.includes(needle)) return true;
-  if (needle === 'rpi' && (hay.includes('rpi') || hay.includes('rπ'))) return true;
-  return specHas(spec, component);
+  // Typed specs are checked by semantic membership, never by rendered SVG
+  // labels or substring matches that can turn R1 into a false R10 hit.
+  if (ids.some((id) => id === needle)) return true;
+  if (specHas(spec, component)) return true;
+  const variants = needle === 'rpi' ? [component, 'rpi', 'r_π'] : [component];
+  if (variants.some((variant) => new RegExp(`(^|[^A-Za-z0-9])${escapeRegExp(variant)}(?=$|[^A-Za-z0-9])`, 'i').test(content))) {
+    return true;
+  }
+  return false;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function countSvgPrimitives(svg: string): number {
@@ -434,6 +442,9 @@ function auditSpecCompleteness(step: Step, capsule: Capsule): ParseWarningCode[]
   const type = canonicalizeDiagramType(diagram.type);
   const issues: ParseWarningCode[] = [];
   const text = stepText(step);
+  // The catalog is the admission boundary for typed specs. Unknown families
+  // fail closed; known families are judged from their spec keys and ids.
+  if (!SPEC_FAMILIES.has(type)) issues.push('diagram_incomplete');
   const missingKeys = familyRequiredMissing(type, diagram.content);
   if (missingKeys.length) issues.push('diagram_incomplete');
 
@@ -452,11 +463,9 @@ function auditSpecCompleteness(step: Step, capsule: Capsule): ParseWarningCode[]
     const missing = mentioned.filter((c) => !specCoversComponent(diagram.content, type, c));
     if (missing.length > 0) issues.push('diagram_incomplete');
   }
-  const keys = diagram.content.toLowerCase();
-  const empty =
-    !/\b(fn|data|peaks|poles|node|edge|species|force|body|smiles)\s*:/i.test(keys) &&
-    !/\b[vriclqg]\d+\s*:/i.test(keys);
-  if (empty && type !== 'table') issues.push('diagram_legend_only');
+  // Do not apply SVG primitive/label/legend heuristics to a typed spec. The
+  // family catalog's required/requiredAny keys and the spec-id membership
+  // checks above are the source of truth for model output.
   return [...new Set(issues)];
 }
 

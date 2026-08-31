@@ -368,6 +368,7 @@ export interface FollowupOptions {
   stepTitle?: string;
   subject?: Subject;
   intent?: FollowupIntent;
+  repair?: RepairPromptOptions;
 }
 
 function formatQuotedSelection(selection: string): string {
@@ -431,6 +432,12 @@ const ASK_SOLUTION_CONTRACT = [
 ].join('\n');
 
 function followupCopy(opt: FollowupOptions): { lead: string; contract: string } {
+  if (opt.repair) {
+    return {
+      lead: 'The previous answer contains a figure that failed compiler or quality validation. Repair that figure in the current answer.',
+      contract: buildRepairPrompt(opt.repair),
+    };
+  }
   if (opt.intent === 'ask-solution') {
     return {
       lead: 'The student is asking a question about the WHOLE solution of the current problem (not one step). Their question is at the very top; the quoted lines are the solution overview.',
@@ -525,6 +532,9 @@ export function buildFollowupPrompt(opt: FollowupOptions): string {
 
 export interface RepairPromptOptions {
   errorCode?: string;
+  family?: string;
+  failingKeys?: string[];
+  reason?: string;
 }
 
 const QUALITY_REPAIR_CODES = new Set([
@@ -541,6 +551,11 @@ const QUALITY_REPAIR_CODES = new Set([
   'insufficient_diagrams',
   'diagram_lacks_graphics',
   'diagram_incomplete',
+  'diagram_bad_viewbox',
+  'diagram_label_collision',
+  'diagram_label_over_graphic',
+  'diagram_missing_axes',
+  'diagram_legend_only',
 ]);
 
 const DIAGRAM_REPAIR_CODES = new Set([
@@ -549,10 +564,23 @@ const DIAGRAM_REPAIR_CODES = new Set([
   'insufficient_diagrams',
   'diagram_lacks_graphics',
   'diagram_incomplete',
+  'diagram_bad_viewbox',
+  'diagram_label_collision',
+  'diagram_label_over_graphic',
+  'diagram_missing_axes',
+  'diagram_legend_only',
 ]);
 
 export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
   const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
+  const target = opt.family
+    ? [
+        `TARGETED FIGURE REPAIR: the figure family \`${opt.family}\` failed validation.`,
+        `failing keys: ${opt.failingKeys?.length ? opt.failingKeys.join(', ') : 'none reported'}.`,
+        `Compiler reason: ${opt.reason?.trim() || 'quality audit reported a figure defect'}.`,
+        'Repair this figure from its semantic state; do not invent keys or emit SVG.',
+      ].join(' ')
+    : '';
   const bodyFix =
     opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode) && !DIAGRAM_REPAIR_CODES.has(opt.errorCode)
       ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
@@ -562,6 +590,7 @@ export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
       ? ' Convert each figure to typed key: value lines; do not emit path coordinates. ADD a complete @diagram with keys — electrical: circuit or hybridpi/opamp with required keys; physics: field catalog (solenoid/dipole/…) or scene FBD/ray or plot; math: plot/scene; chemistry: chem.smiles/mo/table; civil: sfd; ChemE: mccabe without stair corners. Every object named in @body MUST appear as a named id. Never <svg>.'
       : '';
   return [
+    target,
     `Your previous stemLM capsule was incomplete or malformed.${reason}`,
     'Re-emit the FULL answer as exactly one fenced block with info string stemlm.',
     `No prose outside the block. Keep the same math; fix every step's @body work and add every required circuit diagram.${bodyFix}${diagramFix}`,

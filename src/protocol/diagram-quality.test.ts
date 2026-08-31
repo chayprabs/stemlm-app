@@ -589,3 +589,29 @@ describe('diagramQualityMessage', () => {
     expect(incomplete).not.toMatch(/hybrid-π needs rpi, gm, RE, RC/);
   });
 });
+
+describe('catalog-driven typed-spec audit', () => {
+  it('accepts valid catalog payloads without SVG-era legend heuristics', () => {
+    const capsule = makeSubjectCapsule('Physics', [
+      makeStep({
+        index: 1,
+        title: 'Draw the solenoid field',
+        body: 'Show the field B and core permeability.',
+        diagram: { type: 'field', content: 'catalog: solenoid\ncore: mu_r=400\nB: 1 T\nH: ?' },
+      }),
+    ], 'Draw a solenoid field and label B and H.');
+    expect(auditStepDiagramCompleteness(capsule.steps[0]!, capsule)).not.toContain('diagram_legend_only');
+  });
+
+  it('marks an unknown typed family incomplete instead of treating it as a valid spec', () => {
+    const capsule = makeSubjectCapsule('Math', [
+      makeStep({
+        index: 1,
+        title: 'Draw the requested figure',
+        body: 'Show the requested structure.',
+        diagram: { type: 'invented-family', content: 'value: guessed' },
+      }),
+    ], 'Draw the requested figure.');
+    expect(auditStepDiagramCompleteness(capsule.steps[0]!, capsule)).toContain('diagram_incomplete');
+  });
+});

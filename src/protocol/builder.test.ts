@@ -522,4 +522,20 @@ describe('buildRepairPrompt', () => {
     expect(prompt).not.toMatch(/SPEC:\s+A /);
     expect(prompt).toMatch(/Never <svg>|NEVER <svg>/i);
   });
+
+  it('targets a compiler failure with its family, keys, and reason', () => {
+    const prompt = buildRepairPrompt({
+      errorCode: 'malformed',
+      family: 'plot',
+      failingKeys: ['guide', 'point'],
+      reason: 'invalid guide x=35; y=1',
+    } as Parameters<typeof buildRepairPrompt>[0] & {
+      family: string;
+      failingKeys: string[];
+      reason: string;
+    });
+    expect(prompt).toContain('family `plot`');
+    expect(prompt).toContain('failing keys: guide, point');
+    expect(prompt).toContain('invalid guide x=35; y=1');
+  });
 });
