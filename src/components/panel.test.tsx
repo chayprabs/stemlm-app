@@ -90,7 +90,7 @@ function buildTwoDiagramSession(): Session {
 }
 
 const SCRATCH = resolve(
-  process.env.SLM_SCRATCH || 'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-6889acceb8d4\\implementer',
+  process.env.SLM_SCRATCH ?? 'artifacts/test-output',
 );
 const TOKENS_CSS = readFileSync(resolve(process.cwd(), 'assets/tokens.css'), 'utf8');
 const PANEL_CSS = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
@@ -1581,7 +1581,7 @@ const BACK_SUB_NOTE =
 const HALFLIFE_STUDENT_CHECK =
   'Verify that half-life is 18 days and radiation factor is 64.';
 const GOAL_SCRATCH = resolve(
-  'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b5a9895ff4e4\\implementer',
+  process.env.SLM_SCRATCH ?? 'artifacts/test-output',
 );
 
 function screenshotHalfLifeSession(): Session {
@@ -1740,4 +1740,3 @@ describe('Panel verification and uncertainty', () => {
     unmount();
   });
 });
-

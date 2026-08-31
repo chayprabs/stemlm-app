@@ -9,7 +9,7 @@ import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import type { Diagram } from '@/src/protocol/types';
 import type { Scene, SceneStroke } from './types';
 
-const SCRATCH = 'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-9d9c00d35d2f\\implementer';
+const SCRATCH = resolve(process.env.SLM_SCRATCH ?? 'artifacts/test-output');
 
 function d(type: string, content: string): Diagram {
   return { type, content };

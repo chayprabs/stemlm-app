@@ -379,7 +379,7 @@ describe('shipped raster tiles', () => {
     expect(apexPixel.a).toBeGreaterThan(200);
     expect(apexPixel.r).toBeGreaterThan(200);
 
-    const scratch = process.env.SLM_SCRATCH || resolve('C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-035bbd9c77a6\\implementer');
+    const scratch = resolve(process.env.SLM_SCRATCH ?? 'artifacts/test-output');
     mkdirSync(scratch, { recursive: true });
     writeFileSync(
       resolve(scratch, 'icons-meta.json'),

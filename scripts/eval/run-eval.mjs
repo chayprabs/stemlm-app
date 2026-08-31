@@ -58,7 +58,7 @@ This tool reads questions from a file you keep OUTSIDE the repo (the 250-questio
 set must never be committed). Then it reports subject routing and prompt sizes,
 and can structurally verify captured Gemini answers.
 
-  pnpm eval --file /opt/cursor/artifacts/eval/questions.md
+  pnpm eval --file path/to/questions.md
   pnpm eval --file questions.md --sample 5            # 5 per subject
   pnpm eval --file questions.md --subject Physics
   pnpm eval --file questions.md --answers captured.md # verify captured capsules

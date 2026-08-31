@@ -121,7 +121,7 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('slm-answer-notes');
     expect(html).not.toMatch(/slm-answer-notes[^>]*>[\s\S]*<(h2|h3)/i);
     const scratch = resolve(
-      'C:\\Users\\chait\\AppData\\Local\\Temp\\grok-goal-b5a9895ff4e4\\implementer',
+      process.env.SLM_SCRATCH ?? 'artifacts/test-output',
     );
     mkdirSync(scratch, { recursive: true });
     writeFileSync(resolve(scratch, 'report.html'), html, 'utf8');
