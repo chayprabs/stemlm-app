@@ -5,13 +5,29 @@
  * Math is the same KaTeX HTML the panel shows; diagrams are sanitised SVG.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createElement } from 'react';
+import { createElement, type ReactElement } from 'react';
 import { browser } from 'wxt/browser';
 import type { Session } from '@/src/protocol/types';
-import { Report, collectDiagrams } from '@/src/components/Report';
+import type { PlatformId } from '@/src/platforms/types';
+import type { Diagram } from '@/src/protocol/types';
+import {
+  MergedReport,
+  PlainReport,
+  Report,
+  collectDiagrams,
+  collectMergedDiagrams,
+} from '@/src/components/Report';
 import { resolveDiagram } from './resolve-diagram';
 import type { Overlay } from './figure/types';
 import { PRINT_DIAGRAM_MM } from './diagram-bounds';
+import { CONTENT_WIDTH_PX, sliceRectPt } from './pdf-paginate';
+import {
+  BlankRenderError,
+  RENDER_CLASS,
+  renderHtmlToPageImages,
+  type RenderOptions,
+  type RenderedPage,
+} from './pdf-raster';
 import { trackEvent } from './analytics';
 import { FONT_CSS_HREF, FONT_MONO, FONT_SANS, KATEX_CSS_HREF } from './fonts';
 import { BRAND_SIGNAL } from '@/src/components/brand';
@@ -23,6 +39,41 @@ export type PdfExportMethod = 'print' | 'download' | 'view' | 'failed';
 export interface PdfExportResult {
   ok: boolean;
   method: PdfExportMethod;
+  /** Present only on failure, so the UI can say what actually went wrong. */
+  reason?: PdfFailureReason;
+  /** Short technical description, shown under the message and logged. */
+  detail?: string;
+}
+
+/** `blank` means the page rendered but carried no ink — never ship that file. */
+export type PdfFailureReason = 'blank' | 'render' | 'save' | 'empty' | 'timeout';
+
+/**
+ * Figures are resolved one at a time and some engines are slow (mermaid alone
+ * can hold a 12s timeout). Past this budget the remaining figures are dropped
+ * so a question with several heavy diagrams still exports.
+ */
+const DIAGRAM_BUDGET_MS = 20_000;
+
+/**
+ * Anything that goes wrong inside an export is recoverable — the export
+ * degrades instead of failing — but it must still be visible when debugging a
+ * specific saved question.
+ */
+function reportPdfIssue(where: string, err: unknown): void {
+  try {
+    // eslint-disable-next-line no-console
+    console.warn(`[stemLM] pdf ${where}:`, err);
+  } catch {
+    /* console is not worth failing an export over */
+  }
+}
+
+/** Compact, user-showable description of a failure. */
+export function describePdfError(err: unknown): string {
+  const raw =
+    err instanceof Error ? `${err.name}: ${err.message}` : String(err ?? 'unknown error');
+  return raw.replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
 /** Light reading canvas — same inks as the panel, paper white for print. */
@@ -56,17 +107,40 @@ export function reportPrintTitle(_session?: Session): string {
   return 'stemLM';
 }
 
-async function resolveDiagrams(
-  session: Session,
-): Promise<{ svg: Record<string, string>; overlays: Record<string, Overlay[]> }> {
+interface ResolvedDiagrams {
+  svg: Record<string, string>;
+  overlays: Record<string, Overlay[]>;
+}
+
+/**
+ * One unrenderable figure must never cost the whole document. Each diagram is
+ * isolated: on failure it is simply absent from the map, and `ResolvedDiagram`
+ * falls back to the spec source or renders nothing.
+ */
+async function resolveKeyedDiagrams(
+  entries: readonly { key: string; diagram: Diagram }[],
+): Promise<ResolvedDiagrams> {
   const svg: Record<string, string> = {};
   const overlays: Record<string, Overlay[]> = {};
-  for (const { key, diagram } of collectDiagrams(session)) {
-    const resolved = await resolveDiagram(diagram, 'light', 'print');
-    svg[key] = resolved.svg;
-    overlays[key] = resolved.overlays;
+  const deadline = Date.now() + DIAGRAM_BUDGET_MS;
+  for (const { key, diagram } of entries) {
+    if (Date.now() > deadline) {
+      reportPdfIssue('diagram budget', `skipped ${key} and any figures after it`);
+      break;
+    }
+    try {
+      const resolved = await resolveDiagram(diagram, 'light', 'print');
+      svg[key] = resolved.svg;
+      overlays[key] = resolved.overlays;
+    } catch (err) {
+      reportPdfIssue(`diagram ${key}`, err);
+    }
   }
   return { svg, overlays };
+}
+
+async function resolveDiagrams(session: Session): Promise<ResolvedDiagrams> {
+  return resolveKeyedDiagrams(collectDiagrams(session));
 }
 
 export function printStyles(): string {
@@ -104,6 +178,12 @@ body{font:11pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-adj
 .slm-takeaway{margin:6px 0 0;padding:7px 10px;border:0.5px solid ${T.border};background:${T.bgSubtle};border-radius:${T.radiusMd};font-size:11pt;line-height:1.45;color:${T.fg};}
 .slm-takeaway p{margin:0;}
 .slm-report-solution{margin:0;padding:0;border:0;background:transparent;}
+.slm-report-entry{display:block;}
+.slm-report-entry+.slm-report-entry{margin-top:13px;padding-top:11px;border-top:0.5px solid ${T.border};}
+.slm-report-entry-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 3px;}
+.slm-report-entry-head .slm-report-topic{margin:0;font-size:12pt;}
+.slm-report-entry-subject{flex:0 0 auto;font-size:8.5pt;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:${T.fgMuted};line-height:1.4;white-space:nowrap;}
+.slm-report--merged .slm-report-q-block{padding-top:0;}
 .slm-report-diagram{display:flex;justify-content:center;align-items:center;width:100%;max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:4px auto 0;padding:0;}
 .slm-diagram-frame{position:relative;display:inline-block;line-height:0;max-width:100%;overflow:visible;}
 .slm-diagram-svg{display:inline-block;line-height:0;max-width:100%;}
@@ -133,10 +213,32 @@ code{font-family:${FONT_MONO};font-size:.88em;}
 @media screen{
 body{padding:18px 14px 36px;background:${T.bgSubtle};}
 .slm-report{background:${T.bg};padding:18px 24px 20px;border:0.5px solid ${T.border};border-radius:${T.radiusMd};box-shadow:0 8px 28px rgba(15,15,18,.08);}
-html.slm-pdf-download body{padding:12mm 14mm;background:${T.bg};}
-html.slm-pdf-download .slm-report{max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;}
 }
+/* Off-screen render surface: the column is exactly the A4 text box, so the
+   rasteriser can slice it into pages without re-measuring margins. */
+html.${RENDER_CLASS}{overflow:hidden;background:${T.bg};}
+html.${RENDER_CLASS} body{width:${CONTENT_WIDTH_PX}px;margin:0;padding:0;background:${T.bg};overflow:hidden;}
+html.${RENDER_CLASS} .slm-report{width:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:${T.bg};}
+html.${RENDER_CLASS} *{animation:none!important;transition:none!important;}
 `;
+}
+
+/**
+ * `renderToStaticMarkup` ignores error boundaries, so a single bad node in a
+ * saved answer would otherwise abort the whole export. Each attempt is isolated
+ * and the caller supplies progressively simpler fallbacks.
+ */
+function tryRender(where: string, build: () => ReactElement): string | null {
+  try {
+    return renderToStaticMarkup(build());
+  } catch (err) {
+    reportPdfIssue(`markup ${where}`, err);
+    return null;
+  }
+}
+
+function reportShell(body: string, title: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link rel="stylesheet" href="${FONT_CSS_HREF}"><style>${katexPrintCss()}${printStyles()}</style></head><body>${body}</body></html>`;
 }
 
 export function buildReportDocument(
@@ -144,9 +246,12 @@ export function buildReportDocument(
   diagramSvg: Record<string, string>,
   diagramOverlays: Record<string, Overlay[]> = {},
 ): string {
-  const body = renderToStaticMarkup(createElement(Report, { session, diagramSvg, diagramOverlays }));
-  const title = reportPrintTitle(session);
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link rel="stylesheet" href="${FONT_CSS_HREF}"><style>${katexPrintCss()}${printStyles()}</style></head><body>${body}</body></html>`;
+  const body =
+    tryRender('report', () => createElement(Report, { session, diagramSvg, diagramOverlays })) ??
+    // Same content, no markdown / KaTeX / figures — always renders.
+    tryRender('plain report', () => createElement(PlainReport, { sessions: [session] }));
+  if (body === null) throw new Error('report markup failed');
+  return reportShell(body, reportPrintTitle(session));
 }
 
 function escapeHtml(s: string): string {
@@ -157,10 +262,46 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function buildMergedReportDocument(
+  sessions: readonly Session[],
+  diagramSvg: Record<string, string>,
+  diagramOverlays: Record<string, Overlay[]> = {},
+): string {
+  const merged = (list: readonly Session[]) =>
+    createElement(MergedReport, { sessions: [...list], diagramSvg, diagramOverlays });
+
+  let body = tryRender('merged report', () => merged(sessions));
+
+  if (body === null) {
+    // Find the offending question rather than losing the whole merge: anything
+    // that cannot render on its own is dropped, and the rest merge normally.
+    const usable = sessions.filter(
+      (session) =>
+        tryRender('merge probe', () =>
+          createElement(Report, { session, diagramSvg, diagramOverlays }),
+        ) !== null,
+    );
+    if (usable.length > 0 && usable.length < sessions.length) {
+      reportPdfIssue('merge', `dropped ${sessions.length - usable.length} unrenderable question(s)`);
+      body = tryRender('merged retry', () => merged(usable));
+    }
+  }
+
+  body ??= tryRender('plain merged', () => createElement(PlainReport, { sessions }));
+  if (body === null) throw new Error('merged markup failed');
+  return reportShell(body, reportPrintTitle());
+}
+
 /** Self-contained report HTML (print-styled). Used for view + file download. */
 export async function renderSessionReportHtml(session: Session): Promise<string> {
   const resolved = await resolveDiagrams(session);
   return buildReportDocument(session, resolved.svg, resolved.overlays);
+}
+
+/** One continuous document holding every selected question. */
+export async function renderMergedReportHtml(sessions: readonly Session[]): Promise<string> {
+  const resolved = await resolveKeyedDiagrams(collectMergedDiagrams(sessions));
+  return buildMergedReportDocument(sessions, resolved.svg, resolved.overlays);
 }
 
 export async function exportSessionPdf(session: Session): Promise<PdfExportResult> {
@@ -215,8 +356,9 @@ export async function exportSessionPdf(session: Session): Promise<PdfExportResul
   }
 }
 
-const A4_WIDTH_PT = 595.28;
-const REPORT_CAPTURE_PX = 794;
+/* ------------------------------------------------------------------ *
+ * Direct file download — real PDF bytes, no print dialog.
+ * ------------------------------------------------------------------ */
 
 type DownloadsApi = {
   download: (options: {
@@ -231,19 +373,10 @@ function pdfFileName(session?: Session): string {
   return `${reportFilename(session)}.pdf`;
 }
 
-async function waitForReportDocument(doc: Document, win: Window): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const go = async () => {
-      try {
-        await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready;
-      } catch {
-        /* ignore */
-      }
-      resolve();
-    };
-    if (doc.readyState === 'complete') setTimeout(go, 80);
-    else win.addEventListener('load', () => setTimeout(go, 80), { once: true });
-  });
+/** Basename for a merged export. Says what it is and how much is in it. */
+export function mergedPdfFileName(count: number): string {
+  if (count <= 1) return pdfFileName();
+  return `stemLM-${count}-questions.pdf`;
 }
 
 /** Put a PDF blob in the default Downloads folder. Never opens a save/print picker. */
@@ -267,6 +400,7 @@ export async function triggerPdfFileDownload(blob: Blob, filename: string): Prom
     /* fall through to an anchor click on pages that cannot use chrome.downloads */
   }
 
+  // Content scripts have no downloads API; an anchor click still saves the file.
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
@@ -278,95 +412,86 @@ export async function triggerPdfFileDownload(blob: Blob, filename: string): Prom
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-async function reportHtmlToPdfBlob(html: string): Promise<Blob> {
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText =
-    'position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;opacity:1;pointer-events:none;z-index:-1;';
-  document.body.appendChild(iframe);
+/** Stitch rasterised A4 pages into one PDF. */
+export async function pagesToPdfBlob(pages: readonly RenderedPage[]): Promise<Blob> {
+  if (pages.length === 0) throw new Error('no pages');
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
 
-  const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
-    iframe.remove();
-    throw new Error('no iframe document');
-  }
+  pages.forEach((page, i) => {
+    if (i > 0) pdf.addPage('a4', 'portrait');
+    const rect = sliceRectPt(page.slice);
+    pdf.addImage(page.dataUrl, 'PNG', rect.x, rect.y, rect.width, rect.height, undefined, 'FAST');
+  });
 
+  const blob = pdf.output('blob');
+  if (!(blob instanceof Blob) || blob.size < 5) throw new Error('empty pdf');
+  return blob;
+}
+
+function failureReason(err: unknown): PdfFailureReason {
+  if (err instanceof BlankRenderError) return 'blank';
+  if (err instanceof Error && /timed out/i.test(err.message)) return 'timeout';
+  return 'render';
+}
+
+function failed(where: string, err: unknown): PdfExportResult {
+  reportPdfIssue(where, err);
+  return { ok: false, method: 'failed', reason: failureReason(err), detail: describePdfError(err) };
+}
+
+async function downloadHtmlAsPdf(
+  html: string,
+  filename: string,
+  options: RenderOptions | undefined,
+  platform: PlatformId,
+): Promise<PdfExportResult> {
   try {
-    doc.open();
-    doc.write(html);
-    doc.close();
-    doc.documentElement.classList.add('slm-pdf-download');
-    await waitForReportDocument(doc, win);
-    iframe.style.height = `${Math.max(doc.documentElement.scrollHeight, 1123)}px`;
-
-    const [{ jsPDF }] = await Promise.all([import('jspdf'), import('html2canvas')]);
-    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
-    await new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      const fail = (err: unknown) => {
-        if (settled) return;
-        settled = true;
-        reject(err);
-      };
-      const timer = window.setTimeout(() => fail(new Error('pdf html timeout')), 120_000);
-      try {
-        const worker = pdf.html(doc.body, {
-          x: 0,
-          y: 0,
-          width: A4_WIDTH_PT,
-          windowWidth: Math.max(doc.body.scrollWidth, REPORT_CAPTURE_PX),
-          autoPaging: 'text',
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-          },
-          callback: () => {
-            window.clearTimeout(timer);
-            finish();
-          },
-        });
-        void Promise.resolve(worker).then(
-          () => {
-            window.clearTimeout(timer);
-            finish();
-          },
-          (err) => {
-            window.clearTimeout(timer);
-            fail(err);
-          },
-        );
-      } catch (err) {
-        window.clearTimeout(timer);
-        fail(err);
-      }
-    });
-
-    const blob = pdf.output('blob');
-    if (!(blob instanceof Blob) || blob.size < 5) throw new Error('empty pdf');
-    return blob;
-  } finally {
-    iframe.remove();
+    const pages = await renderHtmlToPageImages(html, options);
+    const blob = await pagesToPdfBlob(pages);
+    await triggerPdfFileDownload(blob, filename);
+    void trackEvent('pdf_exported', { platform, method: 'download' });
+    return { ok: true, method: 'download' };
+  } catch (err) {
+    void trackEvent('pdf_exported', { platform, method: 'failed' });
+    return failed('export', err);
   }
 }
 
 /** Build a real PDF and send it to Downloads. No print dialog. */
-export async function downloadSessionPdf(session: Session): Promise<PdfExportResult> {
+export async function downloadSessionPdf(
+  session: Session,
+  options?: RenderOptions,
+): Promise<PdfExportResult> {
+  let html: string;
   try {
-    const html = await renderSessionReportHtml(session);
-    const blob = await reportHtmlToPdfBlob(html);
-    await triggerPdfFileDownload(blob, pdfFileName(session));
-    void trackEvent('pdf_exported', { platform: session.platform, method: 'download' });
-    return { ok: true, method: 'download' };
-  } catch {
+    html = await renderSessionReportHtml(session);
+  } catch (err) {
     void trackEvent('pdf_exported', { platform: session.platform, method: 'failed' });
-    return { ok: false, method: 'failed' };
+    return failed('build', err);
   }
+  return downloadHtmlAsPdf(html, pdfFileName(session), options, session.platform);
+}
+
+/**
+ * One PDF for several saved questions. Each answer flows straight into the next
+ * question, so the tail page of a long solve is reused instead of wasted, and
+ * the brand header and sign-off appear exactly once.
+ */
+export async function downloadSessionsPdf(
+  sessions: readonly Session[],
+  options?: RenderOptions,
+): Promise<PdfExportResult> {
+  if (sessions.length === 0) return { ok: false, method: 'failed', reason: 'empty' };
+  const first = sessions[0] as Session;
+  if (sessions.length === 1) return downloadSessionPdf(first, options);
+
+  let html: string;
+  try {
+    html = await renderMergedReportHtml(sessions);
+  } catch (err) {
+    void trackEvent('pdf_exported', { platform: first.platform, method: 'failed' });
+    return failed('build merged', err);
+  }
+  return downloadHtmlAsPdf(html, mergedPdfFileName(sessions.length), options, first.platform);
 }
