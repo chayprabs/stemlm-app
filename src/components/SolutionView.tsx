@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Session, Step } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
@@ -12,16 +12,22 @@ import { FollowupBar } from './FollowupBar';
 import { FollowupAnswerBody } from './FollowupCard';
 import { SOLUTION_ANCHOR_ID, solutionFollowups } from '@/src/lib/step-entries';
 import { buildSolutionFollowupSelection } from '@/src/lib/followup-selection';
+import { RepairFigureButton, type FigureRepairFailure } from './RepairFigureButton';
+import type { DiagramCompileFailure } from './DiagramRenderer';
+import { auditCapsuleDiagrams, diagramQualityMessage } from '@/src/protocol/diagram-quality';
 
 function SolutionStep({
+  session,
   step,
   index,
   theme,
 }: {
+  session: Session;
   step: Step;
   index: number;
   theme: ResolvedTheme;
 }) {
+  const [compileFailure, setCompileFailure] = useState<DiagramCompileFailure | null>(null);
   return (
     <article className="slm-solution-step">
       <header className="slm-solution-step-head">
@@ -41,7 +47,8 @@ function SolutionStep({
       {step.diagram && (
         <div className="slm-step-diagram">
           <span className="slm-step-diagram-label">Diagram</span>
-          <DiagramRenderer diagram={step.diagram} theme={theme} />
+          <DiagramRenderer diagram={step.diagram} theme={theme} onCompileFailure={setCompileFailure} />
+          {compileFailure && <RepairFigureButton session={session} stepId={step.id} failure={compileFailure} />}
         </div>
       )}
 
@@ -64,6 +71,18 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
   const hasSteps = steps.length > 0;
   const hasSolutionText = solution.trim().length > 0;
+  const qualityCode = auditCapsuleDiagrams(session.capsule)[0];
+  const qualityDiagram = steps.map((step) => step.diagram).find(Boolean);
+  const qualityFailure: FigureRepairFailure | null = qualityCode
+    ? {
+        family: qualityDiagram?.type ?? 'figure',
+        failingKeys: qualityDiagram
+          ? [...new Set(qualityDiagram.content.split('\n').map((line) => /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/.exec(line)?.[1]?.toLowerCase()).filter((key): key is string => Boolean(key)))]
+          : [],
+        code: qualityCode,
+        reason: diagramQualityMessage(qualityCode, session.capsule),
+      }
+    : null;
 
   // Solution-tab follow-ups chain below the solution; scroll to the newest.
   const followups = solutionFollowups(session);
@@ -79,10 +98,11 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   return (
     <div className="slm-solution">
       <CapsuleSignals capsule={session.capsule} />
+      {qualityFailure && <RepairFigureButton session={session} failure={qualityFailure} />}
       {hasSteps && (
         <section className="slm-solution-steps" aria-label="Solution steps">
           {steps.map((step, i) => (
-            <SolutionStep key={step.id} step={step} index={i} theme={theme} />
+            <SolutionStep key={step.id} session={session} step={step} index={i} theme={theme} />
           ))}
         </section>
       )}

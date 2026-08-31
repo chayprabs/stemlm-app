@@ -23,7 +23,8 @@ export default function App() {
     return watchFitCurrentWindowToContent(shellRef.current, {
       minWidth: 440,
       maxWidth: 480,
-      maxHeight: 640,
+      // The full sheet is ~690px; the screen cap keeps this honest on laptops.
+      maxHeight: 900,
     });
   }, [ready]);
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { DEFAULT_SETTINGS, getSettings } from '@/src/lib/settings';
 import { SETTINGS_LABEL } from '@/src/lib/saved-library';
 import { useStore } from '@/src/state/store';
@@ -34,7 +36,12 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-import { SettingsOverlay } from './SettingsOverlay';
+import {
+  ANALYTICS_HINT,
+  ANALYTICS_LABEL,
+  SETTINGS_LEGAL_LINKS,
+  SettingsOverlay,
+} from './SettingsOverlay';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -103,8 +110,67 @@ describe('SettingsOverlay', () => {
     expect(container.textContent).toContain('Appearance');
     expect(container.textContent).toContain('Behaviour');
     expect(container.textContent).not.toContain('Protocol');
-    expect(container.textContent).not.toContain('Privacy');
+    expect(container.textContent).toContain('Privacy');
     expect(container.querySelector('[aria-pressed="true"]')?.textContent).toBe('Light');
+
+    unmount();
+  });
+
+  it('offers the usage-data toggle, on by default, in the same style as the others', async () => {
+    const { container, unmount } = await renderOverlay();
+
+    const switches = [...container.querySelectorAll<HTMLButtonElement>('.slm-set-switch')];
+    const analytics = switches.find((el) => el.getAttribute('aria-label') === ANALYTICS_LABEL);
+    expect(analytics).toBeTruthy();
+    expect(analytics!.getAttribute('role')).toBe('switch');
+    expect(analytics!.getAttribute('aria-checked')).toBe('true');
+    // Same markup as the shipped toggles, so it inherits their look exactly.
+    expect(analytics!.querySelector('.slm-set-knob')).toBeTruthy();
+    expect(analytics!.classList.contains('is-on')).toBe(true);
+    expect(container.textContent).toContain(ANALYTICS_LABEL);
+    expect(container.textContent).toContain(ANALYTICS_HINT);
+
+    // It flips so both states are visible; persistence is deliberately not wired.
+    act(() => {
+      analytics!.click();
+    });
+    expect(analytics!.getAttribute('aria-checked')).toBe('false');
+    expect(analytics!.classList.contains('is-on')).toBe(false);
+    expect(localStore.stemlm_settings).not.toHaveProperty('shareUsageData');
+
+    unmount();
+  });
+
+  it('puts the three about links on one row at the bottom', async () => {
+    const { container, unmount } = await renderOverlay();
+
+    const nav = container.querySelector('.slm-settings-links');
+    expect(nav).toBeTruthy();
+    const links = [...container.querySelectorAll<HTMLButtonElement>('.slm-settings-link')];
+    expect(links.map((el) => el.textContent)).toEqual(
+      SETTINGS_LEGAL_LINKS.map((item) => item.label),
+    );
+    expect(links.map((el) => el.dataset.link)).toEqual(SETTINGS_LEGAL_LINKS.map((i) => i.id));
+    // Buttons, not dead anchors, while the destinations are still to come.
+    for (const el of links) {
+      expect(el.tagName).toBe('BUTTON');
+      expect(el.getAttribute('type')).toBe('button');
+      expect(el.hasAttribute('href')).toBe(false);
+    }
+    // Separators are decorative dots, never part of the reading order.
+    const seps = [...container.querySelectorAll('.slm-settings-links-sep')];
+    expect(seps).toHaveLength(2);
+    for (const el of seps) expect(el.getAttribute('aria-hidden')).toBe('true');
+
+    // One horizontal row, and the note still sits above it.
+    const css = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.slm-settings-links {'));
+    const body = rule.slice(0, rule.indexOf('}'));
+    expect(body).toMatch(/display:\s*flex/);
+    expect(body).toMatch(/align-items:\s*center/);
+    expect(container.querySelector('.slm-settings-foot-note')?.textContent).toBe(
+      'Changes save automatically',
+    );
 
     unmount();
   });

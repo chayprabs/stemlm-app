@@ -32,6 +32,23 @@ export function windowSizeForContent(
   return { width, height };
 }
 
+/**
+ * A window taller than the display is worse than a short one: the bottom of the
+ * sheet ends up off-screen with no way to reach it. Cap at what the screen can
+ * actually show, leaving room for the taskbar and window chrome.
+ */
+export function availableHeightCap(fallback: number): number {
+  try {
+    const avail = globalThis.screen?.availHeight;
+    if (typeof avail === 'number' && Number.isFinite(avail) && avail > 320) {
+      return Math.round(avail * 0.92);
+    }
+  } catch {
+    /* screen is unavailable in some embedders */
+  }
+  return fallback;
+}
+
 export async function fitCurrentWindowToContent(
   root: Element,
   opt: FitWindowOptions = {},
@@ -40,6 +57,7 @@ export async function fitCurrentWindowToContent(
     const win = await browser.windows.getCurrent();
     if (win.id == null) return;
     const rect = root.getBoundingClientRect();
+    const requestedMax = opt.maxHeight ?? 640;
     const next = windowSizeForContent(
       { width: rect.width, height: rect.height },
       {
@@ -49,7 +67,7 @@ export async function fitCurrentWindowToContent(
         width: Math.min(24, Math.max(0, (win.width ?? window.innerWidth) - window.innerWidth)),
         height: Math.min(48, Math.max(0, (win.height ?? window.innerHeight) - window.innerHeight)),
       },
-      opt,
+      { ...opt, maxHeight: Math.min(requestedMax, availableHeightCap(requestedMax)) },
     );
     if (next.width === win.width && next.height === win.height) return;
     await browser.windows.update(win.id, next);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   DEFAULT_SETTINGS,
   getSettings,
@@ -18,6 +18,19 @@ import {
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
 import { SETTINGS_LABEL } from '@/src/lib/saved-library';
+
+/**
+ * Footer links. Destinations are wired up separately — these render the row so
+ * the layout is settled; each carries a `data-link` id for the handler to hook.
+ */
+export const SETTINGS_LEGAL_LINKS = [
+  { id: 'privacy', label: 'Privacy Policy' },
+  { id: 'terms', label: 'Terms & Conditions' },
+  { id: 'contact', label: 'Contact Us' },
+] as const;
+
+export const ANALYTICS_LABEL = 'Share anonymous usage data';
+export const ANALYTICS_HINT = 'Never your questions or answers.';
 
 function applyPageTheme(pref: ThemePref, resolved: ResolvedTheme, layout: 'overlay' | 'page') {
   if (layout === 'page' || document.documentElement.classList.contains('slm-popup-page')) {
@@ -97,6 +110,9 @@ export function SettingsOverlay({
 }) {
   const [settings, setLocal] = useState<Settings>(DEFAULT_SETTINGS);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
+  // Presentation only for now: on by default, flips so both states are visible,
+  // but deliberately not persisted and not wired to any analytics call yet.
+  const [shareUsageData, setShareUsageData] = useState(true);
 
   useEffect(() => {
     void getSettings().then((next) => {
@@ -216,9 +232,31 @@ export function SettingsOverlay({
               onChange={(autoOpenOnAnswer) => void update({ autoOpenOnAnswer })}
             />
           </section>
+
+          <section className="slm-settings-group">
+            <h3 className="slm-settings-group-title">Privacy</h3>
+            <Toggle
+              label={ANALYTICS_LABEL}
+              hint={ANALYTICS_HINT}
+              checked={shareUsageData}
+              onChange={setShareUsageData}
+            />
+          </section>
         </div>
 
-        <p className="slm-settings-foot">Changes save automatically</p>
+        <footer className="slm-settings-foot">
+          <p className="slm-settings-foot-note">Changes save automatically</p>
+          <nav className="slm-settings-links" aria-label="About stemLM">
+            {SETTINGS_LEGAL_LINKS.map((item, i) => (
+              <Fragment key={item.id}>
+                {i > 0 && <span className="slm-settings-links-sep" aria-hidden="true" />}
+                <button type="button" className="slm-settings-link" data-link={item.id}>
+                  {item.label}
+                </button>
+              </Fragment>
+            ))}
+          </nav>
+        </footer>
       </div>
     </div>
   );

@@ -237,6 +237,27 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('xlabel: t');
   });
 
+  it('reports typed compiler diagnostics beside the unchanged fallback', async () => {
+    const onCompileFailure = vi.fn();
+    const diagram = { type: 'plot', content: 'kind: comparison\nfn: x\ndomain: 0 1\nguide: x=35; y=1' };
+    const mounted = mountInShadow(
+      <DiagramRenderer
+        {...({ diagram, theme: 'dark', onCompileFailure } as unknown as React.ComponentProps<typeof DiagramRenderer>)}
+      />,
+    );
+    host = mounted.host;
+    root = mounted.root;
+
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
+
+    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('guide: x=35; y=1');
+    expect(onCompileFailure).toHaveBeenCalledWith(expect.objectContaining({
+      family: 'plot',
+      code: 'malformed',
+      reason: 'invalid guide x=35; y=1',
+    }));
+  });
+
   it('does not leave an eternal skeleton for SVG diagrams', async () => {
     const parsed = parseCapsule(MECHANICAL_AXIAL_STRESS_BAR);
     const diagram = parsed.capsule!.steps[1]!.diagram!;

@@ -6,6 +6,7 @@
 import Fuse from 'fuse.js';
 import { SUBJECTS, type Subject } from '@/src/protocol/types';
 import { resolveQuestionText } from './session-question';
+import type { PdfFailureReason } from './pdf';
 
 /** Minimal snapshot shape needed to label and filter the toolbar library. */
 export interface SavedFilterable {
@@ -53,6 +54,35 @@ export const SAVED_TIME_FILTERS: readonly { id: Exclude<SavedTimeFilter, 'all'>;
 ];
 
 export const SAVED_TIME_ANY_LABEL = 'Any time';
+
+/** The time control shrink-wraps its label; its menu never gets narrower than this. */
+export const TIME_MENU_MIN_WIDTH_PX = 176;
+
+export const MERGE_START_LABEL = 'Merge PDF';
+export const MERGE_CANCEL_LABEL = 'Cancel';
+export const SELECT_ALL_LABEL = 'Select all';
+
+/** Button copy while picking questions to merge. */
+export function mergeDownloadLabel(count: number): string {
+  if (count <= 0) return 'Download';
+  return `Download ${count}`;
+}
+
+/** Plain-language reason a PDF export did not produce a file. */
+export function pdfFailureMessage(reason: PdfFailureReason): string {
+  switch (reason) {
+    case 'blank':
+      return 'That report rendered blank. Open it to check the saved answer, then try again.';
+    case 'empty':
+      return 'Pick at least one question first.';
+    case 'save':
+      return 'The PDF was built but could not be saved. Check your download settings.';
+    case 'timeout':
+      return 'Rendering took too long. Try again, or merge fewer questions at once.';
+    default:
+      return 'Could not build the PDF. Try again.';
+  }
+}
 
 const TIME_WINDOW_MS: Record<Exclude<SavedTimeFilter, 'all'>, number> = {
   '24h': 24 * 60 * 60 * 1000,

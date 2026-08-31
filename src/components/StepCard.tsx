@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Session } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
@@ -10,6 +11,9 @@ import { StepWork } from './StepWork';
 import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { RepairFigureButton, type FigureRepairFailure } from './RepairFigureButton';
+import type { DiagramCompileFailure } from './DiagramRenderer';
+import { auditCapsuleDiagrams, diagramQualityMessage } from '@/src/protocol/diagram-quality';
 
 export function StepCard({
   session,
@@ -20,6 +24,7 @@ export function StepCard({
   index: number;
   theme: ResolvedTheme;
 }) {
+  const [compileFailure, setCompileFailure] = useState<DiagramCompileFailure | null>(null);
   const step = session.capsule.steps[index];
   if (!step) return null;
 
@@ -28,6 +33,21 @@ export function StepCard({
   // anchored right after this step in the rail.
   const followupSelection = buildStepFollowupSelection(session, step);
   const suggested = step.followup ? stripProtocolMarkers(step.followup) : undefined;
+  const qualityCode = index === 0 ? auditCapsuleDiagrams(session.capsule)[0] : undefined;
+  const qualityDiagram = session.capsule.steps
+    .map((candidate) => candidate.diagram)
+    .find((diagram): diagram is NonNullable<typeof diagram> => Boolean(diagram));
+  const qualityFailure: FigureRepairFailure | null = qualityCode
+    ? {
+        family: qualityDiagram?.type ?? step.diagram?.type ?? 'figure',
+        failingKeys: qualityDiagram
+          ? [...new Set(qualityDiagram.content.split('\n').map((line) => /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/.exec(line)?.[1]?.toLowerCase()).filter((key): key is string => Boolean(key)))]
+          : [],
+        code: qualityCode,
+        reason: diagramQualityMessage(qualityCode, session.capsule),
+      }
+    : null;
+  const repairFailure: FigureRepairFailure | null = compileFailure ?? qualityFailure;
   return (
     <motion.article
       key={step.id}
@@ -55,8 +75,13 @@ export function StepCard({
       {step.diagram && (
         <div className="slm-step-diagram">
           <span className="slm-step-diagram-label">Diagram</span>
-          <DiagramRenderer diagram={step.diagram} theme={theme} />
+          <DiagramRenderer diagram={step.diagram} theme={theme} onCompileFailure={setCompileFailure} />
+          {repairFailure && <RepairFigureButton session={session} stepId={step.id} failure={repairFailure} />}
         </div>
+      )}
+
+      {!step.diagram && repairFailure && (
+        <RepairFigureButton session={session} stepId={step.id} failure={repairFailure} />
       )}
 
       {step.takeaway && (

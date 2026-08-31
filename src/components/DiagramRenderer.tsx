@@ -9,19 +9,30 @@ import {
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import type { Overlay } from '@/src/lib/figure/types';
 import { overlayStyle, renderOverlayHtml } from '@/src/lib/figure/overlay';
+import { compileDiagramSpec } from '@/src/lib/figure/compile';
+import { canonicalizeDiagramType } from '@/src/lib/figure/catalog';
+import type { CompileFailCode } from '@/src/lib/figure/types';
+
+export interface DiagramCompileFailure {
+  family: string;
+  code: CompileFailCode;
+  failingKeys: string[];
+  reason: string;
+}
 
 export interface DiagramRendererProps {
   diagram: Diagram;
   theme: ResolvedTheme;
   /** Display profile — step cards use tighter bounds than the solution tab. */
   size?: 'step' | 'solution';
+  onCompileFailure?: (failure: DiagramCompileFailure | null) => void;
 }
 
 /**
  * Renders a step's diagram. Spec/mermaid compile once; theme changes only
  * recolor via presentSvg. Failures degrade to the raw source.
  */
-export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRendererProps) {
+export function DiagramRenderer({ diagram, theme, size = 'step', onCompileFailure }: DiagramRendererProps) {
   const [compiled, setCompiled] = useState<CompiledDiagram | null>(null);
   const [svg, setSvg] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
@@ -34,16 +45,32 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
     setSvg(null);
     setOverlays([]);
     setFailed(false);
+    onCompileFailure?.(null);
 
-    void compileDiagram(diagram, size).then((next) => {
+    void compileDiagram(diagram, size).then(async (next) => {
       if (requestId.current !== id) return;
+      if (!next.svg && onCompileFailure) {
+        const type = canonicalizeDiagramType(diagram.type);
+        if (type !== 'svg' && type !== 'mermaid') {
+          const diagnostic = await compileDiagramSpec(diagram, size);
+          if (requestId.current !== id) return;
+          if (!diagnostic.ok) {
+            onCompileFailure({
+              family: type,
+              code: diagnostic.code,
+              failingKeys: specKeys(diagram.content),
+              reason: diagnostic.reason,
+            });
+          }
+        }
+      }
       setCompiled(next);
     });
 
     return () => {
       requestId.current += 1;
     };
-  }, [diagram.content, diagram.type, size]);
+  }, [diagram.content, diagram.type, onCompileFailure, size]);
 
   useEffect(() => {
     if (!compiled) return;
@@ -106,4 +133,10 @@ export function DiagramRenderer({ diagram, theme, size = 'step' }: DiagramRender
       {diagram.caption && <figcaption>{diagram.caption}</figcaption>}
     </figure>
   );
+}
+
+function specKeys(content: string): string[] {
+  return [...new Set(content.split('\n')
+    .map((line) => /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/.exec(line)?.[1]?.toLowerCase())
+    .filter((key): key is string => Boolean(key)))];
 }

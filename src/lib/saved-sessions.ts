@@ -6,7 +6,13 @@
 import { browser } from 'wxt/browser';
 import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
 import { isPlatformId, type PlatformId } from '@/src/platforms/types';
-import { downloadSessionPdf, exportSessionPdf, type PdfExportResult } from './pdf';
+import {
+  downloadSessionPdf,
+  downloadSessionsPdf,
+  exportSessionPdf,
+  type PdfExportResult,
+} from './pdf';
+import type { RenderOptions } from './pdf-raster';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
 
@@ -86,20 +92,24 @@ export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
   };
 }
 
-/** Rebuild a minimal Session for PDF rendering. */
+/**
+ * Rebuild a minimal Session for PDF rendering. Every field is coerced: a
+ * snapshot written by an older build, or truncated by a storage prune, must
+ * still export rather than crash the renderer.
+ */
 export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
   return {
     id: snapshot.id,
     createdAt: snapshot.savedAt,
     updatedAt: snapshot.savedAt,
     platform: snapshot.platform,
-    question: snapshot.question,
+    question: typeof snapshot.question === 'string' ? snapshot.question : '',
     raw: '',
     capsule: {
       meta: snapshot.meta,
-      steps: snapshot.steps ?? [],
-      solution: snapshot.solution,
-      solutionDiagrams: snapshot.solutionDiagrams,
+      steps: Array.isArray(snapshot.steps) ? snapshot.steps : [],
+      solution: typeof snapshot.solution === 'string' ? snapshot.solution : '',
+      solutionDiagrams: Array.isArray(snapshot.solutionDiagrams) ? snapshot.solutionDiagrams : [],
     },
   };
 }
@@ -246,10 +256,30 @@ function savedPdfUrl(id: string, mode?: 'print' | 'download'): string {
 }
 
 /** Download a real PDF into the default Downloads folder. No print dialog. */
-export async function downloadSavedSessionPdf(id: string): Promise<PdfExportResult> {
+export async function downloadSavedSessionPdf(
+  id: string,
+  options?: RenderOptions,
+): Promise<PdfExportResult> {
   const snapshot = await getSavedSession(id);
-  if (!snapshot) return { ok: false, method: 'failed' };
-  return downloadSessionPdf(snapshotToSession(snapshot));
+  if (!snapshot) return { ok: false, method: 'failed', reason: 'empty' };
+  return downloadSessionPdf(snapshotToSession(snapshot), options);
+}
+
+/**
+ * Merge several saved questions into one PDF, in the order given. Ids that are
+ * no longer in the library are skipped rather than failing the whole export.
+ */
+export async function downloadSavedSessionsPdf(
+  ids: readonly string[],
+  options?: RenderOptions,
+): Promise<PdfExportResult> {
+  const byId = new Map((await getSavedSessions()).map((s) => [s.id, s]));
+  const chosen = ids
+    .map((id) => byId.get(id))
+    .filter((s): s is SavedSessionSnapshot => s !== undefined)
+    .map(snapshotToSession);
+  if (chosen.length === 0) return { ok: false, method: 'failed', reason: 'empty' };
+  return downloadSessionsPdf(chosen, options);
 }
 
 /** Open the saved report in a popup window (no chat tab, no omnibox URL). */

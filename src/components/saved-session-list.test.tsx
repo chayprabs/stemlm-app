@@ -48,6 +48,7 @@ vi.mock('@/src/lib/pdf', async (importOriginal) => {
     ...actual,
     exportSessionPdf: vi.fn(async () => ({ ok: true, method: 'print' as const })),
     downloadSessionPdf: vi.fn(async () => ({ ok: true, method: 'download' as const })),
+    downloadSessionsPdf: vi.fn(async () => ({ ok: true, method: 'download' as const })),
   };
 });
 
@@ -57,7 +58,7 @@ vi.mock('@/src/lib/tab-bridge', () => ({
   isGeminiUrl: vi.fn(),
 }));
 
-import { downloadSessionPdf, exportSessionPdf } from '@/src/lib/pdf';
+import { downloadSessionPdf, downloadSessionsPdf, exportSessionPdf } from '@/src/lib/pdf';
 import { SavedSessionList } from './SavedSessionList';
 import { SavedLibraryOverlay } from './SavedLibraryOverlay';
 import { SAVED_SEARCH_PLACEHOLDER, SAVED_TIME_FILTERS } from '@/src/lib/saved-library';
@@ -560,5 +561,273 @@ describe('SavedLibraryOverlay', () => {
       root?.unmount();
     });
     container.remove();
+  });
+});
+
+describe('merge into one PDF', () => {
+  function pickButtons(container: HTMLElement) {
+    return [...container.querySelectorAll<HTMLButtonElement>('.slm-library-check')];
+  }
+
+  /** Distinct savedAt values so the recency sort — and therefore row order — is fixed. */
+  function orderedSnapshots(): SavedSessionSnapshot[] {
+    const now = Date.now();
+    return snapshots().map((item, i) => ({ ...item, savedAt: now - i * 60_000 }));
+  }
+
+  it('offers Merge PDF only once something is saved', () => {
+    const empty = mount([]);
+    expect(empty.container.querySelector('[data-merge="start"]')).toBeNull();
+    empty.unmount();
+
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    const merge = container.querySelector('[data-merge="start"]') as HTMLButtonElement;
+    expect(merge).toBeTruthy();
+    expect(merge.textContent).toContain('Merge PDF');
+    expect(container.querySelector('.slm-library-check')).toBeNull();
+    unmount();
+  });
+
+  it('turns rows into a picker and swaps the button for Download', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+
+    expect(container.querySelector('[data-merge="start"]')).toBeNull();
+    const download = container.querySelector('[data-merge="download"]') as HTMLButtonElement;
+    expect(download).toBeTruthy();
+    expect(download.disabled).toBe(true);
+    expect(container.querySelector('[data-merge="cancel"]')).toBeTruthy();
+
+    // Every row gets an empty box, and the per-row actions step aside.
+    expect(pickButtons(container)).toHaveLength(3);
+    for (const box of pickButtons(container)) {
+      expect(box.getAttribute('aria-checked')).toBe('false');
+    }
+    expect(container.querySelector('[data-action="download"]')).toBeNull();
+    expect(container.querySelector('[data-action="delete"]')).toBeNull();
+    unmount();
+  });
+
+  it('merges the picked questions into a single PDF in library order', async () => {
+    const list = orderedSnapshots();
+    seed(list);
+    const onDownloaded = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    act(() => {
+      root = createRoot(container);
+      root.render(<SavedSessionList sessions={list} onDownloaded={onDownloaded} />);
+    });
+
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+    // Pick the third row first — order must still follow the list, not the clicks.
+    act(() => {
+      pickButtons(container)[2]?.click();
+    });
+    act(() => {
+      pickButtons(container)[0]?.click();
+    });
+
+    const download = container.querySelector('[data-merge="download"]') as HTMLButtonElement;
+    expect(download.disabled).toBe(false);
+    expect(download.textContent).toContain('Download 2');
+    expect(pickButtons(container)[0]?.getAttribute('aria-checked')).toBe('true');
+    expect(pickButtons(container)[1]?.getAttribute('aria-checked')).toBe('false');
+
+    await act(async () => {
+      download.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(downloadSessionsPdf).toHaveBeenCalledOnce();
+    expect(downloadSessionPdf).not.toHaveBeenCalled();
+    const merged = (
+      downloadSessionsPdf as unknown as {
+        mock: { calls: Array<[Array<{ id: string }>]> };
+      }
+    ).mock.calls[0]![0];
+    expect(merged.map((s) => s.id)).toEqual(['rlc', 'quad']);
+    expect(onDownloaded).toHaveBeenCalledOnce();
+    // A finished merge drops back to the normal list.
+    expect(container.querySelector('[data-merge="start"]')).toBeTruthy();
+    expect(container.querySelector('.slm-library-check')).toBeNull();
+
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
+  });
+
+  it('select all picks every visible row and Cancel leaves the picker', () => {
+    const list = orderedSnapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-merge="select-all"]') as HTMLButtonElement).click();
+    });
+
+    expect(pickButtons(container).every((b) => b.getAttribute('aria-checked') === 'true')).toBe(
+      true,
+    );
+    expect(
+      (container.querySelector('[data-merge="download"]') as HTMLButtonElement).textContent,
+    ).toContain('Download 3');
+
+    act(() => {
+      (container.querySelector('[data-merge="cancel"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('.slm-library-check')).toBeNull();
+    expect(container.querySelector('[data-merge="start"]')).toBeTruthy();
+    expect(container.querySelector('[data-action="download"]')).toBeTruthy();
+    unmount();
+  });
+
+  it('clicking anywhere on a card toggles it while picking', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+    const row = container.querySelector('.slm-library-row') as HTMLElement;
+    act(() => {
+      row.click();
+    });
+    expect(row.getAttribute('data-selected')).toBe('true');
+    act(() => {
+      row.click();
+    });
+    expect(row.getAttribute('data-selected')).toBeNull();
+    unmount();
+  });
+
+  it('surfaces a blank render instead of pretending the file saved', async () => {
+    (
+      downloadSessionsPdf as unknown as { mockResolvedValueOnce: (v: unknown) => void }
+    ).mockResolvedValueOnce({ ok: false, method: 'failed', reason: 'blank' });
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      pickButtons(container)[0]?.click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-merge="download"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    await flush();
+
+    expect(container.querySelector('.slm-popup-error')?.textContent).toContain('blank');
+    // The picker stays open so the user can retry or deselect.
+    expect(container.querySelector('[data-merge="download"]')).toBeTruthy();
+    unmount();
+  });
+});
+
+describe('library chrome CSS', () => {
+  const pagesCss = () => readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+
+  it('keeps categories on one scrolling row instead of a wrapping wall', () => {
+    const css = pagesCss();
+    expect(css).toMatch(/\.slm-library-chips\s*\{[^}]*flex-wrap:\s*nowrap/);
+    expect(css).toMatch(/\.slm-library-chips\s*\{[^}]*overflow-x:\s*auto/);
+    expect(css).not.toMatch(/\.slm-library-chips\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.slm-library-chip\s*\{[^}]*white-space:\s*nowrap/);
+  });
+
+  it('closes the gap between the time label and its caret', () => {
+    const css = pagesCss();
+    const btn = css.slice(css.indexOf('.slm-library-time-btn {'));
+    const block = btn.slice(0, btn.indexOf('}'));
+    expect(block).toMatch(/justify-content:\s*flex-start/);
+    expect(block).not.toMatch(/justify-content:\s*space-between/);
+    expect(block).toMatch(/width:\s*auto/);
+    expect(css).toMatch(/\.slm-library-time-leading\s*\{[^}]*flex:\s*0 1 auto/);
+  });
+
+  it('gives the highlighted row a visible edge, not the invisible shared border', () => {
+    const css = pagesCss();
+    const row = css.slice(css.indexOf('.slm-library-row {'));
+    const block = row.slice(0, row.indexOf('}'));
+    expect(block).toMatch(/border:\s*none/);
+    expect(block).toMatch(/border-radius:\s*var\(--radius-card\)/);
+    expect(block).not.toMatch(/border-bottom:\s*1px/);
+
+    // Hover and selected both draw an inset hairline. Inset, so the feed's
+    // overflow clip can never slice the corner; hairline, so the row reads as
+    // a defined object rather than a faint wash.
+    const hover = css.slice(css.indexOf('.slm-library-row:hover {'));
+    const hoverBody = hover.slice(0, hover.indexOf('}'));
+    expect(hoverBody).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--slm-row-line\)/);
+    expect(hoverBody).toMatch(/background:\s*var\(--slm-row-surface\)/);
+
+    const picked = css.slice(css.indexOf(".slm-library-row[data-selected='true'],"));
+    const pickedBody = picked.slice(0, picked.indexOf('}'));
+    expect(pickedBody).toMatch(/box-shadow:\s*inset 0 0 0 1\.5px var\(--slm-row-line-strong\)/);
+
+    // The shared --slm-border is #2a2a2a on a #151515 canvas: it cannot carry
+    // this edge, so the row must never fall back to it.
+    expect(hoverBody).not.toMatch(/var\(--slm-border\)/);
+    expect(pickedBody).not.toMatch(/var\(--slm-border\)/);
+  });
+
+  it('tunes the row edge against the list background in both themes', () => {
+    const css = pagesCss();
+    for (const selector of ['.slm-library-main {', "[data-stemlm-theme='dark'] .slm-library-main {"]) {
+      const rule = css.slice(css.indexOf(selector));
+      const body = rule.slice(0, rule.indexOf('}'));
+      expect(body).toMatch(/--slm-row-surface:/);
+      expect(body).toMatch(/--slm-row-line:/);
+      expect(body).toMatch(/--slm-row-line-strong:/);
+    }
+  });
+
+  it('never attaches a native tooltip to the question text', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+
+    // A `title` on the row copy pops a large OS tooltip over the list on every
+    // hover, even when the question is not truncated. The text is already on
+    // screen; the tooltip is pure noise.
+    expect(container.querySelector('.slm-library-row-copy[title]')).toBeNull();
+    expect(container.querySelector('.slm-library-row[title]')).toBeNull();
+    expect(container.querySelector('.slm-library-row-q[title]')).toBeNull();
+
+    // Icon buttons keep their short, useful labels.
+    expect(
+      container.querySelector('[data-action="download"]')?.getAttribute('title'),
+    ).toBe('Download');
+    unmount();
+  });
+
+  it('keeps the subject as a kicker rather than a box inside the row', () => {
+    const css = pagesCss();
+    const meta = css.slice(css.indexOf('.slm-library-row-meta {'));
+    const block = meta.slice(0, meta.indexOf('}'));
+    expect(block).toMatch(/background:\s*none/);
+    expect(block).toMatch(/text-transform:\s*uppercase/);
+    expect(block).not.toMatch(/border-radius:\s*var\(--radius-pill\)/);
   });
 });
