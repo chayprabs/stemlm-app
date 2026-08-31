@@ -101,6 +101,75 @@ function pushSamples(
   return prev;
 }
 
+function arcSegments(
+  x1: number,
+  y1: number,
+  rxInput: number,
+  ryInput: number,
+  rotation: number,
+  largeArc: number,
+  sweep: number,
+  x2: number,
+  y2: number,
+  curveSteps: number,
+): Segment[] {
+  let rx = Math.abs(rxInput);
+  let ry = Math.abs(ryInput);
+  if (Math.hypot(x2 - x1, y2 - y1) < 1e-9 || rx < 1e-9 || ry < 1e-9) {
+    return [{ x1, y1, x2, y2 }];
+  }
+
+  const phi = (rotation * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+  const dx = (x1 - x2) / 2;
+  const dy = (y1 - y2) / 2;
+  const x1p = cosPhi * dx + sinPhi * dy;
+  const y1p = -sinPhi * dx + cosPhi * dy;
+  const rxSq = rx * rx;
+  const rySq = ry * ry;
+  const x1pSq = x1p * x1p;
+  const y1pSq = y1p * y1p;
+  const lambda = x1pSq / rxSq + y1pSq / rySq;
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda);
+    rx *= scale;
+    ry *= scale;
+  }
+
+  const scaledRxSq = rx * rx;
+  const scaledRySq = ry * ry;
+  const denominator = scaledRxSq * y1pSq + scaledRySq * x1pSq;
+  const numerator = Math.max(0, scaledRxSq * scaledRySq - denominator);
+  const factor = denominator < 1e-12 ? 0 : Math.sqrt(numerator / denominator) * (largeArc === sweep ? -1 : 1);
+  const cxp = factor * ((rx * y1p) / ry);
+  const cyp = factor * (-(ry * x1p) / rx);
+  const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+  const ux = (x1p - cxp) / rx;
+  const uy = (y1p - cyp) / ry;
+  const vx = (-x1p - cxp) / rx;
+  const vy = (-y1p - cyp) / ry;
+  const angle = (ax: number, ay: number, bx: number, by: number) => Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+  const start = angle(1, 0, ux, uy);
+  let delta = angle(ux, uy, vx, vy);
+  if (!sweep && delta > 0) delta -= 2 * Math.PI;
+  if (sweep && delta < 0) delta += 2 * Math.PI;
+  const steps = Math.max(2, Math.ceil((Math.abs(delta) / (Math.PI / 2)) * curveSteps));
+  const segments: Segment[] = [];
+  let px = x1;
+  let py = y1;
+  for (let step = 1; step <= steps; step++) {
+    const t = start + (delta * step) / steps;
+    const x = cx + cosPhi * rx * Math.cos(t) - sinPhi * ry * Math.sin(t);
+    const y = cy + sinPhi * rx * Math.cos(t) + cosPhi * ry * Math.sin(t);
+    segments.push({ x1: px, y1: py, x2: x, y2: y });
+    px = x;
+    py = y;
+  }
+  return segments;
+}
+
 function nextNums(src: string, i: number, count: number): { nums: number[]; i: number } {
   const nums: number[] = [];
   while (nums.length < count && i < src.length) {
@@ -139,6 +208,12 @@ export function samplePathD(d: string, curveSteps = 10): Segment[] {
     if (/[A-Za-z]/.test(ch)) {
       cmd = ch;
       i++;
+      if (cmd.toUpperCase() === 'Z') {
+        segs.push({ x1: cx, y1: cy, x2: sx, y2: sy });
+        cx = sx;
+        cy = sy;
+        cmd = '';
+      }
       lastC = cmd === 'C' || cmd === 'c' || cmd === 'S' || cmd === 's' ? lastC : null;
       lastQ = cmd === 'Q' || cmd === 'q' || cmd === 'T' || cmd === 't' ? lastQ : null;
       continue;
@@ -244,17 +319,9 @@ export function samplePathD(d: string, curveSteps = 10): Segment[] {
       if (n.length < 7) break;
       const nx = rel ? cx + n[5]! : n[5]!;
       const ny = rel ? cy + n[6]! : n[6]!;
-      const p0: [number, number] = [cx, cy];
-      const p3: [number, number] = [nx, ny];
-      const end = pushSamples(segs, p0, (t) => [p0[0] + (p3[0] - p0[0]) * t, p0[1] + (p3[1] - p0[1]) * t], curveSteps);
-      cx = end[0];
-      cy = end[1];
-      continue;
-    }
-    if (C === 'Z') {
-      segs.push({ x1: cx, y1: cy, x2: sx, y2: sy });
-      cx = sx;
-      cy = sy;
+      segs.push(...arcSegments(cx, cy, n[0]!, n[1]!, n[2]!, n[3]!, n[4]!, nx, ny, curveSteps));
+      cx = nx;
+      cy = ny;
       continue;
     }
     i++;
@@ -278,6 +345,21 @@ export function circleSegments(cx: number, cy: number, r: number, n = 24): Segme
     const a = (i / n) * Math.PI * 2;
     const x = cx + r * Math.cos(a);
     const y = cy + r * Math.sin(a);
+    segs.push({ x1: px, y1: py, x2: x, y2: y });
+    px = x;
+    py = y;
+  }
+  return segs;
+}
+
+export function ellipseSegments(cx: number, cy: number, rx: number, ry: number, n = 32): Segment[] {
+  const segs: Segment[] = [];
+  let px = cx + rx;
+  let py = cy;
+  for (let i = 1; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const x = cx + rx * Math.cos(a);
+    const y = cy + ry * Math.sin(a);
     segs.push({ x1: px, y1: py, x2: x, y2: y });
     px = x;
     py = y;
@@ -314,10 +396,49 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
+function glyphAdvance(ch: string): number {
+  if (/\s/.test(ch)) return 0.32;
+  if (/[ilI.,:;!'`|]/.test(ch)) return 0.28;
+  if (/[MW@#%&]/.test(ch)) return 0.9;
+  if (/[A-Z]/.test(ch)) return 0.66;
+  if (/[0-9]/.test(ch)) return 0.56;
+  if (/[-+=<>~]/.test(ch)) return 0.52;
+  if (/[$\\/]/.test(ch)) return 0.5;
+  if (/[^\x00-\x7F]/.test(ch)) return 0.7;
+  return 0.54;
+}
+
+function lineWidth(text: string, katex: boolean): number {
+  let width = 0;
+  for (let i = 0; i < text.length;) {
+    const ch = text[i]!;
+    if (ch === '\\') {
+      const match = /^\\([A-Za-z]+)/.exec(text.slice(i));
+      if (!match) {
+        width += 0.45;
+        i++;
+        continue;
+      }
+      const command = match[1]!.toLowerCase();
+      width += command === 'frac' ? 0.9 : command === 'sqrt' ? 0.75 : command === 'alpha' || command === 'beta' || command === 'gamma' || command === 'theta' || command === 'omega' ? 0.72 : command === 'quad' || command === ',' ? 0.32 : 0;
+      i += match[0].length;
+      continue;
+    }
+    if (ch === '{' || ch === '}' || ch === '^' || ch === '_') {
+      i++;
+      continue;
+    }
+    width += glyphAdvance(ch) * (katex && (text[i - 1] === '^' || text[i - 1] === '_') ? 0.72 : 1);
+    i++;
+  }
+  return width;
+}
+
 export function measureText(text: string, fontSize: number, katex = false): { w: number; h: number } {
-  const len = text.replace(/\\[a-zA-Z]+/g, 'x').replace(/[{}^_]/g, '').length;
-  const w = Math.max(fontSize * 0.8, len * fontSize * (katex ? 0.48 : 0.58));
-  const h = fontSize * (katex ? 1.35 : 1.15);
+  const lines = text.split(/\r?\n/);
+  const emWidth = Math.max(...lines.map((line) => lineWidth(line, katex)), 0.8);
+  const w = emWidth * fontSize * (katex ? 0.88 : 1);
+  const h = Math.max(1, lines.length) * fontSize * (katex ? 1.35 : 1.15);
   return { w, h };
 }
 

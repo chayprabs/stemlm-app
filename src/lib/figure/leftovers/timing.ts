@@ -3,79 +3,98 @@ import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
 
-/** WaveJSON subset → Scene IR (SLK labels). Optional WaveDrom lazy import for richer SVG. */
+type TimingSignal = { name: string; wave: string };
+
+function parseWaveJson(raw: string): TimingSignal[] | null {
+  try {
+    const value = JSON.parse(raw) as { signal?: unknown };
+    if (!Array.isArray(value.signal)) return null;
+    const signals: TimingSignal[] = [];
+    for (const item of value.signal) {
+      if (!item || typeof item !== 'object') return null;
+      const row = item as { name?: unknown; wave?: unknown };
+      if (typeof row.name !== 'string' || !row.name.trim() || typeof row.wave !== 'string') return null;
+      signals.push({ name: row.name.trim(), wave: row.wave.trim() });
+    }
+    return signals.length ? signals : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseSignalLine(line: string): TimingSignal | null {
+  const m = /^([A-Za-z][A-Za-z0-9_.-]*)\s+(.+)$/.exec(line.trim());
+  if (!m) return null;
+  return { name: m[1]!, wave: m[2]!.trim() };
+}
+
+function validWave(wave: string): boolean {
+  return wave.length > 0 && /^[01hlpxnz.]+$/i.test(wave) && /[01hlpxnz]/i.test(wave);
+}
+
+/** A deliberately small WaveJSON subset. Invalid asserted waveforms fail closed. */
 export async function compileTiming(spec: SpecDoc, ctx: CompileCtx): Promise<CompileResult> {
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('timing', w, h);
   b.hl(spec.highlight);
 
-  let signals: { name: string; wave: string }[] = [];
-  const waveRaw = specGet(spec, 'wave') ?? specGetAll(spec, 'signal')[0];
+  let signals: TimingSignal[] = [];
+  const waveRaw = specGet(spec, 'wave');
   if (waveRaw?.trim().startsWith('{')) {
-    try {
-      const json = JSON.parse(waveRaw) as { signal?: { name: string; wave: string }[] };
-      signals = json.signal ?? [];
-    } catch {
-      /* fall through */
+    const parsed = parseWaveJson(waveRaw.trim());
+    if (!parsed || parsed.some((s) => !validWave(s.wave))) {
+      return { ok: false, code: 'malformed', reason: 'timing invalid WaveJSON signal list' };
     }
+    signals = parsed;
   }
   if (!signals.length) {
-    for (const line of [...specGetAll(spec, 'signal'), ...specGetAll(spec, 'wave')]) {
-      const m = /([A-Za-z0-9_]+)\s+([01hlpx.]+)/i.exec(line);
-      if (m) signals.push({ name: m[1]!, wave: m[2]! });
-      else if (line.includes(':')) {
-        const [name, wave] = line.split(':');
-        if (name && wave) signals.push({ name: name.trim(), wave: wave.trim() });
+    const rawSignals = [...specGetAll(spec, 'signal'), ...specGetAll(spec, 'wave')];
+    if (!rawSignals.length) return { ok: false, code: 'malformed', reason: 'timing requires signal or wave data' };
+    for (const line of rawSignals) {
+      const signal = parseSignalLine(line);
+      if (!signal || !validWave(signal.wave)) {
+        return { ok: false, code: 'malformed', reason: `timing invalid waveform ${line}` };
       }
+      signals.push(signal);
     }
-  }
-  if (!signals.length) signals = [{ name: 'clk', wave: 'p.....' }, { name: 'data', wave: '0.1.0.' }];
-
-  try {
-    const wd = await import('wavedrom');
-    const render = (wd as { renderWaveForm?: Function }).renderWaveForm
-      ?? (wd as { default?: { renderWaveForm?: Function } }).default?.renderWaveForm;
-    if (render && typeof document !== 'undefined') {
-      const host = document.createElement('div');
-      host.id = 'wave0';
-      document.body.appendChild(host);
-      try {
-        render(0, { signal: signals }, host.id);
-        const svg = host.querySelector('svg');
-        if (svg?.innerHTML) {
-          b.node('wave', 0, 0, w, h, 'timing', svg.innerHTML);
-          host.remove();
-          return layoutAndCompile(b.scene());
-        }
-      } finally {
-        host.remove();
-      }
-    }
-  } catch {
-    /* in-house bricks */
   }
 
   const rowH = Math.min(28, (h - 16) / Math.max(1, signals.length));
   signals.forEach((s, si) => {
     const y = 18 + si * rowH;
-    b.label(s.name, s.name, 28, y, { protected: true });
-    const bits = s.wave.replace(/\./g, '');
-    const n = Math.max(bits.length, 4);
+    b.label(`label-${si}`, s.name, 28, y, { protected: true, anchorId: `row-${si}` });
+    const n = Math.max(s.wave.length, 4);
     const x0 = 56;
     const dw = (w - 70) / n;
-    let prev = bits[0] ?? '0';
+    let prev = '0';
     let px = x0;
     for (let i = 0; i < n; i++) {
-      const bit = bits[i] ?? prev;
+      const symbol = s.wave[i] ?? '.';
+      const bit = symbol === '.' ? prev : symbol.toLowerCase();
       const high = bit === '1' || bit === 'h' || bit === 'p';
-      const yBit = high ? y - 8 : y + 8;
-      if (bit === 'p' || bit === 'n') {
-        b.line(`${s.name}${i}r`, px, y + 8, px, y - 8, { width: 1.4, color: 'accent' });
+      const mid = bit === 'x' || bit === 'z';
+      const yBit = mid ? y : high ? y - 8 : y + 8;
+      if (i > 0 && symbol !== '.' && bit !== prev) {
+        b.line(`${s.name}-${i}-edge`, px, prev === '1' || prev === 'h' || prev === 'p' ? y - 8 : y + 8, px, yBit, {
+          width: 1.4, color: 'accent', role: 'annotation',
+        });
       }
-      b.line(`${s.name}${i}`, px, yBit, px + dw, yBit, { width: 1.6 });
+      if (bit === 'p' || bit === 'n') {
+        b.line(`${s.name}${i}r`, px, bit === 'p' ? y + 8 : y - 8, px, bit === 'p' ? y - 8 : y + 8, {
+          width: 1.4, color: 'accent', role: 'annotation',
+        });
+      }
+      b.line(`${s.name}-${i}`, px, yBit, px + dw, yBit, { width: 1.6, role: 'geometry' });
       px += dw;
       prev = bit;
     }
   });
+  const clock = specGet(spec, 'clock');
+  const firstWaveStroke = `${signals[0]!.name}-0`;
+  if (clock) b.label('clock-label', clock, w - 34, h - 8, { anchorId: firstWaveStroke });
+  const edge = specGet(spec, 'edge');
+  if (edge) b.label('edge-label', edge, w / 2, h - 8, { anchorId: firstWaveStroke });
+  const caption = specGet(spec, 'caption');
+  if (caption) b.label('caption-label', caption, w / 2, 8, { anchorId: firstWaveStroke });
   return layoutAndCompile(b.scene());
 }

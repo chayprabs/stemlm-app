@@ -1,5 +1,5 @@
 import type { CompileCtx, CompileResult } from '../types';
-import type { SpecDoc } from '../spec';
+import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { compileHybridPi, compileMosPi, compileOpamp } from './hybridpi';
 import {
   compileNewman,
@@ -25,9 +25,51 @@ import {
 import { compileChemSmiles } from './chem-smiles';
 import { compileTiming } from './timing';
 import {
-  compileMechanism,
-  compileSplitting,
-  compileEchem,
+  compileTruss,
+  compileMohr,
+  compileReactor,
+  compileHx,
+  compileTernary,
+  compileOpenchan,
+  compileWall,
+  compileSoil,
+  compileColumn,
+  compileRc,
+  compileFrame,
+  compilePfd,
+  compileLinkage,
+  compileCam,
+  compileGear,
+  compilePsych,
+} from './rest-mech';
+import {
+  compileTline,
+  compileOneline,
+  compileTwoport,
+  compilePwm,
+  compileXfmr,
+  compileConstel,
+  compileEye,
+  compileCmos,
+  compileMotor,
+  compileDq,
+} from './rest-ee';
+import {
+  compileCellBio,
+  compileMembrane,
+  compileOperon,
+  compileRestriction,
+  compileRama,
+  compileCycle,
+  compileEcg,
+  compileGel,
+  compileNewick,
+  compileNeuron,
+  compilePcr,
+  compileAnatomy,
+  compileDivision,
+} from './rest-bio';
+import {
   compileArray,
   compileList,
   compileHash,
@@ -35,58 +77,37 @@ import {
   compileStack,
   compileCd,
   compileSchematicPlot,
-  compileCycle,
-  compileEcg,
-  compileGel,
   compileKmap,
-  compileTruss,
-  compileMohr,
-  compileGeneric,
-  compileTline,
-  compileOneline,
-  compileTwoport,
-  compilePwm,
-  compileReactor,
-  compileHx,
-  compileCellBio,
-  compileMembrane,
-  compileOperon,
-  compileRestriction,
-  compileRama,
   compilePipeline,
   compileDatapath,
   compileRing,
-  compileXfmr,
-  compileConstel,
-  compileEye,
-  compileCmos,
-  compileMotor,
-  compileTernary,
-  compileOpenchan,
+  compileTopology,
   compileSphere,
   compileIsometric,
-  compileTopology,
-  compileDq,
-  compilePsych,
-  compileNewick,
-  compileNeuron,
-  compilePcr,
-  compileAnatomy,
-  compileDivision,
-  compileWall,
-  compileSoil,
-  compileColumn,
-  compileRc,
-  compileFrame,
-  compilePfd,
   compileKnot,
-  compileLinkage,
-  compileCam,
-  compileGear,
-  compileFrost,
-} from './rest';
+  compileMechanism,
+  compileSplitting,
+  compileEchem,
+} from './rest-cs';
+import { compileGeneric, compileFrost } from './rest-misc';
 
 type LeftoverFn = (spec: SpecDoc, ctx: CompileCtx) => CompileResult | Promise<CompileResult>;
+
+function compileLadderFamily(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (specGet(spec, 'n') !== undefined || specGet(spec, 'e') !== undefined) return compileFrost(spec, ctx);
+  if (specGet(spec, 'd') !== undefined || specGet(spec, 'geom') !== undefined) return compileCft(spec, ctx);
+  if (specGet(spec, 'left') !== undefined || specGet(spec, 'right') !== undefined || specGet(spec, 'center') !== undefined || specGet(spec, 'molecule') !== undefined) {
+    return compileLadder(spec, ctx, 'mo');
+  }
+  return compileJablonski(spec, ctx);
+}
+
+function compileOnelineFamily(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (specGetAll(spec, 'state').length || specGetAll(spec, 'transition').length) {
+    return compileOneline({ ...spec, type: 'seqnet' }, ctx);
+  }
+  return compileOneline(spec, ctx);
+}
 
 const TABLE: Record<string, LeftoverFn> = {
   hybridpi: compileHybridPi,
@@ -99,6 +120,7 @@ const TABLE: Record<string, LeftoverFn> = {
   lewis: compileLewis,
   vsepr: compileVsepr,
   complex: compileComplex,
+  ladder: compileLadderFamily,
   mo: (s, c) => compileLadder(s, c, 'mo'),
   cft: compileCft,
   jablonski: compileJablonski,
@@ -134,7 +156,7 @@ const TABLE: Record<string, LeftoverFn> = {
   truss: compileTruss,
   mohr: compileMohr,
   tline: compileTline,
-  oneline: compileOneline,
+  oneline: compileOnelineFamily,
   seqnet: compileOneline,
   twoport: compileTwoport,
   pwm: compilePwm,

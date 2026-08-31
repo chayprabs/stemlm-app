@@ -3,7 +3,7 @@ import { samplePathD } from './geom';
 import { layoutScene } from './slk';
 import { SceneBuilder } from './scene-build';
 import { FONT_MIN, LABEL_GAP } from './types';
-import { boxHitsAny } from './geom';
+import { boxHitsAny, boxesOverlap } from './geom';
 
 describe('cubic-aware stroke sampler', () => {
   it('samples C/Q commands into polyline segments (not M/L-only)', () => {
@@ -14,6 +14,27 @@ describe('cubic-aware stroke sampler', () => {
 });
 
 describe('SLK fail-closed label placer', () => {
+  it('separates protected axis furniture labels before declaring layout success', () => {
+    const b = new SceneBuilder('plot', 300, 165);
+    b.line('xaxis', 128, 120, 289, 120, { protected: true });
+    b.line('yaxis', 128, 120, 128, 25, { protected: true });
+    b.label('xtickl0', '-0.012', 128, 131, { protected: true, priority: 'required' });
+    b.label('xtickl1', '0.012', 289, 131, { protected: true, priority: 'required' });
+    b.label('ytickl0', '0.5', 112, 80, { protected: true, priority: 'required', slot: 'W' });
+    b.label('xlabel', 'screen position x (m)', 208, 139, { protected: true, priority: 'required' });
+    b.label('ylabel', 'relative intensity I/I0', 135, 80, { protected: true, priority: 'required' });
+
+    const laid = layoutScene(b.scene());
+    expect(laid.ok).toBe(true);
+    if (!laid.ok) return;
+    const protectedLabels = laid.placed.filter((placed) => placed.label.protected);
+    for (let i = 0; i < protectedLabels.length; i++) {
+      for (let j = i + 1; j < protectedLabels.length; j++) {
+        expect(boxesOverlap(protectedLabels[i]!.box, protectedLabels[j]!.box, 0.5)).toBe(false);
+      }
+    }
+  });
+
   it('places a katex eq off a dense polyline or fails closed', () => {
     const b = new SceneBuilder('plot', 300, 165);
     const pts: number[] = [];

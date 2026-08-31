@@ -8,6 +8,10 @@ export type SemanticColor = 'neutral' | 'accent' | 'muted' | 'danger' | 'guide';
 
 export type SlotHint = 'N' | 'E' | 'S' | 'W' | 'NE' | 'NW' | 'SE' | 'SW' | 'auto';
 
+export type LabelPriority = 'required' | 'preferred' | 'optional';
+
+export type StrokeRole = 'geometry' | 'axis' | 'guide' | 'dimension' | 'connector' | 'boundary' | 'hatch' | 'annotation';
+
 export interface BBox {
   x: number;
   y: number;
@@ -23,7 +27,7 @@ export interface SceneNode {
   glyph?: string;
 }
 
-export type StrokeKind = 'line' | 'polyline' | 'path' | 'circle' | 'rect' | 'polygon' | 'ellipse';
+export type StrokeKind = 'line' | 'polyline' | 'path' | 'arc' | 'circle' | 'rect' | 'polygon' | 'ellipse';
 
 export interface SceneStroke {
   id: string;
@@ -32,13 +36,31 @@ export interface SceneStroke {
   points: number[];
   d?: string;
   semanticColor: SemanticColor;
+  role?: StrokeRole;
   width?: number;
   dash?: boolean;
   fill?: 'none' | SemanticColor | 'solid';
+  pattern?: 'hatch' | 'dots';
   markerEnd?: boolean;
   markerStart?: boolean;
   /** Tick marks etc. Labels may sit near these. */
   protected?: boolean;
+}
+
+export interface ScenePanel {
+  id: string;
+  role: string;
+  bbox: BBox;
+  order?: number;
+  parentId?: string;
+}
+
+export interface SceneDimension {
+  id: string;
+  fromId: string;
+  toId: string;
+  labelId?: string;
+  orientation?: 'horizontal' | 'vertical' | 'aligned';
 }
 
 export interface SceneLabel {
@@ -50,9 +72,12 @@ export interface SceneLabel {
   y: number;
   slotHint?: SlotHint;
   protected?: boolean;
+  priority?: LabelPriority;
   kind?: 'katex' | 'text';
   /** Optional target stroke/node id for leader lines. */
   anchorId?: string;
+  groupId?: string;
+  panelId?: string;
 }
 
 export interface Overlay {
@@ -75,6 +100,8 @@ export interface Scene {
   strokes: SceneStroke[];
   labels: SceneLabel[];
   highlights: string[];
+  panels?: ScenePanel[];
+  dimensions?: SceneDimension[];
 }
 
 export type CompileFailCode =
@@ -107,5 +134,6 @@ export interface CompileCtx {
 }
 
 export const FONT_MIN = 12;
+export const FONT_FLOOR = 9;
 export const FRAME_PAD = 10;
 export const LABEL_GAP = (fontSize: number) => Math.max(6, 0.55 * fontSize);

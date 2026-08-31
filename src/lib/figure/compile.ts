@@ -9,7 +9,6 @@ import {
   lookupFamily,
 } from './catalog';
 import { parseSpec } from './spec';
-import { compileLeftover } from './leftovers';
 
 export async function compileDiagramSpec(
   diagram: Diagram,
@@ -58,6 +57,7 @@ export async function compileDiagramSpec(
       const { compileCircuit } = await import('./engines/circuit');
       return compileCircuit(spec, ctx);
     }
+    const { compileLeftover } = await import('./leftovers');
     return compileLeftover(family, spec, ctx);
   } catch (e) {
     return { ok: false, code: 'throw', reason: e instanceof Error ? e.message : 'compile failed' };

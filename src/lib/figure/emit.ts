@@ -32,7 +32,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${scene.width} ${scene.height}" data-stemlm-family="${esc(scene.family)}" font-family="${FONT_SANS_SVG}">`,
   );
   parts.push(
-    `<defs><marker id="slm-arrow" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="${COLOR.neutral}"/></marker></defs>`,
+    `<defs><marker id="slm-arrow" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="${COLOR.neutral}"/></marker><pattern id="slm-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(25)"><line x1="0" y1="0" x2="0" y2="8" stroke="${COLOR.muted}" stroke-width="1"/></pattern><pattern id="slm-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="${COLOR.muted}"/></pattern></defs>`,
   );
 
   for (const n of scene.nodes) {
@@ -43,8 +43,13 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
     const stroke = colorOf(scene, s.id, s.semanticColor);
     const w = s.width ?? 1.6;
     const dash = s.dash || s.semanticColor === 'guide' ? ' stroke-dasharray="4 3"' : '';
-    const fill =
-      s.fill === 'none' || !s.fill ? 'none' : s.fill === 'solid' ? '#ffffff' : COLOR[s.fill];
+    const fill = s.pattern
+      ? `url(#slm-${s.pattern})`
+      : s.fill === 'none' || !s.fill
+        ? 'none'
+        : s.fill === 'solid'
+          ? '#ffffff'
+          : COLOR[s.fill];
     const mark = s.markerEnd ? ' marker-end="url(#slm-arrow)"' : '';
     const markS = s.markerStart ? ' marker-start="url(#slm-arrow)"' : '';
     const common = `id="${esc(s.id)}" fill="${fill}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${dash}${mark}${markS}`;
@@ -56,7 +61,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
       parts.push(`<polyline ${common} points="${pts(s.points)}"/>`);
     } else if (s.kind === 'polygon') {
       parts.push(`<polygon ${common} points="${pts(s.points)}"/>`);
-    } else if (s.kind === 'path' && s.d) {
+    } else if ((s.kind === 'path' || s.kind === 'arc') && s.d) {
       parts.push(`<path ${common} d="${esc(s.d)}"/>`);
     } else if (s.kind === 'circle' && s.points.length >= 3) {
       parts.push(`<circle ${common} cx="${s.points[0]}" cy="${s.points[1]}" r="${s.points[2]}"/>`);

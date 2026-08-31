@@ -1,10 +1,24 @@
-import type { Scene, SceneLabel, SceneNode, SceneStroke, SemanticColor, SlotHint, StrokeKind } from './types';
+import type {
+  LabelPriority,
+  Scene,
+  SceneDimension,
+  SceneLabel,
+  SceneNode,
+  ScenePanel,
+  SceneStroke,
+  SemanticColor,
+  SlotHint,
+  StrokeKind,
+  StrokeRole,
+} from './types';
 
 export class SceneBuilder {
   nodes: SceneNode[] = [];
   strokes: SceneStroke[] = [];
   labels: SceneLabel[] = [];
   highlights: string[] = [];
+  panels: ScenePanel[] = [];
+  dimensions: SceneDimension[] = [];
   private n = 0;
 
   constructor(
@@ -39,13 +53,14 @@ export class SceneBuilder {
     y1: number,
     x2: number,
     y2: number,
-    opts: { color?: SemanticColor; width?: number; dash?: boolean; markerEnd?: boolean; markerStart?: boolean; protected?: boolean } = {},
+    opts: { color?: SemanticColor; role?: StrokeRole; width?: number; dash?: boolean; markerEnd?: boolean; markerStart?: boolean; protected?: boolean } = {},
   ): this {
     return this.stroke({
       id,
       kind: 'line',
       points: [x1, y1, x2, y2],
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       width: opts.width,
       dash: opts.dash,
       markerEnd: opts.markerEnd,
@@ -57,52 +72,60 @@ export class SceneBuilder {
   polyline(
     id: string,
     pts: number[],
-    opts: { color?: SemanticColor; width?: number; dash?: boolean; markerEnd?: boolean; fill?: SceneStroke['fill'] } = {},
+    opts: { color?: SemanticColor; role?: StrokeRole; width?: number; dash?: boolean; markerEnd?: boolean; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern'] } = {},
   ): this {
     return this.stroke({
       id,
       kind: 'polyline',
       points: pts,
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       width: opts.width,
       dash: opts.dash,
       markerEnd: opts.markerEnd,
       fill: opts.fill,
+      pattern: opts.pattern,
     });
   }
 
-  polygon(id: string, pts: number[], opts: { color?: SemanticColor; fill?: SceneStroke['fill']; width?: number } = {}): this {
+  polygon(id: string, pts: number[], opts: { color?: SemanticColor; role?: StrokeRole; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern']; width?: number } = {}): this {
     return this.stroke({
       id,
       kind: 'polygon',
       points: pts,
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       fill: opts.fill ?? 'none',
+      pattern: opts.pattern,
       width: opts.width,
     });
   }
 
-  path(id: string, d: string, opts: { color?: SemanticColor; width?: number; dash?: boolean; markerEnd?: boolean; fill?: SceneStroke['fill'] } = {}): this {
+  path(id: string, d: string, opts: { color?: SemanticColor; role?: StrokeRole; width?: number; dash?: boolean; markerEnd?: boolean; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern'] } = {}): this {
     return this.stroke({
       id,
       kind: 'path',
       points: [],
       d,
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       width: opts.width,
       dash: opts.dash,
       markerEnd: opts.markerEnd,
       fill: opts.fill,
+      pattern: opts.pattern,
     });
   }
 
-  circle(id: string, cx: number, cy: number, r: number, opts: { color?: SemanticColor; fill?: SceneStroke['fill']; width?: number } = {}): this {
+  circle(id: string, cx: number, cy: number, r: number, opts: { color?: SemanticColor; role?: StrokeRole; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern']; width?: number } = {}): this {
     return this.stroke({
       id,
       kind: 'circle',
       points: [cx, cy, r],
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       fill: opts.fill ?? 'none',
+      pattern: opts.pattern,
       width: opts.width,
     });
   }
@@ -113,25 +136,59 @@ export class SceneBuilder {
     y: number,
     w: number,
     h: number,
-    opts: { color?: SemanticColor; fill?: SceneStroke['fill']; width?: number } = {},
+    opts: { color?: SemanticColor; role?: StrokeRole; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern']; width?: number } = {},
   ): this {
     return this.stroke({
       id,
       kind: 'rect' as StrokeKind,
       points: [x, y, w, h],
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       fill: opts.fill ?? 'none',
+      pattern: opts.pattern,
       width: opts.width,
     });
   }
 
-  ellipse(id: string, cx: number, cy: number, rx: number, ry: number, opts: { color?: SemanticColor; fill?: SceneStroke['fill'] } = {}): this {
+  ellipse(id: string, cx: number, cy: number, rx: number, ry: number, opts: { color?: SemanticColor; role?: StrokeRole; fill?: SceneStroke['fill']; pattern?: SceneStroke['pattern'] } = {}): this {
     return this.stroke({
       id,
       kind: 'ellipse',
       points: [cx, cy, rx, ry],
       semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
       fill: opts.fill ?? 'none',
+      pattern: opts.pattern,
+    });
+  }
+
+  arc(
+    id: string,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    startDeg: number,
+    endDeg: number,
+    opts: { color?: SemanticColor; role?: StrokeRole; width?: number; dash?: boolean; markerEnd?: boolean } = {},
+  ): this {
+    const start = (startDeg * Math.PI) / 180;
+    const end = (endDeg * Math.PI) / 180;
+    const x1 = cx + rx * Math.cos(start);
+    const y1 = cy + ry * Math.sin(start);
+    const x2 = cx + rx * Math.cos(end);
+    const y2 = cy + ry * Math.sin(end);
+    const delta = endDeg - startDeg;
+    return this.stroke({
+      id,
+      kind: 'arc',
+      points: [cx, cy, rx, ry, startDeg, endDeg],
+      d: `M ${x1} ${y1} A ${rx} ${ry} 0 ${Math.abs(delta) > 180 ? 1 : 0} ${delta >= 0 ? 1 : 0} ${x2} ${y2}`,
+      semanticColor: opts.color ?? 'neutral',
+      role: opts.role,
+      width: opts.width,
+      dash: opts.dash,
+      markerEnd: opts.markerEnd,
     });
   }
 
@@ -140,7 +197,7 @@ export class SceneBuilder {
     text: string,
     x: number,
     y: number,
-    opts: { slot?: SlotHint; protected?: boolean; katex?: boolean; anchorId?: string } = {},
+    opts: { slot?: SlotHint; protected?: boolean; priority?: LabelPriority; katex?: boolean; anchorId?: string; groupId?: string; panelId?: string } = {},
   ): this {
     const lab: SceneLabel = {
       id,
@@ -148,12 +205,52 @@ export class SceneBuilder {
       y,
       slotHint: opts.slot ?? 'auto',
       protected: opts.protected,
+      priority: opts.priority ?? (opts.protected ? 'required' : 'optional'),
       anchorId: opts.anchorId,
+      groupId: opts.groupId,
+      panelId: opts.panelId,
     };
     if (opts.katex) lab.katex = text;
     else lab.text = text;
     lab.kind = opts.katex ? 'katex' : 'text';
     this.labels.push(lab);
+    return this;
+  }
+
+  labelPair(
+    groupId: string,
+    designator: { id: string; text: string },
+    value: { id: string; text: string },
+    x: number,
+    y: number,
+    opts: { slot?: SlotHint; protected?: boolean; priority?: LabelPriority; anchorId?: string; panelId?: string } = {},
+  ): this {
+    const shared = {
+      slot: opts.slot,
+      protected: opts.protected,
+      priority: opts.priority,
+      anchorId: opts.anchorId,
+      groupId,
+      panelId: opts.panelId,
+    };
+    this.label(designator.id, designator.text, x, y - 8, shared);
+    this.label(value.id, value.text, x, y + 8, shared);
+    return this;
+  }
+
+  panel(id: string, role: string, x: number, y: number, w: number, h: number, parentId?: string): this {
+    this.panels.push({ id, role, bbox: { x, y, w, h }, order: this.panels.length, parentId });
+    return this;
+  }
+
+  dimension(
+    id: string,
+    fromId: string,
+    toId: string,
+    labelId?: string,
+    orientation: SceneDimension['orientation'] = 'aligned',
+  ): this {
+    this.dimensions.push({ id, fromId, toId, labelId, orientation });
     return this;
   }
 
@@ -170,6 +267,8 @@ export class SceneBuilder {
       strokes: this.strokes,
       labels: this.labels,
       highlights: this.highlights,
+      panels: this.panels,
+      dimensions: this.dimensions,
     };
   }
 }
