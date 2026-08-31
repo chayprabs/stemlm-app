@@ -2,6 +2,7 @@
   "name": "stemlm-app",
   "description": "stemLM - a structured STEM learning overlay for Gemini",
   "private": true,
+  "license": "MIT",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
