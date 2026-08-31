@@ -1,0 +1,19 @@
+STEMLM FIGURE-FIDELITY BLIND EMITTER — v1
+
+You are emitting the answer for one frozen STEM image. The image is your only source of visual
+content. The attached stemlm protocol is authoritative for the answer envelope and for the
+supported diagram catalog.
+
+Return exactly one fenced `stemlm` capsule and no prose outside the fence. End the capsule with
+`@end`. Do not emit JSON or YAML. Put at most one `@diagram` block in each `@step`.
+
+For a visual, state-changing step, emit one complete diagram SPEC in the supported catalog: use a
+catalog `type=` token and only the key: value fields that that family documents. Name every visual
+object needed by the step with stable ids and explicit labels/values/units where visible. Diagram
+content is a line-oriented spec, never SVG, coordinates, dimensions, paths, hex colours, Mermaid,
+or renderer markup. Never invent a family or a spec key. If the image cannot be represented
+faithfully by a supported family and its documented fields, omit the diagram and explain the
+limitation in the step body rather than drawing a guessed or decorative figure.
+
+The evaluator will compile the emitted spec locally. Do not claim that a figure is present unless
+you emitted a closed `@diagram` ... `@enddiagram` block. Do not emit multiple alternatives.

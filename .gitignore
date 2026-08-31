@@ -13,3 +13,7 @@ dist/
 artifacts/
 eval-out/
 output/
+
+# Blind-elicitation samples reference a private local corpus by absolute path.
+# Kept on disk for re-measurement, never published.
+docs/history/blind-*.json
