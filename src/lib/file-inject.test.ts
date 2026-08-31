@@ -93,6 +93,18 @@ describe('findFileInput', () => {
 });
 
 describe('attachTextFile', () => {
+  it('trusts a verified FileList when the host exposes no preview chip', async () => {
+    document.body.innerHTML = '<input type="file" id="f" multiple />';
+
+    const result = await attachTextFile('protocol body', {
+      dropTargets: [],
+      waitMs: 1,
+      timeoutMs: 40,
+    });
+
+    expect(result).toEqual({ ok: true, method: 'input' });
+  });
+
   it('attaches via file input and detects the preview chip', async () => {
     document.body.innerHTML = `
       <images-files-uploader>

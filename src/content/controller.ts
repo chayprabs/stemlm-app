@@ -38,7 +38,7 @@ import type {
   StepFollowup,
   Subject,
 } from '@/src/protocol/types';
-import type { FollowupIntent } from '@/src/protocol/builder';
+import type { FollowupIntent, RepairPromptOptions } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { rememberCurrentChat } from '@/src/lib/last-chat';
@@ -116,6 +116,16 @@ export function keepActiveQid(active: Session, incoming: Capsule): Capsule {
   const qid = active.capsule.meta.qid;
   if (!qid) return incoming;
   return { ...incoming, meta: { ...incoming.meta, qid } };
+}
+
+export interface FigureRepairRequest {
+  sessionId: string;
+  subject: Subject;
+  stepId?: string;
+  family: string;
+  failingKeys: string[];
+  code: string;
+  reason: string;
 }
 
 export class StemController {
@@ -270,6 +280,44 @@ export class StemController {
     return true;
   }
 
+  /** Insert a student-initiated, targeted repair through the follow-up path. */
+  async repairFigure(request: FigureRepairRequest): Promise<boolean> {
+    const store = useStore.getState();
+    const target = store.sessions.find((session) => session.id === request.sessionId);
+    if (!target || store.activeSessionId !== request.sessionId) {
+      void trackEvent('extension_error', {
+        platform: this.adapter.id,
+        source: 'repair',
+        family: request.family,
+        parse_error_code: request.code,
+        repair_used: false,
+      });
+      return false;
+    }
+    const step = request.stepId
+      ? target.capsule.steps.find((candidate) => candidate.id === request.stepId)
+      : undefined;
+    const selection = `Repair the ${request.family} figure${step ? ` in step "${step.title}"` : ''}.`;
+    const repair: RepairPromptOptions = {
+      errorCode: request.code,
+      family: request.family,
+      failingKeys: request.failingKeys,
+      reason: request.reason,
+    };
+    const ok = await this.followUp(selection, step?.title, request.subject, {
+      intent: 'dig-deeper',
+      repair,
+    });
+    void trackEvent('extension_error', {
+      platform: this.adapter.id,
+      source: 'repair',
+      family: request.family,
+      parse_error_code: request.code,
+      repair_used: ok,
+    });
+    return ok;
+  }
+
   /** Inject a quote-reply that drills into selected text and re-arm capture. */
   async followUp(
     selection: string,
@@ -277,6 +325,7 @@ export class StemController {
     subject: Subject,
     opt?: {
       intent?: FollowupIntent;
+      repair?: RepairPromptOptions;
       /** Attach the answer inline after this step instead of replacing the session. */
       anchor?: { sessionId: string; anchorStepId: string };
     },
@@ -306,6 +355,7 @@ export class StemController {
       stepTitle,
       subject,
       intent: opt?.intent,
+      repair: opt?.repair,
     };
     const payload = buildFollowupPayload(followOpt);
     const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });

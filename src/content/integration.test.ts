@@ -3,7 +3,7 @@ import { StemController } from './controller';
 import { geminiAdapter } from '@/src/platforms/gemini';
 import { useStore } from '@/src/state/store';
 import { FENCED_CHEMISTRY, FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
-import { PROTOCOL_FILENAME } from '@/src/protocol/builder';
+import { buildComposerAppendix, PROTOCOL_FILENAME } from '@/src/protocol/builder';
 import {
   HOST_FIXTURES,
   addNamedChip,
@@ -37,7 +37,7 @@ function addProtocolChip(root: Element) {
   root.appendChild(chip);
 }
 
-function mountGeminiComposer() {
+function mountGeminiComposer(opt: { protocolChip?: boolean } = {}) {
   document.body.innerHTML = `
     <input-area-v2>
       <images-files-uploader>
@@ -52,8 +52,10 @@ function mountGeminiComposer() {
   `;
   const uploader = document.querySelector('images-files-uploader')!;
   const input = uploader.querySelector('input[type="file"]')!;
-  uploader.addEventListener('drop', () => addProtocolChip(uploader));
-  input.addEventListener('change', () => addProtocolChip(uploader));
+  if (opt.protocolChip !== false) {
+    uploader.addEventListener('drop', () => addProtocolChip(uploader));
+    input.addEventListener('change', () => addProtocolChip(uploader));
+  }
 }
 
 function pushAssistantCapsule(raw: string) {
@@ -107,6 +109,30 @@ describe('integration: Gemini adapter + controller capture', () => {
     expect(state.sessions[0]!.capsule.meta.subject).toBe('Electrical');
     expect(state.sessions[0]!.capsule.steps.length).toBeGreaterThanOrEqual(2);
     expect(state.sessions[0]!.platform).toBe('gemini');
+    c.stopWatching();
+  });
+
+  it('keeps the composer short when the native input confirms attachment before a preview appears', async () => {
+    mountGeminiComposer({ protocolChip: false });
+    const editor = geminiAdapter.findEditor()!;
+    const question = 'Find the current in this resistor circuit.';
+    editor.textContent = question;
+
+    const c = new StemController(geminiAdapter);
+    expect(await c.inject()).toBe(true);
+
+    const injected = geminiAdapter.getEditorText();
+    const normalizeShort = (text: string) => text.replace(/\u00a0/g, '').replace(/\n+/g, '\n\n').trim();
+    expect(normalizeShort(injected)).toBe(
+      normalizeShort(`${question}\n\n${buildComposerAppendix({ hasQuestion: true })}`),
+    );
+    expect(injected).toContain(question);
+    expect(injected).toContain('--- stemLM ---');
+    expect(injected).toContain('Follow the attached stemlm-protocol.txt');
+    expect(injected).not.toContain('--- stemLM instructions');
+    expect(injected).not.toContain('OUTPUT:');
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(input?.files?.[0]?.name).toBe(PROTOCOL_FILENAME);
     c.stopWatching();
   });
 

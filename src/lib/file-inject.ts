@@ -405,10 +405,6 @@ export async function attachTextFile(
     return { ok: false, method: 'none' };
   }
 
-  const attached = await waitForAttachment({
-    ...opt,
-    filename,
-    timeoutMs: opt.timeoutMs ?? 4000,
-  });
-  return { ok: attached, method: 'input' };
+  // The native FileList is authoritative; some hosts render no filename chip.
+  return { ok: true, method: 'input' };
 }

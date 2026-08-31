@@ -10,6 +10,7 @@ import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
+import { parseCapsule } from '@/src/protocol/parser';
 import { SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
@@ -1357,6 +1358,61 @@ describe('StemController capture', () => {
     expect(useStore.getState().errorMessage).toContain('Parser code:');
     expect(adapter.editorText).not.toContain('Your previous stemLM capsule');
     expect(adapter.editorText).not.toContain('Re-emit the FULL answer');
+    c.stopWatching();
+  });
+
+  it('offers a targeted figure repair through the existing follow-up path without auto-sending', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const repair = (c as StemController & { repairFigure: (opt: unknown) => Promise<boolean> }).repairFigure;
+
+    const ok = await repair.call(c, {
+      sessionId: 'missing-session',
+      subject: 'Physics',
+      stepId: 's1',
+      family: 'plot',
+      failingKeys: ['guide'],
+      code: 'malformed',
+      reason: 'invalid guide x=35; y=1',
+    });
+
+    expect(ok).toBe(false);
+    expect(adapter.inserted).toBe('');
+    expect(useStore.getState().sessions).toHaveLength(0);
+  });
+
+  it('inserts compiler diagnostics for the active session and leaves sending to the student', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const capsule = parseCapsule(CAPSULE_BODY).capsule!;
+    useStore.getState().addSession({
+      id: 'session-1',
+      createdAt: 1,
+      updatedAt: 1,
+      platform: adapter.id,
+      question: capsule.meta.question ?? 'Question',
+      capsule,
+      raw: CAPSULE_BODY,
+    });
+
+    const ok = await c.repairFigure({
+      sessionId: 'session-1',
+      subject: 'Physics',
+      stepId: capsule.steps[0]!.id,
+      family: 'plot',
+      failingKeys: ['guide'],
+      code: 'malformed',
+      reason: 'invalid guide x=35; y=1',
+    });
+
+    expect(ok).toBe(true);
+    expect(adapter.inserted).toContain('TARGETED FIGURE REPAIR');
+    expect(adapter.inserted).toContain('family `plot`');
+    expect(adapter.inserted).toContain('failing keys: guide');
+    expect(adapter.inserted).toContain('invalid guide x=35; y=1');
+    expect(adapter.inserted).toContain('Ask your question here:');
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().status).toBe('loading');
     c.stopWatching();
   });
 });
