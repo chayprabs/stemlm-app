@@ -5,10 +5,8 @@
  * directly to the GA4 Measurement Protocol endpoint. This is the officially
  * recommended approach for extensions.
  *
- * IMPORTANT: This module is a SAFE NO-OP until credentials are provided.
- * The user asked us to wire the endpoints now and supply the API later — so
- * fill in the values via env vars (see .env.example) and everything starts
- * flowing. Nothing is sent while the values are empty.
+ * IMPORTANT: This module is a SAFE NO-OP until both credentials are provided
+ * at build time. Nothing is sent while either value is empty.
  *
  *   STEMLM_GA_MEASUREMENT_ID  -> __GA_MEASUREMENT_ID__
  *   STEMLM_GA_API_SECRET      -> __GA_API_SECRET__
@@ -63,7 +61,7 @@ async function getOrCreateSessionId(): Promise<string> {
 
 /** Whether analytics is configured (credentials present). */
 export function analyticsEnabled(): boolean {
-  return Boolean(MEASUREMENT_ID && API_SECRET);
+  return MEASUREMENT_ID.trim().length > 0 && API_SECRET.trim().length > 0;
 }
 
 export type StemLmEvent =
@@ -81,6 +79,40 @@ export type StemLmEvent =
 
 export type EventParams = Record<string, string | number | boolean | undefined>;
 
+const ANALYTICS_PARAM_KEYS = new Set([
+  'platform',
+  'subject',
+  'injection_method',
+  'source',
+  'steps',
+  'parse_status',
+  'warnings_count',
+  'step_quality_warnings_count',
+  'diagram_warnings_count',
+  'step_work_ok',
+  'had_svg',
+  'had_mermaid',
+  'family',
+  'parse_error_code',
+  'repair_used',
+  'method',
+  'count',
+  'where',
+  'kind',
+]);
+
+/** Keep telemetry operational and content-free at the last boundary. */
+export function sanitizeEventParams(params: EventParams): EventParams {
+  const cleaned: EventParams = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (!ANALYTICS_PARAM_KEYS.has(key) || value === undefined) continue;
+    if (typeof value === 'string' && !/^[A-Za-z0-9_.-]{1,64}$/.test(value)) continue;
+    if (typeof value === 'number' && !Number.isFinite(value)) continue;
+    cleaned[key] = value;
+  }
+  return cleaned;
+}
+
 const DEBUG = false;
 
 /**
@@ -96,10 +128,7 @@ export async function trackEvent(name: StemLmEvent, params: EventParams = {}): P
       getOrCreateSessionId(),
     ]);
 
-    const cleaned: EventParams = {};
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined) cleaned[k] = v;
-    }
+    const cleaned = sanitizeEventParams(params);
 
     const body = {
       client_id: clientId,

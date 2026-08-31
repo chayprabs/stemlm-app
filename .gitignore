@@ -4,7 +4,8 @@ node_modules/
 stats.html
 *.log
 .env
-.env.local
+.env.*
+!.env.example
 .DS_Store
 dist/
 
@@ -14,6 +15,6 @@ artifacts/
 eval-out/
 output/
 
-# Blind-elicitation samples reference a private local corpus by absolute path.
+# Blind-elicitation samples are local evaluation manifests.
 # Kept on disk for re-measurement, never published.
 docs/history/blind-*.json
