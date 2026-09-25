@@ -1,3 +1,4 @@
+import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
 import { describe, it, expect } from 'vitest';
 import {
   buildInjectionAppendix,
@@ -17,7 +18,6 @@ import {
   buildFollowupPrompt,
   buildFollowupPayload,
   buildFollowupComposerText,
-  buildRepairPrompt,
   resolveSubject,
   PROTOCOL_FILENAME,
   STEMLM_SENTINEL,
@@ -131,7 +131,7 @@ describe('buildInjectionPayload', () => {
     );
     expect(payload.subject).toBe('Electrical');
     expect(payload.composerText).toContain('Solve this circuit');
-    expect(payload.composerText).toContain(PROTOCOL_FILENAME);
+    expect(payload.composerText).toContain(STUDY_GUIDE_REFERENCE);
     expect(payload.composerText).toContain(STEMLM_SENTINEL);
     expect(payload.composerText).toContain('Follow the attached');
     expect(payload.composerText).not.toContain('OUTPUT:');
@@ -204,7 +204,7 @@ describe('buildInjectionPayload', () => {
       expect(fileContent).toContain('OUTPUT:');
       expect(fileContent).toContain('PHYSICS');
       expect(fileContent).toContain('ELECTRICAL');
-      expect(buildComposerAppendix()).toContain(PROTOCOL_FILENAME);
+      expect(buildComposerAppendix()).toContain(STUDY_GUIDE_REFERENCE);
       expect(buildComposerAppendix()).not.toContain('OUTPUT:');
     }
   });
@@ -212,7 +212,7 @@ describe('buildInjectionPayload', () => {
   it('buildComposerStub references the attached filename only', () => {
     const stub = buildComposerStub('derivative question');
     expect(stub).toContain('derivative question');
-    expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
     expect(stub).not.toContain('MATH:');
   });
 
@@ -238,7 +238,7 @@ describe('buildInjectionPayload', () => {
 
     for (const payload of payloads) {
       expect(payload.subject).toBe('Electrical');
-      expect(payload.composerText).toContain('Follow the attached stemlm-protocol.txt');
+      expect(payload.composerText).toContain('Follow the attached stemLM study guide');
       expect(payload.composerText).toContain('Infer the subject from the problem');
       expect(payload.composerText).not.toContain('(Electrical)');
       expect(payload.fileContent).toContain('ELECTRICAL');
@@ -314,7 +314,7 @@ describe('buildFollowupPrompt', () => {
       prompt.indexOf('stemLM follow-up context'),
     );
     expect(prompt).not.toContain('```stemlm');
-    expect(prompt).toContain(PROTOCOL_FILENAME);
+    expect(prompt).toContain(STUDY_GUIDE_REFERENCE);
   });
 
   it('uses ask intent copy for free-form last-step follow-ups', () => {
@@ -340,12 +340,12 @@ describe('buildFollowupPrompt', () => {
 
   it('buildFollowupComposerText references the attached protocol file', () => {
     const composer = buildFollowupComposerText(opts);
-    expect(composer).toContain(PROTOCOL_FILENAME);
+    expect(composer).toContain(STUDY_GUIDE_REFERENCE);
     expect(composer).not.toContain('(Electrical)');
     expect(composer).toContain('> Total resistance is R1 + R2');
     expect(composer).not.toContain('OUTPUT:');
     expect(composer).toContain('FOLLOW-UP CONTRACT');
-    expect(composer.indexOf(PROTOCOL_FILENAME)).toBeLessThan(composer.indexOf('> Total resistance'));
+    expect(composer.indexOf(STUDY_GUIDE_REFERENCE)).toBeLessThan(composer.indexOf('> Total resistance'));
   });
 
   it('keeps the follow-up composer stub compact (full rules ship in the file)', () => {
@@ -372,7 +372,7 @@ describe('buildFollowupPrompt', () => {
 describe('composer stubs', () => {
   it('appends a short file pointer without repeating the question', () => {
     const stub = buildComposerAppendix({ hasQuestion: true });
-    expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
     expect(stub).toContain(STEMLM_SENTINEL);
     expect(stub).toContain('Infer the subject from the problem');
     expect(stub).not.toContain('(Physics)');
@@ -385,7 +385,7 @@ describe('composer stubs', () => {
   it('mentions an attached image/PDF when that is the only prompt', () => {
     const stub = buildComposerAppendix({ hasImageAttachment: true, hasQuestion: false });
     expect(stub).toContain('image/PDF');
-    expect(stub).toContain(PROTOCOL_FILENAME);
+    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
     expect(stub).not.toContain('@meta');
   });
 
@@ -393,7 +393,7 @@ describe('composer stubs', () => {
     const pointer = buildComposerPointer({ hasQuestion: true });
     expect(pointer).toContain(STEMLM_SENTINEL);
     expect(pointer).toContain('New problem');
-    expect(pointer).toContain(PROTOCOL_FILENAME);
+    expect(pointer).toContain(STUDY_GUIDE_REFERENCE);
     expect(pointer).not.toContain('OUTPUT:');
     expect(Buffer.byteLength(pointer, 'utf8')).toBeLessThanOrEqual(400);
   });
@@ -500,42 +500,5 @@ describe('numeric plug-in is scoped to numeric/lab', () => {
     const file = buildProtocolFileContent({ question: 'sizing' }).content;
     expect(file).toContain('NUMERIC/LAB only');
     expect(file).toContain('NEVER force a numeric plug-in');
-  });
-});
-
-describe('buildRepairPrompt', () => {
-  it('asks for a format-only re-emit without raw content', () => {
-    const prompt = buildRepairPrompt({ errorCode: 'missing_end' });
-    expect(prompt).toContain('missing_end');
-    expect(prompt).toContain("fix every step's @body work");
-    expect(prompt).toContain('@end');
-    expect(prompt).not.toContain('```stemlm');
-  });
-
-  it('diagram repair asks for typed key: value specs, not SVG craft or a prose SPEC', () => {
-    const prompt = buildRepairPrompt({ errorCode: 'diagram_lacks_graphics' });
-    expect(prompt).toMatch(/typed key: value/);
-    expect(prompt).toMatch(/field catalog/);
-    expect(prompt).toContain('solenoid');
-    expect(prompt).toContain('circuit');
-    expect(prompt).not.toMatch(/viewBox="0 0 300 180"/);
-    expect(prompt).not.toMatch(/SPEC:\s+A /);
-    expect(prompt).toMatch(/Never <svg>|NEVER <svg>/i);
-  });
-
-  it('targets a compiler failure with its family, keys, and reason', () => {
-    const prompt = buildRepairPrompt({
-      errorCode: 'malformed',
-      family: 'plot',
-      failingKeys: ['guide', 'point'],
-      reason: 'invalid guide x=35; y=1',
-    } as Parameters<typeof buildRepairPrompt>[0] & {
-      family: string;
-      failingKeys: string[];
-      reason: string;
-    });
-    expect(prompt).toContain('family `plot`');
-    expect(prompt).toContain('failing keys: guide, point');
-    expect(prompt).toContain('invalid guide x=35; y=1');
   });
 });

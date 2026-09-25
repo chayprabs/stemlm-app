@@ -57,7 +57,7 @@ describe('handleStemLmPanelMessage', () => {
     const res = await handleStemLmPanelMessage('stemlm:open-panel', 'gemini');
     expect(res).toEqual({ ok: true });
     expect(useStore.getState().panelOpen).toBe(true);
-    expect(useStore.getState().splitRatio).toBe(0.55);
+    expect(useStore.getState().splitRatio).toBe(0.68);
   });
 
   it('loads the conversation then opens the workspace', async () => {

@@ -12,6 +12,29 @@ import {
 } from './__fixtures__';
 
 describe('findCapsuleRaw', () => {
+  it('CAP-05 reports multiple capsule candidates instead of silently asserting one answer', () => {
+    const result = parse(`${FENCED_ELECTRICAL}\n${FENCED_ELECTRICAL}`);
+    expect(result.warningCodes).toContain('ambiguous_capsules');
+  });
+
+  it('CAP-06 reports discarded content after the terminator', () => {
+    const result = parse(FENCED_ELECTRICAL.replace(/@end\s*\n```/, '@end\nA qualifying caveat remains.\n```'));
+    expect(result.warningCodes).toContain('trailing_content_discarded');
+    expect(result.capsule?.solution).not.toContain('qualifying caveat');
+  });
+
+  it.each(['\u200b', '\u200c', '\u200d', '\u2060'])('CAP-07 tolerates invisible marker boundaries %j without changing prose', (invisible) => {
+    const source = FENCED_ELECTRICAL.replace(/^(@[^\n]*)$/gm, `${invisible}$1${invisible}`);
+    expect(looksComplete(source)).toBe(true);
+    expect(parse(source).capsule).toEqual(parse(FENCED_ELECTRICAL).capsule);
+  });
+
+  it.each([false, true])('CAP-08 warns and preserves the first diagram, patch=%s', (patch) => {
+    const step = '@step id=s1\ntitle: Diagram\n@body\nExplanation\n@endbody\n@diagram type=graph id=first\nnodes: A, B\nedges: A -> B\n@enddiagram\n@diagram type=graph id=second\nnodes: C, D\nedges: C -> D\n@enddiagram\n@endstep';
+    const result = parseCapsule(`@meta\nsubject: Math\ntopic: Diagram\nmode: ${patch ? 'patch' : 'full'}\n@endmeta\n${patch ? '@patch op=replace target=s1\n' : ''}${step}\n${patch ? '@endpatch\n' : ''}@end`);
+    expect(result.warningCodes).toContain('duplicate_diagram');
+    expect((patch ? result.patch?.[0]?.step : result.capsule?.steps[0])?.diagram?.id).toBe('first');
+  });
   it('extracts content from a ```stemlm fence', () => {
     const raw = findCapsuleRaw(FENCED_ELECTRICAL);
     expect(raw).toContain('@meta');
@@ -783,7 +806,6 @@ describe('parser warnings for omitted selling-point blocks', () => {
     expect(r.warningCodes).toContain('missing_verify');
     expect(r.warningCodes).toContain('missing_uncertainty');
   });
-
   it('warns when a step/formula/diagram omits id= but salvages step-N', () => {
     const r = parse(
       mini(
@@ -965,5 +987,3 @@ describe('parser warnings for omitted selling-point blocks', () => {
     expect(r.warningCodes).not.toContain('step_body_too_long');
   });
 });
-
-

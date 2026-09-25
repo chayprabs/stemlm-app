@@ -215,6 +215,8 @@ function rayRelation(raw: string): string {
 }
 
 export function compileRay(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const kind = specGet(spec, 'kind')?.toLowerCase();
+  if (kind && kind !== 'ray') return failure(`unsupported-ray-kind:${kind}`);
   const source = specGet(spec, 'source');
   const target = specGet(spec, 'target');
   const relations = specGetAll(spec, 'ray');
@@ -443,7 +445,10 @@ function compileFieldCatalog(spec: SpecDoc, ctx: CompileCtx, rawCatalog: string)
 export function compileField(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const hasSemanticRecords = specGetAll(spec, 'source').length > 0 || specGetAll(spec, 'surface').length > 0 || specGetAll(spec, 'field_lines').length > 0 || specGetAll(spec, 'variant').length > 0;
   if (!hasSemanticRecords) {
-    const catalog = specGet(spec, 'catalog') ?? specGet(spec, 'kind');
+    const kind = specGet(spec, 'kind');
+    const named = specGet(spec, 'catalog');
+    if (named && kind && kind !== 'field' && kind !== named) return failure('field kind conflicts with catalog');
+    const catalog = named ?? kind;
     if (catalog) {
       return compileFieldCatalog(spec, ctx, catalog);
     }

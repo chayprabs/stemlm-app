@@ -39,7 +39,7 @@ export function EmptyState() {
       )}
       {status === 'none' && (
         <p className="slm-empty-hint">
-          No stemLM answers found in this chat. Use stemLM on a question first.
+          The response could not be loaded. See the message above for details.
         </p>
       )}
     </div>

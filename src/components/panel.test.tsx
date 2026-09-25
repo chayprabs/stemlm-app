@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { Panel } from './Panel';
 import { useStore } from '@/src/state/store';
 import { applyTheme } from '@/src/lib/theme';
+import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import type { Session } from '@/src/protocol/types';
 
 const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSavedSessionMock, setSettingsMock, exportSessionPdfMock } =
@@ -18,8 +19,10 @@ const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSave
       theme: 'auto',
       shareAcrossTabs: false,
       autoOpenOnAnswer: true,
+      defaultView: 'steps',
       stemlmEnabled: true,
       splitRatio: 0.5,
+      contentScale: 2,
       ...patch,
     })),
     exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
@@ -71,7 +74,7 @@ function buildTwoDiagramSession(): Session {
           body: 'First.',
           diagram: {
             type: 'svg',
-            content: '<svg viewBox="0 0 20 20"><text x="1" y="10">first-diagram</text></svg>',
+            content: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/><text x="1" y="10">first-diagram</text></svg>',
           },
         },
         {
@@ -81,7 +84,7 @@ function buildTwoDiagramSession(): Session {
           body: 'Second.',
           diagram: {
             type: 'svg',
-            content: '<svg viewBox="0 0 20 20"><text x="1" y="10">second-diagram</text></svg>',
+            content: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/><text x="1" y="10">second-diagram</text></svg>',
           },
         },
       ],
@@ -166,6 +169,7 @@ beforeEach(() => {
     theme: 'light',
     splitRatio: 0.5,
     splitDragging: false,
+    settings: DEFAULT_SETTINGS,
     sessions: [],
     activeSessionId: undefined,
     activeStepIndex: 0,
@@ -181,6 +185,7 @@ afterEach(() => {
     view: 'steps',
     theme: 'light',
     splitRatio: 0.5,
+    settings: DEFAULT_SETTINGS,
   });
 });
 
@@ -251,6 +256,41 @@ describe('Panel step diagram', () => {
       root?.unmount();
     });
     container.remove();
+  });
+
+  it('does not expose internal redo commands as the learner-facing Ask in chat hint', () => {
+    const session = buildTwoDiagramSession();
+    session.capsule.steps[0]!.followup = 'Redo s3 for a changed index and state the result.';
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    expect(container.textContent).not.toContain('Redo s3');
+    expect(container.textContent).toContain('Ask a question about this step');
+    unmount();
+  });
+
+  it('does not expose repair protocol instructions as an Ask in chat hint', () => {
+    const session = buildTwoDiagramSession();
+    session.capsule.steps[0]!.followup = 'Use mode: patch and replace the diagram.';
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    expect(container.textContent).not.toContain('mode: patch');
+    expect(container.textContent).toContain('Ask a question about this step');
+    unmount();
+  });
+
+  it('clamps a newline-separated question to the same two-line header treatment', () => {
+    const session = buildStudySession();
+    session.question = 'Find the field.\n(a) At the centre\n(b) At the edge\n(c) Far away';
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+
+    expect(container.querySelector('.slm-topic-scroll')?.classList.contains('is-single')).toBe(true);
+    unmount();
   });
 
   it('keeps the question in the header when the active step changes', () => {
@@ -546,6 +586,149 @@ describe('Panel empty / loading / banner states', () => {
 });
 
 describe('Panel ready session', () => {
+  it('offers persistent five-level content sizing before the fixed header actions', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const panel = container.querySelector('.slm-panel') as HTMLElement;
+    const decrease = container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement;
+    const increase = container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement;
+    const theme = container.querySelector('.slm-theme-btn') as HTMLButtonElement;
+    expect(panel.dataset.contentScale).toBe('2');
+    expect(decrease).toBeTruthy();
+    expect(increase).toBeTruthy();
+    expect(increase.compareDocumentPosition(theme) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await act(async () => {
+      increase.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(setSettingsMock).toHaveBeenCalledWith({ contentScale: 3 });
+    expect(panel.dataset.contentScale).toBe('3');
+    unmount();
+  });
+
+  it('dulls the unavailable content-size direction at either boundary', async () => {
+    const session = buildStudySession();
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, contentScale: 5 },
+      panelOpen: true,
+      status: 'ready',
+    });
+    useStore.getState().addSession(session);
+    const { container, unmount } = mountPanel();
+    await flush();
+    expect((container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement).disabled).toBe(false);
+    unmount();
+
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, contentScale: 1 },
+      panelOpen: true,
+      status: 'ready',
+    });
+    useStore.getState().addSession({ ...session, id: 'panel-study-min' });
+    const mountedMin = mountPanel();
+    await flush();
+    expect((mountedMin.container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((mountedMin.container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).disabled).toBe(false);
+    mountedMin.unmount();
+  });
+
+  it('reserves the floating navigation area outside the reading scroller', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const detail = container.querySelector('.slm-steps-detail') as HTMLElement;
+    const read = container.querySelector('.slm-read') as HTMLElement;
+    const slot = container.querySelector('.slm-stepnav-slot') as HTMLElement;
+    const nav = container.querySelector('.slm-stepnav--overlay') as HTMLElement;
+
+    // The nav lives in its own reserved row, never inside the scrolling content,
+    // so it cannot land on top of the last card (Ask in chat) at any scroll
+    // position or answer length.
+    expect(read.contains(nav)).toBe(false);
+    expect(slot.contains(nav)).toBe(true);
+    expect(detail.contains(slot)).toBe(true);
+    expect(read.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(cssBlock(PANEL_CSS, '.slm-read')).toMatch(/overflow-y:\s*auto/);
+    const slotCss = cssBlock(PANEL_CSS, '.slm-stepnav-slot');
+    expect(slotCss).toMatch(/flex:\s*0 0 [\d.]+rem/);
+    expect(slotCss).toMatch(/min-height:\s*[\d.]+rem/);
+    // Only the buttons take pointer input; the reserved strip stays inert.
+    expect(slotCss).toMatch(/pointer-events:\s*none/);
+    expect(cssBlock(PANEL_CSS, '.slm-stepnav-btn')).toMatch(/pointer-events:\s*auto/);
+    unmount();
+  });
+
+  it('announces the current content-size level to assistive technology', async () => {
+    const session = buildStudySession();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready' });
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const group = container.querySelector('.slm-content-scale') as HTMLElement;
+    const live = group.querySelector('[role="status"]') as HTMLElement;
+    expect(live).toBeTruthy();
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(live.textContent).toContain('level 2 of 5');
+    expect(live.classList.contains('slm-sr-only')).toBe(true);
+
+    await act(async () => {
+      (container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect((group.querySelector('[role="status"]') as HTMLElement).textContent).toContain('level 3 of 5');
+    unmount();
+  });
+
+  it('keeps keyboard focus inside the group when a boundary disables a control', async () => {
+    const session = buildStudySession();
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, contentScale: 4 },
+      panelOpen: true,
+      status: 'ready',
+    });
+    useStore.getState().addSession(session);
+    const { container, unmount } = mountPanel();
+    await flush();
+
+    const increase = container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement;
+    const decrease = container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement;
+    increase.focus();
+    await act(async () => {
+      increase.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(increase.disabled).toBe(true);
+    expect(document.activeElement).toBe(decrease);
+    unmount();
+  });
+
+  it('scales reading content and diagrams while leaving checks and Ask in chat fixed', () => {
+    expect(cssBlock(PANEL_CSS, ".slm-panel[data-content-scale='5']")).toMatch(/--slm-content-read-size:[^;]*\+ 3px/);
+    expect(cssBlock(PANEL_CSS, '.slm-step-work-body')).toContain('var(--slm-content-read-size)');
+    expect(cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-frame')).toContain('var(--slm-content-diagram-width)');
+    expect(cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-svg svg')).toContain('var(--slm-content-diagram-height)');
+    // `.slm-prose { font-size: inherit }` comes later in the sheet, so the
+    // question keeps its token only through the higher-specificity selector.
+    expect(
+      cssBlock(PANEL_CSS, ['.slm-topic-row .slm-topic,', '.slm-header-title .slm-topic'].join('\n')),
+    ).toContain('var(--slm-content-question-size)');
+    expect(cssBlock(PANEL_CSS, '.slm-quickcheck-q')).toContain('var(--slm-read-size)');
+    expect(cssBlock(PANEL_CSS, '.slm-followup-text')).toMatch(/font-size:\s*13px/);
+    expect(PANEL_CSS).toMatch(/\.slm-panel\[data-content-scale\] \.slm-topic-scroll\.is-single \.slm-topic p\s*\{[^}]*-webkit-line-clamp:\s*2/);
+  });
+
   it('shows question, step content, and switches Steps/Solution', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
@@ -577,6 +760,7 @@ describe('Panel ready session', () => {
     expect(container.querySelector('.slm-stepnav-count')).toBeNull();
     expect(container.textContent).not.toMatch(/\b1\s*\/\s*[0-9]+\b/);
     expect(container.querySelector('.slm-stepnav--overlay')).toBeTruthy();
+    expect(container.querySelector('.slm-stepnav--overlay')?.parentElement?.classList.contains('slm-stepnav-slot')).toBe(true);
     expect(container.querySelector('.slm-steps-layout')).toBeTruthy();
     expect(container.querySelector('.slm-step-rail')).toBeTruthy();
     expect(container.querySelector('.slm-read')).toBeTruthy();
@@ -918,6 +1102,29 @@ describe('Panel theme, split, and width density', () => {
     expect(panel.style.colorScheme).toBe('dark');
 
     unmount();
+  });
+
+  it('surfaces theme persistence failures and restores the previous theme', async () => {
+    const session = buildStudySession();
+    useStore.getState().resetSessions();
+    useStore.getState().addSession(session);
+    useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
+    const mounted = mountPanel();
+    await flush();
+
+    setSettingsMock.mockRejectedValueOnce(new Error('storage unavailable'));
+    const themeBtn = mounted.container.querySelector(
+      'button[aria-label="Switch to dark theme"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      themeBtn.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(useStore.getState().theme).toBe('light');
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toBe('Could not save theme. Try again.');
+    mounted.unmount();
   });
 
   it('sizes the open panel from splitRatio', () => {
@@ -1639,6 +1846,20 @@ function assertNoProtocolChrome(html: string, text: string) {
   expect(text).not.toContain('Verify that ');
 }
 
+/** Walk every step but the last and prove the notes are absent, then land on the last step. */
+async function expectNoAnswerNotesUntilLastStep(container: HTMLElement) {
+  const total = useStore.getState().sessions[0]!.capsule.steps.length;
+  for (let index = 0; index < total; index++) {
+    act(() => {
+      useStore.setState({ activeStepIndex: index });
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 500));
+    });
+    if (index < total - 1) expect(container.querySelector('.slm-answer-notes')).toBeNull();
+  }
+}
+
 function assertNoStepIdLeaks(root: HTMLElement) {
   expect(root.querySelector('.slm-step-id')).toBeNull();
   for (const el of root.querySelectorAll('[title], [aria-label]')) {
@@ -1663,6 +1884,8 @@ describe('Panel verification and uncertainty', () => {
     const { container, unmount } = mountPanel();
     await flush();
 
+    // D15 (2026-09-25): answer-level notes appear once, after the last step.
+    await expectNoAnswerNotesUntilLastStep(container);
     const stepsHtml = container.innerHTML;
     const stepsText = container.textContent ?? '';
     assertNoProtocolChrome(stepsHtml, stepsText);
@@ -1699,6 +1922,7 @@ describe('Panel verification and uncertainty', () => {
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
     const { container, unmount } = mountPanel();
     await flush();
+    await expectNoAnswerNotesUntilLastStep(container);
     const html = container.innerHTML;
     const text = container.textContent ?? '';
     const clone = container.cloneNode(true) as HTMLElement;

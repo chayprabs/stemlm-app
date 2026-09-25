@@ -68,12 +68,12 @@ export type VerifyMethod =
 
 export type VerifyStatus = 'pass' | 'fail';
 
-/** Hatch (`svg`/`mermaid`), five engines, leftover families, or an unknown token (not collapsed). */
+/** Hatch (`svg`; legacy `mermaid` is kept hidden), five engines, leftover families, or an unknown token (not collapsed). */
 export type DiagramType = string;
 
 export interface Diagram {
   type: DiagramType;
-  /** Spec body, raw SVG markup, or mermaid source. Sanitized at render time, never here. */
+  /** Spec body, raw SVG markup, or legacy mermaid source. Sanitized at render time, never here. */
   content: string;
   /** Optional human caption (from `caption:` or the hatch). */
   caption?: string;
@@ -177,6 +177,8 @@ export type ParseWarningCode =
   | 'formula_without_body'
   | 'step_missing_substitution'
   | 'step_missing_symbol_defs'
+  | 'step_missing_units'
+  | 'step_missing_sign_convention'
   | 'quickcheck_missing_question'
   | 'quickcheck_missing_answer'
   | 'quickcheck_thin_answer'
@@ -193,11 +195,20 @@ export type ParseWarningCode =
   | 'diagram_legend_only'
   | 'missing_verify'
   | 'missing_uncertainty'
+  | 'malformed_verify'
   | 'missing_step_id'
   | 'missing_formula_id'
   | 'missing_diagram_id'
+  | 'duplicate_step_id'
+  | 'duplicate_diagram_id'
+  | 'duplicate_diagram'
+  | 'ambiguous_capsules'
+  | 'trailing_content_discarded'
+  | 'invalid_mode'
+  | 'invalid_patch_op'
   | 'patch_unknown_id'
-  | 'missing_archetype';
+  | 'missing_archetype'
+  | 'parser_failure';
 
 export type ParseErrorCode =
   | 'no_capsule'
@@ -205,7 +216,9 @@ export type ParseErrorCode =
   | 'missing_meta'
   | 'missing_end'
   | 'inner_triple_backticks'
-  | 'invalid_step_count';
+  | 'invalid_step_count'
+  | 'invalid_structure'
+  | 'parser_failure';
 
 export interface ParseResult {
   status: ParseStatus;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -36,12 +36,7 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-import {
-  ANALYTICS_HINT,
-  ANALYTICS_LABEL,
-  SETTINGS_LEGAL_LINKS,
-  SettingsOverlay,
-} from './SettingsOverlay';
+import { SETTINGS_LEGAL_LINKS, SettingsOverlay } from './SettingsOverlay';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -116,29 +111,37 @@ describe('SettingsOverlay', () => {
     unmount();
   });
 
-  it('offers the usage-data toggle, on by default, in the same style as the others', async () => {
+  it('SET-FAKE-01 shows no usage-data switch while analytics is disabled', async () => {
     const { container, unmount } = await renderOverlay();
-
-    const switches = [...container.querySelectorAll<HTMLButtonElement>('.slm-set-switch')];
-    const analytics = switches.find((el) => el.getAttribute('aria-label') === ANALYTICS_LABEL);
-    expect(analytics).toBeTruthy();
-    expect(analytics!.getAttribute('role')).toBe('switch');
-    expect(analytics!.getAttribute('aria-checked')).toBe('true');
-    // Same markup as the shipped toggles, so it inherits their look exactly.
-    expect(analytics!.querySelector('.slm-set-knob')).toBeTruthy();
-    expect(analytics!.classList.contains('is-on')).toBe(true);
-    expect(container.textContent).toContain(ANALYTICS_LABEL);
-    expect(container.textContent).toContain(ANALYTICS_HINT);
-
-    // It flips so both states are visible; persistence is deliberately not wired.
-    act(() => {
-      analytics!.click();
-    });
-    expect(analytics!.getAttribute('aria-checked')).toBe('false');
-    expect(analytics!.classList.contains('is-on')).toBe(false);
-    expect(localStore.stemlm_settings).not.toHaveProperty('shareUsageData');
-
+    const switches = [...container.querySelectorAll<HTMLElement>('[role="switch"]')];
+    expect(switches.map((el) => el.getAttribute('aria-label'))).toEqual([
+      'Share sessions across tabs',
+      'Open the panel automatically',
+    ]);
+    expect(container.textContent).not.toMatch(/usage data|analytics/i);
     unmount();
+  });
+
+  it('SET-LINKS-01 opens every footer link at its real destination in a new tab', async () => {
+    const { container, unmount } = await renderOverlay();
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('.slm-settings-link')];
+    expect(links.map((el) => [el.textContent, el.getAttribute('href')])).toEqual([
+      ['Privacy Policy', 'https://www.stemlm.app/privacy'],
+      ['Terms & Conditions', 'https://www.stemlm.app/terms'],
+      ['Contact Us', 'https://github.com/chayprabs/stemlm-app/issues'],
+    ]);
+    for (const el of links) {
+      expect(el.tagName).toBe('A');
+      expect(el.getAttribute('target')).toBe('_blank');
+      expect(el.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+    unmount();
+  });
+
+  it('SET-CLOSE-01 never clips the page-layout header controls or their focus rings', () => {
+    const css = readFileSync(resolve(process.cwd(), 'assets/pages.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.slm-settings-overlay--page .slm-settings-dialog {'));
+    expect(rule.slice(0, rule.indexOf('}'))).toMatch(/overflow:\s*visible/);
   });
 
   it('puts the three about links on one row at the bottom', async () => {
@@ -146,16 +149,15 @@ describe('SettingsOverlay', () => {
 
     const nav = container.querySelector('.slm-settings-links');
     expect(nav).toBeTruthy();
-    const links = [...container.querySelectorAll<HTMLButtonElement>('.slm-settings-link')];
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('.slm-settings-link')];
     expect(links.map((el) => el.textContent)).toEqual(
       SETTINGS_LEGAL_LINKS.map((item) => item.label),
     );
     expect(links.map((el) => el.dataset.link)).toEqual(SETTINGS_LEGAL_LINKS.map((i) => i.id));
-    // Buttons, not dead anchors, while the destinations are still to come.
+    // D6 (2026-09-24): the destinations exist, so these are real links, never dead ones.
     for (const el of links) {
-      expect(el.tagName).toBe('BUTTON');
-      expect(el.getAttribute('type')).toBe('button');
-      expect(el.hasAttribute('href')).toBe(false);
+      expect(el.tagName).toBe('A');
+      expect(el.getAttribute('href')).toMatch(/^https:\/\//);
     }
     // Separators are decorative dots, never part of the reading order.
     const seps = [...container.querySelectorAll('.slm-settings-links-sep')];
@@ -199,6 +201,102 @@ describe('SettingsOverlay', () => {
       root?.unmount();
     });
     container.remove();
+  });
+
+  it('restores focus to an opener inside the panel shadow root after Escape', async () => {
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const opener = document.createElement('button');
+    opener.type = 'button';
+    opener.textContent = 'Open settings';
+    shadow.appendChild(opener);
+    const container = document.createElement('div');
+    shadow.appendChild(container);
+    document.body.appendChild(host);
+    opener.focus();
+    expect(shadow.activeElement).toBe(opener);
+
+    function Wrapper() {
+      const [open, setOpen] = useState(true);
+      return open ? <SettingsOverlay onClose={() => setOpen(false)} /> : null;
+    }
+
+    let root: Root | undefined;
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<Wrapper />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(shadow.activeElement).toBe(opener);
+    act(() => root?.unmount());
+  });
+
+  it('advances through shadow-root dialog controls and wraps reverse Tab', async () => {
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const opener = document.createElement('button');
+    opener.type = 'button';
+    opener.textContent = 'Open settings';
+    shadow.appendChild(opener);
+    const container = document.createElement('div');
+    shadow.appendChild(container);
+    document.body.appendChild(host);
+    opener.focus();
+
+    let root: Root | undefined;
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<SettingsOverlay onClose={() => undefined} />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const dialog = container.querySelector('[role="dialog"]') as HTMLDivElement;
+    // Buttons plus the footer links (anchors since D6) — every Tab stop in the dialog.
+    const controls = [...dialog.querySelectorAll<HTMLElement>('button, a[href]')];
+    expect(controls.length).toBeGreaterThan(2);
+    if (controls.length < 3) throw new Error('settings dialog needs at least three controls');
+    const firstControl = controls[0]!;
+    const secondControl = controls[1]!;
+    const thirdControl = controls[2]!;
+    const lastControl = controls[controls.length - 1]!;
+    // happy-dom has no layout, so make the rendered controls visible to the hook's
+    // production visibility check without changing the component or its behavior.
+    for (const control of controls) {
+      Object.defineProperty(control, 'offsetParent', { configurable: true, value: dialog });
+    }
+
+    const pressTab = (shiftKey = false) => {
+      const active = shadow.activeElement as HTMLElement;
+      const event = new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        key: 'Tab',
+        shiftKey,
+      });
+      active.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      return shadow.activeElement;
+    };
+
+    firstControl.focus();
+    expect(shadow.activeElement).toBe(firstControl);
+    expect(pressTab()).toBe(secondControl);
+    expect(pressTab()).toBe(thirdControl);
+
+    firstControl.focus();
+    expect(pressTab(true)).toBe(lastControl);
+
+    act(() => root?.unmount());
   });
 
   it('persists theme and behaviour into extension storage and the live store', async () => {

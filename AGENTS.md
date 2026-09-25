@@ -65,6 +65,24 @@ Two guard tests enforce this (`src/protocol/no-hardcoding.test.ts`,
 `src/content/controller.ts` and `src/components/**` are frozen **except** for plan §16 (P7), which
 only the integrator may do, only in that phase, and only within that section's enumerated scope.
 
+## Post-Figure release-remediation authorization
+
+The Figure Fidelity phase is complete. The user's 2026-09-02 release-remediation authorization
+temporarily supersedes the frozen-file boundary for the proven findings in
+`artifacts/figlab/EVIDENCE-MATRIX.md`. That matrix is the canonical backlog; do not rediscover,
+restate, or close an item without deterministic before/after evidence and an exact matrix update.
+
+Ownership for this phase is limited to the release requests in
+`artifacts/figlab/requests/release-blockers.md`: Protocol/state, Controller, L2, L5, L8, L10, L11,
+Persistence, UI/PDF, Security/dependency, and the Integrator sanitizer/shared lane. Each lane may
+edit only its listed files plus its focused tests and evidence/request notes. The integrator owns
+cross-lane integration, the matrix, and the final gates. Existing safety rules remain unchanged:
+no destructive git, no test weakening, no hardcoding, no `eval`/`new Function`, and no unnecessary
+dependencies; only the already-present DOMPurify and Mermaid may be upgraded as authorized.
+
+This addendum is temporary release-remediation scope and must not be treated as a permanent
+relaxation of the Figure Fidelity ownership map.
+
 ## Verify
 
 ```bash

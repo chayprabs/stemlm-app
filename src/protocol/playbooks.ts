@@ -24,7 +24,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     verify: 'dimensional,units,limit,oom,conservation,backsub',
     nodraw: 'pure algebra after the system is drawn; unit conversion; definition-only',
     notation: 'SI; g from problem else 9.81 listed in @uncertainty; radians unless stated',
-    traps: 'rms vs peak; dropped friction sign; mixing g=10/9.8; I=current vs intensity vs inertia; NEVER mermaid for FBD/plots',
+    traps: 'rms vs peak; dropped friction sign; mixing g=10/9.8; I=current vs intensity vs inertia',
   },
   Chemistry: {
     marker: 'CHEMISTRY',
@@ -39,11 +39,11 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
   Math: {
     marker: 'MATH',
     archetypes: 'numeric,symbolic,proof,estimation,comparison',
-    diagrams: 'plot,scene,table,graph,cd,topology,isometric,mermaid(CS-style automata only)',
+    diagrams: 'plot,scene,table,graph(automata: start/accept),cd,topology,isometric',
     verify: 'alt,backsub,limit,dimensional',
     nodraw: 'purely symbolic algebra or a formal proof with no geometric/graph content',
     notation: 'radians; KaTeX aligned/cases/bmatrix not align; decimal matches the problem',
-    traps: 'degrees vs radians; dropped domain; two algebra moves in one step; proof that "plugs in"',
+    traps: 'degrees vs radians; dropped domain; fragmented line-by-line algebra; proof that "plugs in"',
   },
   Biology: {
     marker: 'BIOLOGY',
@@ -53,17 +53,17 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     verify: 'conservation,oom,units,alt',
     nodraw: 'definition-only vocab; naming a pathway already drawn',
     notation: 'gene vs protein italics/caps as in the problem; Punnett alleles exact',
-    traps: 'Punnett→table kind=punnett; pedigree≠flowchart; regulation: pointed activate, blunt inhibit; no mermaid Krebs; ecology energy flow: quantified source→trophic bands→loss/decomposer flows+legend, not only a web. It helps Ecosystem Energy Flow and Pyramids, Mineral Nutrition, and Biogeochemical Cycles.',
+    traps: 'Punnett→table kind=punnett; pedigree≠flowchart; regulation: pointed activate, blunt inhibit; ecology energy flow: quantified source→trophic bands→loss/decomposer flows+legend, not only a web. It helps Ecosystem Energy Flow and Pyramids, Mineral Nutrition, and Biogeochemical Cycles.',
   },
   CS: {
     marker: 'CS',
     archetypes: 'code,numeric,proof,design,comparison',
     diagrams:
-      'mermaid(flow|sequence|state),graph,table(dp),array,list,hash,gantt,stack,kmap,pipeline,datapath,timing,skiplist,ring',
+      'graph(flowchart: decision/terminal; state machine: start/accept),table(dp|message sequence),array,list,hash,gantt,stack,kmap,pipeline,datapath,timing,skiplist,ring',
     verify: 'alt,backsub,oom',
     nodraw: 'complexity-only with no state; a one-line identity',
-    notation: 'inline `code` NEVER a fence; quote mermaid labels; 0-index unless the problem is 1-index',
-    traps: 'off-by-one; mutating the input in the trace; mermaid for non-CS figures; quote every mermaid node label',
+    notation: 'inline `code` NEVER a fence; 0-index unless the problem is 1-index',
+    traps: 'off-by-one; mutating the input in the trace; a flowchart test without decision:; a state machine without start:',
   },
   Electrical: {
     marker: 'ELECTRICAL',
@@ -71,9 +71,9 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     diagrams:
       'circuit,hybridpi,opamp,phasor,plot,smith,tline,oneline,twoport,pwm,timing,xfmr,constel,eye,cmos,motor',
     verify: 'conservation,units,limit,alt,dimensional,backsub',
-    nodraw: 'unit conversion only; NEVER skip the circuit when components exist',
+    nodraw: 'unit conversion; pure algebra after a complete circuit is already shown and unchanged',
     notation: 'std: ieee or iec from locale; passive sign; rms vs peak stated once',
-    traps: 'omit RC on hybridpi; peak/rms mix; IEEE/IEC mix; Thevenin polarity; virtual short misuse',
+    traps: 'topology copied from appearance instead of node connectivity; missing/duplicate device; invented ground/port; omit RC on hybridpi; peak/rms mix; IEEE/IEC mix; Thevenin polarity; virtual short misuse',
   },
   Mechanical: {
     marker: 'MECHANICAL',
@@ -105,7 +105,7 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
   General: {
     marker: 'GENERAL',
     archetypes: 'numeric,conceptual,comparison,estimation',
-    diagrams: 'adopt the dominant subject row; mermaid for linear flows',
+    diagrams: 'adopt the dominant subject row; graph for linear flows',
     verify: 'units,oom,alt',
     nodraw: 'non-visual definition; refuse families',
     notation: 'match the problem language and unit system',

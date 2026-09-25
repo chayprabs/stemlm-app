@@ -1,6 +1,4 @@
-import { renderMermaid } from '@/src/lib/mermaid';
 import { extractSvg, sanitizeSvg } from '@/src/lib/sanitize';
-import type { ResolvedTheme } from '@/src/lib/theme';
 import type { Diagram } from './types';
 import { parse } from './parser';
 import { auditStepQuality } from './step-quality';
@@ -40,26 +38,19 @@ function svgParses(svg: string): boolean {
   return !doc.querySelector('parsererror') && doc.documentElement.tagName.toLowerCase() === 'svg';
 }
 
-export async function scoreRaw(raw: string, theme: ResolvedTheme = 'light'): Promise<RawScore> {
+export async function scoreRaw(raw: string): Promise<RawScore> {
   const result = parse(raw);
   const capsule = result.capsule;
   const diagrams = diagramsFromResult(raw);
 
   let svgValid: 0 | 1 | null = diagrams.some((d) => d.type === 'svg') ? 1 : null;
-  let mermaidValid: 0 | 1 | null = diagrams.some((d) => d.type === 'mermaid') ? 1 : null;
+  // Mermaid is no longer rendered, so any Mermaid diagram is an unusable figure.
+  const mermaidValid: 0 | null = diagrams.some((d) => d.type === 'mermaid') ? 0 : null;
 
   for (const diagram of diagrams) {
     if (diagram.type === 'svg') {
       const clean = sanitizeSvg(extractSvg(diagram.content));
       if (!svgParses(clean)) svgValid = 0;
-    } else if (diagram.type === 'mermaid') {
-      try {
-        const rendered = await renderMermaid(diagram.content, theme);
-        const clean = sanitizeSvg(extractSvg(rendered));
-        if (!svgParses(clean)) mermaidValid = 0;
-      } catch {
-        mermaidValid = 0;
-      }
     }
   }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { detectAdapter, adapterById, adapterForUrl, isSupportedChatUrl, supportedChatLabels, injectControlEnabled } from './detect';
 import { isImageGenPath, watchComposerRoute } from './routes';
 import { geminiAdapter } from './gemini';
@@ -47,10 +47,10 @@ describe('detectAdapter', () => {
     expect(detectAdapter('www.gemini.google.com')?.id).toBe('gemini');
   });
 
-  it('matches ChatGPT, Claude, and Grok by host', () => {
-    expect(detectAdapter('chatgpt.com')?.id).toBe('chatgpt');
-    expect(detectAdapter('www.chatgpt.com')?.id).toBe('chatgpt');
-    expect(detectAdapter('chat.openai.com')?.id).toBe('chatgpt');
+  it('rejects retired ChatGPT hosts and matches Claude and Grok', () => {
+    expect(detectAdapter('chatgpt.com')).toBeNull();
+    expect(detectAdapter('www.chatgpt.com')).toBeNull();
+    expect(detectAdapter('chat.openai.com')).toBeNull();
     expect(detectAdapter('claude.ai')?.id).toBe('claude');
     expect(detectAdapter('www.claude.ai')?.id).toBe('claude');
     expect(detectAdapter('grok.com')?.id).toBe('grok');
@@ -80,21 +80,21 @@ describe('detectAdapter', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
   });
 
-  it('docks ChatGPT and Grok outside the composer, Claude and Gemini beside the +', () => {
-    expect(adapterById('chatgpt')!.composerDock).toBe('outside-shell');
+  it('docks Grok outside the composer, Claude and Gemini beside the +, and omits ChatGPT', () => {
+    expect(adapterById('chatgpt')).toBeUndefined();
     expect(adapterById('grok')!.composerDock).toBe('outside-shell');
     expect(adapterById('gemini')!.composerDock).toBe('before-plus');
     expect(adapterById('claude')!.composerDock).toBe('before-plus');
   });
 
-  it('resolves adapters from page URLs and lists the four shipped hosts', () => {
+  it('resolves adapters from page URLs and lists the three shipped hosts', () => {
     expect(adapterForUrl('https://claude.ai/chat/abc')?.id).toBe('claude');
-    expect(adapterForUrl('https://chatgpt.com/c/abc')?.id).toBe('chatgpt');
-    expect(adapterForUrl('https://chat.openai.com/')?.id).toBe('chatgpt');
+    expect(adapterForUrl('https://chatgpt.com/c/abc')).toBeNull();
+    expect(adapterForUrl('https://chat.openai.com/')).toBeNull();
     expect(adapterForUrl('https://gemini.google.com/app')?.id).toBe('gemini');
     expect(adapterForUrl('https://grok.com/')?.id).toBe('grok');
     expect(isSupportedChatUrl('https://gemini.google.com/app/abc')).toBe(true);
-    expect(isSupportedChatUrl('https://chatgpt.com/c/1')).toBe(true);
+    expect(isSupportedChatUrl('https://chatgpt.com/c/1')).toBe(false);
     expect(isSupportedChatUrl('https://claude.ai/new')).toBe(true);
     expect(isSupportedChatUrl('https://grok.com/chat')).toBe(true);
     expect(isSupportedChatUrl('https://example.com')).toBe(false);
@@ -105,12 +105,17 @@ describe('detectAdapter', () => {
     expect(isSupportedChatUrl('https://chatgpt.com/sora/new')).toBe(false);
     expect(isSupportedChatUrl('https://gemini.google.com/imagen')).toBe(false);
     expect(isSupportedChatUrl('https://claude.ai/imagine')).toBe(false);
-    expect(isSupportedChatUrl('https://chatgpt.com/')).toBe(true);
+    expect(isSupportedChatUrl('https://chatgpt.com/')).toBe(false);
     expect(isSupportedChatUrl('https://claude.ai/chat/abc')).toBe(true);
     expect(isSupportedChatUrl('https://gemini.google.com/app')).toBe(true);
     expect(isSupportedChatUrl('https://grok.com/')).toBe(true);
-    expect(supportedChatLabels()).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
-    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/chatgpt\.com/);
+    expect(isSupportedChatUrl('https://evil.chatgpt.com/c/1')).toBe(false);
+    expect(isSupportedChatUrl('https://evil.claude.ai/chat/1')).toBe(false);
+    expect(isSupportedChatUrl('https://evil.gemini.google.com/app/1')).toBe(false);
+    expect(isSupportedChatUrl('https://evil.grok.com/chat/1')).toBe(false);
+    expect(adapterForUrl('https://evil.chatgpt.com/c/1')).toBeNull();
+    expect(supportedChatLabels()).toEqual(['Claude', 'Gemini', 'Grok']);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).not.toMatch(/chatgpt\.com|chat\.openai\.com/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/claude\.ai/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/gemini\.google\.com/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/grok\.com/);
@@ -123,7 +128,7 @@ describe('detectAdapter', () => {
     expect(injectControlEnabled('grok', '/')).toBe(true);
     expect(isImageGenPath('grok', '/imagine')).toBe(true);
     expect(isImageGenPath('chatgpt', '/c/abc')).toBe(false);
-    expect(injectControlEnabled('chatgpt', '/c/abc')).toBe(true);
+    expect(injectControlEnabled('chatgpt', '/c/abc')).toBe(false);
     expect(injectControlEnabled('chatgpt', '/images')).toBe(false);
     expect(injectControlEnabled('chatgpt', '/sora/new')).toBe(false);
     expect(injectControlEnabled('gemini', '/app')).toBe(true);
@@ -142,6 +147,26 @@ describe('detectAdapter', () => {
     expect(seen[seen.length - 1]).toBe('/chat');
     stop();
     window.history.replaceState({}, '', '/');
+  });
+
+  it('NAV-01 follows page navigations through the Navigation API, which reaches isolated worlds', async () => {
+    // A content script cannot see the page's own pushState calls; the Navigation
+    // API's entry-change event is shared with the page and fires for all of them.
+    vi.resetModules();
+    const navigation = new EventTarget();
+    Object.defineProperty(window, 'navigation', { configurable: true, value: navigation });
+    try {
+      const routes = await import('./routes');
+      const seen: string[] = [];
+      const stop = routes.watchComposerRoute(() => seen.push('change'));
+      navigation.dispatchEvent(new Event('currententrychange'));
+      expect(seen).toEqual(['change']);
+      stop();
+      navigation.dispatchEvent(new Event('currententrychange'));
+      expect(seen).toEqual(['change']);
+    } finally {
+      delete (window as Window & { navigation?: unknown }).navigation;
+    }
   });
 });
 

@@ -74,8 +74,10 @@ describe('shipped resolve entry launched twice', () => {
       expect(run.circuit.svg).toContain('RL');
     }
     expect(a.plot.overlays.length).toBe(b.plot.overlays.length);
-    expect(a.solenoid.svg.includes('μ_r=400')).toBe(true);
-    expect(b.solenoid.svg.includes('μ_r=400')).toBe(true);
+    const coreLabel = (svg: string) => [...new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('text')]
+      .map((text) => text.textContent ?? '').find((text) => text.includes('400'));
+    expect(coreLabel(a.solenoid.svg)).toBe('μr=400');
+    expect(coreLabel(b.solenoid.svg)).toBe('μr=400');
     expect((a.circuit.svg.match(/V1/g) ?? []).length).toBe((b.circuit.svg.match(/V1/g) ?? []).length);
     try {
       mkdirSync(SCRATCH, { recursive: true });

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import {
   getSettings,
@@ -29,11 +29,12 @@ import {
 } from '@/src/lib/popup-launch';
 import { isSupportedChatUrl } from '@/src/platforms/detect';
 import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
-import type { PlatformId } from '@/src/platforms/types';
 
 export default function App() {
   const [supported, setSupported] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const launchInFlight = useRef(false);
   const [stemlmEnabled, setStemlmEnabled] = useState(stemlmEnabledFromBootCache);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
 
@@ -91,13 +92,23 @@ export default function App() {
   }
 
   async function launchAndClose(run: () => Promise<LaunchResult>) {
+    if (launchInFlight.current) return;
+    launchInFlight.current = true;
+    setLaunching(true);
     setSendError(null);
-    const result = await run();
-    if (result.ok) {
-      window.close();
-      return;
+    try {
+      const result = await run();
+      if (result.ok) {
+        window.close();
+        return;
+      }
+      if ('error' in result && result.error) setSendError(result.error);
+    } catch {
+      setSendError('Could not finish this action. Please try again.');
+    } finally {
+      launchInFlight.current = false;
+      setLaunching(false);
     }
-    if ('error' in result && result.error) setSendError(result.error);
   }
 
   return (
@@ -112,6 +123,7 @@ export default function App() {
           data-launch="settings"
           aria-label="Settings"
           title="Settings"
+          disabled={launching}
           onClick={() => void launchAndClose(openSettingsOverlay)}
         >
           <IconSettings />
@@ -123,6 +135,8 @@ export default function App() {
           type="button"
           data-launch="open-study-panel"
           className="slm-popup-action is-primary"
+          disabled={launching}
+          aria-busy={launching}
           onClick={() => void launchAndClose(openStudyPanel)}
         >
           <span className="slm-popup-action-icon" aria-hidden="true">
@@ -154,6 +168,7 @@ export default function App() {
           type="button"
           data-launch="saved-questions"
           className="slm-popup-action"
+          disabled={launching}
           onClick={() => void launchAndClose(openSavedQuestionsLibrary)}
         >
           <span className="slm-popup-action-icon" aria-hidden="true">
@@ -162,7 +177,7 @@ export default function App() {
           Saved questions
         </button>
       </div>
-      {sendError && <p className="slm-popup-error">{sendError}</p>}
+      {sendError && <p className="slm-popup-error" role="alert">{sendError}</p>}
 
       <section className="slm-popup-hosts" aria-label="Open a supported chat">
         <p className="slm-popup-hosts-label">{supported ? 'Study on' : 'Open a chat'}</p>
@@ -175,6 +190,7 @@ export default function App() {
               className="slm-popup-host"
               title={host.label}
               aria-label={host.label}
+              disabled={launching}
               onClick={() => void launchAndClose(() => openChatHost(host.id))}
             >
               <span className="slm-popup-host-logo" aria-hidden="true">

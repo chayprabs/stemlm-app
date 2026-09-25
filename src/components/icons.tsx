@@ -67,6 +67,13 @@ export const IconClose = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+/** Lucide Maximize2 — enlarge a figure. */
+export const IconExpand = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+  </svg>
+);
+
 /** Lucide Trash2 — remove a saved question without looking like window close. */
 export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ strokeWidth: 1.75, ...p })}>
@@ -259,6 +266,12 @@ export const IconEye = (p: SVGProps<SVGSVGElement>) => (
 export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M5 12h14" />
   </svg>
 );
 

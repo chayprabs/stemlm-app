@@ -7,17 +7,18 @@ function escapeHtml(s: string): string {
 }
 
 /** Overlay source is always KaTeX-rendered or escaped text — never raw model innerHTML. */
-export function renderOverlayHtml(overlay: Overlay): string {
+export function renderOverlayHtml(overlay: Overlay, strict = false): string {
   if (overlay.kind === 'katex') {
     const tex = overlay.source.replace(/^\$+|\$+$/g, '').trim();
     try {
       return katex.renderToString(tex, {
-        throwOnError: false,
+        throwOnError: strict,
         output: 'htmlAndMathml',
         displayMode: false,
         trust: false,
       });
-    } catch {
+    } catch (error) {
+      if (strict) throw error;
       return escapeHtml(overlay.source);
     }
   }
@@ -48,8 +49,8 @@ export function overlayStyleAttr(
 }
 
 /**
- * PDF-only: percent of the viewBox so labels stay on the SVG after CSS
- * max-height shrinks it. Panel overlays keep pixel coords via overlayStyle.
+ * PDF labels use percentages of the viewBox so they follow the SVG frame.
+ * The panel uses the same anchors with its responsive display-size budget.
  */
 export function overlayPrintStyleAttr(
   overlay: Overlay,

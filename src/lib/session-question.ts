@@ -3,6 +3,7 @@
  */
 import type { Session } from '@/src/protocol/types';
 import { normalizeComposerText } from '@/src/lib/composer-text';
+import { STUDY_GUIDE_FILENAME, STUDY_GUIDE_REFERENCE } from './study-guide';
 
 /** Show the full question up to this length; above it, compress to a short line. */
 const FULL_QUESTION_MAX = 280;
@@ -39,6 +40,8 @@ function stripInjectedNoise(text: string): string {
     'stemLM follow-up context',
     'Follow the attached stemlm-protocol.txt',
     'stemlm-protocol.txt',
+    `Follow the attached ${STUDY_GUIDE_REFERENCE}`,
+    STUDY_GUIDE_FILENAME,
   ];
   let cut = text.length;
   for (const marker of markers) {

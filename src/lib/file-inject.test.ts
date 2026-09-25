@@ -10,8 +10,8 @@ import {
 
 describe('createTextFile', () => {
   it('builds a plain-text File with the given name', () => {
-    const file = createTextFile('hello', 'stemlm-protocol.txt');
-    expect(file.name).toBe('stemlm-protocol.txt');
+    const file = createTextFile('hello', 'stemLM Guide.txt');
+    expect(file.name).toBe('stemLM Guide.txt');
     expect(file.type).toBe('text/plain');
   });
 });
@@ -27,10 +27,10 @@ describe('assignFileToInput', () => {
     input.addEventListener('change', () => {
       changed = true;
     });
-    const file = createTextFile('protocol body', 'stemlm-protocol.txt');
+    const file = createTextFile('protocol body', 'stemLM Guide.txt');
     expect(assignFileToInput(input, file)).toBe(true);
     expect(input.files?.length).toBe(1);
-    expect(input.files?.[0]?.name).toBe('stemlm-protocol.txt');
+    expect(input.files?.[0]?.name).toBe('stemLM Guide.txt');
     expect(changed).toBe(true);
   });
 
@@ -38,11 +38,11 @@ describe('assignFileToInput', () => {
     const input = document.getElementById('f') as HTMLInputElement;
     const photo = new File(['img'], 'problem.png', { type: 'image/png' });
     expect(assignFileToInput(input, photo, { keepExisting: false })).toBe(true);
-    const proto = createTextFile('protocol body', 'stemlm-protocol.txt');
+    const proto = createTextFile('protocol body', 'stemLM Guide.txt');
     expect(assignFileToInput(input, proto, { keepExisting: true })).toBe(true);
     const names = Array.from(input.files ?? []).map((f) => f.name);
     expect(names).toContain('problem.png');
-    expect(names).toContain('stemlm-protocol.txt');
+    expect(names).toContain('stemLM Guide.txt');
   });
 });
 
@@ -115,7 +115,7 @@ describe('attachTextFile', () => {
     input.addEventListener('change', () => {
       const chip = document.createElement('div');
       chip.className = 'attachment-chip';
-      chip.textContent = 'stemlm-protocol.txt';
+      chip.textContent = 'stemLM Guide.txt';
       document.querySelector('images-files-uploader')!.appendChild(chip);
     });
 
@@ -131,7 +131,7 @@ describe('attachTextFile', () => {
   it('returns existing when the protocol chip is already present', async () => {
     document.body.innerHTML = `
       <images-files-uploader>
-        <div class="attachment-chip">stemlm-protocol.txt</div>
+        <div class="attachment-chip">stemLM Guide.txt</div>
       </images-files-uploader>
     `;
     const result = await attachTextFile('OUTPUT:\n@end');
@@ -145,7 +145,17 @@ describe('attachTextFile', () => {
       </images-files-uploader>
     `;
     expect(hasAnyAttachment()).toBe(true);
-    expect(hasNamedAttachment('stemlm-protocol.txt')).toBe(false);
+    expect(hasNamedAttachment('stemLM Guide.txt')).toBe(false);
+  });
+
+  it('confirms a named protocol attachment from the native FileList', () => {
+    document.body.innerHTML = '<input type="file" id="f" multiple />';
+    const input = document.getElementById('f') as HTMLInputElement;
+    const protocol = createTextFile('protocol body', 'stemLM Guide.txt');
+
+    expect(assignFileToInput(input, protocol, { keepExisting: false })).toBe(true);
+    expect(hasNamedAttachment('stemLM Guide.txt')).toBe(true);
+    expect(hasNamedAttachment('problem.png')).toBe(false);
   });
 
   it('adds the protocol beside a problem image already in the FileList', async () => {
@@ -159,10 +169,10 @@ describe('attachTextFile', () => {
     const photo = new File(['img'], 'problem.png', { type: 'image/png' });
     expect(assignFileToInput(input, photo, { keepExisting: false })).toBe(true);
     input.addEventListener('change', () => {
-      if (!hasNamedAttachment('stemlm-protocol.txt')) {
+      if (!hasNamedAttachment('stemLM Guide.txt')) {
         const chip = document.createElement('div');
         chip.className = 'attachment-chip';
-        chip.textContent = 'stemlm-protocol.txt';
+        chip.textContent = 'stemLM Guide.txt';
         document.querySelector('images-files-uploader')!.appendChild(chip);
       }
     });
@@ -177,7 +187,7 @@ describe('attachTextFile', () => {
     expect(result.method).toBe('input');
     const names = Array.from(input.files ?? []).map((f) => f.name);
     expect(names).toContain('problem.png');
-    expect(names).toContain('stemlm-protocol.txt');
+    expect(names).toContain('stemLM Guide.txt');
   });
 
   it('does not replace an existing image via the file input', async () => {
@@ -217,10 +227,10 @@ describe('attachTextFile', () => {
       plusClicked = true;
     });
     input.addEventListener('change', () => {
-      if (!hasNamedAttachment('stemlm-protocol.txt')) {
+      if (!hasNamedAttachment('stemLM Guide.txt')) {
         const chip = document.createElement('div');
         chip.className = 'attachment-chip';
-        chip.textContent = 'stemlm-protocol.txt';
+        chip.textContent = 'stemLM Guide.txt';
         document.querySelector('form')!.appendChild(chip);
       }
     });
@@ -236,7 +246,7 @@ describe('attachTextFile', () => {
     expect(plusClicked).toBe(false);
     const names = Array.from(input.files ?? []).map((f) => f.name);
     expect(names).toContain('problem.png');
-    expect(names).toContain('stemlm-protocol.txt');
+    expect(names).toContain('stemLM Guide.txt');
   });
 
   it('adds the protocol via drop beside an existing image', async () => {
@@ -250,7 +260,7 @@ describe('attachTextFile', () => {
     uploader.addEventListener('drop', () => {
       const chip = document.createElement('div');
       chip.className = 'attachment-chip';
-      chip.textContent = 'stemlm-protocol.txt';
+      chip.textContent = 'stemLM Guide.txt';
       uploader.appendChild(chip);
     });
     const result = await attachTextFile('OUTPUT:\n@end', {
@@ -259,7 +269,7 @@ describe('attachTextFile', () => {
     });
     expect(result.ok).toBe(true);
     expect(result.method).toBe('drop');
-    expect(hasNamedAttachment('stemlm-protocol.txt')).toBe(true);
+    expect(hasNamedAttachment('stemLM Guide.txt')).toBe(true);
     expect(uploader.textContent).toContain('problem.png');
   });
 });

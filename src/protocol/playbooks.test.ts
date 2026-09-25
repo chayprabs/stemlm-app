@@ -33,7 +33,7 @@ describe('subject registry', () => {
     expect(universal).toContain('NMR δ increases right-to-left');
     expect(universal).toContain('Fischer D/L ≠ R/S');
     expect(universal).toContain('Oh CFT t2g below eg');
-    expect(universal).toContain('quote every mermaid node label');
+    expect(universal).toContain('a flowchart test without decision:; a state machine without start:');
     expect(universal).not.toContain('type=punnett');
     for (const subject of SUBJECTS) {
       const row = SUBJECT_REGISTRY[subject];

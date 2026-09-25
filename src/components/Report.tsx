@@ -1,15 +1,15 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { Session, Diagram, Step } from '@/src/protocol/types';
-import { shouldShowFormulaBlock } from '@/src/lib/step-display';
+import { resolveStepWorkText, shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { MathMarkdown } from './MathMarkdown';
 import { BrandWordmark, StemMark, BRAND_SITE } from './brand';
 import { StepIndexMark } from './step-index';
-import { StepWork } from './StepWork';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { resolveSessionQuestion } from '@/src/lib/session-question';
 import type { Overlay } from '@/src/lib/figure/types';
 import { overlayPrintStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 
 export function diagramKey(scope: string, i: number, prefix = ''): string {
   return `${prefix}${scope}-${i}`;
@@ -23,16 +23,16 @@ export function entryPrefix(i: number): string {
 function ResolvedDiagram({
   svg,
   overlays,
-  fallback,
 }: {
   svg?: string;
   overlays?: Overlay[];
-  fallback?: string;
 }) {
-  if (svg) {
+  if (svg && svgMarkupHasGraphicShapes(svg)) {
     const vb = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1];
     return (
-      <div className="slm-report-diagram">
+      <div className="slm-step-diagram">
+        <span className="slm-step-diagram-label">Diagram</span>
+        <div className="slm-report-diagram">
         <div className="slm-diagram-frame">
           <div className="slm-diagram-svg" dangerouslySetInnerHTML={{ __html: svg }} />
           {(overlays ?? []).map((overlay) => (
@@ -45,12 +45,8 @@ function ResolvedDiagram({
             />
           ))}
         </div>
+        </div>
       </div>
-    );
-  }
-  if (fallback?.trim()) {
-    return (
-      <pre className="slm-report-diagram slm-report-diagram-fallback">{fallback.trim()}</pre>
     );
   }
   return null;
@@ -69,6 +65,15 @@ function cssToStyle(css: string): Record<string, string> {
   return out;
 }
 
+function splitFirstWorkBlock(work: string): [string, string] {
+  const separator = /\n\s*\n/.exec(work);
+  if (!separator || separator.index == null) return [work.trim(), ''];
+  return [
+    work.slice(0, separator.index).trim(),
+    work.slice(separator.index + separator[0].length).trim(),
+  ];
+}
+
 function ReportStep({
   step,
   diagramSvg,
@@ -80,31 +85,47 @@ function ReportStep({
   diagramOverlays: Record<string, Overlay[]>;
   prefix: string;
 }) {
+  const work = resolveStepWorkText(step);
+  const [firstWork, continuationWork] = work ? splitFirstWorkBlock(work) : ['', ''];
+
   return (
     <article className="slm-report-step">
-      <header className="slm-report-step-head">
-        <StepIndexMark n={step.index} />
-        <h3 className="slm-report-step-title">{step.title}</h3>
-      </header>
+      <div className="slm-report-step-intro">
+        <header className="slm-report-step-head">
+          <StepIndexMark n={step.index} />
+          <h3 className="slm-report-step-title"><MathMarkdown content={step.title} inline /></h3>
+        </header>
 
-      {shouldShowFormulaBlock(step) && step.formula && (
-        <div className="slm-formula">
-          <span className="slm-formula-label">Formula</span>
-          <MathMarkdown content={step.formula} mathMode="display" />
+        {shouldShowFormulaBlock(step) && step.formula && (
+          <div className="slm-formula">
+            <span className="slm-formula-label">Formula</span>
+            <MathMarkdown content={step.formula} mathMode="display" />
+          </div>
+        )}
+
+        {firstWork && (
+          <div className="slm-step-work slm-step-work--intro">
+            <span className="slm-step-work-label">Work</span>
+            <div className="slm-step-work-body slm-selectable">
+              <MathMarkdown content={firstWork} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {continuationWork && (
+        <div className="slm-step-work slm-step-work--continuation">
+          <div className="slm-step-work-body slm-selectable">
+            <MathMarkdown content={continuationWork} />
+          </div>
         </div>
       )}
 
-      <StepWork step={step} className="slm-step-work" />
-
       {step.diagram && (
-        <div className="slm-step-diagram">
-          <span className="slm-step-diagram-label">Diagram</span>
           <ResolvedDiagram
             svg={diagramSvg[diagramKey('step', step.index, prefix)]}
             overlays={diagramOverlays[diagramKey('step', step.index, prefix)]}
-            fallback={step.diagram.content}
           />
-        </div>
       )}
 
       {step.takeaway && (
@@ -148,7 +169,7 @@ export function ReportEntry({
     <section className="slm-report-entry">
       {heading && (showTopic || showSubject) && (
         <div className="slm-report-entry-head">
-          {showTopic && <h2 className="slm-report-topic">{meta.topic}</h2>}
+          {showTopic && <h2 className="slm-report-topic"><MathMarkdown content={meta.topic} inline /></h2>}
           {showSubject && <span className="slm-report-entry-subject">{meta.subject}</span>}
         </div>
       )}
@@ -179,17 +200,13 @@ export function ReportEntry({
               if (i % 2 === 1) {
                 const idx = Number(part);
                 if (!Number.isFinite(idx)) return <Fragment key={`d-${i}`} />;
-                const solDiagram = solutionDiagrams[idx];
-                return (
-                  <div key={`d-${i}`} className="slm-step-diagram">
-                    <span className="slm-step-diagram-label">Diagram</span>
+                return solutionDiagrams[idx] ? (
                     <ResolvedDiagram
+                      key={`d-${i}`}
                       svg={diagramSvg[diagramKey('sol', idx, prefix)]}
                       overlays={diagramOverlays[diagramKey('sol', idx, prefix)]}
-                      fallback={solDiagram?.content}
                     />
-                  </div>
-                );
+                ) : null;
               }
               return part.trim() ? (
                 <MathMarkdown key={`t-${i}`} content={part} />
@@ -206,7 +223,7 @@ export function ReportEntry({
   );
 }
 
-function ReportHead({ kicker, topic }: { kicker?: string; topic?: string }) {
+function ReportHead({ kicker, topic }: { kicker?: string; topic?: ReactNode }) {
   return (
     <header className="slm-report-head">
       <div className="slm-report-head-row">
@@ -255,7 +272,7 @@ export function Report({
     <div className="slm-report">
       <ReportHead
         kicker={showSubject ? meta.subject : undefined}
-        topic={showTopic ? meta.topic : undefined}
+        topic={showTopic ? <MathMarkdown content={meta.topic} inline /> : undefined}
       />
 
       <ReportEntry session={session} diagramSvg={diagramSvg} diagramOverlays={diagramOverlays} />
@@ -285,7 +302,7 @@ export function MergedReport({
 }) {
   return (
     <div className="slm-report slm-report--merged">
-      <ReportHead kicker={mergedReportKicker(sessions.length)} />
+      <ReportHead kicker={mergedReportKicker(sessions.length)} topic="Study questions" />
 
       {sessions.map((session, i) => (
         <ReportEntry

@@ -194,6 +194,9 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
         view="steps"
         theme="light"
         saved={false}
+        contentScale={2}
+        contentScaleBusy={false}
+        onChangeContentScale={() => {}}
         onSetView={() => {}}
         onToggleTheme={() => {}}
         onToggleSave={() => {}}

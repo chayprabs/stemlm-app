@@ -14,7 +14,11 @@ import {
 } from '@/src/lib/session-sync';
 import type { Settings } from '@/src/lib/settings';
 
+let shareSyncGeneration = 0;
+
 export function applyLiveSettings(next: Settings, prev: Settings = useStore.getState().settings): void {
+  const sharingChanged = next.shareAcrossTabs !== prev.shareAcrossTabs;
+  const generation = sharingChanged ? ++shareSyncGeneration : shareSyncGeneration;
   useStore.getState().setSettings(next);
   useStore.getState().setTheme(resolveTheme(next.theme));
 
@@ -26,6 +30,10 @@ export function applyLiveSettings(next: Settings, prev: Settings = useStore.getS
   if (next.shareAcrossTabs && !prev.shareAcrossTabs) {
     // Merge with whatever other tabs already mirrored — never clobber it.
     void loadMirroredSessions().then((shared) => {
+      if (
+        generation !== shareSyncGeneration ||
+        !useStore.getState().settings.shareAcrossTabs
+      ) return;
       const local = useStore.getState().sessions;
       const merged = mergeMirroredSessions(local, shared);
       if (sessionsMirrorFingerprint(merged) !== sessionsMirrorFingerprint(local)) {
@@ -34,6 +42,8 @@ export function applyLiveSettings(next: Settings, prev: Settings = useStore.getS
       if (merged.length) void mirrorActiveSessions(merged);
     });
   } else if (!next.shareAcrossTabs && prev.shareAcrossTabs) {
+    // Invalidate any in-flight enable/load continuation before clearing the
+    // mirror, so opting out cannot be undone by stale async work.
     void mirrorActiveSessions([]);
   }
 }

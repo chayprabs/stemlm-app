@@ -29,8 +29,6 @@ import { join, resolve as resolvePath } from 'node:path';
 register('./alias-hook.mjs', import.meta.url);
 register('./raw-hook.mjs', import.meta.url);
 // 2) Shim the analytics build-time globals (no telemetry in the harness).
-globalThis.__GA_MEASUREMENT_ID__ = '';
-globalThis.__GA_API_SECRET__ = '';
 
 const ROOT = resolvePath(process.cwd());
 

@@ -16,6 +16,7 @@
 import {
   CONTENT_HEIGHT_PX,
   CONTENT_WIDTH_PX,
+  MAX_PAGES,
   chunkPages,
   pagesPerChunk,
   planPages,
@@ -26,6 +27,7 @@ import {
 
 /** 2× ≈ 192 dpi against the 96 dpi CSS grid — crisp text at a sane file size. */
 export const RENDER_SCALE = 2;
+export const MAX_RENDER_HEIGHT_PX = MAX_PAGES * CONTENT_HEIGHT_PX;
 
 /** Marks the render document so screen decoration (card, shadow, grey mat) is off. */
 export const RENDER_CLASS = 'slm-pdf-render';
@@ -40,6 +42,7 @@ const ATOMIC_SELECTOR = [
   '.katex-display',
   '.slm-report-head',
   '.slm-report-entry-head',
+  '.slm-report-step-intro',
   'table',
   'pre',
   'blockquote',
@@ -215,10 +218,45 @@ async function settle(doc: Document, win: Window): Promise<void> {
   void doc.documentElement.offsetHeight;
 }
 
+/** html2canvas measures fonts in its global document, outside the report iframe. */
+function prepareCaptureFontMetrics(source: Document): () => void {
+  // Its private baseline probe is a hidden nowrap div containing this exact
+  // one-pixel GIF. Host resets such as img{display:block} turn it into a second
+  // line and shift every drawn glyph. Normalize only this probe, never host images.
+  const probe = 'body > div[style*="visibility: hidden"][style*="white-space: nowrap"]:has(> img[width="1"][height="1"][src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"])';
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`
+    ${probe} { position: static !important; display: block !important; line-height: normal !important; letter-spacing: normal !important; text-transform: none !important; }
+    ${probe} > span { display: inline !important; position: static !important; float: none !important; line-height: normal !important; border: 0 !important; }
+    ${probe} > img { display: inline !important; position: static !important; float: none !important; width: 1px !important; height: 1px !important; min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important; border: 0 !important; }
+  `);
+  // The host may not contain KaTeX at all, or may keep its fonts in a shadow
+  // root. Share the report's already-loaded faces so canvas uses the same glyphs.
+  const addedFaces: FontFace[] = [];
+  const cleanup = () => {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((candidate) => candidate !== sheet);
+    for (const face of addedFaces) document.fonts.delete(face);
+  };
+  try {
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    source.fonts.forEach((face) => {
+      if (face.status === 'loaded' && !document.fonts.has(face)) {
+        document.fonts.add(face);
+        addedFaces.push(face);
+      }
+    });
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  return cleanup;
+}
+
 export interface Measurement {
   totalHeight: number;
   candidates: number[];
   forbidden: Range[];
+  textNodesTruncated: boolean;
 }
 
 /** Line boxes and block edges, relative to the top of the report column. */
@@ -234,7 +272,7 @@ export function measureBreaks(root: HTMLElement): Measurement {
   for (const el of root.querySelectorAll<HTMLElement>(ATOMIC_SELECTOR)) {
     const rect = el.getBoundingClientRect();
     if (rect.height <= 0) continue;
-    forbidden.push([rel(rect.top), rel(rect.bottom)]);
+    if (rect.height <= CONTENT_HEIGHT_PX) forbidden.push([rel(rect.top), rel(rect.bottom)]);
     candidates.push(rel(rect.top), rel(rect.bottom));
   }
 
@@ -242,6 +280,21 @@ export function measureBreaks(root: HTMLElement): Measurement {
     const rect = el.getBoundingClientRect();
     if (rect.height <= 0) continue;
     forbidden.push([rel(rect.top), rel(rect.bottom) + KEEP_AHEAD_PX]);
+  }
+
+  // Keep each step heading, formula, and first work block together, but do not
+  // make continuation paragraphs or the entire long step atomic.
+  for (const step of root.querySelectorAll<HTMLElement>('.slm-report-step')) {
+    const head = step.querySelector<HTMLElement>('.slm-report-step-head');
+    const body = step.querySelector<HTMLElement>('.slm-step-work-body .slm-prose');
+    const firstWork = body?.firstElementChild instanceof HTMLElement ? body.firstElementChild : body;
+    if (!head || !firstWork) continue;
+    const headRect = head.getBoundingClientRect();
+    const workRect = firstWork.getBoundingClientRect();
+    if (headRect.height <= 0 || workRect.height <= 0) continue;
+    const start = rel(headRect.top);
+    const end = Math.max(rel(headRect.bottom), rel(workRect.top) + Math.min(workRect.height, KEEP_AHEAD_PX));
+    if (end > start + 0.5) forbidden.push([start, end]);
   }
 
   const foot = root.querySelector<HTMLElement>('.slm-report-foot');
@@ -256,23 +309,41 @@ export function measureBreaks(root: HTMLElement): Measurement {
     candidates.push(rel(rect.top), rel(rect.bottom));
   }
 
+  // SVG text ranges can differ from the ink bounds used when the SVG is
+  // rasterised. Keep the measured labels (including math overlays) together
+  // when a tall figure spans pages, with room for pixel rounding at each edge.
+  for (const label of root.querySelectorAll('.slm-diagram-svg svg text, .slm-diagram-overlay')) {
+    const rect = label.getBoundingClientRect();
+    if (rect.height <= 0 || rect.height + 4 > CONTENT_HEIGHT_PX) continue;
+    const top = Math.max(0, rel(rect.top) - 2);
+    const bottom = Math.min(totalHeight, rel(rect.bottom) + 2);
+    forbidden.push([top, bottom]);
+    candidates.push(top, bottom);
+  }
+
   const doc = root.ownerDocument;
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const range = doc.createRange();
   let seen = 0;
-  for (let node = walker.nextNode(); node && seen < MAX_TEXT_NODES; node = walker.nextNode()) {
+  let textNodesTruncated = false;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.nodeValue?.trim()) continue;
+    if (seen >= MAX_TEXT_NODES) {
+      textNodesTruncated = true;
+      break;
+    }
     // KaTeX keeps a clipped MathML copy of every formula; its boxes are not lines.
     if ((node.parentElement as HTMLElement | null)?.closest('.katex-mathml')) continue;
     seen += 1;
     range.selectNodeContents(node);
     for (const rect of Array.from(range.getClientRects())) {
       if (rect.height <= 0) continue;
+      if (rect.height <= CONTENT_HEIGHT_PX) forbidden.push([rel(rect.top), rel(rect.bottom)]);
       candidates.push(rel(rect.bottom));
     }
   }
 
-  return { totalHeight, candidates, forbidden };
+  return { totalHeight, candidates, forbidden, textNodesTruncated };
 }
 
 /** Cheap all-white detector so a broken capture is reported instead of shipped. */
@@ -342,15 +413,33 @@ export async function renderHtmlToPageImages(
   html: string,
   options: RenderOptions = {},
 ): Promise<RenderedPage[]> {
+  if (html.length > 2_000_000) throw new Error('report HTML exceeds the export limit');
   const scale = options.scale ?? RENDER_SCALE;
   const html2canvas = await loadHtml2Canvas();
   const frame = openFrame(html);
+  let cleanupFontMetrics: (() => void) | undefined;
 
   try {
     await settle(frame.doc, frame.win);
+    // KaTeX positions stretchy SVGs against inline layout. Freeze the measured
+    // local geometry before html2canvas clones it into a different document.
+    for (const svg of frame.root.querySelectorAll<SVGSVGElement>('.katex svg')) {
+      const parent = svg.parentElement;
+      if (!parent) continue;
+      const bounds = svg.getBoundingClientRect();
+      const anchor = parent.getBoundingClientRect();
+      parent.style.position = 'relative';
+      svg.style.left = `${bounds.left - anchor.left}px`;
+      svg.style.top = `${bounds.top - anchor.top}px`;
+      svg.style.width = `${bounds.width}px`;
+      svg.style.height = `${bounds.height}px`;
+    }
+    cleanupFontMetrics = prepareCaptureFontMetrics(frame.doc);
 
-    const { totalHeight, candidates, forbidden } = measureBreaks(frame.root);
+    const { totalHeight, candidates, forbidden, textNodesTruncated } = measureBreaks(frame.root);
+    if (textNodesTruncated) throw new Error('report text exceeds the export limit');
     if (!(totalHeight > 0)) throw new BlankRenderError();
+    if (totalHeight > MAX_RENDER_HEIGHT_PX) throw new Error('report exceeds the maximum page count');
 
     // Give the frame the full column so html2canvas' clone never scrolls.
     frame.iframe.style.setProperty(
@@ -415,6 +504,7 @@ export async function renderHtmlToPageImages(
     if (rendered.length === 0) throw new BlankRenderError();
     return rendered;
   } finally {
+    cleanupFontMetrics?.();
     frame.iframe.remove();
   }
 }

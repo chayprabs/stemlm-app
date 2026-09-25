@@ -1,5 +1,5 @@
 import type { CompileCtx, CompileResult } from '../types';
-import { specGet, specGetAll, type SpecDoc } from '../spec';
+import { specGet, specGetAll, unconsumedDeclarations, type SpecDoc } from '../spec';
 import { compileHybridPi, compileMosPi, compileOpamp } from './hybridpi';
 import {
   compileNewman,
@@ -200,13 +200,20 @@ const TABLE: Record<string, LeftoverFn> = {
 };
 
 export function leftoverRegistered(type: string): boolean {
-  return type in TABLE;
+  return Object.prototype.hasOwnProperty.call(TABLE, type);
 }
 
 export async function compileLeftover(type: string, spec: SpecDoc, ctx: CompileCtx): Promise<CompileResult> {
-  const fn = TABLE[type];
+  const fn = Object.prototype.hasOwnProperty.call(TABLE, type) ? TABLE[type] : undefined;
+  // This internal compatibility helper is not exposed by the catalog dispatcher.
   if (!fn) return compileGeneric(type, spec, ctx);
-  return fn(spec, ctx);
+  // Caption is compatibility metadata; highlights are consumed by SceneBuilder.
+  const checked = { ...spec, consumed: new Map([['caption', 1], ['highlight', 1]]) };
+  const result = await fn(checked, ctx);
+  if (!result.ok) return result;
+  const unused = unconsumedDeclarations(checked);
+  if (unused.length) return { ok: false, code: 'malformed', reason: `unconsumed declaration: ${unused.join(', ')}` };
+  return result;
 }
 
 export { TABLE as LEFTOVER_TABLE };

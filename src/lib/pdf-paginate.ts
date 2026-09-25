@@ -113,9 +113,10 @@ function largestBelow(sorted: readonly number[], limit: number, floor: number): 
  * fresh page. A block taller than one page still has to be split.
  */
 function hardCut(limit: number, top: number, forbidden: readonly Range[]): number {
+  if (forbidden.some(([start, end]) => start <= top + EPS && end > limit + EPS)) return limit;
   let cut = limit;
-  for (const [start] of forbidden) {
-    if (limit > start + EPS && start > top + EPS && start < cut) cut = start;
+  for (const [start, end] of forbidden) {
+    if (limit > start + EPS && limit < end - EPS && start > top + EPS && start < cut) cut = start;
   }
   return cut;
 }

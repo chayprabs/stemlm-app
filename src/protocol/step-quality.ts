@@ -52,9 +52,25 @@ const SYMBOL_CONTEXT =
 
 const NUMERIC_WORK = /\d/;
 
+const UNIT_EVIDENCE =
+  /\bunits?\b|\\(?:text|mathrm|operatorname)\{[^}\n]{1,20}\}|\\(?:Omega|ohm)\b|(?:\d|\})\s*(?:[kMGTmunpμµ]?\s*(?:Ω|ohm|V|A|F|H|W|J|N|Pa|Hz|s|m|kg|mol|K|C|rad|deg|°))\b/i;
+const SIGN_SENSITIVE_WORK =
+  /sign convention|polarity|reference (?:direction|node|current|voltage)|direction|positive|negative|clockwise|counterclockwise|reactance|phase|net difference|subtract|opposite|\+\/-|±|−/i;
+const SIGN_SUBJECTS = new Set<Subject>([
+  'Physics',
+  'Electrical',
+  'Mechanical',
+  'Civil',
+  'Chemical',
+]);
+
 function bodyShowsNumericWork(body: string): boolean {
   if (!NUMERIC_WORK.test(body)) return false;
   return /=|≈|~|\\approx|\\times|\\cdot|\\frac|\\angle/.test(body);
+}
+
+function bodyHasUnitEvidence(body: string): boolean {
+  return UNIT_EVIDENCE.test(body);
 }
 
 const DIAGNOSTIC_BODY_PATTERNS = [
@@ -220,6 +236,24 @@ export function auditStepQuality(
     issues.push('step_missing_substitution');
   }
 
+  // Numeric/lab work is not complete when the arithmetic strips the quantity's
+  // dimensions. Sign checks stay subject-aware and only apply where the text
+  // actually describes signed/directional work; proofs and symbolic identities
+  // remain intentionally exempt.
+  if (needsPlugIn && hasSubstitution && !bodyHasUnitEvidence(body)) {
+    issues.push('step_missing_units');
+  }
+  if (
+    needsPlugIn &&
+    hasSubstitution &&
+    opt?.subject &&
+    SIGN_SUBJECTS.has(opt.subject) &&
+    SIGN_SENSITIVE_WORK.test(`${step.title}\n${body}\n${formula}`) &&
+    !/sign convention|positive|negative|direction|polarity|reference/i.test(body)
+  ) {
+    issues.push('step_missing_sign_convention');
+  }
+
   const symbolicLaw =
     !formulaWorked &&
     formulaIntroducesSymbols(formula) &&
@@ -243,6 +277,10 @@ export function stepQualityMessage(code: ParseWarningCode, step: Step): string {
       return `Step ${step.index} ("${title}") needs numeric substitution in @body (plug in givens and compute).`;
     case 'step_missing_symbol_defs':
       return `Step ${step.index} ("${title}") introduces symbols in @formula without defining them in @body.`;
+    case 'step_missing_units':
+      return `Step ${step.index} ("${title}") needs units carried through the numeric calculation.`;
+    case 'step_missing_sign_convention':
+      return `Step ${step.index} ("${title}") needs the signed quantity's reference direction or polarity.`;
     case 'missing_archetype':
       return `Capsule omitted archetype:; inferred a non-numeric grammar for step ${step.index} ("${title}").`;
     default:

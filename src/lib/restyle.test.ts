@@ -26,7 +26,6 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
   const wxt = read('wxt.config.ts');
   const contentScript = read('entrypoints/content/index.ts');
   const hosts = read('src/platforms/hosts.ts');
-  const mermaid = read('src/lib/mermaid.ts');
   const svgPresent = read('src/lib/svg-present.ts');
   const emit = read('src/lib/figure/emit.ts');
   const composer = read('src/lib/composer-slot.ts');
@@ -40,7 +39,6 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     popupHtml,
     optionsHtml,
     savedPdfHtml,
-    mermaid,
     svgPresent,
     emit,
     composer,
@@ -69,7 +67,6 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(svgPresent).toContain('FONT_SANS_SVG');
     expect(emit).toContain('FONT_SANS_SVG');
     expect(composer).toContain('FONT_SANS');
-    expect(mermaid).toContain('FONT_SANS');
   });
 
   it('ships dark canvas #151515, canvas-family formula wells, body text #ededed, theme ≤180ms', () => {
@@ -203,15 +200,14 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(emptyState).toContain('Load conversation from this chat');
     expect(emptyState).not.toContain('beside send');
     expect(emptyState).not.toContain('Open Gemini');
-    expect(wxt).toContain('*://chatgpt.com/*');
-    expect(wxt).toContain('*://chat.openai.com/*');
-    expect(wxt).toContain('*://claude.ai/*');
-    expect(wxt).toContain('*://gemini.google.com/*');
-    expect(wxt).toContain('*://grok.com/*');
-    expect(hosts).toContain('*://chatgpt.com/*');
-    expect(hosts).toContain('*://claude.ai/*');
-    expect(hosts).toContain('*://gemini.google.com/*');
-    expect(hosts).toContain('*://grok.com/*');
+    for (const source of [wxt, hosts]) {
+      expect(source).not.toContain('*://');
+      expect(source).not.toContain('https://chatgpt.com/*');
+      expect(source).not.toContain('https://chat.openai.com/*');
+      expect(source).toContain('https://claude.ai/*');
+      expect(source).toContain('https://gemini.google.com/*');
+      expect(source).toContain('https://grok.com/*');
+    }
     expect(contentScript).toContain('CHAT_CONTENT_MATCHES');
     expect(contentScript).toContain("@/src/platforms/hosts");
   });

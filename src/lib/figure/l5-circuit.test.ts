@@ -107,6 +107,39 @@ describe('L5 circuit fidelity', () => {
     }
   });
 
+  it('routes reversed directional terminals to the matching glyph sides', async () => {
+    for (const [id, declaration] of [
+      ['V1', 'V1: mid left'],
+      ['D1', 'D1: mid left'],
+      ['I1', 'I1: mid left'],
+    ] as const) {
+      const content = ['std: ieee', declaration, 'R1: left mid', 'R2: mid 0'].join('\n');
+      const result = await compileDiagramSpec({ type: 'circuit', content }, 'step');
+      expect(result.ok, `${id} should remain a valid circuit`).toBe(true);
+      if (!result.ok) continue;
+
+      const body = result.scene.strokes.find((stroke) => stroke.id === id || stroke.id === `${id}-body`);
+      expect(body, `${id} glyph body is missing`).toBeDefined();
+      const bodyXs = body?.kind === 'circle'
+        ? [body.points[0]!]
+        : (body?.points.filter((_, index) => index % 2 === 0) ?? []);
+      const centerX = (Math.min(...bodyXs) + Math.max(...bodyXs)) / 2;
+      const n1 = result.scene.strokes.find((stroke) => stroke.id === `${id}-n1`);
+      const n2 = result.scene.strokes.find((stroke) => stroke.id === `${id}-n2`);
+      expect(n1?.points.slice(-2)[0], `${id} n1 terminal side`).toBeGreaterThan(centerX);
+      expect(n2?.points.slice(-2)[0], `${id} n2 terminal side`).toBeLessThan(centerX);
+    }
+  });
+
+  it('fails closed when a wire references an undeclared endpoint', async () => {
+    const result = await compileDiagramSpec(
+      { type: 'circuit', content: 'std: ieee\nR1: a b 1k\nwire: a mystery' },
+      'step',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/wire|mystery|endpoint/i);
+  });
+
   it('keeps both members of every designator/value pair in readable grouped slots', async () => {
     const content = [
       'std: ieee',
@@ -198,6 +231,33 @@ describe('L5 circuit fidelity', () => {
     expect(result.scene.labels.some((label) => label.id === 'V1-polarity')).toBe(false);
   });
 
+  it('renders a declared closed switch as a closed contact instead of an open glyph', async () => {
+    const result = await compileDiagramSpec({ type: 'circuit', content: 'std: ieee\nS1: a b closed\nR1: b 0 1k' }, 'step');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const blade = result.scene.strokes.find((stroke) => stroke.id === 'S1-blade');
+    const rightContact = result.scene.strokes.find((stroke) => stroke.id === 'S1-right');
+    expect(blade?.kind).toBe('line');
+    expect(rightContact?.kind).toBe('line');
+    expect(blade?.points.slice(-2)).toEqual(rightContact?.points.slice(0, 2));
+  });
+
+  it('preserves the supported open switch glyph', async () => {
+    const result = await compileDiagramSpec({ type: 'circuit', content: 'std: ieee\nS1: a b open\nR1: b 0 1k' }, 'step');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const blade = result.scene.strokes.find((stroke) => stroke.id === 'S1-blade');
+    const rightContact = result.scene.strokes.find((stroke) => stroke.id === 'S1-right');
+    expect(blade?.points[blade.points.length - 1]).not.toBe(rightContact?.points[1]);
+  });
+
+  it('fails closed for a declared diode variant without a faithful glyph', async () => {
+    const result = await compileDiagramSpec({ type: 'circuit', content: 'std: ieee\nD1: a b zener\nR1: b 0 1k' }, 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('malformed');
+    if (!result.ok) expect(result.reason).toMatch(/diode|zener|unsupported/i);
+  });
+
   it('routes an amplifier output terminal to the triangle tip', async () => {
     const result = await compileDiagramSpec(
       { type: 'circuit', content: 'std: ieee\nA1: in_plus in_minus out amp' },
@@ -254,6 +314,18 @@ describe('L5 circuit fidelity', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/cyclic|cycle|rank/i);
+  });
+
+  it.each([
+    ['empty-wire', 'std: ieee\nR1: a b 1k\nwire:'],
+    ['duplicate-wire', 'std: ieee\nR1: a b 1k\nwire: a b\nwire: a b'],
+    ['duplicate-port', 'std: ieee\nR1: a b 1k\nport: a input\nport: a input'],
+    ['empty-port-mixed', 'std: ieee\nR1: a b 1k\nport: a input\nport:'],
+    ['empty-label-mixed', 'std: ieee\nR1: a b 1k\nlabel: R1=resistor\nlabel:'],
+  ])('fails closed for %s instead of dropping or duplicating a declaration', async (_name, content) => {
+    const result = await compileDiagramSpec({ type: 'circuit', content }, 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/empty|duplicate|wire|port|label/i);
   });
 
 });

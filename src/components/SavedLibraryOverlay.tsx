@@ -3,6 +3,7 @@ import { SavedSessionList } from './SavedSessionList';
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
 import { SAVED_QUESTIONS_LABEL } from '@/src/lib/saved-library';
+import { useDialogFocus } from './use-dialog-focus';
 import { getSavedSessions, type SavedSessionSnapshot } from '@/src/lib/saved-sessions';
 import { getSettings } from '@/src/lib/settings';
 import {
@@ -39,6 +40,7 @@ export function SavedLibraryOverlay({
 }) {
   const [items, setItems] = useState<SavedSessionSnapshot[]>(sessions ?? []);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
+  const dialogRef = useDialogFocus<HTMLDivElement>();
 
   useEffect(() => {
     if (sessions) {
@@ -87,7 +89,14 @@ export function SavedLibraryOverlay({
           onClick={onClose}
         />
       )}
-      <div className="slm-library-dialog" role="dialog" aria-modal="true" aria-labelledby="slm-library-title">
+      <div
+        ref={dialogRef}
+        className="slm-library-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slm-library-title"
+        tabIndex={-1}
+      >
         <div className="slm-library-frame">
           <div className="slm-library-dialog-head">
             <h2 id="slm-library-title" className="slm-library-dialog-title">

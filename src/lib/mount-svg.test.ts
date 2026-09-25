@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import * as sanitizer from './sanitize';
 import { mountSvgMarkup, svgMarkupHasGraphicShapes } from './mount-svg';
 import { resolveDiagramSvg } from './resolve-diagram';
 
@@ -22,6 +23,22 @@ const THEVENIN_Z = `<svg viewBox="0 0 300 150">
 </svg>`;
 
 describe('svgMarkupHasGraphicShapes', () => {
+  it('SEC-01 sanitizes malformed untrusted markup before checking its shapes', () => {
+    const clean = vi.spyOn(sanitizer, 'sanitizeSvg');
+    try {
+      svgMarkupHasGraphicShapes('<svg onload="window.__hit=1"><rect onclick="window.__hit=1"/><img src=x onerror="window.__hit=1"></svg>');
+      expect(clean).toHaveBeenCalled();
+      const markup = clean.mock.results[0]!.value as string;
+      const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+      for (const element of doc.querySelectorAll('*')) {
+        expect(element.getAttributeNames().filter((name) => /^on/i.test(name))).toEqual([]);
+      }
+      expect(markup).not.toContain('<img');
+    } finally {
+      clean.mockRestore();
+    }
+  });
+
   it('requires shape primitives, not labels alone', () => {
     const labelsOnly =
       '<svg viewBox="0 0 100 40"><text x="1" y="10">Port 2 (+) Z_3</text></svg>';

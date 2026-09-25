@@ -9,6 +9,7 @@ import {
   lookupFamily,
 } from './catalog';
 import { parseSpec } from './spec';
+import { compileLeftover } from './leftovers';
 
 export async function compileDiagramSpec(
   diagram: Diagram,
@@ -27,16 +28,22 @@ export async function compileDiagramSpec(
     return { ok: false, code: 'unknown', reason: `unknown_diagram_type:${family}` };
   }
 
-  const spec = parseSpec(family, diagram.content);
-  const missing = familyRequiredMissing(family, diagram.content);
-  if (missing.length) {
-    return { ok: false, code: 'malformed', reason: `missing ${missing.join(', ')}` };
-  }
-
-  const def = lookupFamily(family);
-  const engine = def?.engine ?? family;
-
   try {
+    const spec = parseSpec(family, diagram.content);
+    if (spec.invalidDeclarations.length) {
+      return { ok: false, code: 'malformed', reason: 'spec declaration needs key: value or an indented list item' };
+    }
+    if (spec.emptyDeclarations.size) {
+      return { ok: false, code: 'malformed', reason: `empty declaration: ${[...spec.emptyDeclarations.keys()].join(', ')}` };
+    }
+    const missing = familyRequiredMissing(family, diagram.content);
+    if (missing.length) {
+      return { ok: false, code: 'malformed', reason: `missing ${missing.join(', ')}` };
+    }
+
+    const def = lookupFamily(family);
+    const engine = def?.engine ?? family;
+
     if (engine === 'plot') {
       const { compilePlot } = await import('./engines/plot');
       return compilePlot(spec, ctx);
@@ -57,7 +64,6 @@ export async function compileDiagramSpec(
       const { compileCircuit } = await import('./engines/circuit');
       return compileCircuit(spec, ctx);
     }
-    const { compileLeftover } = await import('./leftovers');
     return compileLeftover(family, spec, ctx);
   } catch (e) {
     return { ok: false, code: 'throw', reason: e instanceof Error ? e.message : 'compile failed' };

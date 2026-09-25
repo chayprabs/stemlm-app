@@ -107,6 +107,7 @@ function isNoReceiverError(err: unknown): boolean {
 export interface StemLmDeliveryResult {
   ok?: boolean;
   loaded?: number;
+  error?: string;
 }
 
 async function sendStemLmMessage(
@@ -114,10 +115,12 @@ async function sendStemLmMessage(
   message: StemLmMessage,
 ): Promise<StemLmDeliveryResult> {
   const res = await browser.tabs.sendMessage(tabId, message);
-  if (res && typeof res === 'object' && (res as { ok?: boolean }).ok === false) {
-    throw new Error('content script rejected message');
+  if (!res || typeof res !== 'object' || typeof (res as StemLmDeliveryResult).ok !== 'boolean') {
+    throw new Error('content-script-no-acknowledgement');
   }
-  return (res as StemLmDeliveryResult) ?? { ok: true };
+  const result = res as StemLmDeliveryResult;
+  if (!result.ok) throw new Error(result.error || 'content script rejected message');
+  return result;
 }
 
 async function waitForContentScript(tabId: number, timeoutMs = 15000): Promise<boolean> {
@@ -125,13 +128,39 @@ async function waitForContentScript(tabId: number, timeoutMs = 15000): Promise<b
   while (Date.now() < deadline) {
     try {
       const res = await sendStemLmMessage(tabId, { type: 'stemlm:ping' });
-      if (res.ok !== false) return true;
+      if (res.ok === true) return true;
     } catch (err) {
-      if (!isNoReceiverError(err)) throw err;
+      if (!isNoReceiverError(err) && !(err instanceof Error && err.message === 'content-script-starting')) throw err;
     }
     await new Promise((r) => setTimeout(r, 200));
   }
   return false;
+}
+
+async function assertChatUrl(tabId: number, expectedUrl?: string): Promise<void> {
+  if (!expectedUrl) return;
+  const tab = await browser.tabs.get(tabId);
+  if (tab.url !== expectedUrl) throw new Error('content-chat-changed');
+}
+
+/** A starting receiver has not accepted the action; only ping until it is ready. */
+async function sendWhenReady(
+  tabId: number,
+  type: DeliverableStemLmMessage,
+  expectedUrl?: string,
+): Promise<StemLmDeliveryResult> {
+  const deadline = Date.now() + 25_000;
+  while (Date.now() < deadline) {
+    await assertChatUrl(tabId, expectedUrl);
+    try {
+      return await sendStemLmMessage(tabId, { type });
+    } catch (err) {
+      if (!(err instanceof Error && err.message === 'content-script-starting')) throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    if (!await waitForContentScript(tabId, Math.max(0, deadline - Date.now()))) break;
+  }
+  throw new Error('content-script-timeout');
 }
 
 async function waitForPanelActionResult(
@@ -163,15 +192,15 @@ function asPendingType(type: DeliverableStemLmMessage): PendingPanelAction['type
 export async function deliverStemLmMessageToTab(
   tabId: number,
   type: DeliverableStemLmMessage,
-  opt?: { reloadIfMissing?: boolean },
+  opt?: { reloadIfMissing?: boolean; queueIfMissing?: boolean; expectedUrl?: string },
 ): Promise<StemLmDeliveryResult> {
   try {
-    return await sendStemLmMessage(tabId, { type });
+    return await sendWhenReady(tabId, type, opt?.expectedUrl);
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
   }
 
-  const pendingType = asPendingType(type);
+  const pendingType = opt?.queueIfMissing === false ? null : asPendingType(type);
   if (pendingType) {
     await setPendingPanelAction({ tabId, type: pendingType });
   }
@@ -190,12 +219,14 @@ export async function deliverStemLmMessageToTab(
   const ready = await waitForContentScript(tabId, 25000);
   if (!ready) throw new Error('content-script-timeout');
 
-  const resultTimeoutMs = type === 'stemlm:load-conversation' ? 20_000 : 10_000;
-  const pendingResult = await waitForPanelActionResult(tabId, resultTimeoutMs);
-  if (pendingResult) return pendingResult;
+  if (pendingType) {
+    const resultTimeoutMs = type === 'stemlm:load-conversation' ? 20_000 : 10_000;
+    const pendingResult = await waitForPanelActionResult(tabId, resultTimeoutMs);
+    if (pendingResult) return pendingResult;
+  }
 
   try {
-    return await sendStemLmMessage(tabId, { type });
+    return await sendWhenReady(tabId, type, opt?.expectedUrl);
   } catch (err) {
     if (!isNoReceiverError(err)) throw err;
     return { ok: false };

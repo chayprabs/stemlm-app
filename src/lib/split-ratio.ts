@@ -3,10 +3,10 @@ export const MIN_PANEL_PX = 280;
 export const MAX_SPLIT_RATIO = 0.75;
 export const MIN_SPLIT_RATIO_FLOOR = 0.25;
 /**
- * Default study-panel fraction of the viewport. Modest majority so stemLM is a
- * little larger than the host chat without crushing it.
+ * Default study-panel fraction of the viewport. A reading-first majority keeps
+ * the study surface usable while leaving the host chat visible.
  */
-export const DEFAULT_SPLIT_RATIO = 0.55;
+export const DEFAULT_SPLIT_RATIO = 0.68;
 /** Pre-majority default. Stored exact 0.5 hydrates to DEFAULT_SPLIT_RATIO. */
 export const LEGACY_DEFAULT_SPLIT_RATIO = 0.5;
 /**
@@ -23,7 +23,11 @@ export function viewportWidth(): number {
 /** Smallest allowed panel fraction for the current viewport width. */
 export function minSplitRatio(vw = viewportWidth()): number {
   if (vw <= 0) return MIN_SPLIT_RATIO_FLOOR;
-  return Math.max(MIN_SPLIT_RATIO_FLOOR, MIN_PANEL_PX / vw);
+  // Keep both the panel and the host-side 8px inset on very narrow windows.
+  // The CSS panel has the authoritative 280px minimum; this value only tells
+  // the host page how much width it must surrender to avoid overlap.
+  const usablePanelPx = Math.min(MIN_PANEL_PX, Math.max(0, vw - 16));
+  return Math.max(MIN_SPLIT_RATIO_FLOOR, usablePanelPx / vw);
 }
 
 export function clampSplitRatio(ratio: number, vw = viewportWidth()): number {
@@ -35,12 +39,16 @@ export function clampSplitRatio(ratio: number, vw = viewportWidth()): number {
 /**
  * Stored split hydration. Exact 0.5 is the legacy never-resized default.
  * Exact 0.75 is the popup-window clamp artifact (312px × MIN_PANEL_PX) and
- * also restores to the 55/45 default. Other finite values stay as-is.
+ * also restores to the current default. Other finite values stay as-is.
  */
-export function hydrateSplitRatio(value: unknown, vw = STORAGE_VIEWPORT_PX): number {
+export function hydrateSplitRatio(
+  value: unknown,
+  vw = STORAGE_VIEWPORT_PX,
+  options: { preserveLegacyValues?: boolean } = {},
+): number {
   if (
-    value === LEGACY_DEFAULT_SPLIT_RATIO ||
-    value === MAX_SPLIT_RATIO ||
+    (!options.preserveLegacyValues &&
+      (value === LEGACY_DEFAULT_SPLIT_RATIO || value === MAX_SPLIT_RATIO)) ||
     value == null
   ) {
     return clampSplitRatio(DEFAULT_SPLIT_RATIO, vw);
@@ -63,4 +71,21 @@ export function panelWidthVw(ratio: number): number {
 
 export function pageWidthVw(ratio: number): number {
   return +(100 - panelWidthVw(ratio)).toFixed(3);
+}
+
+/**
+ * Layout-only ratio. Stored/drag ratios retain the 75% product cap, while a
+ * narrow host must surrender enough width for the panel's CSS minimum.
+ */
+export function layoutSplitRatio(ratio: number, vw = viewportWidth()): number {
+  const value = Number.isFinite(ratio) ? Math.min(MAX_SPLIT_RATIO, Math.max(0, ratio)) : DEFAULT_SPLIT_RATIO;
+  return Math.max(value, minSplitRatio(vw));
+}
+
+export function layoutPanelWidthVw(ratio: number, vw = viewportWidth()): number {
+  return +(layoutSplitRatio(ratio, vw) * 100).toFixed(3);
+}
+
+export function layoutPageWidthVw(ratio: number, vw = viewportWidth()): number {
+  return +(100 - layoutPanelWidthVw(ratio, vw)).toFixed(3);
 }

@@ -48,7 +48,7 @@ const CIRCUIT_QUESTION =
   /\b(circuit|resistor|capacitor|inductor|voltage|current|ohm|kirchhoff|kvl|kcl|thevenin|norton|superposition|mesh|branch|ground|dependent source|current source|label all nodes|consider the circuit|bjt|transistor|amplifier|hybrid|small[- ]signal|op-?amp|mosfet|common[- ]emitter|degeneration)\b/i;
 
 const STEP_NEEDS_DIAGRAM_TITLE =
-  /\b(label|node|ground|kcl|kvl|kirchhoff|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|source|topology|schematic|wiring|phasor|impedance|draw|sketch|plot|graph|model|hybrid|small[- ]signal|bjt|transistor|mosfet|amplifier|op-?amp|gain|resistance|bandwidth|stability|feedback|rectifier|diode|free[- ]body|fbd|beam|truss|ray diagram|optical|lens|mirror|structure|mechanism|orbital|lewis|energy (?:level|diagram|profile)|spectrum|control volume|pathway|cycle|punnett|pedigree|number line|region|shade|vector field|phase (?:portrait|plane|diagram)|contour|stress|shear|bending moment|sfd|bmd|field (?:line|map|diagram))\b/i;
+  /\b(label|node|ground|kcl|kvl|kirchhoff|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|source|topology|schematic|wiring|phasor|impedance|draw|sketch|plot|graph|model|hybrid|small[- ]signal|bjt|transistor|mosfet|amplifier|op-?amp|gain|resistance|bandwidth|stability|feedback|rectifier|diode|free[- ]body|fbd|truss|ray diagram|lens|mirror|structure|mechanism|orbital|lewis|energy (?:level|diagram|profile)|spectrum|control volume|pathway|cycle|punnett|pedigree|number line|region|shade|vector field|phase (?:portrait|plane|diagram)|contour|stress|shear|bending moment|sfd|bmd|field (?:line|map|diagram))\b/i;
 
 const TOPOLOGY_STEP_TITLE =
   /\b(label|node|ground|kcl|kvl|circuit|branch|superposition|thevenin|norton|mesh|equivalent|reduc|kill|short|open|topology|schematic|draw|model|hybrid|small[- ]signal|bjt|transistor|amplifier|op-?amp)\b/i;
@@ -63,6 +63,22 @@ const TABLE_DIAGRAM_STEP = /\b(power balance|power table|verify.*power)\b/i;
 
 const PURE_ALGEBRA_STEP =
   /\b(simplify|substitute numeric|solve for|back-substitut|units check|verify numerically|magnitude check)\b/i;
+
+/**
+ * A step earns a figure when it asks for a construction (a verb) applied to
+ * something spatial (an object). Neither half alone decides it: "Trace the
+ * optical beam path" is visual, while "Convert the index gradient into an
+ * optical path difference across the beam" is algebra about the same objects.
+ */
+const VISUAL_CONSTRUCT_VERB =
+  /\b(draw|sketch|plot|graph|trace|construct|represent|depict|illustrate|render|diagram|label|show|mark|lay ?out|annotate)\b/i;
+
+const SPATIAL_OBJECT =
+  /\b(beam|span|path|ray|wavefront|optical axis|structure|structural|frame|truss|member|joint|support|reaction|load|loading|geometry|layout|arrangement|cross[- ]section|profile|free[- ]body|body|field|region|shape|topology|apparatus|setup|circuit|wave|orbit|trajectory)\b/i;
+
+function titleAsksForConstruction(title: string): boolean {
+  return VISUAL_CONSTRUCT_VERB.test(title) && SPATIAL_OBJECT.test(title);
+}
 
 const COMPONENT_PATTERNS: RegExp[] = [
   /\bR[_]?C\b/gi,
@@ -85,9 +101,22 @@ const COMPONENT_PATTERNS: RegExp[] = [
   /\bg[_]?m\b/gi,
   /\bC[_]?(?:π|c|mu|μ)\b/gi,
   /\bV[_]?(?:in|out|cc|dd|ss|ee|be|ce|gs|ds|test|th)\b/gi,
-  /\bI[_]?[A-Z]\b/gi,
+  // Current designators are case-bearing: `I_C`, `I_1`, `IC` — and never the
+  // ordinary words "It", "is", "in", "if".
+  /\bI_[A-Za-z0-9]{1,3}\b/g,
+  /\bI[A-Z]\b/g,
   /\bGND\b/gi,
 ];
+
+/**
+ * A bare (underscore-free) designator is written with an uppercase leading
+ * letter by convention — `RC`, `Rin`, `IC`. Refusing the lowercase form keeps
+ * prose words such as "re" out of the component set without enumerating them.
+ */
+function isDesignatorShaped(match: string): boolean {
+  if (/[_πμ]/.test(match)) return true;
+  return /^[A-Z]/.test(match);
+}
 
 /** BJT hybrid-π only — not generic MOSFET/small-signal analysis */
 const HYBRID_PI_CONTEXT =
@@ -143,6 +172,16 @@ function isElectrical(capsule: Capsule): boolean {
   return capsule.meta.subject === 'Electrical';
 }
 
+/**
+ * `COMPONENT_PATTERNS` reads electrical designators. Running it on a chemistry
+ * or optics body turns ordinary symbols into imaginary missing components, so
+ * it applies only where a circuit is actually under discussion.
+ */
+function hasElectricalContext(capsule: Capsule, stepText: string): boolean {
+  if (isElectrical(capsule)) return true;
+  return CIRCUIT_QUESTION.test(`${capsuleText(capsule)} ${stepText}`);
+}
+
 export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
   const title = step.title ?? '';
   const body = step.body ?? '';
@@ -154,6 +193,7 @@ export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
       return true;
     }
     if (PURE_ALGEBRA_STEP.test(title) && !TOPOLOGY_STEP_TITLE.test(body)) return false;
+    if (titleAsksForConstruction(title)) return true;
     if (STEP_NEEDS_DIAGRAM_TITLE.test(title)) return true;
     if (/\b(node [A-Z]\b|nodes? [A-Z](?:,? [A-Z])+|ground|KCL|KVL|superposition|Thevenin|Norton|hybrid|small[- ]signal|BJT|R[_]?in|R[_]?out)\b/i.test(body)) {
       return true;
@@ -162,6 +202,7 @@ export function stepNeedsDiagram(step: Step, capsule?: Capsule): boolean {
   }
 
   if (TOPOLOGY_STEP_TITLE.test(title)) return true;
+  if (titleAsksForConstruction(title)) return true;
   if (/\b(node [A-Z]\b|nodes? [A-Z](?:,? [A-Z])+|ground|KCL|KVL|superposition|Thevenin|Norton|hybrid|small[- ]signal|BJT|R[_]?in|R[_]?out)\b/i.test(body)) {
     return true;
   }
@@ -317,6 +358,7 @@ export function extractMentionedComponents(text: string): string[] {
     const matches = text.match(re);
     if (!matches) continue;
     for (const m of matches) {
+      if (!isDesignatorShaped(m)) continue;
       found.add(normalizeForMatch(m));
     }
   }
@@ -458,10 +500,12 @@ function auditSpecCompleteness(step: Step, capsule: Capsule): ParseWarningCode[]
       if (!specCoversComponent(diagram.content, type, need)) issues.push('diagram_incomplete');
     }
   }
-  const mentioned = extractMentionedComponents(text);
-  if (mentioned.length > 0) {
-    const missing = mentioned.filter((c) => !specCoversComponent(diagram.content, type, c));
-    if (missing.length > 0) issues.push('diagram_incomplete');
+  if (hasElectricalContext(capsule, text)) {
+    const mentioned = extractMentionedComponents(text);
+    if (mentioned.length > 0) {
+      const missing = mentioned.filter((c) => !specCoversComponent(diagram.content, type, c));
+      if (missing.length > 0) issues.push('diagram_incomplete');
+    }
   }
   // Do not apply SVG primitive/label/legend heuristics to a typed spec. The
   // family catalog's required/requiredAny keys and the spec-id membership
@@ -510,7 +554,7 @@ export function auditStepDiagramCompleteness(step: Step, capsule: Capsule): Pars
     issues.push('diagram_incomplete');
   }
 
-  if (isModel) {
+  if (isModel && hasElectricalContext(capsule, text)) {
     const mentioned = extractMentionedComponents(text);
     const missing = mentioned.filter((c) => !svgMentionsComponent(svg, c));
     if (missing.length > 0) {
@@ -548,35 +592,49 @@ function hasClosedSpec(step: Step): boolean {
   return Boolean(step.diagram?.content?.trim());
 }
 
-export function auditCapsuleDiagrams(capsule: Capsule): ParseWarningCode[] {
+export interface CapsuleDiagramIssue {
+  code: ParseWarningCode;
+  stepId: string;
+}
+
+/** Keep the warning code attached to the step that actually produced it. */
+export function auditCapsuleDiagramIssues(capsule: Capsule): CapsuleDiagramIssue[] {
   if (!isVisualDenseProblem(capsule)) return [];
 
-  const issues: ParseWarningCode[] = [];
+  const issues: CapsuleDiagramIssue[] = [];
   const steps = capsule.steps;
   if (!steps.length) return issues;
 
   const first = steps[0]!;
   if (stepNeedsDiagram(first, capsule) && !hasClosedSpec(first)) {
-    issues.push('missing_initial_circuit');
+    issues.push({ code: 'missing_initial_circuit', stepId: first.id });
   } else if (hasClosedSpec(first)) {
     for (const code of auditStepDiagramCompleteness(first, capsule)) {
-      if (!issues.includes(code)) issues.push(code);
+      issues.push({ code, stepId: first.id });
     }
   }
 
   for (const step of steps) {
     if (!stepNeedsDiagram(step, capsule)) continue;
     if (!hasClosedSpec(step)) {
-      if (!issues.includes('missing_circuit_diagram')) issues.push('missing_circuit_diagram');
+      issues.push({ code: 'missing_circuit_diagram', stepId: step.id });
       continue;
     }
     if (step === first) continue;
     for (const code of auditStepDiagramCompleteness(step, capsule)) {
-      if (!issues.includes(code)) issues.push(code);
+      issues.push({ code, stepId: step.id });
     }
   }
 
   return issues;
+}
+
+export function auditCapsuleDiagrams(capsule: Capsule): ParseWarningCode[] {
+  const codes: ParseWarningCode[] = [];
+  for (const issue of auditCapsuleDiagramIssues(capsule)) {
+    if (!codes.includes(issue.code)) codes.push(issue.code);
+  }
+  return codes;
 }
 
 export function diagramQualityMessage(code: ParseWarningCode, capsule: Capsule): string {
@@ -590,7 +648,7 @@ export function diagramQualityMessage(code: ParseWarningCode, capsule: Capsule):
         : `Step 1 must include @diagram with a complete SPEC of the visual model for this ${subject} problem — named parts, axes, and key relationships.`;
     case 'missing_circuit_diagram':
       return subject === 'Electrical'
-        ? `One or more visual state-changing steps (models, KCL/KVL, gain/Rin/Rout, superposition, Thevenin) are missing a closed @diagram spec. Electrical: OMIT diagrams on unit conversion only; NEVER skip the circuit when components exist.`
+        ? `One or more visual state-changing steps are missing a closed @diagram spec. “OMIT diagrams on unit conversion only” is NOT the rule: also omit pure algebra, definitions, and unchanged states. “NEVER skip the circuit when components exist” applies to the first complete topology or a material state change, not every calculation.`
         : `One or more visual ${subject} steps are missing @diagram specs. Add a typed spec for every draw/sketch/model/graph/pathway/state step.`;
     case 'insufficient_diagrams':
       return `Every visual state-changing step needs a closed @diagram spec (found ${have} of ${visualNeed}). Algebra and unit conversion may omit figures; never skip a topology/model/state change.`;

@@ -1,5 +1,6 @@
+import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { StemController } from './controller';
+import { StemController, initController } from './controller';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { PROTOCOL_FILENAME, STEMLM_SENTINEL } from '@/src/protocol/builder';
 
@@ -9,11 +10,13 @@ vi.mock('@/src/lib/file-inject', () => ({
 import { useStore } from '@/src/state/store';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
-import { TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
+import { buildLongStepCapsule, TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
 import { parseCapsule } from '@/src/protocol/parser';
 import { SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 
-const CAPSULE_BODY = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
+const CAPSULE_BODY = FENCED_ELECTRICAL
+  .replace(/```stemlm\n/, '')
+  .replace(/\n```$/, '');
 const TEN_STEP_BODY = TEN_STEP_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 const WEAK_DIAGRAM_BODY = [
   '@meta',
@@ -65,6 +68,13 @@ const MALFORMED_NO_STEPS_BODY = [
   '@endsolution',
   '@end',
 ].join('\n');
+
+function addRequiredContract(raw: string): string {
+  return raw.replace(
+    /\n@end(?:\n```)?$/,
+    '\n@verify\nmethods: units\nstatus: pass\nnotes: fixture checked with 1=1\n@endverify\n@uncertainty\nassumption: fixture\n@enduncertainty\n@end\n```',
+  );
+}
 
 class MockAdapter implements PlatformAdapter {
   id = 'gemini' as const;
@@ -145,6 +155,111 @@ function resetStore() {
   });
 }
 
+describe('production protocol delivery', () => {
+  beforeEach(() => {
+    resetStore();
+    document.body.innerHTML = '';
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+  });
+
+  it('keeps repeat image questions compact after the file is attached', async () => {
+    document.body.innerHTML = '<main><div data-message-author-role="user">Follow the attached stemlm-protocol.txt</div></main>';
+    const adapter = new MockAdapter();
+    adapter.composerHasAttachments = () => true;
+    const controller = initController(adapter);
+    expect(await controller.inject()).toBe(true);
+    expect(adapter.inserted).toContain(STUDY_GUIDE_REFERENCE);
+    expect(adapter.inserted.length).toBeLessThan(600);
+    expect(adapter.inserted).not.toContain('SCHEMA');
+    expect(adapter.inserted).not.toContain('stemLM instructions');
+    controller.stopWatching();
+  });
+
+  it('keeps the student draft untouched when automatic file delivery fails', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Explain the conservation of momentum.';
+    const controller = initController(adapter);
+    expect(await controller.inject()).toBe(false);
+    expect(adapter.editorText).toBe('Explain the conservation of momentum.');
+    expect(adapter.inserted).toBe('');
+    expect(useStore.getState().buttonInjected).toBe(false);
+    expect(useStore.getState().errorMessage).toMatch(/attach|upload/i);
+    controller.stopWatching();
+  });
+
+  it('requires a visible upload acknowledgement inside the active composer', async () => {
+    const adapter = new MockAdapter();
+    const controller = initController(adapter);
+    expect(await controller.inject()).toBe(true);
+    expect(attachTextFile).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      requireConfirmation: true,
+      root: document.body,
+    }));
+    controller.stopWatching();
+  });
+
+  it('does not paste the protocol into an Ask-in-chat draft after upload failure', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.editorText = 'An unfinished student question';
+    const controller = initController(adapter);
+    expect(await controller.followUp('Momentum is conserved', 'Conserve momentum', 'Physics', { intent: 'ask' })).toBe(false);
+    expect(adapter.editorText).toBe('An unfinished student question');
+    expect(adapter.inserted).toBe('');
+    controller.stopWatching();
+  });
+
+  it.each(['inject', 'followUp'] as const)('cancels %s when the draft changes during attachment', async (action) => {
+    let finish!: (result: { ok: boolean; method: 'input' }) => void;
+    vi.mocked(attachTextFile).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Original draft';
+    const controller = initController(adapter);
+    const pending = action === 'inject' ? controller.inject()
+      : controller.followUp('Original step context', 'Step', 'Physics', { intent: 'ask' });
+    adapter.editorText = 'Newer student draft';
+    finish({ ok: true, method: 'input' });
+    expect(await pending).toBe(false);
+    expect(adapter.editorText).toBe('Newer student draft');
+    expect(adapter.inserted).toBe('');
+    expect(useStore.getState().buttonInjected).toBe(false);
+    controller.stopWatching();
+  });
+
+  it('cancels an attachment when its composer is replaced with an identical draft', async () => {
+    let finish!: (result: { ok: boolean; method: 'input' }) => void;
+    vi.mocked(attachTextFile).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const adapter = new MockAdapter();
+    let editor = document.createElement('textarea');
+    document.body.append(editor);
+    adapter.findEditor = () => editor;
+    adapter.editorText = 'Same draft';
+    const controller = initController(adapter);
+    const pending = controller.inject();
+    editor.remove();
+    editor = document.createElement('textarea');
+    document.body.append(editor);
+    finish({ ok: true, method: 'input' });
+    expect(await pending).toBe(false);
+    expect(adapter.inserted).toBe('');
+    controller.stopWatching();
+  });
+
+  it('cancels an upload completion after the controller stops', async () => {
+    let finish!: (result: { ok: boolean; method: 'input' }) => void;
+    vi.mocked(attachTextFile).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const adapter = new MockAdapter();
+    const controller = initController(adapter);
+    const pending = controller.inject();
+    controller.stopWatching();
+    finish({ ok: true, method: 'input' });
+    expect(await pending).toBe(false);
+    expect(adapter.inserted).toBe('');
+    expect(useStore.getState().buttonInjected).toBe(false);
+  });
+});
+
 describe('StemController.inject', () => {
   beforeEach(() => {
     resetStore();
@@ -159,7 +274,7 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(attachTextFile).toHaveBeenCalled();
-    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.editorText).not.toContain('OUTPUT:');
     c.stopWatching();
   });
@@ -176,7 +291,7 @@ describe('StemController.inject', () => {
       expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: false }),
     );
     expect(adapter.editorText).toContain('Solve this circuit');
-    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.editorText).toContain(STEMLM_SENTINEL);
     expect(adapter.editorText).toContain('Follow the attached');
     expect(adapter.editorText).toContain('Infer the subject from the problem');
@@ -187,7 +302,7 @@ describe('StemController.inject', () => {
     expect(adapter.editorText).not.toContain('(Electrical)');
     expect(adapter.editorText).not.toContain('OUTPUT:');
     expect(adapter.editorText).not.toContain('--- stemLM instructions');
-    expect(adapter.inserted).toContain(PROTOCOL_FILENAME);
+    expect(adapter.inserted).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.inserted).not.toContain('Solve this circuit');
     expect(useStore.getState().buttonInjected).toBe(true);
     expect(useStore.getState().status).toBe('loading');
@@ -206,7 +321,7 @@ describe('StemController.inject', () => {
       expect.any(String),
       expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: true }),
     );
-    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.editorText).toContain('image/PDF');
     expect(adapter.inserted).not.toContain('OUTPUT:');
     c.stopWatching();
@@ -220,9 +335,9 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(adapter.editorText).toMatch(/^What is the horizontal range/);
-    expect(adapter.editorText).toContain(PROTOCOL_FILENAME);
+    expect(adapter.editorText).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.editorText.indexOf('What is the horizontal range')).toBeLessThan(
-      adapter.editorText.indexOf(PROTOCOL_FILENAME),
+      adapter.editorText.indexOf(STUDY_GUIDE_REFERENCE),
     );
     c.stopWatching();
   });
@@ -322,7 +437,7 @@ describe('StemController.inject', () => {
     expect(await c.inject()).toBe(false);
     expect(inserted.length).toBeGreaterThan(0);
     for (const text of inserted) {
-      expect(text).toContain(PROTOCOL_FILENAME);
+      expect(text).toContain(STUDY_GUIDE_REFERENCE);
       expect(text).not.toContain('--- stemLM instructions');
       expect(text).not.toContain('OUTPUT:');
     }
@@ -394,11 +509,51 @@ describe('StemController.inject', () => {
     adapter.composerHasAttachments = () => true;
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(true);
-    expect(adapter.inserted).toContain(PROTOCOL_FILENAME);
+    expect(adapter.inserted).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.inserted).toContain(STEMLM_SENTINEL);
     expect(adapter.inserted).not.toContain('DIAGRAM REGISTRY');
     expect(adapter.inserted).not.toContain('anatomy\tleftover');
     expect(adapter.inserted).not.toContain('OUTPUT:');
+    c.stopWatching();
+  });
+
+  it('does not accept a generic media attachment as protocol fallback confirmation', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.composerHasAttachments = () => true;
+    adapter.insertPrompt = (text: string) => {
+      adapter.inserted = text;
+      // Model a host that reports the existing image/PDF but drops the inline
+      // protocol fallback instead of inserting it.
+      adapter.editorText = '';
+      return true;
+    };
+    const c = new StemController(adapter);
+
+    expect(await c.inject()).toBe(false);
+    expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+
+  it('seeds visible capsules before a fresh injection so stale DOM is not captured', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Solve a newly typed circuit question';
+    adapter.capsules = [CAPSULE_BODY];
+    const c = new StemController(adapter);
+
+    expect(await c.inject()).toBe(true);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(0);
+
+    c.stopWatching();
+    adapter.capsules = [
+      CAPSULE_BODY,
+      CAPSULE_BODY.replace('Circuit format check', 'Newly generated circuit'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().sessions[0]!.capsule.meta.topic).toBe('Newly generated circuit');
     c.stopWatching();
   });
 });
@@ -512,7 +667,7 @@ describe('StemController.followUp', () => {
   it('applies an id patch from ask-in-chat onto the current question', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
-    const withIds = [
+    const withIds = addRequiredContract([
       '```stemlm',
       '@meta',
       'version: 2',
@@ -537,7 +692,7 @@ describe('StemController.followUp', () => {
       '@endsolution',
       '@end',
       '```',
-    ].join('\n');
+    ].join('\n'));
     adapter.capsules = [withIds];
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
@@ -581,7 +736,7 @@ describe('StemController.followUp', () => {
   it('hangs an anchored solution ask off the same session instead of opening a new one', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
-    adapter.capsules = [FENCED_ELECTRICAL];
+    adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
     const original = useStore.getState().sessions[0]!;
@@ -634,7 +789,7 @@ describe('StemController.followUp', () => {
     const c = new StemController(adapter);
     // A previous answer (e.g. an old "missing problem statement" capsule) is
     // already visible in the chat history.
-    adapter.capsules = [FENCED_ELECTRICAL];
+    adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
     const original = useStore.getState().sessions[0]!;
@@ -656,7 +811,7 @@ describe('StemController.followUp', () => {
     // The student sends; the assistant produces a genuinely new answer.
     c.stopWatching();
     adapter.capsules = [
-      FENCED_ELECTRICAL,
+      CAPSULE_BODY,
       [
         '```stemlm',
         '@meta',
@@ -701,7 +856,7 @@ describe('StemController.followUp', () => {
     vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
-    const original = [
+    const original = addRequiredContract([
       '```stemlm',
       '@meta',
       'version: 2',
@@ -726,7 +881,7 @@ describe('StemController.followUp', () => {
       '@endsolution',
       '@end',
       '```',
-    ].join('\n');
+    ].join('\n'));
     adapter.capsules = [original];
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
@@ -812,6 +967,14 @@ describe('StemController.followUp', () => {
         'Count phenotypes.',
         '@endbody',
         '@endstep',
+        '@verify',
+        'methods: backsub',
+        'status: pass',
+        'notes: fixture checked with 1=1',
+        '@endverify',
+        '@uncertainty',
+        'assumption: fixture',
+        '@enduncertainty',
         '@solution',
         '3:1',
         '@endsolution',
@@ -901,7 +1064,7 @@ describe('StemController.loadConversation', () => {
       '@endstep',
       '@resume token=aa11bb22',
     ].join('\n');
-    const part2 = [
+    const part2 = addRequiredContract([
       '```stemlm',
       '@resume token=aa11bb22',
       '@step id=s2',
@@ -915,7 +1078,7 @@ describe('StemController.loadConversation', () => {
       '@endsolution',
       '@end',
       '```',
-    ].join('\n');
+    ].join('\n'));
     adapter.capsules = [part1, part2];
     const c = new StemController(adapter);
     const count = await c.loadConversation({ maxWaitMs: 0 });
@@ -933,7 +1096,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
   });
 
-  const original = [
+  const original = addRequiredContract([
     '```stemlm',
     '@meta',
     'version: 2',
@@ -958,7 +1121,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     '@endsolution',
     '@end',
     '```',
-  ].join('\n');
+  ].join('\n'));
 
   it('applies an incoming @patch to the active session without followUp()', async () => {
     const adapter = new MockAdapter();
@@ -1000,6 +1163,48 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     expect(sessions[0]!.capsule.meta.qid).toBe('q1');
     expect(sessions[0]!.capsule.steps[1]!.title).toContain('correct units');
     expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
+    c.stopWatching();
+  });
+
+  it('rejects an unknown-id patch instead of reporting an unchanged repair as ready', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [original];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const before = useStore.getState().sessions[0]!;
+    c.stopWatching();
+
+    adapter.capsules = [
+      [
+        '```stemlm',
+        '@meta',
+        'version: 2',
+        'subject: Electrical',
+        'topic: Series resistors',
+        'qid: q1',
+        'mode: patch',
+        '@endmeta',
+        '@patch op=replace id=s999',
+        '@step id=s999',
+        'title: Ghost repair',
+        '@body',
+        'This must not be applied.',
+        '@endbody',
+        '@endstep',
+        '@endpatch',
+        '@end',
+        '```',
+      ].join('\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const state = useStore.getState();
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.capsule).toEqual(before.capsule);
+    expect(state.status).toBe('error');
+    expect(state.errorMessage).toMatch(/repair.*not applied|unknown id/i);
     c.stopWatching();
   });
 
@@ -1093,6 +1298,14 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
         'Count phenotypes.',
         '@endbody',
         '@endstep',
+        '@verify',
+        'methods: backsub',
+        'status: pass',
+        'notes: fixture checked with 1=1',
+        '@endverify',
+        '@uncertainty',
+        'assumption: fixture',
+        '@enduncertainty',
         '@solution',
         '3:1',
         '@endsolution',
@@ -1143,6 +1356,14 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
         '$I$ is 2 A.',
         '@endbody',
         '@endstep',
+        '@verify',
+        'methods: backsub',
+        'status: pass',
+        'notes: fixture checked with 1=1',
+        '@endverify',
+        '@uncertainty',
+        'assumption: fixture',
+        '@enduncertainty',
         '@solution',
         'I = 2 A',
         '@endsolution',
@@ -1199,6 +1420,14 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
         'Count phenotypes.',
         '@endbody',
         '@endstep',
+        '@verify',
+        'methods: backsub',
+        'status: pass',
+        'notes: fixture checked with 1=1',
+        '@endverify',
+        '@uncertainty',
+        'assumption: fixture',
+        '@enduncertainty',
         '@solution',
         '3:1',
         '@endsolution',
@@ -1272,9 +1501,59 @@ describe('StemController capture', () => {
     c.stopWatching();
   });
 
+  it('does not accept a complete capsule above the declared step limit', () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const tryCapture = (
+      c as unknown as { tryCapture: (raw: string, complete: boolean) => void }
+    ).tryCapture.bind(c);
+
+    c.startWatching();
+    const oversized = buildLongStepCapsule(21).replace(/```stemlm\n/, '').replace(/\n```$/, '');
+    // This direct call exercises the same parse/contract gate as DOM capture
+    // without making the regression depend on debounce timers.
+    tryCapture(oversized, true);
+    expect(useStore.getState().sessions).toHaveLength(0);
+    expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+
+  it('does not accept an oversized nested question', () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const tryCapture = (
+      c as unknown as { tryCapture: (raw: string, complete: boolean) => void }
+    ).tryCapture.bind(c);
+    const nested = [
+      '@meta',
+      'version: 2',
+      'subject: Math',
+      'topic: Nested parts',
+      '@endmeta',
+      '@q id=q1',
+      'topic: Part one',
+      ...Array.from({ length: 21 }, (_, index) => [
+        `@step id=q1.s${index + 1}`,
+        `title: Move ${index + 1}`,
+        '@body',
+        'Apply the declared transformation.',
+        '@endbody',
+        '@endstep',
+      ].join('\n')),
+      '@endq',
+      '@end',
+    ].join('\n');
+
+    c.startWatching();
+    tryCapture(nested, true);
+    expect(useStore.getState().sessions).toHaveLength(0);
+    expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+
   it('does not append a repair prompt after a usable answer with diagram warnings', async () => {
     const adapter = new MockAdapter();
-    adapter.capsules = [WEAK_DIAGRAM_BODY];
+    adapter.capsules = [addRequiredContract(WEAK_DIAGRAM_BODY)];
     const c = new StemController(adapter);
 
     c.startWatching();
@@ -1302,8 +1581,11 @@ describe('StemController capture', () => {
     c.stopWatching();
 
     adapter.editorText = question;
-    adapter.capsules = [CAPSULE_BODY];
+    adapter.capsules = [];
     expect(await c.inject()).toBe(true);
+    c.stopWatching();
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
 
     expect(useStore.getState().sessions).toHaveLength(1);
@@ -1345,6 +1627,151 @@ describe('StemController capture', () => {
     expect(useStore.getState().sessions).toHaveLength(0);
   });
 
+  it('CAP-03 leaves loading after stable off-protocol prose and permits retry', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.editorText = 'Find the acceleration from the given forces.';
+      const injected = c.inject();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await injected).toBe(true);
+      adapter.capsules = ['Please clarify which force acts horizontally.'];
+      await vi.advanceTimersByTimeAsync(11_000);
+      expect(useStore.getState().status).toBe('error');
+      expect(useStore.getState().buttonInjected).toBe(false);
+      adapter.editorText = 'The applied force acts horizontally. Find the acceleration.';
+      const retry = c.inject();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(await retry).toBe(true);
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
+  it('CAP-STREAM-01 waits through a mid-stream pause while the provider is still streaming', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.editorText = 'Find the current in the series circuit.';
+      const injected = c.inject();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await injected).toBe(true);
+      adapter.streaming = true;
+      adapter.capsules = [CAPSULE_BODY.slice(0, Math.floor(CAPSULE_BODY.length / 2))];
+      document.body.append(document.createTextNode('.'));
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(useStore.getState().status).not.toBe('error');
+      expect(useStore.getState().errorMessage).toBeUndefined();
+
+      adapter.streaming = false;
+      adapter.capsules = [CAPSULE_BODY];
+      document.body.append(document.createTextNode('.'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(useStore.getState().status).toBe('ready');
+      expect(useStore.getState().sessions).toHaveLength(1);
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
+  it('CAP-STREAM-01 reports a partial answer only after a long stall without a streaming indicator', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.editorText = 'Find the current in the series circuit.';
+      const injected = c.inject();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await injected).toBe(true);
+      adapter.capsules = [CAPSULE_BODY.slice(0, Math.floor(CAPSULE_BODY.length / 2))];
+      document.body.append(document.createTextNode('.'));
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(useStore.getState().status).not.toBe('error');
+      await vi.advanceTimersByTimeAsync(6_000);
+      expect(useStore.getState().status).toBe('error');
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
+  it('CAP-STREAM-01 keeps an Ask-in-chat anchor through a paused answer and attaches it to the step', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.capsules = [CAPSULE_BODY];
+      c.startWatching();
+      await vi.advanceTimersByTimeAsync(500);
+      const original = useStore.getState().sessions[0]!;
+      c.stopWatching();
+
+      const asked = c.followUp('Problem: circuit\nStep 1 of 2: Add resistors', 'Add resistors', 'Electrical', {
+        intent: 'ask',
+        anchor: { sessionId: original.id, anchorStepId: original.capsule.steps[0]!.id },
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      expect(await asked).toBe(true);
+
+      const answer = [
+        '@meta', 'version: 2', 'subject: Electrical', 'topic: Why series adds', 'qid: q1', 'mode: resolve', '@endmeta',
+        '@step id=s1', 'title: Series carries one current', '@body',
+        'The same current flows through both, so the voltage drops add.', '@endbody', '@endstep',
+        '@solution', 'Resistances add in series.', '@endsolution', '@end',
+      ].join('\n');
+      adapter.streaming = true;
+      adapter.capsules = [CAPSULE_BODY, answer.slice(0, answer.indexOf('@solution'))];
+      document.body.append(document.createTextNode('.'));
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(useStore.getState().status).not.toBe('error');
+
+      adapter.streaming = false;
+      adapter.capsules = [CAPSULE_BODY, answer];
+      document.body.append(document.createTextNode('.'));
+      await vi.advanceTimersByTimeAsync(1_000);
+      const state = useStore.getState();
+      expect(state.sessions).toHaveLength(1);
+      expect(state.sessions[0]!.followups).toHaveLength(1);
+      expect(state.sessions[0]!.followups![0]!.anchorStepId).toBe(original.capsule.steps[0]!.id);
+      // An Ask-in-chat mini-answer never carries @verify/@uncertainty: no D11 notice.
+      expect(state.errorMessage).toBeUndefined();
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, true])('CAP-04 abandons anchored follow-up on a fresh question (resetInjection: %s)', async (reset) => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.capsules = [CAPSULE_BODY];
+      expect(await c.loadConversation({ maxWaitMs: 0 })).toBe(1);
+      const guide = document.createElement('p');
+      guide.textContent = PROTOCOL_FILENAME;
+      document.body.append(guide);
+      const original = useStore.getState().sessions[0]!;
+      expect(await c.followUp('Explain the current relation', 'Current', 'Electrical', {
+        anchor: { sessionId: original.id, anchorStepId: original.capsule.steps[0]!.id },
+      })).toBe(true);
+      if (reset) c.resetInjection();
+      const question = 'Find the energy dissipated by a different resistor.';
+      adapter.editorText = question;
+      expect(await c.inject()).toBe(true);
+      adapter.capsules = [CAPSULE_BODY.replace(/^qid:.*\n/gm, '').replace(/^question:.*$/m, `question: ${question}`)];
+      document.body.append(document.createTextNode('.'));
+      await vi.waitFor(() => expect(useStore.getState().status).toBe('ready'));
+      const active = useStore.getState().sessions.find((s) => s.id === useStore.getState().activeSessionId)!;
+      expect(active.question).toBe(question);
+    } finally {
+      c.stopWatching();
+    }
+  });
+
   it('does not append a repair prompt when a malformed response cannot be used', async () => {
     const adapter = new MockAdapter();
     adapter.capsules = [MALFORMED_NO_STEPS_BODY];
@@ -1361,58 +1788,288 @@ describe('StemController capture', () => {
     c.stopWatching();
   });
 
-  it('offers a targeted figure repair through the existing follow-up path without auto-sending', async () => {
+  it('keeps a stable partial pending and reconciles it when the final capsule arrives', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
-    const repair = (c as StemController & { repairFigure: (opt: unknown) => Promise<boolean> }).repairFigure;
+    const partial = CAPSULE_BODY.replace(/\n@end\n?$/, '');
+    adapter.capsules = [partial];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 2000));
 
-    const ok = await repair.call(c, {
-      sessionId: 'missing-session',
-      subject: 'Physics',
-      stepId: 's1',
-      family: 'plot',
-      failingKeys: ['guide'],
-      code: 'malformed',
-      reason: 'invalid guide x=35; y=1',
-    });
-
-    expect(ok).toBe(false);
-    expect(adapter.inserted).toBe('');
     expect(useStore.getState().sessions).toHaveLength(0);
+
+    c.stopWatching();
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().sessions[0]!.raw).toContain('@end');
+    expect(useStore.getState().sessions[0]!.capsule.steps).toHaveLength(2);
+    c.stopWatching();
   });
 
-  it('inserts compiler diagnostics for the active session and leaves sending to the student', async () => {
+  it('flushes a mismatched resume fragment before accepting the next complete answer', () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
-    const capsule = parseCapsule(CAPSULE_BODY).capsule!;
-    useStore.getState().addSession({
-      id: 'session-1',
-      createdAt: 1,
-      updatedAt: 1,
-      platform: adapter.id,
-      question: capsule.meta.question ?? 'Question',
-      capsule,
-      raw: CAPSULE_BODY,
-    });
+    c.startWatching();
+    const tryCapture = (
+      c as unknown as { tryCapture: (raw: string, complete: boolean) => void }
+    ).tryCapture.bind(c);
+    const abandoned = [
+      '```stemlm',
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Abandoned answer',
+      'qid: qa',
+      '@endmeta',
+      '@step id=abandoned',
+      'title: Abandoned step',
+      '@body',
+      'This fragment must not be stitched into another answer.',
+      '@endbody',
+      '@endstep',
+      '@resume token=tokenA',
+      '```',
+    ].join('\n');
+    const independentB = CAPSULE_BODY.replace(
+      'Circuit format check',
+      'Independent B\nqid: qb\nmode: new',
+    ).replace('\n@end\n```', '\n@resume token=tokenB\n@end\n```');
+    const independentC = CAPSULE_BODY.replace(
+      'Circuit format check',
+      'Independent C\nqid: qc\nmode: new',
+    );
 
-    const ok = await c.repairFigure({
-      sessionId: 'session-1',
-      subject: 'Physics',
-      stepId: capsule.steps[0]!.id,
-      family: 'plot',
-      failingKeys: ['guide'],
-      code: 'malformed',
-      reason: 'invalid guide x=35; y=1',
-    });
+    tryCapture(abandoned, false);
+    tryCapture(independentB, true);
+    tryCapture(independentC, true);
 
-    expect(ok).toBe(true);
-    expect(adapter.inserted).toContain('TARGETED FIGURE REPAIR');
-    expect(adapter.inserted).toContain('family `plot`');
-    expect(adapter.inserted).toContain('failing keys: guide');
-    expect(adapter.inserted).toContain('invalid guide x=35; y=1');
-    expect(adapter.inserted).toContain('Ask your question here:');
-    expect(useStore.getState().sessions).toHaveLength(1);
-    expect(useStore.getState().status).toBe('loading');
+    const sessions = useStore.getState().sessions;
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]!.capsule.meta.qid).toBe('qc');
+    expect(sessions[1]!.capsule.steps.map((step) => step.id)).toEqual(['step-1', 'step-2']);
     c.stopWatching();
+  });
+
+  // D11 (2026-09-24): a finished answer missing optional closing blocks is shown
+  // with a soft notice instead of being rejected with every step lost.
+  it('PARSE-02 stores a finished capsule without its check and assumptions, with a soft notice', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [
+      CAPSULE_BODY
+        .replace(/\n@verify[\s\S]*?@endverify\n/, '\n')
+        .replace(/\n@uncertainty[\s\S]*?@enduncertainty\n/, '\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().sessions[0]!.capsule.steps).toHaveLength(2);
+    expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().errorMessage).toBe(
+      'This answer arrived without its final check and assumptions. The steps are complete; double-check the final result.',
+    );
+    c.stopWatching();
+  });
+
+  it('PARSE-02 names a missing summary in the notice and still rejects a capsule without @end', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [CAPSULE_BODY.replace(/\n@solution[\s\S]*?@endsolution\n/, '\n')];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(useStore.getState().errorMessage).toContain('without its summary.');
+    c.stopWatching();
+
+    useStore.getState().resetSessions();
+    adapter.capsules = [
+      CAPSULE_BODY.replace(/\n@verify[\s\S]*?@endverify\n/, '\n').replace(/\n@end\s*$/, '\n'),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(0);
+    c.stopWatching();
+  });
+
+  it('routes a mismatched anchored qid/mode as an ordinary new session', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const original = useStore.getState().sessions[0]!;
+    c.stopWatching();
+
+    await c.followUp('Explain the next problem.', 'Result', 'Electrical', {
+      intent: 'ask',
+      anchor: { sessionId: original.id, anchorStepId: original.capsule.steps[0]!.id },
+    });
+    adapter.capsules = [
+      CAPSULE_BODY.replace(
+        'topic: Circuit format check',
+        'topic: Independent circuit\nqid: q2\nmode: new',
+      ),
+    ];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(2);
+    expect(useStore.getState().sessions[0]!.followups ?? []).toHaveLength(0);
+    c.stopWatching();
+  });
+
+  it('does not let a malformed follow-up capture poison the next same-topic question', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+
+    adapter.capsules = [CAPSULE_BODY];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().sessions).toHaveLength(1);
+    c.stopWatching();
+
+    await c.followUp('Explain the resistor combination.', 'Label the circuit', 'Electrical');
+    adapter.capsules = [MALFORMED_NO_STEPS_BODY];
+    await new Promise((r) => setTimeout(r, 500));
+    expect(useStore.getState().status).toBe('error');
+
+    adapter.editorText = 'Solve a different circuit with the same topic label.';
+    // A model may omit @meta question on a later turn; the new prompt text is
+    // then the session identity while the topic remains unchanged.
+    adapter.capsules = [];
+    expect(await c.inject()).toBe(true);
+    // A real host mutation schedules the already-running watcher; restart it
+    // here to model that new assistant turn deterministically.
+    c.stopWatching();
+    adapter.capsules = [CAPSULE_BODY.replace('question: Structural fixture — not a stored solution.\n', '')];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    expect(useStore.getState().sessions).toHaveLength(2);
+    c.stopWatching();
+  });
+});
+
+describe('StemController generic patch routing', () => {
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+  });
+
+  const GOOD_SCENE = [
+    'kind: geom',
+    'point: A 0 0',
+    'point: B 0 1',
+    'point: C 1 1',
+    'segment: wavefront A B',
+    'segment: ray B C',
+    'relation: perpendicular wavefront ray',
+  ];
+
+  function opticsCapsule(qid: string, topic: string): string {
+    return [
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      `topic: ${topic}`,
+      `question: A beam crosses a slab (${topic}). Find the deflection.`,
+      `qid: ${qid}`,
+      '@endmeta',
+      '@step id=s1',
+      'title: Read the slab geometry',
+      '@body',
+      'The source fixes the slab thickness $d$ and the index gradient.',
+      '@endbody',
+      '@endstep',
+      '@step id=s2',
+      'title: Draw the emergent wavefront and ray',
+      '@formula id=e1',
+      '$$\\Delta L=(n_2-n_1)d$$',
+      '@endformula',
+      '@body',
+      'The wavefront normal gives the outgoing ray direction.',
+      '@endbody',
+      '@diagram id=f1 type=scene',
+      'kind: geom',
+      'point: A 0 0',
+      '@enddiagram',
+      '@takeaway',
+      'A wavefront is always normal to its ray.',
+      '@endtakeaway',
+      '@quickcheck',
+      'q: Which way does the ray bend?',
+      'a: Toward the higher index, because the optical path is longer there.',
+      '@endquickcheck',
+      '@followup',
+      'What happens when the gradient reverses?',
+      '@endfollowup',
+      '@endstep',
+      '@verify',
+      'methods: units',
+      'status: pass',
+      'notes: checked $\\Delta L=(n_2-n_1)d$ with $d=2$ giving $\\Delta L=0.02$',
+      '@endverify',
+      '@uncertainty',
+      'assumption: thin-slab approximation',
+      '@enduncertainty',
+      '@solution',
+      `The beam deflects by $\\theta$ (${topic}).`,
+      '@endsolution',
+      '@end',
+    ].join('\n');
+  }
+
+  function patchCapsule(opt: { qid: string }): string {
+    return [
+      '@meta',
+      'version: 2',
+      'subject: Physics',
+      'topic: Graded-index slab',
+      `qid: ${opt.qid}`,
+      'mode: patch',
+      '@endmeta',
+      '@patch op=replace id=s2',
+      '@step id=s2',
+      'title: Draw the emergent wavefront and ray',
+      '@body',
+      'The wavefront normal gives the outgoing ray direction.',
+      '@endbody',
+      '@diagram id=f1 type=scene',
+      ...GOOD_SCENE,
+      '@enddiagram',
+      '@endstep',
+      '@endpatch',
+      '@end',
+    ].join('\n');
+  }
+
+  async function seedSession(c: StemController, adapter: MockAdapter, qid: string, topic: string) {
+    adapter.capsules = [opticsCapsule(qid, topic)];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    c.stopWatching();
+    adapter.capsules = [];
+  }
+
+  async function deliver(c: StemController, adapter: MockAdapter, raw: string) {
+    adapter.capsules = [raw];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    c.stopWatching();
+  }
+
+  it('refuses a generic patch whose qid does not match the active answer', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    await seedSession(c, adapter, 'q2', 'Prism deflection');
+    const before = JSON.stringify(useStore.getState().sessions[0]!.capsule);
+
+    await deliver(c, adapter, patchCapsule({ qid: 'q1' }));
+
+    expect(useStore.getState().sessions).toHaveLength(1);
+    expect(JSON.stringify(useStore.getState().sessions[0]!.capsule)).toBe(before);
+    expect(useStore.getState().status).toBe('error');
   });
 });

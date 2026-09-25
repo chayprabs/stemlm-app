@@ -73,23 +73,20 @@ export function compileOneline(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (!nodes.length && !buses.length) return malformed('oneline', 'requires nodes or buses');
   const b = frame('oneline', ctx, spec);
   const { width: w, height: h } = b;
-  const names = nodes.length ? nodes : buses;
+  const names = [...new Set([...nodes, ...buses])];
+  if (new Set(nodes.map(n => n.toLowerCase())).size !== nodes.length || new Set(buses.map(n => n.toLowerCase())).size !== buses.length) return malformed('oneline', 'duplicate node or bus');
   const positions = new Map<string, { x: number; y: number }>();
   const y = h * 0.5;
   names.forEach((name, i) => {
     const x = names.length === 1 ? w / 2 : 32 + i * ((w - 64) / (names.length - 1));
     positions.set(name.toLowerCase(), { x, y });
     b.circle(`node-${i}`, x, y, 6, { fill: 'none', role: 'geometry' });
-    label(b, `node-label-${i}`, nodeSpecs[i]?.text ?? name, x, y - 14, `node-${i}`);
+    label(b, `node-label-${i}`, nodeSpecs.find(node => node.id === name)?.text ?? name, x, y - 14, `node-${i}`);
   });
-  if (!nodes.length) {
-    names.forEach((name, i) => {
-      const x = positions.get(name.toLowerCase())!.x;
-      b.line(`bus-${i}`, x, 28, x, h - 28, { width: 2.2, role: 'boundary' });
-    });
-  } else {
-    buses.forEach((bus, i) => label(b, `bus-label-${i}`, bus, 28 + i * 30, 16, `node-${i % names.length}`));
-  }
+  buses.forEach((bus, i) => {
+    const x = positions.get(bus.toLowerCase())!.x;
+    b.line(`bus-${i}`, x, 28, x, h - 28, { width: 2.2, role: 'boundary' });
+  });
   const connections = [...specGetAll(spec, 'connection'), ...specGetAll(spec, 'branch')];
   for (const [i, raw] of connections.entries()) {
     const pair = firstWords(raw);
@@ -302,6 +299,8 @@ export function compileCmos(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileMotor(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const kind = specGet(spec, 'kind') ?? 'schematic';
+  if (kind !== 'schematic') return malformed('motor', 'only schematic geometry is supported');
   const render = specGet(spec, 'render')?.toLowerCase() ?? '';
   const hidden = specGet(spec, 'hidden-lines')?.toLowerCase() ?? '';
   if (/photo|3d|perspective|arbitrary/.test(`${render} ${hidden}`)) {

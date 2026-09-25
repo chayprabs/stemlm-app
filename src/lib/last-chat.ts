@@ -17,6 +17,20 @@ export interface LastChatRecord {
   savedAt: number;
 }
 
+// Remember operations can come from overlapping content-script lifecycles.
+// Serialize local writes and compare with storage so a delayed older page
+// cannot roll back the user's most recent chat.
+let lastChatMutation: Promise<void> = Promise.resolve();
+
+function enqueueLastChatMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const run = lastChatMutation.then(operation, operation);
+  lastChatMutation = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export function isLastChatRecord(value: unknown): value is LastChatRecord {
   if (!value || typeof value !== 'object') return false;
   const rec = value as LastChatRecord;
@@ -42,11 +56,15 @@ export async function getLastChat(): Promise<LastChatRecord | null> {
 
 export async function rememberLastChat(record: LastChatRecord): Promise<void> {
   if (!isLastChatRecord(record)) return;
-  try {
-    await browser.storage.local.set({ [LAST_CHAT_KEY]: record });
-  } catch {
-    /* storage may be unavailable */
-  }
+  return enqueueLastChatMutation(async () => {
+    try {
+      const stored = (await browser.storage.local.get(LAST_CHAT_KEY))[LAST_CHAT_KEY];
+      if (isLastChatRecord(stored) && stored.savedAt > record.savedAt) return;
+      await browser.storage.local.set({ [LAST_CHAT_KEY]: record });
+    } catch {
+      /* storage may be unavailable */
+    }
+  });
 }
 
 /** Content-script helper: persist the current page as the last stemLM chat. */

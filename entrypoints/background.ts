@@ -3,10 +3,26 @@ import { browser } from 'wxt/browser';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyToolbarIconInBackground, isToolbarIconMessage } from '@/src/lib/toolbar-icon';
 import {
+  isAuthorizedBackgroundSender,
   isBackgroundLaunchMessage,
   performBackgroundLaunch,
 } from '@/src/lib/background-launch';
-import { handleWhoamiRequest, isWhoamiMessage } from '@/src/lib/tab-workspace';
+import { handleWhoamiRequest, isWhoamiMessage, removeTabWorkspace, takePendingPanelAction } from '@/src/lib/tab-workspace';
+import { isSupportedChatUrl } from '@/src/platforms/detect';
+import { handleSavedSessionMutation, isSavedSessionMutationMessage } from '@/src/lib/saved-session-storage';
+
+function isSavedSessionSender(sender: { id?: string; url?: string }): boolean {
+  if (!browser.runtime.id || sender.id !== browser.runtime.id || !sender.url) return false;
+  if (isSupportedChatUrl(sender.url)) return true;
+  try {
+    const actual = new URL(sender.url);
+    const runtime = browser.runtime as typeof browser.runtime & { getURL: (path: string) => string };
+    const extension = new URL(runtime.getURL('/'));
+    return actual.protocol === extension.protocol && actual.host === extension.host;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * stemLM background service worker.
@@ -21,6 +37,9 @@ import { handleWhoamiRequest, isWhoamiMessage } from '@/src/lib/tab-workspace';
  * Toolbar actions are handled by the default popup (see entrypoints/popup).
  */
 export default defineBackground(() => {
+  // Recovery runs in our isolated content scripts; Chrome otherwise denies session storage there.
+  const workspaceReady = Promise.resolve(browser.storage?.session?.setAccessLevel?.({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })).catch(() => {});
+  browser.tabs?.onRemoved?.addListener((tabId) => { void removeTabWorkspace(tabId); });
   browser.runtime.onInstalled.addListener((details) => {
     if (details.reason === 'install') {
       void trackEvent('extension_installed', {});
@@ -28,24 +47,55 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((msg: unknown, sender, sendResponse) => {
+    if ((msg as { type?: unknown } | null)?.type === 'stemlm:claim-panel-action') {
+      if (!isSavedSessionSender(sender) || typeof sender.tab?.id !== 'number') {
+        sendResponse({ action: null });
+        return;
+      }
+      void takePendingPanelAction(sender.tab.id).then((action) => sendResponse({ action }), () => sendResponse({ action: null }));
+      return true;
+    }
+    if (isSavedSessionMutationMessage(msg)) {
+      if (!isSavedSessionSender(sender)) {
+        sendResponse({ ok: false, quota: false, message: 'Unauthorized saved-session request.' });
+        return;
+      }
+      void handleSavedSessionMutation(msg).then(sendResponse, () => {
+        sendResponse({ ok: false, quota: false, message: 'Could not update saved sessions. Try again.' });
+      });
+      return true;
+    }
     if (isToolbarIconMessage(msg)) {
+      if (!isSavedSessionSender(sender)) return;
       void applyToolbarIconInBackground(msg.theme);
       return;
     }
     if (isWhoamiMessage(msg)) {
-      sendResponse(handleWhoamiRequest(sender));
-      return;
+      if (!isSavedSessionSender(sender)) {
+        sendResponse({});
+        return;
+      }
+      void workspaceReady.then(() => sendResponse(handleWhoamiRequest(sender)));
+      return true;
     }
     if (isBackgroundLaunchMessage(msg)) {
-      sendResponse({ ok: true, queued: true });
-      void performBackgroundLaunch(msg).catch((err) => {
-        void trackEvent('extension_error', {
-          where: 'background',
-          kind: 'launch',
-          reason: String(err).slice(0, 120),
-        });
-      });
-      return;
+      const runtimeId = (browser.runtime as typeof browser.runtime & { id?: string }).id;
+      if (!isAuthorizedBackgroundSender(sender, runtimeId)) {
+        sendResponse({ ok: false });
+        return;
+      }
+      void performBackgroundLaunch(msg).then(
+        (result) => sendResponse({ ok: result.ok !== false, ...result }),
+        (err) => {
+          void trackEvent('extension_error', {
+            where: 'background',
+            kind: 'launch',
+            reason: String(err).slice(0, 120),
+          });
+          sendResponse({ ok: false });
+        },
+      );
+      return true;
     }
   });
 

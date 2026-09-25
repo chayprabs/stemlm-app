@@ -2,6 +2,7 @@ import type { CompileCtx, CompileResult } from '../types';
 import { specGet, specGetAll, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
+import { SCENE_VARIANTS } from '../catalog';
 
 type Point = { x: number; y: number };
 type Failure = Extract<CompileResult, { ok: false }>;
@@ -59,6 +60,67 @@ function parseAngle(raw: string): { degrees: number; reference: string } | null 
   const m = /(?:at\s+)?(-?\d+(?:\.\d+)?)\s*(?:deg|°)\s+(?:from|relative\s+to)\s+([a-z][a-z0-9_.-]*)/i.exec(raw);
   if (!m) return null;
   return { degrees: Number(m[1]), reference: m[2]!.toLowerCase() };
+}
+
+type ParsedForce = {
+  name: string;
+  owner?: string;
+  direction: string;
+  magnitude?: number;
+  magnitudeText?: string;
+  unit?: string;
+};
+
+const FORCE_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+const FORCE_ATTACHED_QUANTITY = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-zµμΩ%][a-z0-9µμΩ%/^._-]*)$/i;
+const FORCE_UNIT = /^[a-zµμΩ%][a-z0-9µμΩ%/^._-]*$/i;
+const FORCE_DIRECTION_START = /^(?:up|down|left|right|up[-_]left|up[-_]right|down[-_]left|down[-_]right|up[-_]incline|down[-_]incline|normal\+|weight|at)$/i;
+
+function parseForce(raw: string): ParsedForce | Failure {
+  const parts = words(raw);
+  const name = parts.shift();
+  if (!name) return failure('force needs a name');
+
+  let owner: string | undefined;
+  const onIndexes = parts.reduce<number[]>((indexes, part, index) => {
+    if (part.toLowerCase() === 'on') indexes.push(index);
+    return indexes;
+  }, []);
+  if (onIndexes.length > 1) return failure(`force ${name} has more than one owner clause`);
+  if (onIndexes.length === 1) {
+    const onIndex = onIndexes[0]!;
+    owner = parts[onIndex + 1];
+    if (!owner || !/^[a-z][a-z0-9_.-]*$/i.test(owner)) return failure(`force ${name} needs a body after on`);
+    parts.splice(onIndex, 2);
+  }
+
+  let magnitude: number | undefined;
+  let magnitudeText: string | undefined;
+  let unit: string | undefined;
+  const first = parts[0];
+  if (first) {
+    const attached = FORCE_ATTACHED_QUANTITY.exec(first);
+    if (attached) {
+      magnitude = Number(attached[1]);
+      unit = attached[2];
+      magnitudeText = `${attached[1]} ${attached[2]}`;
+      parts.shift();
+    } else if (FORCE_NUMBER.test(first)) {
+      const rawUnit = parts[1];
+      if (!rawUnit || !FORCE_UNIT.test(rawUnit)) return failure(`force ${name} magnitude needs a unit`);
+      magnitude = Number(first);
+      unit = rawUnit;
+      magnitudeText = `${first} ${rawUnit}`;
+      parts.splice(0, 2);
+    } else if (!FORCE_DIRECTION_START.test(first)) {
+      return failure(`force ${name} has an unsupported magnitude or direction`);
+    }
+    if (magnitude !== undefined && (!Number.isFinite(magnitude) || magnitude <= 0)) {
+      return failure(`force ${name} magnitude must be positive and finite`);
+    }
+  }
+  if (!parts.length) return failure(`force ${name} needs a direction`);
+  return { name, owner, direction: parts.join(' '), magnitude, magnitudeText, unit };
 }
 
 function vectorForForce(raw: string, inclineDeg: number, knownAngles: Map<string, number>): { dx: number; dy: number } | null {
@@ -243,7 +305,7 @@ function lookupFbdPoint(
 }
 
 function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['body', 'incline_deg', 'force', 'axes', 'member', 'support', 'surface', 'dimension', 'angle', 'panel']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.fbd!.allowed);
   if (invalid) return invalid;
   const panels = drawPanels(b, spec, w, h);
   const bodies = namedBodies(spec);
@@ -317,24 +379,42 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
   }
   const knownAngles = new Map<string, number>();
   const forceNames = new Map<string, number>();
+  const parsedForces: ParsedForce[] = [];
   for (const raw of specGetAll(spec, 'force')) {
-    const parts = words(raw);
-    const name = parts[0];
-    if (!name) return failure('force needs a name');
-    const vec = vectorForForce(raw, incline, knownAngles);
-    if (!vec) return failure(`force ${name} has an unsupported or ambiguous direction`);
-    const owner = /\bon\s+([a-z][a-z0-9_.-]*)/i.exec(raw)?.[1] ?? bodies[0]!;
+    const parsed = parseForce(raw);
+    if ('ok' in parsed) return parsed;
+    parsedForces.push(parsed);
+  }
+  const declaredUnits = parsedForces.filter((force) => force.magnitude !== undefined && force.unit);
+  const comparableUnit = declaredUnits.length > 0 && declaredUnits.length === parsedForces.length
+    && declaredUnits.every((force) => force.unit === declaredUnits[0]!.unit);
+  const maxMagnitude = comparableUnit
+    ? Math.max(...declaredUnits.map((force) => force.magnitude!))
+    : 0;
+  const minMagnitude = comparableUnit
+    ? Math.min(...declaredUnits.map((force) => force.magnitude!))
+    : 0;
+  const rangeRequiresSchematic = comparableUnit && maxMagnitude / minMagnitude > 2;
+  for (const force of parsedForces) {
+    const vec = vectorForForce(force.direction, incline, knownAngles);
+    if (!vec) return failure(`force ${force.name} has an unsupported or ambiguous direction`);
+    const owner = force.owner ?? bodies[0]!;
     const start = lookupPoint(positions, owner);
-    if (!start) return failure(`force ${name} references unknown body ${owner}`);
+    if (!start) return failure(`force ${force.name} references unknown body ${owner}`);
     const anchor = bodyPoses.get(owner.toLowerCase());
     const forceStart = anchor ? bodyBoundaryPoint(anchor, { x: vec.dx, y: vec.dy }) : start;
-    const baseName = idPart(name);
+    const baseName = idPart(force.name);
     const count = forceNames.get(baseName) ?? 0;
     forceNames.set(baseName, count + 1);
     const strokeId = `force-${baseName}${count ? `-${count + 1}` : ''}`;
-    const end = { x: forceStart.x + vec.dx * 43, y: forceStart.y + vec.dy * 43 };
+    const arrowLength = comparableUnit && !rangeRequiresSchematic && force.magnitude !== undefined
+      ? 43 * (force.magnitude / maxMagnitude)
+      : 43;
+    const end = { x: forceStart.x + vec.dx * arrowLength, y: forceStart.y + vec.dy * arrowLength };
     b.line(strokeId, forceStart.x, forceStart.y, end.x, end.y, { markerEnd: true, color: 'accent', role: 'connector', width: 1.8 });
-    b.label(`force-label-${strokeId.slice('force-'.length)}`, name, end.x, end.y, { slot: 'NE', priority: 'preferred', anchorId: strokeId });
+    const quantity = force.magnitudeText ? ` ${force.magnitudeText}` : '';
+    const schematic = force.magnitudeText && (!comparableUnit || rangeRequiresSchematic) ? ' (schematic)' : '';
+    b.label(`force-label-${strokeId.slice('force-'.length)}`, `${force.name}${quantity}${schematic}`, end.x, end.y, { slot: 'NE', priority: force.magnitudeText ? 'required' : 'preferred', anchorId: strokeId });
     knownAngles.set(baseName, Math.atan2(vec.dy, vec.dx) * 180 / Math.PI);
   }
   if (specGet(spec, 'axes')) {
@@ -499,7 +579,7 @@ function drawDimensionsAndAngles(b: SceneBuilder, spec: SpecDoc, points: Map<str
 }
 
 function drawGeom(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['point', 'segment', 'relation', 'angle', 'dimension', 'panel']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.geom!.allowed);
   if (invalid) return invalid;
   drawPanels(b, spec, w, h);
   const pointValues = specGetAll(spec, 'point');
@@ -817,7 +897,7 @@ function relationEndpoints(raw: string, centers: Map<string, Point>): { kind: st
 }
 
 function drawParts(b: SceneBuilder, spec: SpecDoc, w: number, h: number, kind: string): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['part', 'element', 'relation', 'panel']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.apparatus!.allowed);
   if (invalid) return invalid;
   const panels = drawPanels(b, spec, w, h);
   const values = [...specGetAll(spec, 'part'), ...specGetAll(spec, 'element')];
@@ -1070,7 +1150,7 @@ function parseMolecularRelations(spec: SpecDoc, knownIds: Set<string>): Molecula
 }
 
 function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['strand', 'primer', 'fork', 'fragment', 'bubble', 'product', 'actor', 'relation']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.molecular!.allowed);
   if (invalid) return invalid;
   const strandsResult = parseMolecularStrands(spec);
   if (!Array.isArray(strandsResult)) return strandsResult;
@@ -1289,7 +1369,7 @@ function gasKind(raw: string): 'gas' | 'thermodynamic' | null {
 }
 
 function drawGasState(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['container', 'boundary', 'particle', 'piston', 'state', 'part', 'element', 'panel']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.gas!.allowed);
   if (invalid) return invalid;
 
   const containerValues = [...specGetAll(spec, 'container'), ...specGetAll(spec, 'part'), ...specGetAll(spec, 'element')];
@@ -1463,7 +1543,7 @@ function parseThermoPath(raw: string, known: Set<string>, index: number): Thermo
 }
 
 function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['axis', 'state', 'point', 'path', 'cycle']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.thermodynamic!.allowed);
   if (invalid) return invalid;
   const axes: ThermoAxis[] = [];
   for (const [index, raw] of specGetAll(spec, 'axis').entries()) {
@@ -1550,6 +1630,9 @@ function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: nu
 }
 
 export function compileScene(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (spec.emptyDeclarations.size || spec.lists.size) {
+    return failure('scene declarations need inline values; repeat keys for multiple records');
+  }
   const kind = (specGet(spec, 'kind') ?? 'fbd').toLowerCase();
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('scene', w, h);
@@ -1569,29 +1652,47 @@ export function compileScene(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 function drawRay(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['f', 'do', 'ho']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.ray!.allowed);
   if (invalid) return invalid;
   const f = specNumber(spec, 'f');
   const do_ = specNumber(spec, 'do');
   const ho = specNumber(spec, 'ho');
   if (f === undefined || do_ === undefined || ho === undefined || f <= 0 || do_ <= 0 || ho <= 0) return failure('ray needs positive f, do, and ho');
   const di = do_ === f ? Number.POSITIVE_INFINITY : (f * do_) / (do_ - f);
+  const finiteImage = Number.isFinite(di);
+  const hi = finiteImage ? -ho * (di / do_) : 0;
+  const rayEnd = finiteImage && di > 0 ? di : f;
+  const left = Math.min(-do_, -f, finiteImage ? di : 0);
+  const right = Math.max(f, rayEnd);
+  const maxHeight = Math.max(ho, Math.abs(hi), rayEnd * ho / do_);
+  const scale = Math.min((w - 72) / (right - left), (h / 2 - 30) / maxHeight);
+  if (!Number.isFinite(scale) || scale <= 0) return failure('ray distances exceed finite drawing bounds');
   const axisY = h / 2;
-  const lensX = w * 0.5;
-  const objX = Math.max(24, lensX - Math.min(do_, lensX - 25));
+  const lensX = (w - (right + left) * scale) / 2;
+  const objX = lensX - do_ * scale;
+  const objectY = axisY - ho * scale;
   b.line('axis', 16, axisY, w - 16, axisY, { color: 'guide', role: 'axis', dash: true });
   b.line('lens', lensX, 24, lensX, h - 24, { color: 'neutral', role: 'geometry', width: 2 });
-  b.label('F-right', 'F', lensX + f, axisY + 14, { priority: 'required', anchorId: 'axis' });
-  b.label('F-left', 'F', lensX - f, axisY + 14, { priority: 'required', anchorId: 'axis' });
-  b.line('object', objX, axisY, objX, axisY - ho, { markerEnd: true, color: 'accent', role: 'connector' });
-  b.label('object-label', 'object', objX, axisY - ho - 8, { priority: 'required', anchorId: 'object' });
-  if (Number.isFinite(di)) {
-    const imgX = lensX + Math.max(-w * 0.35, Math.min(w * 0.35, di));
-    const hi = -ho * (di / do_);
-    b.line('image', imgX, axisY, imgX, axisY - hi, { markerEnd: true, color: 'muted', role: 'connector', dash: di < 0 });
-    b.label('image-label', 'image', imgX, axisY - hi - 8, { priority: 'preferred', anchorId: 'image' });
-    b.line('ray-parallel', objX, axisY - ho, lensX, axisY - ho, { color: 'accent', role: 'connector' });
-    b.line('ray-through-focus', lensX, axisY - ho, imgX, axisY - hi, { color: 'accent', role: 'connector', markerEnd: true });
+  // Match the text emitter's tenth-unit coordinates so focal ticks and labels align.
+  b.circle('focus-right', Number((lensX + f * scale).toFixed(1)), axisY, 2, { fill: 'solid', role: 'annotation' });
+  b.circle('focus-left', Number((lensX - f * scale).toFixed(1)), axisY, 2, { fill: 'solid', role: 'annotation' });
+  b.label('F-right', 'F', lensX + f * scale, axisY + 14, { protected: true, priority: 'required', anchorId: 'focus-right' });
+  b.label('F-left', 'F', lensX - f * scale, axisY + 14, { protected: true, priority: 'required', anchorId: 'focus-left' });
+  b.line('object', objX, axisY, objX, objectY, { markerEnd: true, color: 'accent', role: 'connector' });
+  b.label('object-label', 'object', objX, di < 0 ? axisY + 30 : objectY - 12, { protected: true, priority: 'required', anchorId: 'object' });
+  b.line('ray-parallel', objX, objectY, lensX, objectY, { color: 'accent', role: 'connector' });
+  b.line('ray-through-focus', lensX, objectY, lensX + rayEnd * scale, objectY + rayEnd * ho / f * scale, { color: 'accent', role: 'connector', markerEnd: true });
+  b.line('ray-center-in', objX, objectY, lensX, axisY, { color: 'muted', role: 'connector' });
+  b.line('ray-center-out', lensX, axisY, lensX + rayEnd * scale, axisY + rayEnd * ho / do_ * scale, { color: 'muted', role: 'connector', markerEnd: true });
+  if (finiteImage) {
+    const imgX = lensX + di * scale;
+    const imageY = axisY - hi * scale;
+    b.line('image', imgX, axisY, imgX, imageY, { markerEnd: true, color: 'muted', role: 'connector', dash: di < 0 });
+    b.label('image-label', 'image', imgX, imageY + (hi < 0 ? 12 : -12), { protected: true, priority: 'preferred', anchorId: 'image' });
+    if (di < 0) {
+      b.line('ray-virtual-extension', lensX, objectY, imgX, imageY, { color: 'guide', role: 'guide', dash: true });
+      b.line('ray-center-extension', lensX, axisY, imgX, imageY, { color: 'guide', role: 'guide', dash: true });
+    }
   }
   return null;
 }
@@ -1610,7 +1711,7 @@ export function normalizeFieldCatalog(raw: string | undefined): FieldCatalog | n
 }
 
 function drawField(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
-  const invalid = keysAreKnown(spec, ['catalog', 'core', 'b', 'h']);
+  const invalid = keysAreKnown(spec, SCENE_VARIANTS.field!.allowed);
   if (invalid) return invalid;
   const catalogRaw = specGet(spec, 'catalog');
   const coreRaw = specGet(spec, 'core');

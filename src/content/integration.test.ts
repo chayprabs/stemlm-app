@@ -1,3 +1,4 @@
+import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { StemController } from './controller';
 import { geminiAdapter } from '@/src/platforms/gemini';
@@ -73,7 +74,7 @@ function pushAssistantCapsule(raw: string) {
 
 /**
  * End-to-end through the REAL Gemini adapter against a simulated page DOM:
- * type a question -> attach stemlm-protocol.txt + short stub -> assistant replies ->
+ * type a question -> attach stemLM study guide + short stub -> assistant replies ->
  * MutationObserver captures -> store holds a parsed session.
  */
 describe('integration: Gemini adapter + controller capture', () => {
@@ -93,7 +94,7 @@ describe('integration: Gemini adapter + controller capture', () => {
 
     const injected = geminiAdapter.getEditorText();
     expect(injected).toContain('12V series resistor');
-    expect(injected).toContain(PROTOCOL_FILENAME);
+    expect(injected).toContain(STUDY_GUIDE_REFERENCE);
     expect(injected).toContain('Follow the attached');
     expect(injected).not.toContain('OUTPUT:');
     expect(injected).not.toContain('--- stemLM instructions');
@@ -128,7 +129,7 @@ describe('integration: Gemini adapter + controller capture', () => {
     );
     expect(injected).toContain(question);
     expect(injected).toContain('--- stemLM ---');
-    expect(injected).toContain('Follow the attached stemlm-protocol.txt');
+    expect(injected).toContain('Follow the attached stemLM study guide');
     expect(injected).not.toContain('--- stemLM instructions');
     expect(injected).not.toContain('OUTPUT:');
     const input = document.querySelector('input[type="file"]') as HTMLInputElement | null;
@@ -163,7 +164,7 @@ describe('integration: Gemini adapter + controller capture', () => {
     const injected = geminiAdapter.getEditorText();
     expect(injected).toContain('Infer the subject from the problem');
     expect(injected).not.toContain('(Chemistry)');
-    expect(injected).toContain(PROTOCOL_FILENAME);
+    expect(injected).toContain(STUDY_GUIDE_REFERENCE);
     expect(injected).not.toContain('OUTPUT:');
     expect(injected).not.toContain('mhchem');
 
@@ -187,7 +188,7 @@ describe.each(HOST_FIXTURES)(
       wireProtocolAttach(composer);
     });
 
-    it('keeps the typed question and image/PDF chip, attaches stemlm-protocol.txt, writes only the short stub, then captures a capsule tagged with that platform', async () => {
+    it('keeps the typed question and image/PDF chip, attaches stemLM study guide, writes only the short stub, then captures a capsule tagged with that platform', async () => {
       const editor = spec.adapter.findEditor()!;
       if (editor.tagName === 'TEXTAREA' || editor.tagName === 'INPUT') {
         (editor as HTMLTextAreaElement).value =
@@ -205,7 +206,7 @@ describe.each(HOST_FIXTURES)(
 
       const injected = spec.adapter.getEditorText();
       expect(injected).toContain('12V series resistor');
-      expect(injected).toContain(PROTOCOL_FILENAME);
+      expect(injected).toContain(STUDY_GUIDE_REFERENCE);
       expect(injected).toContain('Follow the attached');
       expect(injected).not.toContain('OUTPUT:');
       expect(injected).not.toContain('--- stemLM instructions');

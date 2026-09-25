@@ -107,9 +107,9 @@ describe('popup launch helpers', () => {
     tabs.get.mockImplementation(async (id: number) => ({ id, url: activeTab.url, status: 'complete' }));
   });
 
-  it('names the four shipped chats and does not advertise a 2×2 launch grid', () => {
-    expect(CHAT_HOST_LAUNCH.map((h) => h.label)).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
-    expect(unsupportedHostNotice()).toMatch(/ChatGPT/);
+  it('names only the three retained chats and does not advertise a 2×2 launch grid', () => {
+    expect(CHAT_HOST_LAUNCH.map((h) => h.label)).toEqual(['Claude', 'Gemini', 'Grok']);
+    expect(unsupportedHostNotice()).not.toMatch(/ChatGPT/);
     expect(unsupportedHostNotice()).toMatch(/Claude/);
     expect(unsupportedHostNotice()).toMatch(/Gemini/);
     expect(unsupportedHostNotice()).toMatch(/Grok/);
@@ -132,7 +132,8 @@ describe('popup launch helpers', () => {
     const result = await openStudyPanel();
     expect(result.ok).toBe(false);
     if (!result.ok && 'error' in result) {
-      expect(result.error).toMatch(/ChatGPT/);
+      expect(result.error).toMatch(/Claude, Gemini, Grok/);
+      expect(result.error).not.toMatch(/ChatGPT/);
     }
   });
 

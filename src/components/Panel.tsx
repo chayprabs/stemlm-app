@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
@@ -19,7 +19,7 @@ import {
   refreshSavedSession,
 } from '@/src/lib/saved-sessions';
 import { StorageQuotaError } from '@/src/lib/storage-errors';
-import { setSettings } from '@/src/lib/settings';
+import { normalizeContentScale, setSettings } from '@/src/lib/settings';
 import { exportSessionPdf } from '@/src/lib/pdf';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
@@ -60,10 +60,14 @@ export function Panel() {
     setSettings: setStoreSettings,
     setTheme,
     splitRatio,
+    settings,
   } = useStore();
   const session = useActiveSession();
+  const reducedMotion = useReducedMotion();
   const [saved, setSaved] = useState(false);
+  const [contentScaleBusy, setContentScaleBusy] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   /** Ignore in-flight isSessionSaved results after a session switch or Save toggle. */
   const saveEpoch = useRef(0);
 
@@ -91,9 +95,18 @@ export function Panel() {
     };
   }, [session]);
 
-  // Focus the panel when it opens so keyboard nav works immediately.
+  // Move focus into the panel on entry and return it to the opener on close.
   useEffect(() => {
-    if (panelOpen) panelRef.current?.focus({ preventScroll: true });
+    if (panelOpen) {
+      const active = document.activeElement;
+      openerRef.current = active instanceof HTMLElement && !panelRef.current?.contains(active)
+        ? active
+        : null;
+      panelRef.current?.focus({ preventScroll: true });
+    } else if (openerRef.current?.isConnected) {
+      openerRef.current.focus({ preventScroll: true });
+      openerRef.current = null;
+    }
   }, [panelOpen]);
 
   useEffect(() => {
@@ -132,22 +145,16 @@ export function Panel() {
     try {
       if (saved) {
         await deleteSavedSession(session.id);
-        setSaved(false);
+        if (useStore.getState().activeSessionId === session.id) setSaved(false);
         void trackEvent('session_unsaved', { platform: session.platform });
         return;
       }
-      const { prunedCount } = await saveSession(session);
-      setSaved(true);
+      await saveSession(session);
       void trackEvent('session_saved', { platform: session.platform });
-      if (prunedCount > 0) {
-        useStore
-          .getState()
-          .setStatus(
-            'ready',
-            `Saved. Removed ${prunedCount} older save${prunedCount === 1 ? '' : 's'} to free storage.`,
-          );
-      }
+      if (useStore.getState().activeSessionId !== session.id) return;
+      setSaved(true);
     } catch (err) {
+      if (useStore.getState().activeSessionId !== session.id) return;
       if (!saved) setSaved(false);
       const msg =
         err instanceof StorageQuotaError
@@ -162,14 +169,42 @@ export function Panel() {
   async function onToggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    const updated = await setSettings({ theme: next });
-    setStoreSettings(updated);
+    try {
+      const updated = await setSettings({ theme: next });
+      setStoreSettings(updated);
+    } catch {
+      setTheme(theme);
+      useStore.getState().setStatus('error', 'Could not save theme. Try again.');
+    }
+  }
+
+  async function onChangeContentScale(direction: -1 | 1) {
+    if (contentScaleBusy) return;
+    const previous = settings.contentScale;
+    const next = normalizeContentScale(previous + direction);
+    if (next === previous) return;
+    setContentScaleBusy(true);
+    setStoreSettings({ ...settings, contentScale: next });
+    try {
+      const updated = await setSettings({ contentScale: next });
+      setStoreSettings(updated);
+    } catch {
+      setStoreSettings({ ...settings, contentScale: previous });
+      useStore.getState().setStatus('error', 'Could not save the content size. Try again.');
+    } finally {
+      setContentScaleBusy(false);
+    }
   }
 
   async function onExportPdf() {
     if (!session) return;
-    const result = await exportSessionPdf(session);
-    if (!result.ok) {
+    try {
+      const result = await exportSessionPdf(session);
+      if (result.ok) return;
+    } catch {
+      // Export can fail when a browser print surface is unavailable.
+    }
+    if (useStore.getState().status !== 'error') {
       useStore.getState().setStatus('error', 'PDF export failed. Try again or use Print from the dialog.');
     }
   }
@@ -194,9 +229,10 @@ export function Panel() {
   }
 
   function onPanelPointerDown(e: React.PointerEvent) {
-    if (panelRef.current?.contains(e.target as Node)) {
-      panelRef.current.focus({ preventScroll: true });
-    }
+    const target = e.target as HTMLElement | null;
+    if (!target || !panelRef.current?.contains(target)) return;
+    if (target.closest('button,a,input,textarea,select,[contenteditable="true"],[role="button"],[role="separator"]')) return;
+    panelRef.current.focus({ preventScroll: true });
   }
 
   return (
@@ -204,14 +240,15 @@ export function Panel() {
       ref={panelRef}
       className="slm-panel"
       data-stemlm-theme={theme}
+      data-content-scale={settings.contentScale}
       style={{ width: `${(splitRatio * 100).toFixed(3)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerDown={onPanelPointerDown}
-      initial={{ x: '100%' }}
+      initial={reducedMotion ? false : { x: '100%' }}
       animate={{ x: 0 }}
-      exit={{ x: '100%' }}
-      transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      exit={reducedMotion ? undefined : { x: '100%' }}
+      transition={reducedMotion ? { duration: 0 } : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       role="complementary"
       aria-label="stemLM study panel"
     >
@@ -221,6 +258,9 @@ export function Panel() {
         view={view}
         theme={theme}
         saved={saved}
+        contentScale={settings.contentScale}
+        contentScaleBusy={contentScaleBusy}
+        onChangeContentScale={onChangeContentScale}
         onSetView={setView}
         onToggleTheme={onToggleTheme}
         onToggleSave={onToggleSave}
@@ -308,26 +348,28 @@ export function Panel() {
                   </AnimatePresence>
                 </div>
 
-                <footer className="slm-stepnav slm-stepnav--overlay" aria-label="Step navigation">
-                  <button
-                    type="button"
-                    className="slm-stepnav-btn"
-                    onClick={prevStep}
-                    disabled={activeStepIndex === 0}
-                    aria-label="Previous step"
-                  >
-                    <IconNavPrev /> Prev
-                  </button>
-                  <button
-                    type="button"
-                    className="slm-stepnav-btn"
-                    onClick={nextStep}
-                    disabled={activeStepIndex >= total - 1}
-                    aria-label="Next step"
-                  >
-                    Next <IconNavNext />
-                  </button>
-                </footer>
+                <div className="slm-stepnav-slot">
+                  <footer className="slm-stepnav slm-stepnav--overlay" aria-label="Step navigation">
+                    <button
+                      type="button"
+                      className="slm-stepnav-btn"
+                      onClick={prevStep}
+                      disabled={activeStepIndex === 0}
+                      aria-label="Previous step"
+                    >
+                      <IconNavPrev /> Prev
+                    </button>
+                    <button
+                      type="button"
+                      className="slm-stepnav-btn"
+                      onClick={nextStep}
+                      disabled={activeStepIndex >= total - 1}
+                      aria-label="Next step"
+                    >
+                      Next <IconNavNext />
+                    </button>
+                  </footer>
+                </div>
               </div>
             </div>
           </div>

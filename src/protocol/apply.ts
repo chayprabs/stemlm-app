@@ -2,7 +2,7 @@
  * Resume stitch, ID-patch apply, and multi-question helpers.
  * Pure functions — the controller calls these; they do not touch the DOM.
  */
-import type { Capsule, ParseWarningCode, PatchOp, Step } from './types';
+import type { Capsule, ParseErrorCode, ParseWarningCode, PatchOp, Step } from './types';
 import { CAPSULE_END_TOKEN, CAPSULE_FENCE_TAG } from './protocol';
 
 const RESUME_RE = /@resume\b[^\n]*/i;
@@ -123,9 +123,10 @@ export function stitchResume(parts: string[]): string {
     prefix = `${prefix}\n${next}`;
     return next;
   });
-  const joined = [head, ...rest].join('\n').trim();
-  const hasEnd = joined.split('\n').some((l) => l.trim() === CAPSULE_END_TOKEN);
-  return hasEnd ? joined : `${joined}\n${CAPSULE_END_TOKEN}`;
+  // A matching token proves continuity, not completion. Preserve the absence
+  // of @end so the normal parser/controller contract gate can reject a pair
+  // that is still truncated instead of manufacturing a successful capsule.
+  return [head, ...rest].join('\n').trim();
 }
 
 function reindex(steps: Step[]): Step[] {
@@ -133,6 +134,8 @@ function reindex(steps: Step[]): Step[] {
 }
 
 export interface ApplyPatchResult {
+  ok: boolean;
+  errorCode?: ParseErrorCode;
   capsule: Capsule;
   warnings: string[];
   warningCodes: ParseWarningCode[];
@@ -144,15 +147,30 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
   let solution = capsule.solution;
   let verification = capsule.verification;
   let uncertainty = capsule.uncertainty;
+  let ok = true;
+  let errorCode: ParseErrorCode | undefined;
   const warnings: string[] = [];
   const warningCodes: ParseWarningCode[] = [];
 
   const unknown = (id: string, kind: string) => {
+    ok = false;
+    errorCode ??= 'invalid_structure';
     warnings.push(`Patch ${kind} referenced unknown id "${id}".`);
     warningCodes.push('patch_unknown_id');
   };
 
+  const invalid = (code: ParseWarningCode, message: string) => {
+    ok = false;
+    errorCode ??= 'invalid_structure';
+    warnings.push(message);
+    warningCodes.push(code);
+  };
+
   for (const op of ops) {
+    if (op.op !== 'replace' && op.op !== 'insert' && op.op !== 'delete') {
+      invalid('invalid_patch_op', `Patch declared unsupported operation "${String(op.op)}".`);
+      continue;
+    }
     if (op.solution != null) solution = op.solution;
     if (op.verification) verification = op.verification;
     if (op.uncertainty) uncertainty = op.uncertainty;
@@ -163,17 +181,27 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
         unknown(op.id, 'replace');
         continue;
       }
-      steps[i] = { ...op.step, id: op.id, index: steps[i]!.index };
+      // A targeted repair is a partial update: omitted optional fields belong
+      // to the original student-facing step and must not be erased.
+      steps[i] = { ...steps[i]!, ...op.step, id: op.id, index: steps[i]!.index };
     } else if (op.op === 'insert' && op.step) {
       if (op.after) {
         const after = steps.findIndex((s) => s.id === op.after);
         if (after === -1) unknown(op.after, 'insert');
         const idx = after === -1 ? steps.length : after + 1;
         const id = op.step.id || `step-${idx + 1}`;
+        if (steps.some((s) => s.id === id)) {
+          invalid('duplicate_step_id', `Patch insert would duplicate step id "${id}".`);
+          continue;
+        }
         steps.splice(idx, 0, { ...op.step, id });
       } else {
         const idx = steps.length;
         const id = op.step.id || `step-${idx + 1}`;
+        if (steps.some((s) => s.id === id)) {
+          invalid('duplicate_step_id', `Patch insert would duplicate step id "${id}".`);
+          continue;
+        }
         steps.splice(idx, 0, { ...op.step, id });
       }
     } else if (op.op === 'delete' && op.id) {
@@ -183,6 +211,8 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
     }
   }
   return {
+    ok,
+    ...(errorCode ? { errorCode } : {}),
     capsule: {
       ...capsule,
       steps: reindex(steps),

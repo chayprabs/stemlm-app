@@ -1,0 +1,110 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { OverlayButton } from './OverlayButton';
+import { useStore } from '@/src/state/store';
+import { DEFAULT_SETTINGS } from '@/src/lib/settings';
+import { _slotCss } from '@/src/lib/composer-slot';
+
+const inject = vi.fn<() => Promise<boolean>>();
+
+vi.mock('@/src/content/controller', () => ({
+  getController: () => ({
+    inject,
+    getLastQuestion: vi.fn(() => ''),
+    resetInjection: vi.fn(),
+  }),
+}));
+
+vi.mock('@/src/platforms/detect', () => ({
+  detectAdapter: () => ({
+    id: 'gemini',
+    brand: { accent: '#4285f4', neutral: false },
+    findEditor: () => document.getElementById('ed'),
+    getEditorText: () => document.getElementById('ed')?.textContent ?? '',
+    getComposerLeadingAnchor: () => null,
+    getComposerShell: () => document.body,
+    getComposerBox: () => document.body,
+  }),
+}));
+
+vi.mock('@/src/lib/composer-slot', async () => ({
+  ...(await vi.importActual<typeof import('@/src/lib/composer-slot')>('@/src/lib/composer-slot')),
+  ensureComposerSlot: () => null,
+  removeComposerSlot: () => {},
+  syncComposerSlotGeometry: () => {},
+  isolateStemLmPointer: () => () => {},
+  resolveComposerFrame: () => document.body,
+  outsideShellCoords: () => ({ top: 100, left: 24 }),
+}));
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe('attachment responsiveness', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const editor = document.createElement('div');
+    editor.id = 'ed';
+    document.body.appendChild(editor);
+    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle', settings: DEFAULT_SETTINGS });
+    inject.mockReset();
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    document.getElementById('ed')?.remove();
+  });
+
+  it('keeps one focused button in place while attachment is pending', async () => {
+    let finish!: (value: boolean) => void;
+    inject.mockReturnValueOnce(new Promise<boolean>((resolve) => { finish = resolve; }));
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    const button = container.querySelector<HTMLButtonElement>('[data-stemlm-inject]')!;
+    button.focus();
+    await act(async () => { button.click(); });
+
+    expect(container.querySelector('[data-stemlm-inject]')).toBe(button);
+    expect(button.className).toContain('is-loading');
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(button);
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toMatch(/attaching/i);
+
+    await act(async () => { finish(true); });
+    expect(container.querySelector('[data-stemlm-inject]')).toBe(button);
+    expect(button.className).not.toContain('is-loading');
+    expect(button.getAttribute('aria-busy')).toBe('false');
+    expect(button.getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('does not start a second attachment while the first is pending', async () => {
+    let finish!: (value: boolean) => void;
+    inject.mockReturnValueOnce(new Promise<boolean>((resolve) => { finish = resolve; }));
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    const button = container.querySelector<HTMLButtonElement>('[data-stemlm-inject]')!;
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    expect(inject).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(true); });
+  });
+
+  it('ships the host dock spinner animation with a reduced-motion override', () => {
+    expect(_slotCss).toMatch(/\.slm-inject-status|\.slm-inject-spinner/);
+    expect(_slotCss).toMatch(/animation:\s*slm-spin/);
+    expect(_slotCss).toMatch(/prefers-reduced-motion:\s*reduce/);
+  });
+});

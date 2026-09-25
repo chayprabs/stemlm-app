@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FAMILY_CATALOG, familyRequiredMissing } from './catalog';
+import { FAMILY_CATALOG, familyRequiredMissing, isKnownDiagramType, lookupFamily } from './catalog';
+import { parseCapsule } from '@/src/protocol/parser';
 
 const SYNONYM_GROUPS = [
   ['label', 'name', 'text', 'lbl'],
@@ -52,5 +53,44 @@ describe('catalog vocabulary and DSL budget', () => {
       'point: A',
       'segment: OA O A',
     ].join('\n'))).toEqual([]);
+  });
+
+  it('requires a real circuit device instead of accepting control metadata alone', () => {
+    expect(familyRequiredMissing('circuit', 'std: ieee\nprobe: Vout=n1')).toEqual(['device']);
+    expect(familyRequiredMissing('circuit', 'std: ieee\ncaption: source and load')).toEqual(['device']);
+    expect(familyRequiredMissing('circuit', 'std: ieee\nmap: world colors unknown')).toEqual(['device']);
+    expect(familyRequiredMissing('circuit', 'std: ieee\nRload: n1 0 1k')).toEqual([]);
+  });
+
+  it('treats inherited object property names as unknown diagram types', () => {
+    for (const token of ['__proto__', 'constructor', 'toString']) {
+      expect(() => isKnownDiagramType(token), token).not.toThrow();
+      expect(isKnownDiagramType(token), token).toBe(false);
+      expect(lookupFamily(token), token).toBeUndefined();
+    }
+  });
+
+  it('keeps hostile inherited type names inside the parser error path', () => {
+    const capsule = [
+      '@meta',
+      'subject: Electrical',
+      'topic: hostile type',
+      '@endmeta',
+      '@step id=s1',
+      'title: Draw',
+      '@body',
+      'A circuit is shown.',
+      '@endbody',
+      '@diagram id=f1 type=__proto__',
+      'device: R1 a b 1k',
+      '@enddiagram',
+      '@endstep',
+      '@solution',
+      'Done.',
+      '@endsolution',
+      '@end',
+    ].join('\n');
+    expect(() => parseCapsule(capsule)).not.toThrow();
+    expect(parseCapsule(capsule).warningCodes).toContain('unknown_diagram_type');
   });
 });

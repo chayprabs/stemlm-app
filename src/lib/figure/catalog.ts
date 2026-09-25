@@ -5,6 +5,13 @@
 
 export type FamilyKind = 'hatch' | 'engine' | 'leftover' | 'refuse';
 
+export interface FamilyVariant {
+  allowed: string[];
+  requiredAny: string[];
+  required?: string[];
+  aliases?: string[];
+}
+
 export interface FamilyDef {
   kind: FamilyKind;
   engine: string;
@@ -14,7 +21,26 @@ export interface FamilyDef {
   requiredAny?: string[];
   aliases?: string[];
   section?: string;
+  variants?: Record<string, FamilyVariant>;
 }
+
+/** Shared by catalog admission, Guide rows, and engine key validation. */
+export const SCENE_VARIANTS: Record<string, FamilyVariant> = {
+  fbd: { allowed: ['body', 'incline_deg', 'force', 'axes', 'member', 'support', 'surface', 'dimension', 'angle', 'panel'], requiredAny: ['body', 'force'] },
+  geom: { allowed: ['point', 'segment', 'relation', 'angle', 'dimension', 'panel'], requiredAny: ['point', 'segment'], aliases: ['geometry'] },
+  apparatus: { allowed: ['part', 'element', 'relation', 'panel'], requiredAny: ['part', 'element'], aliases: ['cycle', 'map', 'network', 'structure'] },
+  molecular: { allowed: ['strand', 'primer', 'fork', 'fragment', 'bubble', 'product', 'actor', 'relation'], requiredAny: ['strand'] },
+  gas: { allowed: ['container', 'boundary', 'particle', 'piston', 'state', 'part', 'element', 'panel'], requiredAny: ['container', 'boundary', 'part', 'element'], aliases: ['gas-state', 'gas-scene'] },
+  thermodynamic: { allowed: ['axis', 'state', 'point', 'path', 'cycle'], requiredAny: ['axis', 'point'], aliases: ['thermo', 'thermodynamic-graph', 'state-graph'] },
+  ray: { allowed: ['f', 'do', 'ho'], required: ['f', 'do', 'ho'], requiredAny: ['f'], aliases: ['optics'] },
+  field: { allowed: ['catalog', 'core', 'b', 'h'], requiredAny: ['catalog', 'core'] },
+};
+
+export const TABLE_VARIANTS: Record<string, FamilyVariant> = {
+  matrix: { allowed: ['headers', 'header', 'row', 'rows'], requiredAny: ['headers', 'row', 'rows'], aliases: ['dp'] },
+  ice: { allowed: ['species', 'i', 'c', 'e'], requiredAny: ['species', 'i'] },
+  punnett: { allowed: ['cols', 'columns', 'rows', 'cells'], requiredAny: ['rows', 'cells'] },
+};
 
 /** Canonical leftover tokens named in research §12.8 / §23. */
 export const CATALOG_LEFTOVER_TOKENS = [
@@ -42,10 +68,10 @@ export const CATALOG_LEFTOVER_TOKENS = [
 
 const ENGINE_FAMILIES: Record<string, FamilyDef> = {
   plot: { kind: 'engine', engine: 'plot', requiredAny: ['fn', 'data', 'peaks', 'poles'] },
-  scene: { kind: 'engine', engine: 'scene', required: ['kind'], requiredAny: ['body', 'force', 'part', 'element', 'geom', 'strand', 'point', 'segment', 'container', 'boundary', 'axis'] },
+  scene: { kind: 'engine', engine: 'scene', required: ['kind'], variants: SCENE_VARIANTS },
   graph: { kind: 'engine', engine: 'graph', requiredAny: ['node', 'edge'] },
-  table: { kind: 'engine', engine: 'table', required: ['kind'], requiredAny: ['species', 'row', 'I', 'cells', 'headers'] },
-  circuit: { kind: 'engine', engine: 'circuit', requiredAny: ['std'] },
+  table: { kind: 'engine', engine: 'table', required: ['kind'], variants: TABLE_VARIANTS },
+  circuit: { kind: 'engine', engine: 'circuit', requiredAny: ['device'] },
 };
 
 const HATCH_FAMILIES: Record<string, FamilyDef> = {
@@ -69,7 +95,7 @@ const LEFTOVER_FAMILIES: Record<string, FamilyDef> = {
   jablonski: { kind: 'leftover', engine: 'ladder', requiredAny: ['levels'], section: '11.3' },
   mccabe: { kind: 'leftover', engine: 'mccabe', requiredAny: ['alpha', 'zf'], section: '11.10' },
   sfd: { kind: 'leftover', engine: 'sfd', requiredAny: ['l', 'v', 'loads'], section: '11.9' },
-  phasor: { kind: 'leftover', engine: 'phasor', requiredAny: ['vec', 'i1', 'v'], section: '11.8' },
+  phasor: { kind: 'leftover', engine: 'phasor', requiredAny: ['vec'], section: '11.8' },
   smith: { kind: 'leftover', engine: 'smith', requiredAny: ['z0', 'zl'], section: '11.8' },
   feynman: { kind: 'leftover', engine: 'feynman', requiredAny: ['kind', 'incoming', 'vertices'], section: '11.7' },
   minkowski: { kind: 'leftover', engine: 'minkowski', requiredAny: ['events', 'v', 'worldlines'], section: '11.7' },
@@ -216,12 +242,15 @@ export const REFUSE_FAMILIES_SET = new Set(
 );
 
 export function canonicalizeDiagramType(raw: string): string {
-  const t = raw.trim().toLowerCase();
-  return ALIASES[t] ?? t;
+  const t = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return Object.prototype.hasOwnProperty.call(ALIASES, t) ? ALIASES[t]! : t;
 }
 
 export function lookupFamily(type: string): FamilyDef | undefined {
-  return FAMILY_CATALOG[canonicalizeDiagramType(type)];
+  const canonical = canonicalizeDiagramType(type);
+  return Object.prototype.hasOwnProperty.call(FAMILY_CATALOG, canonical)
+    ? FAMILY_CATALOG[canonical]
+    : undefined;
 }
 
 export function isKnownDiagramType(type: string): boolean {
@@ -253,12 +282,25 @@ export function hasKeyValueLine(content: string): boolean {
 }
 
 export function familyRequiredMissing(type: string, content: string): string[] {
-  const def = lookupFamily(type);
+  let def = lookupFamily(type);
   if (!def || def.kind === 'hatch' || def.kind === 'refuse') return [];
   const keys = new Set(specKeysPresent(content));
-  // Circuit: device lines (R1:, V1:) count as content even without std:
+  if (def.variants) {
+    const kind = /^\s*kind\s*:\s*([^\n]+)$/im.exec(content)?.[1]?.trim().toLowerCase().replace(/_/g, '-');
+    const variant = Object.entries(def.variants).find(([name, row]) => name === kind || row.aliases?.includes(kind ?? ''))?.[1];
+    if (!variant) return ['kind'];
+    def = { ...def, required: [...(def.required ?? []), ...(variant.required ?? [])], requiredAny: variant.requiredAny };
+  }
+  // Circuit metadata never substitutes for a drawable device line.
   if (canonicalizeDiagramType(type) === 'circuit') {
-    const device = [...keys].some((k) => /^[a-z]{1,4}\d*$/i.test(k) || k === 'std' || k === 'probe');
+    const controls = new Set(['std', 'probe', 'highlight', 'caption', 'kind', 'title', 'wire', 'port', 'label']);
+    const device = content.split('\n').some((line) => {
+      const match = KEY_LINE.exec(line);
+      const id = match?.[1];
+      return Boolean(
+        id && !controls.has(id.toLowerCase()) && /^[RCLVIDMSAQ][A-Za-z0-9_.-]*$/.test(id),
+      );
+    });
     if (device) return [];
     return ['device'];
   }

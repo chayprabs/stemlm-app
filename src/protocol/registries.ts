@@ -20,6 +20,11 @@ function keysOf(def: FamilyDef): string {
   const parts: string[] = [];
   if (def.required?.length) parts.push(`need:${def.required.join(',')}`);
   if (def.requiredAny?.length) parts.push(`any:${def.requiredAny.join('|')}`);
+  if (def.variants) {
+    for (const [kind, variant] of Object.entries(def.variants)) {
+      parts.push(`${[kind, ...(variant.aliases ?? [])].join('/')}=>${variant.allowed.join('|')}`);
+    }
+  }
   return parts.join(' ') || 'keys:see-engine';
 }
 
@@ -72,14 +77,15 @@ export function renderDiagramRegistry(): string {
     'ENGINE',
     'type\tkeys',
     ...engines,
-    'ENGINE SCHEMAS — the `any` column is admission only, not an allowed-key list. plot data: x,y; x,y; scene kind: fbd uses body/force/axes; graph edge: from to label words; rankdir: LR|TB|TD; highlight: declared node. never emit `kind:` as a graph key; table rows: choose comma or semicolon for each whole row; use semicolons if a cell has commas; no commas in semicolon cells; never mix or pipe-delimit; circuit std ieee|iec; device V/R/C/L/I/D/M/S n1 n2 value; A n1 n2 n3; wire endpoint endpoint; probe/highlight; no wire_top/wire_bottom.',
+    'ENGINE SCHEMAS — the `any` column is admission only, not an allowed-key list. plot data: x,y; x,y; scene kind: fbd uses body/force/axes; graph edge: from to label words; rankdir: LR|TB|TD; highlight: declared node. never emit `kind:` as a graph key; start/accept/decision/terminal: declared node ids; table rows: choose comma or semicolon for each whole row; use semicolons if a cell has commas; no commas in semicolon cells; never mix or pipe-delimit; circuit std ieee|iec; device V/R/C/L/I/D/M/S n1 n2 value; A n1 n2 n3; wire endpoint endpoint; probe/highlight; no wire_top/wire_bottom.',
     'TEMPLATE',
     'type\tkeys',
     ...leftovers,
     'TEMPLATE SAFE FORMS — unknown: omit. hash\tm: integer 1..10; buckets: bucket:value; datapath A,B,C+relation; array cells/rows; isometric gamma,t0; phasor vec LABEL magnitude∠degrees.',
+    'BEAM: L: positive span; supports: pin@0, roller@L; loads: point LABEL down@x (or P@x), x=L/2. Resolve L and x numerically. One central downward point load only; no distributed loads, moments, ranges, load: or w:. reactions: LABEL@0, LABEL@L optional. Elastic curve is schematic, not a solved displacement field. Unsupported loading: omit beam; use explicit type=sfd V/M data.',
     'Unlisted families mean OMIT (including bz,dq,knot,mospi,rama).',
     'REFUSE — OMIT @diagram for these (do not emit a spec): ' + refuse.join(', '),
-    'HATCH: mermaid is CS flow/sequence/state ONLY (quote every node label). NEVER emit type=svg.',
+    'FLOW/STATE: flowcharts, state machines and automata are type=graph (decision:, terminal:, start:, accept:); a message sequence is an ordered type=table. NEVER emit type=svg or type=mermaid.',
   ].join('\n');
 }
 
@@ -93,23 +99,23 @@ export function catalogRefuseTypes(): string[] {
 
 export const ARCHETYPE_ROWS: Record<Archetype, string> = {
   numeric:
-    'Givens+units → name the law → @formula symbols only → @body define each symbol, substitute givens, arithmetic with units → isolate one unknown. LAST step = verification. NEVER a "plug in later" step.',
+    'Compact givens+units → name the law → @formula symbols only → @body define new symbols, substitute givens, show arithmetic with units → report the result. Group parallel equations or unknowns in one meaningful solve step. LAST step = verification. NEVER a "plug in later" step.',
   symbolic:
-    'Goal → name the identity/theorem for THIS line → apply once → simplify ONE expression. NEVER two algebra moves in one @step. @formula = the relation; @body = why this identity applies and the rewritten form.',
+    'Goal → name the identity/theorem → apply it and show the short connected simplification that completes this goal. @formula = the relation; @body = why it applies and the rewritten form. Split only when the next transformation has a different purpose.',
   proof:
-    'Assume/given → deduce one implication → next implication → conclude. NEVER a "plug into the formula" step. NEVER numeric substitution unless the claim is numeric. Each @step is one inference with the named rule.',
+    'Assume/given → build one logical inference chain with named rules → conclude. NEVER a "plug into the formula" step. NEVER numeric substitution unless the claim is numeric. Split when the proof changes lemma or strategy, not after every line.',
   design:
-    'Specs/constraints → choose a topology/structure → one sizing/selection move → check against a constraint → next constraint. Diagram the artifact after each change. Flag unmet constraints in @uncertainty.',
+    'Specs/constraints → choose a topology/structure → group related sizing or selection work → check the deciding constraints. Diagram only a material visual state change, always as the complete artifact. Flag unmet constraints in @uncertainty.',
   comparison:
     'Name the criterion → evaluate option A on that criterion (one step) → evaluate option B → verdict with the deciding quantity. NEVER mix two criteria in one step.',
   conceptual:
     'Definition in the problem\'s terms → mechanism/why → one consequence → a common misconception check. @formula only if a named law is stated. Diagram only if spatial/structural.',
   code:
-    'Restate constraints → approach → trace ONE operation on a concrete input → show DS state after that op → next op → correctness + $O(\\cdot)$. Code as inline `code` NEVER a fence. Diagram the state AFTER the op, not the algorithm in the abstract.',
+    'Restate constraints compactly → approach → trace one meaningful state transition on a concrete input (group trivial adjacent operations) → correctness + $O(\\cdot)$. Code as inline `code` NEVER a fence. Diagram the complete state AFTER the transition, not the algorithm in the abstract.',
   lab:
-    'Raw data + units + instrument precision → one reduction (mean, slope, calibration) → propagate uncertainty for THAT reduction → next reduction → report value ± uncertainty. Diagram apparatus (echem/scene) or the plot of THIS reduction.',
+    'Raw data + units + instrument precision → group the connected reductions (mean, slope, calibration) that produce one result → propagate uncertainty → report value ± uncertainty. Split only when the analysis goal changes. Diagram apparatus (echem/scene) or the plot of the material visual state.',
   estimation:
-    'Identify scale → Fermi breakdown into 2–5 factors → one factor per @step with a stated source → combine → order-of-magnitude check against a known scale. Flag every assumed factor in @uncertainty.',
+    'Identify scale → Fermi breakdown into 2–5 factors with stated sources → evaluate related factors compactly → combine → order-of-magnitude check against a known scale. Flag every assumed factor in @uncertainty.',
 };
 
 export function renderArchetypeRegistry(): string {
@@ -125,14 +131,14 @@ export const VERIFY_ROWS: Record<VerifyMethod, string> = {
   units: 'Every numeric result carries coherent units; conversions are explicit.',
   limit: 'A boundary (x→0, open-circuit, T→∞, R→0) recovers a known result.',
   oom: 'The magnitude matches a back-of-envelope scale (or a textbook order).',
-  backsub: 'Substitute the result into the original equation / ICE table / KCL node and recover 0 within rounding.',
-  conservation: 'Mass, charge, energy, momentum, or KCL/KVL holds on the drawn system.',
+  backsub: 'After deriving the result, show its substitution into the original equation / ICE table / KCL node and the value recovered within rounding.',
+  conservation: 'After deriving the result, show the substituted mass, charge, energy, momentum, or KCL/KVL balance and the value recovered.',
   alt: 'A second method (Thevenin vs nodal, energy vs Newton, induction vs direct) agrees.',
 };
 
 export function renderVerificationRegistry(): string {
   return [
-    'VERIFICATION REGISTRY — last @step verifies; emit @verify. On fail, add a visible correction @step naming error and set status: fail; NEVER silently replace value.',
+    'VERIFICATION REGISTRY — last @step performs and shows a check; emit @verify with the tested expression and recovered value. Never claim a check before its result is derived. On fail, add a visible correction @step naming error and set status: fail; NEVER silently replace value.',
     'method\trule',
     ...Object.entries(VERIFY_ROWS).map(([k, v]) => `${k}\t${v}`),
     'Pick applicable methods. Numeric: units + dimensional + one of limit|oom|backsub. Proof: alt/lemma. Lab: units + uncertainty. Code: trace + complexity.',
@@ -195,13 +201,14 @@ export function renderNotationLocale(): string {
 
 export function renderLevelDial(): string {
   return [
-    'LEVEL DIAL — infer from vocabulary, given structure, and named theorems. Set @meta level:. DEPTH deep then scales verbosity inside that band.',
+    'LEVEL DIAL — infer from vocabulary, given structure, and named theorems. Set @meta level:. DEPTH deep makes each needed move explicit inside that band; it never adds moves by itself.',
     'band\tinfer when\twrite',
     'intro\tfind/calculate + high-school vocabulary, few givens\tName the law in words, substitute every given, keep symbols defined in English.',
-    'undergrad\tstandard UG course (nodal, ICE, RREF, FBD, Punnett)\tName the law, state why it applies, one move per step, textbook diagram spec.',
+    'undergrad\tstandard UG course (nodal, ICE, RREF, FBD, Punnett)\tName the law, state why it applies, group connected work into meaningful steps, and emit compiler-safe semantic specs.',
     'advanced\tmasters language (Laplace-domain control, McCabe, MAG, Hilbert)\tState hypotheses/assumptions of the theorem; justify dropping terms.',
     'research\tPhD/research (QFT Feynman, Banach, MAG noise figure, original design)\tName the framework, the approximation, and the validity region. Do not patronize with intro analogies.',
-    'intro + DEPTH deep\tDEPTH is deep and level is intro\tAdd skipped algebra and named substitutions. NEVER switch to research jargon.',
+    'intro + DEPTH deep\tDEPTH is deep and level is intro\tShow necessary connecting algebra and name substitutions inside the same meaningful step. NEVER split work merely to look deep; NEVER switch to research jargon.',
+    'LEGACY COMPATIBILITY — “At intro, DEPTH deep adds skipped algebra and named substitutions” / “Add skipped algebra and named substitutions” do NOT authorize extra steps. They mean: show necessary connecting algebra inside the same meaningful move.',
     'NEVER talk down to research; NEVER skip symbol definitions at intro. Student "in Hindi" (or any language) wins for OUTPUT LANGUAGE only — structure, diagrams, and verification still apply.',
   ].join('\n');
 }

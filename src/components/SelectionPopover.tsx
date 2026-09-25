@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { IconReply } from './icons';
 import { getController } from '@/src/content/controller';
 import { readPanelSelection } from '@/src/lib/followup-selection';
@@ -35,6 +35,7 @@ export function SelectionPopover({
   const [sel, setSel] = useState<Sel | null>(null);
   const selRef = useRef<Sel | null>(null);
   selRef.current = sel;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const root = containerRef.current;
@@ -88,8 +89,13 @@ export function SelectionPopover({
         .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
       return;
     }
-    const ok = await ctrl.followUp(current.text, stepTitle, subject, { intent, anchor });
-    if (!ok) {
+    try {
+      const ok = await ctrl.followUp(current.text, stepTitle, subject, { intent, anchor });
+      if (ok) return;
+    } catch {
+      // Surface rejected provider/runtime delivery as an in-panel error.
+    }
+    if (useStore.getState().status !== 'error') {
       useStore
         .getState()
         .setStatus('error', 'Could not send the follow-up to the chat box. Click in the input and try again.');
@@ -108,7 +114,7 @@ export function SelectionPopover({
           initial={{ opacity: 0, y: -4, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
-          transition={{ duration: 0.14 }}
+          transition={reducedMotion ? { duration: 0 } : { duration: 0.14 }}
           onMouseDown={(e) => e.preventDefault() /* keep the text selection */}
         >
           <button

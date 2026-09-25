@@ -56,6 +56,16 @@ describe('stitchResume', () => {
       'With $\\theta=45^\\circ$: $R=40.8\\,\\text{m}$.',
       '@endbody',
       '@endstep',
+      '@verify',
+      'methods: backsub',
+      'status: pass',
+      'notes: 12/6=2 A; substitution recovers 2 A',
+      '@endverify',
+      '@uncertainty',
+      'assumption: none',
+      'low_confidence: none',
+      'check: arithmetic',
+      '@enduncertainty',
       '@solution',
       'Range is $40.8\\,\\text{m}$.',
       '@endsolution',
@@ -130,6 +140,33 @@ describe('stitchResume', () => {
     expect(result.questions?.[0]?.steps.map((s) => s.id)).toEqual(['s1', 's2']);
     expect(result.questions?.[1]?.steps.map((s) => s.id)).toEqual(['s3']);
   });
+
+  it('does not invent a completion marker for still-truncated matching fragments', () => {
+    const part1 = [
+      '@meta',
+      'version: 2',
+      'subject: Math',
+      'topic: Truncated',
+      '@endmeta',
+      '@step id=s1',
+      'title: First',
+      '@body',
+      'Move one.',
+      '@endbody',
+      '@endstep',
+      '@resume token=truncated',
+    ].join('\n');
+    const part2 = [
+      '@resume token=truncated',
+      '@solution',
+      'The result is pending.',
+      '@endsolution',
+    ].join('\n');
+
+    const stitched = stitchResume([part1, part2]);
+    expect(stitched.split('\n').map((line) => line.trim())).not.toContain('@end');
+    expect(parseCapsule(stitched).warningCodes).toContain('missing_end');
+  });
 });
 
 describe('applyStepPatch', () => {
@@ -174,6 +211,8 @@ describe('applyStepPatch', () => {
       { op: 'replace', id: 's3', step: step('s3', 'Ghost') },
     ]);
     expect(next.capsule.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(next.ok).toBe(false);
+    expect(next.errorCode).toBe('invalid_structure');
     expect(next.warningCodes).toContain('patch_unknown_id');
   });
 
@@ -193,6 +232,18 @@ describe('applyStepPatch', () => {
     expect(next.capsule.solution).toBe('I = 2 A');
     expect(next.capsule.verification?.status).toBe('pass');
     expect(next.capsule.verification?.notes).toContain('2 A');
+  });
+
+  it('rejects an insert that would duplicate an existing step id', () => {
+    const original = capsule([step('s1', 'A'), step('s2', 'B')]);
+    const next = applyStepPatch(original, [
+      { op: 'insert', after: 's1', step: step('s2', 'Duplicate') },
+    ]);
+
+    expect(next.ok).toBe(false);
+    expect(next.errorCode).toBe('invalid_structure');
+    expect(next.capsule.steps.map((s) => s.id)).toEqual(['s1', 's2']);
+    expect(next.warningCodes).toContain('duplicate_step_id');
   });
 });
 

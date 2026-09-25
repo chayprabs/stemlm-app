@@ -23,12 +23,9 @@ export function capsuleSignals(capsule: Capsule): {
         /not a stem|non-stem|not stem/.test(hay))) ||
     /not a stem question|not a stem solve/.test(hay);
 
-  const insufficientData =
-    /insufficient data|missing data|ill-posed|unsolvable/.test(hay) ||
-    (capsule.uncertainty?.assumptions.some((a) =>
-      /missing|not given|unknown|insufficient/i.test(a),
-    ) ??
-      false);
+  // Only the model's explicit verdict: an assumption that names an unknown it
+  // then neglects ("air resistance unknown, neglected") is a normal solve.
+  const insufficientData = /insufficient data|missing data|ill-posed|unsolvable/.test(hay);
 
   return { nonStem, insufficientData };
 }

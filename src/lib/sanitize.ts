@@ -10,15 +10,6 @@
 import DOMPurify from 'dompurify';
 
 let configured = false;
-let preserveInlineStyles = false;
-
-function isDangerousInlineStyle(style: string): boolean {
-  return (
-    /url\s*\(\s*['"]?(?!#)[^'")]+/i.test(style) ||
-    /javascript:/i.test(style) ||
-    /expression\s*\(/i.test(style)
-  );
-}
 
 function ensureConfigured() {
   if (configured) return;
@@ -29,13 +20,7 @@ function ensureConfigured() {
         el.removeAttribute(attr.name);
         continue;
       }
-      if (attr.name.toLowerCase() === 'style') {
-        if (preserveInlineStyles) {
-          if (isDangerousInlineStyle(attr.value)) el.removeAttribute(attr.name);
-        } else {
-          el.removeAttribute(attr.name);
-        }
-      }
+      if (attr.name.toLowerCase() === 'style') el.removeAttribute(attr.name);
     }
     if (el.tagName.toLowerCase() === 'svg') {
       el.removeAttribute('width');
@@ -51,22 +36,14 @@ function ensureConfigured() {
   configured = true;
 }
 
-/** Remove any remaining remote href/xlink:href (defense in depth). */
-function stripRemoteRefs(svg: string, keepSafeStyles = false): string {
-  let out = svg
+/** Remove any remaining remote href/xlink:href, styles and handlers (defense in depth). */
+function stripRemoteRefs(svg: string): string {
+  return svg
     .replace(/<\s*(?:foreignObject|image)\b[\s\S]*?<\s*\/\s*(?:foreignObject|image)\s*>/gi, '')
-    .replace(/<\s*(?:foreignObject|image)\b[^>]*\/?>/gi, '')
+    .replace(/<\s*(?:foreignObject|image|img)\b[^>]*\/?>/gi, '')
     .replace(/\s(?:xlink:)?href\s*=\s*(["'])(?!#)[^"']*\1/gi, '')
-    .replace(/\surl\((?!#)[^)]+\)/gi, '');
-  if (keepSafeStyles) {
-    out = out.replace(/\s+on[a-z]+\s*=\s*(["'])[\s\S]*?\1/gi, '');
-    out = out.replace(/\sstyle\s*=\s*(["'])([\s\S]*?)\1/gi, (match, _q, style: string) =>
-      isDangerousInlineStyle(style) ? '' : match,
-    );
-  } else {
-    out = out.replace(/\s(?:style|on[a-z]+)\s*=\s*(["'])[\s\S]*?\1/gi, '');
-  }
-  return out;
+    .replace(/\surl\((?!#)[^)]+\)/gi, '')
+    .replace(/\s(?:style|on[a-z]+)\s*=\s*(["'])[\s\S]*?\1/gi, '');
 }
 
 /**
@@ -82,25 +59,36 @@ function preStripDangerous(svg: string): string {
   return svg
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<script\b[^>]*\/?>/gi, '')
+    // An embedded stylesheet can be treated as raw text by some DOM
+    // implementations and consume the remaining SVG tree.
+    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, '')
     .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*')/gi, '');
 }
 
-function safeViewBox(raw: string | undefined): string {
-  if (!raw) return '0 0 100 100';
-  const trimmed = raw.trim();
-  return /^[\d.\s+-]+$/.test(trimmed) ? trimmed : '0 0 100 100';
+function safeViewBox(raw: string | undefined): string | null {
+  if (raw === undefined) return '0 0 100 100';
+  const values = raw.trim().split(/[\s,]+/).map(Number);
+  if (values.length !== 4 || values.some((value) => !Number.isFinite(value)) || values[2]! <= 0 || values[3]! <= 0) {
+    return null;
+  }
+  return values.join(' ');
 }
 
-export type SanitizeSvgOptions = {
-  /** Keep safe inline `style` attributes (mermaid output). */
-  preserveInlineStyles?: boolean;
-};
-
 /** Returns sanitized SVG markup, or empty string if nothing usable remains. */
-export function sanitizeSvg(svg: string, options: SanitizeSvgOptions = {}): string {
+export function sanitizeSvg(svg: string): string {
   if (!svg) return '';
+  // Bound synchronous DOM work as well as source size. Counting delimiters is
+  // deliberately conservative (quoted delimiters also consume the budget).
+  if (svg.length > 2_000_000) return '';
+  let elements = 0;
+  let attributes = 0;
+  for (const char of svg) {
+    if (char === '<' && ++elements > 4_096) return '';
+    if (char === '=' && ++attributes > 32_768) return '';
+  }
   const viewBox = safeViewBox(/viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1]);
-  preserveInlineStyles = options.preserveInlineStyles ?? false;
+  if (!viewBox) return '';
+  const compilerFamily = /\bdata-stemlm-family\s*=\s*["']([A-Za-z][A-Za-z0-9_-]*)["']/i.exec(svg)?.[1];
   ensureConfigured();
   const preClean = preStripDangerous(svg);
   const clean = DOMPurify.sanitize(preClean, {
@@ -116,16 +104,23 @@ export function sanitizeSvg(svg: string, options: SanitizeSvgOptions = {}): stri
       'markerWidth',
       'markerHeight',
       'markerUnits',
-      'style',
       'class',
+      // Compiler-owned identity used by reports and visual acceptance checks.
+      // Keep this one explicit instead of allowing arbitrary data-* payloads.
+      'data-stemlm-family',
     ],
-    FORBID_TAGS: preserveInlineStyles
-      ? ['script', 'foreignObject', 'image']
-      : ['script', 'style', 'foreignObject', 'image'],
+    FORBID_TAGS: ['script', 'style', 'foreignObject', 'image', 'img'],
   });
-  let result = stripRemoteRefs(clean, preserveInlineStyles).trim();
+  let result = stripRemoteRefs(clean).trim();
   if (result && !/^<svg[\s>]/i.test(result)) {
     result = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${result}</svg>`;
+  }
+  // DOMPurify's SVG profile can still remove data-* attributes even when an
+  // exact name is listed in ADD_ATTR. Restore only the compiler marker, with
+  // a token-shaped value captured before sanitization; arbitrary data attrs
+  // remain removed.
+  if (result && compilerFamily && !/\bdata-stemlm-family\s*=/i.test(result)) {
+    result = result.replace(/^<svg\b/i, `<svg data-stemlm-family="${compilerFamily}"`);
   }
   return result;
 }

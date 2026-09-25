@@ -6,7 +6,9 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   return {
     storageData,
     mockLocalStorage: {
-      get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),
+      get: vi.fn(async (key: string | null) =>
+        key === null ? { ...storageData } : { [key]: storageData[key] },
+      ),
       set: vi.fn(async (items: Record<string, unknown>) => {
         Object.assign(storageData, items);
       }),
@@ -24,6 +26,8 @@ vi.mock('wxt/browser', () => ({
       sendMessage: vi.fn(),
     },
     runtime: {
+      sendMessage: async (message: import('@/src/lib/saved-session-storage').SavedSessionMutationMessage) =>
+        (await import('@/src/lib/saved-session-storage')).handleSavedSessionMutation(message),
       getURL: (path: string) => `chrome-extension://test${path}`,
       id: 'test',
     },

@@ -7,6 +7,10 @@ function malformed(reason: string): CompileResult {
   return { ok: false, code: 'malformed', reason };
 }
 
+function unsupportedKey(spec: SpecDoc, allowed: ReadonlySet<string>): string | null {
+  return [...spec.values.keys(), ...spec.lists.keys(), ...spec.emptyDeclarations.keys()].find((key) => !allowed.has(key)) ?? null;
+}
+
 function explicitKey(spec: SpecDoc, key: string): boolean {
   return new RegExp(`^\\s*${key.replace('.', '\\.') }\\s*:`, 'im').test(spec.raw);
 }
@@ -47,6 +51,8 @@ function centerClearance(label: string): number {
 }
 
 export function compileNewman(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['view', 'front', 'back', 'deg', 'axis', 'highlight', 'caption']));
+  if (unknown) return malformed(`newman does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('newman', w, h);
   const viewRaw = specGet(spec, 'view');
@@ -113,6 +119,8 @@ export function compileNewman(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileFischer(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['backbone', 'chain', 'left', 'right', 'highlight', 'caption']));
+  if (unknown) return malformed(`fischer does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('fischer', w, h);
   const raw = specGet(spec, 'backbone') ?? specGet(spec, 'chain');
@@ -120,6 +128,13 @@ export function compileFischer(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (chain.length < 2) return malformed('fischer backbone needs at least two ordered centers');
   if (chain.length > 6) return malformed('fischer backbone is too dense for the fixed frame');
   if (raw !== undefined && !chain.length) return malformed('fischer backbone cannot be empty');
+  const leftRaw = specGet(spec, 'left');
+  const rightRaw = specGet(spec, 'right');
+  if ((leftRaw === undefined) !== (rightRaw === undefined)) return malformed('fischer left and right substituents must be supplied together');
+  const left = leftRaw === undefined ? [] : parseCsv(leftRaw);
+  const right = rightRaw === undefined ? [] : parseCsv(rightRaw);
+  const centerCount = chain.length - 2;
+  if (left.length && (left.length !== centerCount || right.length !== centerCount)) return malformed(`fischer horizontal substituents need ${centerCount} left and right values`);
   const x = w / 2;
   const y0 = 25;
   const dy = (h - 50) / (chain.length - 1);
@@ -132,6 +147,13 @@ export function compileFischer(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     if (i > 0 && i < chain.length - 1) {
       b.line(`cross-left-${i}`, x, y, x - 38, y, { width: 1.8, role: 'geometry' });
       b.line(`cross-right-${i}`, x, y, x + 38, y, { width: 1.8, role: 'geometry' });
+      if (left.length) {
+        const leftId = `fischer-left-label-${i}`;
+        const rightId = `fischer-right-label-${i}`;
+        b.label(leftId, left[i - 1]!, x - 54, y, { slot: 'W', protected: true, priority: 'required', anchorId: `cross-left-${i}` });
+        b.label(rightId, right[i - 1]!, x + 54, y, { slot: 'E', protected: true, priority: 'required', anchorId: `cross-right-${i}` });
+        labels.push({ value: left[i - 1]!, ids: [`cross-left-${i}`, leftId] }, { value: right[i - 1]!, ids: [`cross-right-${i}`, rightId] });
+      }
     }
     const labelId = `center-label-${i}`;
     b.label(labelId, chain[i]!, x + (i === 0 || i === chain.length - 1 ? 0 : i % 2 ? -54 : 54), y, {
@@ -146,6 +168,8 @@ export function compileFischer(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileChair(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['subst', 'substituents', 'highlight', 'caption']));
+  if (unknown) return malformed(`chair does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('chair', w, h);
   const values = csvValue(spec, 'subst', specGet(spec, 'substituents') ?? '');
@@ -182,6 +206,8 @@ export function compileChair(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileHaworth(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['sugar', 'anomer', 'highlight', 'caption']));
+  if (unknown) return malformed(`haworth does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('haworth', w, h);
   const sugar = specGet(spec, 'sugar') ?? 'Glc';
@@ -204,6 +230,8 @@ export function compileHaworth(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileLewis(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['atoms', 'formula', 'highlight', 'caption']));
+  if (unknown) return malformed(`lewis does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('lewis', w, h);
   const values = csvValue(spec, 'atoms', specGet(spec, 'formula'));
@@ -226,6 +254,8 @@ export function compileLewis(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileVsepr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['geom', 'ax', 'center', 'ligands', 'highlight', 'caption']));
+  if (unknown) return malformed(`vsepr does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('vsepr', w, h);
   const geomRaw = specGet(spec, 'geom') ?? specGet(spec, 'ax') ?? 'AX4';
@@ -244,6 +274,9 @@ export function compileVsepr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const cy = h / 2 + 8;
   const center = specGet(spec, 'center') ?? 'A';
   if (!center.trim()) return malformed('vsepr center cannot be empty');
+  const centerElement = /^\[?([A-Z][a-z]?)/.exec(center.trim())?.[1];
+  if (centerElement === 'C' && geometry.count > 4) return malformed('vsepr carbon cannot have more than four bonded ligands');
+  if (centerElement === 'B' && geometry.count > 4) return malformed('vsepr boron cannot have more than four bonded ligands');
   b.label('center-label', center, cx, cy, { protected: true, priority: 'required', anchorId: 'center' });
   const clearance = centerClearance(center);
   const labels: Array<{ value: string; ids: string[] }> = [];
@@ -267,6 +300,8 @@ export function compileVsepr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileComplex(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const unknown = unsupportedKey(spec, new Set(['metal', 'geom', 'ligands', 'highlight', 'caption']));
+  if (unknown) return malformed(`complex does not support key ${unknown}; no data was rendered`);
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('complex', w, h);
   const geomRaw = specGet(spec, 'geom');

@@ -1,13 +1,11 @@
 import type { PlatformAdapter, PlatformId } from './types';
-import { chatgptAdapter } from './chatgpt';
 import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
 import { grokAdapter } from './grok';
 import { injectControlEnabled } from './routes';
 
-/** Shipped chat adapters — ChatGPT, Claude, Gemini, Grok. */
+/** Shipped chat adapters — Claude, Gemini, Grok. */
 export const ADAPTERS: PlatformAdapter[] = [
-  chatgptAdapter,
   claudeAdapter,
   geminiAdapter,
   grokAdapter,
@@ -25,7 +23,8 @@ export function adapterById(id: PlatformId): PlatformAdapter | undefined {
 export function adapterForUrl(url: string | undefined | null): PlatformAdapter | null {
   if (!url) return null;
   try {
-    return detectAdapter(new URL(url).hostname);
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' ? detectAdapter(parsed.hostname) : null;
   } catch {
     return null;
   }
@@ -39,6 +38,7 @@ export function isSupportedChatUrl(url: string | undefined | null): boolean {
   if (!url) return false;
   try {
     const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
     const adapter = detectAdapter(parsed.hostname);
     if (!adapter) return false;
     return injectControlEnabled(adapter.id, parsed.pathname);

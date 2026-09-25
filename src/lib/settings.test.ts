@@ -55,10 +55,10 @@ describe('clampSplitRatio', () => {
     expect(clampSplitRatio(Infinity, wide)).toBe(DEFAULT_SPLIT_RATIO);
   });
 
-  it('default split is a modest majority, not 50/50', () => {
+  it('default split gives the reading surface a clear majority', () => {
     expect(DEFAULT_SETTINGS.splitRatio).toBe(DEFAULT_SPLIT_RATIO);
     expect(DEFAULT_SPLIT_RATIO).toBeGreaterThan(0.5);
-    expect(DEFAULT_SPLIT_RATIO).toBeLessThanOrEqual(0.58);
+    expect(DEFAULT_SPLIT_RATIO).toBeCloseTo(0.68);
   });
 
   it('defaults answers to open on the steps tab', () => {
@@ -67,6 +67,10 @@ describe('clampSplitRatio', () => {
 
   it('defaults stemlm to on so the attach control stays visible', () => {
     expect(DEFAULT_SETTINGS.stemlmEnabled).toBe(true);
+  });
+
+  it('defaults solution content to the current visual size at level 2', () => {
+    expect((DEFAULT_SETTINGS as unknown as Record<string, unknown>).contentScale).toBe(2);
   });
 });
 
@@ -90,6 +94,13 @@ describe('hydrateSettings', () => {
     expect(hydrateSettings({ defaultView: 'solution' }).defaultView).toBe('solution');
   });
 
+  it('rounds and clamps malformed content scale values to the five supported levels', () => {
+    expect((hydrateSettings({ contentScale: 3.6 } as never) as unknown as Record<string, unknown>).contentScale).toBe(4);
+    expect((hydrateSettings({ contentScale: -2 } as never) as unknown as Record<string, unknown>).contentScale).toBe(1);
+    expect((hydrateSettings({ contentScale: 99 } as never) as unknown as Record<string, unknown>).contentScale).toBe(5);
+    expect((hydrateSettings({ contentScale: Number.NaN } as never) as unknown as Record<string, unknown>).contentScale).toBe(2);
+  });
+
   it('drops legacy keys from stored settings', () => {
     const settings = hydrateSettings({
       defaultSubject: 'Physics',
@@ -107,8 +118,12 @@ describe('hydrateSettings', () => {
     expect(hydrateSettings({}).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
   });
 
-  it('migrates stored exact 0.75 (popup-window clamp) back to 55/45', () => {
+  it('migrates stored exact 0.75 (popup-window clamp) back to the new default', () => {
     expect(hydrateSettings({ splitRatio: 0.75 }).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('preserves an explicitly marked 75% preference', () => {
+    expect(hydrateSettings({ splitRatio: 0.75, splitRatioUserSet: true }).splitRatio).toBe(0.75);
   });
 
   it('preserves a user-resized split that is not the legacy 0.5 default', () => {
@@ -141,18 +156,39 @@ describe('setSettings', () => {
   });
 
   it('round-trips through getSettings', async () => {
-    await setSettings({ shareAcrossTabs: true, defaultView: 'solution' });
+    await setSettings({ shareAcrossTabs: true, defaultView: 'solution', contentScale: 5 } as never);
     const loaded = await getSettings();
     expect(loaded.shareAcrossTabs).toBe(true);
     expect(loaded.defaultView).toBe('solution');
     expect(loaded.stemlmEnabled).toBe(true);
+    expect((loaded as unknown as Record<string, unknown>).contentScale).toBe(5);
     expect(loaded).not.toHaveProperty('defaultSubject');
+  });
+
+  it('retains independent fields when concurrent surfaces update different settings', async () => {
+    await Promise.all([
+      setSettings({ theme: 'dark' }),
+      setSettings({ defaultView: 'solution' }),
+    ]);
+    const loaded = await getSettings();
+    expect(loaded.theme).toBe('dark');
+    expect(loaded.defaultView).toBe('solution');
   });
 
   it('persists turning stemlm off', async () => {
     const next = await setSettings({ stemlmEnabled: false });
     expect(next.stemlmEnabled).toBe(false);
     expect((storageData[KEY] as { stemlmEnabled: boolean }).stemlmEnabled).toBe(false);
+    expect(storageData[ENABLED_FLAG_KEY]).toBe(false);
+    expect((await getSettings()).stemlmEnabled).toBe(false);
+  });
+
+  it('does not undo a concurrent explicit off switch when another surface changes theme', async () => {
+    storageData[ENABLED_FLAG_KEY] = true;
+    await Promise.all([
+      setSettings({ stemlmEnabled: false }),
+      setSettings({ theme: 'light' }),
+    ]);
     expect(storageData[ENABLED_FLAG_KEY]).toBe(false);
     expect((await getSettings()).stemlmEnabled).toBe(false);
   });

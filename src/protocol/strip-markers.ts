@@ -7,6 +7,8 @@
  */
 
 /** Canonical + alternate end markers (lowercase keys for lookup). */
+import { normalizeMarkerLine } from './capsule-boundary';
+
 export const ALT_END_MARKERS: Record<string, string> = {
   '@bodyend': '@endbody',
   '@formulaend': '@endformula',
@@ -92,7 +94,8 @@ export function normalizeCapsuleText(text: string): string {
 
   s = s
     .split('\n')
-    .map((line) => {
+    .map((sourceLine) => {
+      const line = normalizeMarkerLine(sourceLine);
       const t = line.trim();
       const canonical = ALT_END_MARKERS[t];
       return canonical ? line.replace(t, canonical) : line;

@@ -332,6 +332,11 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(printStyles()).toContain('max-height:72mm');
     expect(printStyles()).toContain('font:11pt/1.5');
     expect(printStyles()).toContain('font-size:8.5pt');
+    expect(printStyles()).toContain('color:#5c5c63');
+    expect(printStyles()).not.toContain('color:#8a8a92');
+    expect(printStyles()).toContain('.slm-step-work{break-before:avoid;page-break-before:avoid;}');
+    expect(printStyles()).toContain('.slm-step-work-label{break-after:avoid;page-break-after:avoid;}');
+    expect(printStyles()).toContain('.slm-step-work-body{break-before:avoid;page-break-before:avoid;}');
     expect(printStyles()).not.toContain('border-radius:999px');
   });
 

@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
@@ -8,7 +9,9 @@ import {
   IconBook,
   IconClose,
   IconLayers,
+  IconMinus,
   IconPdf,
+  IconPlus,
   IconSave,
   IconTheme,
 } from './icons';
@@ -21,6 +24,9 @@ export function PanelHeader({
   onSetView,
   onToggleTheme,
   onToggleSave,
+  contentScale,
+  contentScaleBusy,
+  onChangeContentScale,
   onExportPdf,
   onClose,
 }: {
@@ -30,12 +36,28 @@ export function PanelHeader({
   saved: boolean;
   onSetView: (v: PanelView) => void;
   onToggleSave: () => void;
+  contentScale: number;
+  contentScaleBusy: boolean;
+  onChangeContentScale: (direction: -1 | 1) => void;
   onExportPdf: () => void;
   onClose: () => void;
   onToggleTheme: () => void;
 }) {
   const heading = session ? sessionQuestionHeading(session) : '';
-  const singleLine = Boolean(heading) && !heading.includes('\n');
+  const decreaseRef = useRef<HTMLButtonElement>(null);
+  const increaseRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Keep the keyboard alive at the boundaries: the control the user just
+   * pressed becomes disabled at level 1 / 5, which would otherwise drop focus
+   * to the document. Hand it to the sibling that is still usable.
+   */
+  function changeScale(direction: -1 | 1) {
+    const next = contentScale + direction;
+    onChangeContentScale(direction);
+    if (direction === -1 && next <= 1) increaseRef.current?.focus();
+    if (direction === 1 && next >= 5) decreaseRef.current?.focus();
+  }
 
   return (
     <header className="slm-header">
@@ -77,6 +99,41 @@ export function PanelHeader({
           )}
         </div>
         <div className="slm-header-actions">
+          {/* Sizes answer content, so it only exists once there is an answer. */}
+          {session && (
+          <div
+            className="slm-content-scale"
+            role="group"
+            aria-label={`Solution content size, level ${contentScale} of 5`}
+          >
+            <button
+              ref={decreaseRef}
+              type="button"
+              className="slm-content-scale-btn"
+              aria-label={`Decrease content size from level ${contentScale}`}
+              title="Decrease content size"
+              onClick={() => changeScale(-1)}
+              disabled={contentScaleBusy || contentScale <= 1}
+            >
+              <IconMinus />
+            </button>
+            <span className="slm-content-scale-divider" aria-hidden="true" />
+            <button
+              ref={increaseRef}
+              type="button"
+              className="slm-content-scale-btn"
+              aria-label={`Increase content size from level ${contentScale}`}
+              title="Increase content size"
+              onClick={() => changeScale(1)}
+              disabled={contentScaleBusy || contentScale >= 5}
+            >
+              <IconPlus />
+            </button>
+            <span className="slm-sr-only" role="status" aria-live="polite">
+              {`Content size level ${contentScale} of 5`}
+            </span>
+          </div>
+          )}
           <button
             type="button"
             className={`slm-icon-btn slm-theme-btn ${theme === 'dark' ? 'is-dark' : ''}`}
@@ -127,7 +184,7 @@ export function PanelHeader({
           <span className="slm-question-icon" aria-hidden="true">
             Q.
           </span>
-          <div className={`slm-topic-scroll${singleLine ? ' is-single' : ''}`}>
+          <div className="slm-topic-scroll is-single">
             <MathMarkdown content={heading} className="slm-topic" />
           </div>
         </div>

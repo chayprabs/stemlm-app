@@ -1,5 +1,5 @@
 import type { CompileCtx, CompileResult, SemanticColor } from '../types';
-import { parseCsv, specGet, specGetAll, specList, specNumber, type SpecDoc } from '../spec';
+import { parseCsv, specGet, specGetAll, specHasEmptyDeclaration, specHasEmptyDelimitedValue, specList, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
 
@@ -28,10 +28,27 @@ function values(spec: SpecDoc, ...keys: string[]): string[] {
   return [];
 }
 
+function hasDuplicateNames(names: string[]): boolean {
+  const seen = new Set<string>();
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
+function hasEmptyItems(spec: SpecDoc, ...keys: string[]): boolean {
+  return keys.some((key) => specHasEmptyDelimitedValue(spec, key));
+}
+
 function rows(spec: SpecDoc, ...keys: string[]): string[][] {
   const source = values(spec, ...keys);
   if (!source.length) return [];
-  return source.flatMap((value) => value.split(';').map((row) => parseCsv(row)).filter((row) => row.length));
+  return source.flatMap((value) => value.split(';').map((row) => {
+    if (!row.trim()) return [];
+    return row.split(',').map((cell) => cell.trim());
+  }));
 }
 
 function relationParts(raw: string): Relation | null {
@@ -48,13 +65,18 @@ function relationParts(raw: string): Relation | null {
 }
 
 function relations(spec: SpecDoc): { items: Relation[]; invalid: boolean } {
+  if (specHasEmptyDeclaration(spec, 'relations') || specHasEmptyDeclaration(spec, 'relation')) return { items: [], invalid: true };
   const raw = [...specGetAll(spec, 'relations'), ...specGetAll(spec, 'relation')];
   if (!raw.length) raw.push(...specList(spec, 'relations'));
   const items: Relation[] = [];
+  const seen = new Set<string>();
   for (const value of raw.flatMap((entry) => entry.split(';'))) {
-    if (!value.trim()) continue;
+    if (!value.trim()) return { items, invalid: true };
     const parsed = relationParts(value);
     if (!parsed) return { items, invalid: true };
+    const key = `${parsed.from.toLowerCase()}\u0000${parsed.to.toLowerCase()}\u0000${parsed.role.toLowerCase()}`;
+    if (seen.has(key)) return { items, invalid: true };
+    seen.add(key);
     items.push(parsed);
   }
   return { items, invalid: false };
@@ -78,6 +100,27 @@ function relationDirection(role: string): 'end' | 'start' | 'none' {
   if (/radiates[- ]from/i.test(role)) return 'end';
   if (/from$|reverse|backward|source/i.test(role)) return 'start';
   return 'end';
+}
+
+function supportedSchematicKind(kind: string | undefined): boolean {
+  return !kind || /^(?:graph|network|schematic|pourbaix)$/i.test(kind.trim());
+}
+
+type RelationFamily = 'list' | 'schematic' | 'pipeline' | 'datapath' | 'ring' | 'topology' | 'sphere';
+
+const SUPPORTED_RELATION_ROLES: Readonly<Record<RelationFamily, ReadonlySet<string>>> = {
+  list: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'from', 'reverse', 'backward', 'source']),
+  schematic: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'crosses-without-connection', 'cross without connection', 'radiates-from', 'from', 'reverse', 'backward', 'source']),
+  pipeline: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
+  datapath: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
+  ring: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
+  topology: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'from', 'reverse', 'backward', 'source']),
+  sphere: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'radiates-from', 'from', 'reverse', 'backward', 'source']),
+};
+
+function unsupportedRelation(family: RelationFamily, items: Relation[]): string | null {
+  const unsupported = items.find((relation) => !SUPPORTED_RELATION_ROLES[family].has(relation.role.trim().toLowerCase()));
+  return unsupported ? `${family} relation role is not represented: ${unsupported.role}` : null;
 }
 
 function link(
@@ -105,8 +148,12 @@ function gridPosition(index: number, count: number, width: number, left = 20): n
 }
 
 export function compileArray(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const layout = specGet(spec, 'layout') ?? 'centered';
+  if (layout !== 'centered') return fail('array supports centered row layout');
+  const order = specGet(spec, 'order') ?? 'row-major';
+  if (order !== 'row-major') return fail('array requires row-major order');
   const data = rows(spec, 'cells', 'arr', 'items');
-  if (!data.length || data.some((row) => row.length === 0) || data.length > 8 || Math.max(...data.map((r) => r.length)) > 12) {
+  if (hasEmptyItems(spec, 'cells', 'arr', 'items') || !data.length || data.some((row) => row.length === 0 || row.some((cell) => !cell)) || data.length > 8 || Math.max(...data.map((r) => r.length)) > 12) {
     return fail('array requires one or more bounded ordered rows');
   }
   const b = frame('array', ctx, spec);
@@ -131,10 +178,14 @@ export function compileArray(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileList(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'nodes', 'head', 'items')) return fail('list requires bounded nodes in order');
   const source = itemNames(spec, 'nodes', 'head', 'items');
   if (!source.length || source.length > 10) return fail('list requires bounded nodes in order');
+  if (hasDuplicateNames(source)) return fail('list node names must be unique');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('list relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('list', parsed.items);
+  if (unsupported) return fail(unsupported);
   const byName = new Map(source.map((name, index) => [name, index]));
   const edgeList = parsed.items.length ? parsed.items : source.slice(0, -1).map((from, index) => ({ from, to: source[index + 1]!, role: 'next' }));
   if (edgeList.some((edge) => !byName.has(edge.from) || !byName.has(edge.to))) return fail('list relation endpoint is not a declared node');
@@ -160,18 +211,37 @@ export function compileList(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
 interface BucketEntry { bucket: number; value: string }
 
-function bucketEntries(spec: SpecDoc): BucketEntry[] {
-  return values(spec, 'buckets', 'items').flatMap((value) => value.split(';')).flatMap((part) => {
-    const m = /^\s*(\d+)\s*[:=]\s*(.+)$/.exec(part);
-    if (!m) return [];
-    return parseCsv(m[2]!).map((entry) => ({ bucket: Number(m[1]), value: entry }));
-  });
+function bucketEntries(spec: SpecDoc): { entries: BucketEntry[]; invalid: boolean } {
+  const entries: BucketEntry[] = [];
+  let invalid = false;
+  for (const part of values(spec, 'buckets', 'items').flatMap((value) => value.split(';'))) {
+    if (!part.trim()) {
+      invalid = true;
+      continue;
+    }
+    const m = /^\s*(\d+)\s*[:=]\s*(.+?)\s*$/.exec(part);
+    if (!m) {
+      invalid = true;
+      continue;
+    }
+    const bucket = Number(m[1]);
+    const bucketValues = m[2]!.split(',').map((entry) => entry.trim());
+    if (!Number.isSafeInteger(bucket) || bucketValues.some((entry) => !entry)) {
+      invalid = true;
+      continue;
+    }
+    entries.push(...bucketValues.map((value) => ({ bucket, value })));
+  }
+  return { entries, invalid };
 }
 
 export function compileHash(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'buckets', 'items')) return fail('hash bucket entries must state a bucket and one or more values');
   const m = specNumber(spec, 'm') ?? parseCsv(specGet(spec, 'buckets') ?? '').length;
   if (!Number.isInteger(m) || m < 1 || m > 10) return fail('hash requires a bucket count from 1 to 10');
-  const entries = bucketEntries(spec);
+  const parsedEntries = bucketEntries(spec);
+  if (parsedEntries.invalid) return fail('hash bucket entries must state a bucket and one or more values');
+  const entries = parsedEntries.entries;
   if (entries.some((entry) => entry.bucket < 0 || entry.bucket >= m)) return fail('hash entry references an undeclared bucket');
   const b = frame('hash', ctx, spec);
   const { width: w, height: h } = b;
@@ -196,18 +266,45 @@ export function compileHash(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
 interface TimedJob { name: string; start: number; duration: number }
 
-function timedJobs(spec: SpecDoc): TimedJob[] {
-  return values(spec, 'jobs').flatMap((value) => value.split(';')).map((part) => {
-    const bits = part.trim().split(/[|,\s]+/).filter(Boolean);
-    if (bits.length < 3) return null;
+function timedJobs(spec: SpecDoc): { jobs: TimedJob[]; invalid: boolean } {
+  const jobs: TimedJob[] = [];
+  const seen = new Set<string>();
+  let invalid = false;
+  for (const part of values(spec, 'jobs').flatMap((value) => value.split(';'))) {
+    const text = part.trim();
+    if (!text || /^[,|]|[,|]$|[,|]\s*[,|]/.test(text)) {
+      invalid = true;
+      continue;
+    }
+    const bits = text.split(/[|,\s]+/);
+    if (bits.length !== 3) {
+      invalid = true;
+      continue;
+    }
     const start = Number(bits[1]);
     const duration = Number(bits[2]);
-    return bits[0] && Number.isFinite(start) && Number.isFinite(duration) && duration > 0 ? { name: bits[0], start, duration } : null;
-  }).filter((job): job is TimedJob => job !== null);
+    if (!bits[0] || !Number.isFinite(start) || !Number.isFinite(duration) || duration <= 0) {
+      invalid = true;
+      continue;
+    }
+    const name = bits[0].toLowerCase();
+    if (seen.has(name)) {
+      invalid = true;
+      continue;
+    }
+    seen.add(name);
+    jobs.push({ name: bits[0], start, duration });
+  }
+  return { jobs, invalid };
 }
 
 export function compileGantt(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const jobs = timedJobs(spec);
+  if (specHasEmptyDeclaration(spec, 'jobs')) return fail('gantt jobs must state exactly name, start, and positive duration');
+  const tnowRaw = specGet(spec, 'tnow');
+  if (specHasEmptyDeclaration(spec, 'tnow') || (tnowRaw !== undefined && !Number.isFinite(Number(tnowRaw.trim())))) return fail('gantt tnow must be a finite number');
+  const parsedJobs = timedJobs(spec);
+  if (parsedJobs.invalid) return fail('gantt jobs must state exactly name, start, and positive duration');
+  const jobs = parsedJobs.jobs;
   if (!jobs.length) return fail('gantt jobs must state name, start, and positive duration');
   const b = frame('gantt', ctx, spec);
   const { width: w, height: h } = b;
@@ -238,6 +335,7 @@ export function compileGantt(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileStack(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'layers')) return fail('stack requires bounded ordered layers');
   const layers = itemNames(spec, 'layers');
   if (!layers.length || layers.length > 8) return fail('stack requires bounded ordered layers');
   const b = frame('stack', ctx, spec);
@@ -255,7 +353,7 @@ export function compileStack(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
 export function compileCd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const data = rows(spec, 'cells', 'grid');
-  if (!data.length || data.some((row) => !row.length) || data.length > 6 || Math.max(...data.map((r) => r.length)) > 8) return fail('cd requires a bounded non-empty grid');
+  if (hasEmptyItems(spec, 'cells', 'grid') || !data.length || data.some((row) => !row.length || row.some((cell) => !cell)) || data.length > 6 || Math.max(...data.map((r) => r.length)) > 8) return fail('cd requires a bounded non-empty grid');
   const b = frame('cd', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'cd-caption');
@@ -299,10 +397,16 @@ function drawRelationGraph(
 }
 
 export function compileSchematicPlot(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'nodes')) return fail('schematic requires named nodes without empty entries');
   const names = itemNames(spec, 'nodes');
+  if (hasDuplicateNames(names)) return fail('schematic node names must be unique');
+  const kind = specGet(spec, 'kind');
+  if (!supportedSchematicKind(kind)) return fail(`schematic kind is not represented: ${kind}`);
   const panelNames = itemNames(spec, 'panel');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('schematic relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('schematic', parsed.items);
+  if (unsupported) return fail(unsupported);
   if (panelNames.length > 1) return fail('multi-panel schematic requires explicit panel-scoped content', 'refused');
   if (specGet(spec, 'crossing') && /unspecified|unknown|ambiguous/i.test(specGet(spec, 'crossing')!)) return fail('schematic crossing connectivity must be explicit');
   const b = frame('schematic', ctx, spec);
@@ -347,9 +451,10 @@ export function compileKmap(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const variableText = specGet(spec, 'vars');
   const mintermText = specGet(spec, 'minterms');
   if (!variableText || !mintermText) return fail('kmap requires vars and minterms');
+  if (hasEmptyItems(spec, 'minterms')) return fail('kmap has invalid variable or minterm semantics');
   const size = kmapSize(variableText);
   const minterms = parseCsv(mintermText).map(Number);
-  if (!size.rows || !size.cols || minterms.some((value) => !Number.isInteger(value) || value < 0 || value >= size.rows * size.cols)) return fail('kmap has invalid variable or minterm semantics');
+  if (!size.rows || !size.cols || new Set(minterms).size !== minterms.length || minterms.some((value) => !Number.isInteger(value) || value < 0 || value >= size.rows * size.cols)) return fail('kmap has invalid variable or minterm semantics');
   const b = frame('kmap', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'kmap-caption');
@@ -372,11 +477,15 @@ export function compileKmap(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compilePipeline(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'stages', 'items')) return fail('pipeline requires bounded ordered stages');
   let stages = itemNames(spec, 'stages', 'items');
   if (!stages.length || stages.length > 8) return fail('pipeline requires bounded ordered stages');
+  if (hasDuplicateNames(stages)) return fail('pipeline stages must be unique');
   if (normalizedOrder(spec) === 'reverse') stages = [...stages].reverse();
   const parsed = relations(spec);
   if (parsed.invalid) return fail('pipeline relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('pipeline', parsed.items);
+  if (unsupported) return fail(unsupported);
   const b = frame('pipeline', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'pipeline-caption');
@@ -398,10 +507,14 @@ export function compilePipeline(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileDatapath(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'nodes', 'boxes', 'items')) return fail('datapath requires named nodes; kind alone is not enough');
   const names = itemNames(spec, 'nodes', 'boxes', 'items');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('datapath relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('datapath', parsed.items);
   if (!names.length) return fail('datapath requires named nodes; kind alone is not enough');
+  if (hasDuplicateNames(names)) return fail('datapath node names must be unique');
+  if (unsupported) return fail(unsupported);
   const b = frame('datapath', ctx, spec);
   addSemanticCaption(b, spec, 'datapath-caption');
   const graphResult = drawRelationGraph(b, names, parsed.items.length ? parsed.items : names.slice(0, -1).map((from, index) => ({ from, to: names[index + 1]!, role: 'feeds' })), b.height / 2);
@@ -409,10 +522,14 @@ export function compileDatapath(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileRing(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'nodes', 'vnodes')) return fail('ring requires bounded named nodes');
   const names = itemNames(spec, 'nodes', 'vnodes');
   if (!names.length || names.length > 12) return fail('ring requires bounded named nodes');
+  if (hasDuplicateNames(names)) return fail('ring node names must be unique');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('ring relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('ring', parsed.items);
+  if (unsupported) return fail(unsupported);
   const b = frame('ring', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'ring-caption');
@@ -442,12 +559,37 @@ export function compileRing(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileTopology(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (hasEmptyItems(spec, 'nodes', 'identifications')) return fail('topology requires named nodes and complete identifications');
   const names = itemNames(spec, 'nodes');
-  const identificationText = specGet(spec, 'identifications');
-  const pairs = (identificationText ?? '').split(/[;,]/).map((part) => part.trim()).filter(Boolean).map((part) => part.split(/\s*(?:~|=|<->)\s*/)).filter((pair) => pair.length === 2 && pair[0] && pair[1]);
+  if (hasDuplicateNames(names)) return fail('topology node names must be unique');
+  const pairs: Array<{ left: string; right: string }> = [];
+  let invalidIdentification = false;
+  for (const part of values(spec, 'identifications').flatMap((value) => value.split(/[;,]/))) {
+    const text = part.trim();
+    if (!text) continue;
+    const match = /^(.+?)\s*(<->|=|~)\s*(.+?)$/.exec(text);
+    if (!match || /<->|=|~/.test(match[1]!) || /<->|=|~/.test(match[3]!)) {
+      invalidIdentification = true;
+      continue;
+    }
+    const left = match[1]!.trim();
+    const right = match[3]!.trim();
+    if (!left || !right) {
+      invalidIdentification = true;
+      continue;
+    }
+    pairs.push({ left, right });
+  }
+  if (invalidIdentification) return fail('topology identifications must state exactly two named sides');
+  if (names.length) {
+    const declared = new Set(names.map((name) => name.toLowerCase()));
+    if (pairs.some((pair) => !declared.has(pair.left.toLowerCase()) || !declared.has(pair.right.toLowerCase()))) return fail('topology identification names an undeclared side');
+  }
   if (!names.length && !pairs.length) return fail('topology requires named boundary identifications');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('topology relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('topology', parsed.items);
+  if (unsupported) return fail(unsupported);
   const b = frame('topology', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'topology-caption');
@@ -455,7 +597,7 @@ export function compileTopology(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   pairs.forEach((pair, index) => {
     const y = 38 + index * Math.min(24, (h - 60) / Math.max(1, pairs.length));
     link(b, `identification-${index}`, 42, y, w - 42, y, 'identification', 'accent');
-    b.label(`identification-label-${index}`, `${pair[0]} = ${pair[1]}`, w / 2, y - 7, { priority: 'required', anchorId: `identification-${index}` });
+    b.label(`identification-label-${index}`, `${pair.left} = ${pair.right}`, w / 2, y - 7, { priority: 'required', anchorId: `identification-${index}` });
   });
   if (names.length) {
     const graphResult = drawRelationGraph(b, names, parsed.items, h - 20);
@@ -472,6 +614,8 @@ export function compileSphere(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const panelNames = itemNames(spec, 'panel');
   const parsed = relations(spec);
   if (parsed.invalid) return fail('sphere relation is missing an explicit endpoint');
+  const unsupported = unsupportedRelation('sphere', parsed.items);
+  if (unsupported) return fail(unsupported);
   if (panelNames.length > 1) return fail('sphere comparison panels cannot be separated by this engine', 'refused');
   const b = frame('sphere', ctx, spec);
   const { width: w, height: h } = b;
@@ -528,10 +672,40 @@ function endpointLabel(value: string): string {
   return value.replace(/@[-+]?\d+(?:\.\d+)?$/, '').trim() || value;
 }
 
+interface MechanismArrow {
+  from: string;
+  to: string;
+  kind: 'pair' | 'radical';
+}
+
+function mechanismArrows(spec: SpecDoc, from: string, to: string): { arrows: MechanismArrow[]; invalid: boolean } {
+  const arrows: MechanismArrow[] = [];
+  let invalid = false;
+  for (const part of values(spec, 'arrow').flatMap((value) => value.split(';'))) {
+    const text = part.trim();
+    if (!text) {
+      invalid = true;
+      continue;
+    }
+    const match = /^(\S+)\s*(?:->|→)\s*(\S+)(?:\s+(pair|radical))?$/.exec(text)
+      ?? /^(\S+)\s+(\S+)(?:\s+(pair|radical))?$/.exec(text);
+    if (!match || match[1] !== from || match[2] !== to) {
+      invalid = true;
+      continue;
+    }
+    arrows.push({ from: match[1], to: match[2], kind: match[3] === 'pair' ? 'pair' : 'radical' });
+  }
+  return { arrows, invalid };
+}
+
 export function compileMechanism(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const from = specGet(spec, 'from');
   const to = specGet(spec, 'to');
   if (!from || !to) return fail('mechanism requires explicit from and to endpoints');
+  if (specHasEmptyDeclaration(spec, 'arrow')) return fail('mechanism arrow declaration is empty');
+  const parsedArrows = mechanismArrows(spec, from, to);
+  if (parsedArrows.invalid) return fail('mechanism arrows must name the declared from and to endpoints');
+  const arrows = parsedArrows.arrows.length ? parsedArrows.arrows : [{ from, to, kind: 'radical' as const }];
   const b = frame('mechanism', ctx, spec);
   const { width: w, height: h } = b;
   addSemanticCaption(b, spec, 'mechanism-caption');
@@ -539,7 +713,16 @@ export function compileMechanism(spec: SpecDoc, ctx: CompileCtx): CompileResult 
   const right = w - 58;
   b.circle('mechanism-from', left, h / 2, 16, { role: 'boundary' });
   b.circle('mechanism-to', right, h / 2, 16, { role: 'boundary' });
-  b.path('mechanism-arrow', `M ${left + 18} ${h / 2} Q ${w / 2} ${h / 2 - 34} ${right - 18} ${h / 2}`, { markerEnd: true, color: 'accent', role: 'connector' });
+  arrows.forEach((arrow, index) => {
+    const centerY = h / 2 + (index - (arrows.length - 1) / 2) * 12;
+    const arrowId = index === 0 ? 'mechanism-arrow' : `mechanism-arrow-${index}`;
+    const offsets = arrow.kind === 'pair' ? [-2, 2] : [0];
+    offsets.forEach((offset, lane) => {
+      const id = lane === 0 ? arrowId : `${arrowId}-pair`;
+      const y = centerY + offset;
+      b.path(id, `M ${left + 18} ${y} Q ${w / 2} ${y - 34} ${right - 18} ${y}`, { markerEnd: true, color: 'accent', role: 'connector' });
+    });
+  });
   b.label('mechanism-from-label', endpointLabel(from), left, h / 2 + 28, { protected: true, anchorId: 'mechanism-from' });
   b.label('mechanism-to-label', endpointLabel(to), right, h / 2 + 28, { protected: true, anchorId: 'mechanism-to' });
   return layoutAndCompile(b.scene());

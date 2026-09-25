@@ -2,15 +2,17 @@
  * Host-page split layout — shrinks Gemini's <body> while the panel sits fixed right.
  */
 import { detectAdapter } from '@/src/platforms/detect';
-import { pageWidthVw, panelWidthVw } from '@/src/lib/split-ratio';
+import { layoutPageWidthVw, layoutPanelWidthVw } from '@/src/lib/split-ratio';
+import { viewportWidth } from '@/src/lib/split-ratio';
 
 export const SPLIT_STYLE_ID = 'stemlm-split-style';
 /** Matches --slm-panel-inset so Gemini does not cover the rounded panel gap. */
 export const PANEL_INSET_PX = 8;
 
 export function applySplit(ratio: number, dragging = false): void {
-  const panelVw = panelWidthVw(ratio);
-  const pageVw = pageWidthVw(ratio);
+  const vw = viewportWidth();
+  const panelVw = layoutPanelWidthVw(ratio, vw);
+  const pageVw = layoutPageWidthVw(ratio, vw);
   const inset = `${PANEL_INSET_PX}px`;
   const layoutRoots = detectAdapter()?.layoutRoots ?? ['main'];
   const rootClamp = layoutRoots

@@ -11,7 +11,7 @@ import {
 } from '@/src/lib/tab-bridge';
 import { setPendingPanelAction, takePendingPanelAction } from '@/src/lib/tab-workspace';
 import { rememberLastChat, lastChatFromUrl } from '@/src/lib/last-chat';
-import { adapterForUrl } from '@/src/platforms/detect';
+import { adapterForUrl, isSupportedChatUrl } from '@/src/platforms/detect';
 
 export const BACKGROUND_LAUNCH = 'stemlm:background-launch' as const;
 
@@ -24,7 +24,25 @@ export function isBackgroundLaunchMessage(msg: unknown): msg is BackgroundLaunch
   const rec = msg as { type?: unknown; kind?: unknown; url?: unknown };
   if (rec.type !== BACKGROUND_LAUNCH) return false;
   if (rec.kind === 'start-new') return true;
-  return rec.kind === 'open-last' && typeof rec.url === 'string' && rec.url.length > 0;
+  return rec.kind === 'open-last' && typeof rec.url === 'string' && isSupportedChatUrl(rec.url);
+}
+
+/** Runtime message boundary for the background service worker. */
+export function isAuthorizedBackgroundSender(
+  sender: { id?: string; url?: string; tab?: { url?: string } },
+  runtimeId: string | undefined,
+): boolean {
+  if (runtimeId && sender.id !== runtimeId) return false;
+  if (sender.url) {
+    try {
+      const protocol = new URL(sender.url).protocol;
+      if (protocol !== 'chrome-extension:' && protocol !== 'moz-extension:') return false;
+    } catch {
+      return false;
+    }
+  }
+  if (sender.tab?.url && !isSupportedChatUrl(sender.tab.url)) return false;
+  return true;
 }
 
 function urlsMatchChat(a: string, b: string): boolean {
@@ -33,6 +51,7 @@ function urlsMatchChat(a: string, b: string): boolean {
 }
 
 async function openChatTabInactive(url: string): Promise<{ id: number; url?: string }> {
+  if (!isSupportedChatUrl(url)) throw new Error('unsupported-chat-url');
   try {
     const tabs = await browser.tabs.query({});
     const match = tabs.find((tab) => typeof tab.url === 'string' && urlsMatchChat(tab.url, url));
@@ -75,6 +94,8 @@ export async function performBackgroundLaunch(
     return deliverArmed(tab.id, 'stemlm:open-panel');
   }
 
+  if (!isSupportedChatUrl(req.url)) throw new Error('unsupported-chat-url');
+
   const tab = await openChatTabInactive(req.url);
   await setPendingPanelAction({ tabId: tab.id, type: 'stemlm:load-conversation' });
   await activateTab(tab.id);
@@ -87,14 +108,17 @@ async function deliverArmed(
   tabId: number,
   type: 'stemlm:open-panel' | 'stemlm:load-conversation',
 ): Promise<StemLmDeliveryResult> {
+  const claimed = await takePendingPanelAction(tabId);
+  if (!claimed) return { ok: true };
   try {
     const res = await deliverStemLmMessageToTab(tabId, type, { reloadIfMissing: false });
-    if (res.ok !== false) {
-      await takePendingPanelAction(tabId);
-    }
+    if (res.ok === false) await setPendingPanelAction({ tabId, type: claimed }, true);
     return res;
   } catch {
-    return { ok: true };
+    await setPendingPanelAction({ tabId, type: claimed }, true);
+    // Keep the pending action for the content script to consume after a later
+    // boot/retry; reporting success here would make the popup forget the work.
+    return { ok: false };
   }
 }
 
@@ -102,7 +126,7 @@ async function deliverArmed(
 export async function enqueueBackgroundLaunch(req: BackgroundLaunchRequest): Promise<void> {
   try {
     const res = (await browser.runtime.sendMessage(req)) as { ok?: boolean; queued?: boolean } | undefined;
-    if (res?.ok === true && res.queued === true) return;
+    if (res?.ok === true) return;
   } catch {
     /* no listener */
   }

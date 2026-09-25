@@ -74,6 +74,46 @@ describe('auditStepQuality', () => {
     expect(issues).toContain('step_missing_substitution');
   });
 
+  it('flags numeric work that drops units while leaving symbolic work exempt', () => {
+    const issues = auditStepQuality(
+      {
+        id: 's3',
+        index: 3,
+        title: 'Compute current',
+        formula: '$$I = V/R$$',
+        body: 'Substitute $I=12/6=2$.',
+      },
+      { subject: 'Electrical', archetype: 'numeric' },
+    );
+    expect(issues).toContain('step_missing_units');
+    expect(
+      auditStepQuality(
+        { id: 's4', index: 4, title: 'Prove an identity', formula: '$$a=b$$', body: 'By symmetry, the two sides agree.' },
+        { subject: 'Math', archetype: 'proof' },
+      ),
+    ).not.toContain('step_missing_units');
+  });
+
+  it('requires a reference convention for signed engineering work', () => {
+    const issues = auditStepQuality(
+      {
+        id: 's5',
+        index: 5,
+        title: 'Combine reactances',
+        formula: '$$X=X_L-X_C$$',
+        body: 'Substitute $X=8-12=-4\,\Omega$.',
+      },
+      { subject: 'Electrical', archetype: 'numeric' },
+    );
+    expect(issues).toContain('step_missing_sign_convention');
+    expect(
+      auditStepQuality(
+        { id: 's6', index: 6, title: 'Combine reactances', formula: '$$X=X_L-X_C$$', body: 'Taking inductive current as positive, $X=8-12=-4\,\Omega$.' },
+        { subject: 'Electrical', archetype: 'numeric' },
+      ),
+    ).not.toContain('step_missing_sign_convention');
+  });
+
   it('does not require numeric plug-in on a proof or symbolic body', () => {
     const proof = auditStepQuality(
       {

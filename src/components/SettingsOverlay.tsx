@@ -18,19 +18,14 @@ import {
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose } from './icons';
 import { SETTINGS_LABEL } from '@/src/lib/saved-library';
+import { useDialogFocus } from './use-dialog-focus';
 
-/**
- * Footer links. Destinations are wired up separately — these render the row so
- * the layout is settled; each carries a `data-link` id for the handler to hook.
- */
+/** Footer links. Plain anchors so they open a tab from the panel and the settings page alike. */
 export const SETTINGS_LEGAL_LINKS = [
-  { id: 'privacy', label: 'Privacy Policy' },
-  { id: 'terms', label: 'Terms & Conditions' },
-  { id: 'contact', label: 'Contact Us' },
+  { id: 'privacy', label: 'Privacy Policy', href: 'https://www.stemlm.app/privacy' },
+  { id: 'terms', label: 'Terms & Conditions', href: 'https://www.stemlm.app/terms' },
+  { id: 'contact', label: 'Contact Us', href: 'https://github.com/chayprabs/stemlm-app/issues' },
 ] as const;
-
-export const ANALYTICS_LABEL = 'Share anonymous usage data';
-export const ANALYTICS_HINT = 'Never your questions or answers.';
 
 function applyPageTheme(pref: ThemePref, resolved: ResolvedTheme, layout: 'overlay' | 'page') {
   if (layout === 'page' || document.documentElement.classList.contains('slm-popup-page')) {
@@ -110,9 +105,8 @@ export function SettingsOverlay({
 }) {
   const [settings, setLocal] = useState<Settings>(DEFAULT_SETTINGS);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
-  // Presentation only for now: on by default, flips so both states are visible,
-  // but deliberately not persisted and not wired to any analytics call yet.
-  const [shareUsageData, setShareUsageData] = useState(true);
+  const dialogRef = useDialogFocus<HTMLDivElement>();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void getSettings().then((next) => {
@@ -138,13 +132,18 @@ export function SettingsOverlay({
   }, [onClose]);
 
   async function update(patch: Partial<Settings>) {
-    const prev = settings;
-    const next = await setSettings(patch);
-    setLocal(next);
-    applyLiveSettings(next, prev);
-    const resolved = resolveTheme(next.theme);
-    setTheme(resolved);
-    applyPageTheme(next.theme, resolved, layout);
+    try {
+      const prev = settings;
+      const next = await setSettings(patch);
+      setLocal(next);
+      applyLiveSettings(next, prev);
+      const resolved = resolveTheme(next.theme);
+      setTheme(resolved);
+      applyPageTheme(next.theme, resolved, layout);
+      setError(null);
+    } catch {
+      setError('Could not save that setting. Try again.');
+    }
   }
 
   return (
@@ -162,10 +161,12 @@ export function SettingsOverlay({
         />
       )}
       <div
+        ref={dialogRef}
         className="slm-settings-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="slm-settings-title"
+        tabIndex={-1}
       >
         <div className="slm-settings-dialog-head">
           <h2 id="slm-settings-title" className="slm-settings-dialog-title">
@@ -178,6 +179,7 @@ export function SettingsOverlay({
         </div>
 
         <div className="slm-settings-body">
+          {error && <p className="slm-banner slm-banner-error" role="alert">{error}</p>}
           <section className="slm-settings-group">
             <h3 className="slm-settings-group-title">Appearance</h3>
             <div className="slm-set-row">
@@ -232,16 +234,6 @@ export function SettingsOverlay({
               onChange={(autoOpenOnAnswer) => void update({ autoOpenOnAnswer })}
             />
           </section>
-
-          <section className="slm-settings-group">
-            <h3 className="slm-settings-group-title">Privacy</h3>
-            <Toggle
-              label={ANALYTICS_LABEL}
-              hint={ANALYTICS_HINT}
-              checked={shareUsageData}
-              onChange={setShareUsageData}
-            />
-          </section>
         </div>
 
         <footer className="slm-settings-foot">
@@ -250,9 +242,15 @@ export function SettingsOverlay({
             {SETTINGS_LEGAL_LINKS.map((item, i) => (
               <Fragment key={item.id}>
                 {i > 0 && <span className="slm-settings-links-sep" aria-hidden="true" />}
-                <button type="button" className="slm-settings-link" data-link={item.id}>
+                <a
+                  className="slm-settings-link"
+                  data-link={item.id}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {item.label}
-                </button>
+                </a>
               </Fragment>
             ))}
           </nav>

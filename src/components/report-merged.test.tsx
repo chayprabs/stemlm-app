@@ -66,6 +66,34 @@ describe('MergedReport', () => {
     expect(html.match(/class="slm-report-foot"/g)).toHaveLength(1);
   });
 
+  it('provides one document-level heading for the merged report', () => {
+    const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
+
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html).toContain('class="slm-report-topic">Study questions</h1>');
+  });
+
+  it('keeps each step heading, formula, and first work block in one print group', () => {
+    const withFormula = session('formula', 'Evaluate the relation.', {
+      topic: 'Grouped formula',
+    });
+    withFormula.capsule.steps[0] = {
+      ...withFormula.capsule.steps[0]!,
+      formula: '$$y = mx + b$$',
+      body: 'First worked paragraph.\n\nLater continuation that may break normally.',
+    };
+    const html = renderToStaticMarkup(<MergedReport sessions={[withFormula]} diagramSvg={{}} />);
+    const groupStart = html.indexOf('slm-report-step-intro');
+    const headStart = html.indexOf('slm-report-step-head', groupStart);
+    const formulaStart = html.indexOf('slm-formula', groupStart);
+    const workStart = html.indexOf('slm-step-work--intro', groupStart);
+
+    expect(groupStart).toBeGreaterThan(-1);
+    expect(headStart).toBeGreaterThan(groupStart);
+    expect(formulaStart).toBeGreaterThan(headStart);
+    expect(workStart).toBeGreaterThan(formulaStart);
+  });
+
   it('numbers every question and keeps each topic and subject with it', () => {
     const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
 
@@ -127,7 +155,7 @@ describe('merged diagram keys', () => {
     const html = renderToStaticMarkup(
       <MergedReport
         sessions={withFigures}
-        diagramSvg={{ 'q1-step-1': '<svg id="one"></svg>', 'q2-step-1': '<svg id="two"></svg>' }}
+        diagramSvg={{ 'q1-step-1': '<svg id="one" viewBox="0 0 20 20"><circle r="5"/></svg>', 'q2-step-1': '<svg id="two" viewBox="0 0 20 20"><circle r="5"/></svg>' }}
       />,
     );
     expect(html).toContain('id="one"');
@@ -141,7 +169,7 @@ describe('merged diagram keys', () => {
     expect(diagramKey('step', 1, entryPrefix(2))).toBe('q3-step-1');
 
     const html = renderToStaticMarkup(
-      <Report session={single} diagramSvg={{ 'step-1': '<svg id="solo-fig"></svg>' }} />,
+      <Report session={single} diagramSvg={{ 'step-1': '<svg id="solo-fig" viewBox="0 0 20 20"><circle r="5"/></svg>' }} />,
     );
     expect(html).toContain('id="solo-fig"');
   });

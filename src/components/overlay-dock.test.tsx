@@ -241,7 +241,7 @@ describe('inject control hides when stemlm is turned off', () => {
 });
 
 describe('outside-shell overlay stays visible and tracks the composer', () => {
-  const chatgpt = HOST_FIXTURES.find((s) => s.id === 'chatgpt')!;
+  const grok = HOST_FIXTURES.find((s) => s.id === 'grok')!;
   let container: HTMLDivElement;
   let root: Root | undefined;
 
@@ -263,9 +263,9 @@ describe('outside-shell overlay stays visible and tracks the composer', () => {
   }
 
   beforeEach(() => {
-    activeAdapter = chatgpt.adapter;
+    activeAdapter = grok.adapter;
     document.body.innerHTML = '';
-    mountHostComposer(chatgpt, { capsule: false });
+    mountHostComposer(grok, { capsule: false });
     container = document.createElement('div');
     document.body.appendChild(container);
     useStore.setState({
@@ -287,8 +287,8 @@ describe('outside-shell overlay stays visible and tracks the composer', () => {
   });
 
   it('repositions immediately on scroll instead of waiting for the dock debounce', async () => {
-    const pill = document.querySelector('.composer-pill') as HTMLElement;
-    const plus = chatgpt.adapter.getComposerLeadingAnchor()!;
+    const pill = document.querySelector('form.chat-input') as HTMLElement;
+    const plus = grok.adapter.getComposerLeadingAnchor()!;
     const pillBox = { left: 200, top: 400, width: 640, height: 52 };
     const plusBox = { left: 212, top: 410, width: 36, height: 36 };
     mockBox(pill, pillBox);
@@ -322,7 +322,7 @@ describe('outside-shell overlay stays visible and tracks the composer', () => {
   });
 
   it('falls back to a visible fixed wrap if the dock slot is disconnected', async () => {
-    const pill = document.querySelector('.composer-pill') as HTMLElement;
+    const pill = document.querySelector('form.chat-input') as HTMLElement;
     mockBox(pill, { left: 200, top: 400, width: 640, height: 52 });
 
     await act(async () => {

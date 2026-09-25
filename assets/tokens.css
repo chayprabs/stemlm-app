@@ -1,6 +1,6 @@
 /*
  * stemLM surfaces — host-neutral chatbot/artifact language.
- * Sits beside ChatGPT, Claude, Gemini, and Grok without copying a vendor skin.
+ * Sits beside Claude, Gemini, and Grok without copying a vendor skin.
  * Light: cool paper + ink. Dark: Claude-canvas #151515 + inverse ink.
  * --slm-accent is brand-only (logo, wordmark, inject). Panel chrome uses --slm-solid.
  * --slm-signal is the therefore-mark orange (save fill, brand apex).
@@ -14,7 +14,7 @@
 @property --slm-border-subtle { syntax: '<color>'; inherits: true; initial-value: #ebebed; }
 @property --slm-fg { syntax: '<color>'; inherits: true; initial-value: #121212; }
 @property --slm-fg-muted { syntax: '<color>'; inherits: true; initial-value: #5c5c63; }
-@property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #8a8a92; }
+@property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #6b6b73; }
 @property --slm-accent { syntax: '<color>'; inherits: true; initial-value: #0e7c76; }
 @property --slm-accent-hover { syntax: '<color>'; inherits: true; initial-value: #0b6863; }
 @property --slm-accent-fg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
@@ -23,7 +23,7 @@
 @property --slm-solid { syntax: '<color>'; inherits: true; initial-value: #171717; }
 @property --slm-solid-hover { syntax: '<color>'; inherits: true; initial-value: #2c2c2c; }
 @property --slm-solid-fg { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
-@property --slm-amber { syntax: '<color>'; inherits: true; initial-value: #b45309; }
+@property --slm-amber { syntax: '<color>'; inherits: true; initial-value: #93410a; }
 @property --slm-amber-dim { syntax: '<color>'; inherits: true; initial-value: #f3eadb; }
 @property --slm-success { syntax: '<color>'; inherits: true; initial-value: #17803d; }
 @property --slm-success-soft { syntax: '<color>'; inherits: true; initial-value: #e4f3e9; }
@@ -62,7 +62,7 @@
   --slm-border-subtle: #ebebed;
   --slm-fg: #121212;
   --slm-fg-muted: #5c5c63;
-  --slm-fg-subtle: #8a8a92;
+  --slm-fg-subtle: #6b6b73;
   --slm-accent: #0e7c76;
   --slm-accent-hover: #0b6863;
   --slm-accent-fg: #f5f5f5;
@@ -71,7 +71,7 @@
   --slm-solid: #171717;
   --slm-solid-hover: #2c2c2c;
   --slm-solid-fg: #fafafa;
-  --slm-amber: #b45309;
+  --slm-amber: #93410a;
   --slm-amber-dim: #b4530914;
   --slm-success: #17803d;
   --slm-success-soft: #17803d16;
@@ -131,7 +131,7 @@
   --slm-border-subtle: #242424;
   --slm-fg: #ededed;
   --slm-fg-muted: #a3a3a3;
-  --slm-fg-subtle: #7a7a7a;
+  --slm-fg-subtle: #858585;
   --slm-accent: #3dcdc4;
   --slm-accent-hover: #5ed9d1;
   --slm-accent-fg: #141416;

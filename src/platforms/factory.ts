@@ -8,6 +8,8 @@ import type { AdapterConfig, PlatformAdapter } from './types';
 import { COMPOSER_SLOT_SELECTOR } from '@/src/lib/composer-slot';
 import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
 import { normalizeComposerText, readComposerText } from '@/src/lib/composer-text';
+import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
+import { isCapsuleEndLine } from '@/src/protocol/capsule-boundary';
 
 const STEMLM_CODE_SELECTORS = [
   'pre code.language-stemlm',
@@ -17,7 +19,7 @@ const STEMLM_CODE_SELECTORS = [
 ];
 
 function hasEndToken(text: string): boolean {
-  return text.split('\n').some((line) => line.trim() === '@end');
+  return text.split('\n').some(isCapsuleEndLine);
 }
 
 function firstMatch(selectors: string[], root: ParentNode = document): HTMLElement | null {
@@ -68,6 +70,7 @@ function isHiddenComposerNode(el: HTMLElement): boolean {
   try {
     let node: HTMLElement | null = el;
     for (let i = 0; i < 10 && node && node !== document.body && node !== document.documentElement; i++) {
+      if (node.hidden || node.getAttribute('aria-hidden') === 'true' || node.hasAttribute('inert')) return true;
       const cs = getComputedStyle(node);
       if (cs.display === 'none' || cs.visibility === 'hidden') return true;
       node = node.parentElement;
@@ -138,6 +141,9 @@ export function editorReflectsText(el: HTMLElement, expected: string): boolean {
       (got.includes('stemlm-protocol.txt') || got.includes('Follow the attached'))
     );
   }
+  if (expected.includes(STUDY_GUIDE_REFERENCE)) {
+    return got.includes(STUDY_GUIDE_REFERENCE);
+  }
   if (expected.includes('stemlm-protocol.txt') || expected.includes('Follow the attached')) {
     return got.includes('stemlm-protocol.txt') || got.includes('Follow the attached');
   }
@@ -145,8 +151,9 @@ export function editorReflectsText(el: HTMLElement, expected: string): boolean {
   return probe.length > 0 && got.includes(probe);
 }
 
-function dispatchSyntheticPaste(el: HTMLElement, text: string): boolean {
+function dispatchSyntheticPaste(el: HTMLElement, text: string, mode: 'append' | 'replace'): boolean {
   try {
+    const before = getEditorTextOf(el);
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
     const evt = new ClipboardEvent('paste', {
@@ -154,7 +161,12 @@ function dispatchSyntheticPaste(el: HTMLElement, text: string): boolean {
       cancelable: true,
       clipboardData: dt,
     });
-    return el.dispatchEvent(evt);
+    if (el.dispatchEvent(evt)) return true;
+    // Rich editors cancel the default paste after inserting clipboard text.
+    // Old markers or a partial paste must not count as the requested insertion.
+    const expected = mode === 'append' ? `${before}${text}` : text;
+    const comparable = (value: string) => normalizeComposerText(value).replace(/\s+/g, ' ');
+    return comparable(getEditorTextOf(el)) === comparable(expected);
   } catch {
     return false;
   }
@@ -292,7 +304,7 @@ export function appendEditorText(el: HTMLElement, text: string): boolean {
   el.focus();
   moveCursorToEnd(el);
 
-  if (dispatchSyntheticPaste(el, chunk) && editorReflectsText(el, text)) return true;
+  if (dispatchSyntheticPaste(el, chunk, 'append') && editorReflectsText(el, text)) return true;
 
   try {
     moveCursorToEnd(el);
@@ -338,7 +350,7 @@ export function setEditorText(el: HTMLElement, text: string): boolean {
   el.focus();
   selectAllContents(el);
 
-  if (dispatchSyntheticPaste(el, text) && editorReflectsText(el, text)) return true;
+  if (dispatchSyntheticPaste(el, text, 'replace') && editorReflectsText(el, text)) return true;
 
   try {
     selectAllContents(el);
@@ -502,25 +514,25 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     findEditor() {
-      return firstMatchOutsideSlot(config.editor) ?? firstMatch(config.editor);
+      return firstMatchOutsideSlot(config.editor);
     },
 
     getEditorText() {
-      return getEditorTextOf(firstMatch(config.editor));
+      return getEditorTextOf(this.findEditor());
     },
 
     insertPrompt(text: string, mode: 'replace' | 'append' = 'replace') {
-      const editor = firstMatch(config.editor);
+      const editor = this.findEditor();
       if (!editor) return false;
       return mode === 'append' ? appendEditorText(editor, text) : setEditorText(editor, text);
     },
 
     composerHasAttachments() {
-      return composerHasAttachments(firstMatch(config.editor));
+      return composerHasAttachments(this.findEditor());
     },
 
     focusComposerQuestionSlot() {
-      focusComposerQuestionSlot(firstMatch(config.editor));
+      focusComposerQuestionSlot(this.findEditor());
     },
 
     getComposerBox() {

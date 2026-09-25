@@ -18,7 +18,9 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   return {
     storageData,
     mockLocalStorage: {
-      get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),
+      get: vi.fn(async (key: string | null) =>
+        key === null ? { ...storageData } : { [key]: storageData[key] },
+      ),
       set: vi.fn(async (items: Record<string, unknown>) => {
         Object.assign(storageData, items);
       }),
@@ -32,6 +34,8 @@ vi.mock('wxt/browser', () => ({
       local: mockLocalStorage,
     },
     runtime: {
+      sendMessage: async (message: import('@/src/lib/saved-session-storage').SavedSessionMutationMessage) =>
+        (await import('@/src/lib/saved-session-storage')).handleSavedSessionMutation(message),
       getURL: (path: string) => `chrome-extension://test/${path}`,
       id: 'test',
     },
@@ -136,6 +140,38 @@ afterEach(() => {
 });
 
 describe('Panel save membership', () => {
+  it('keeps the current answer unsaved when a different answer finishes saving', async () => {
+    const a = studySession('pending-save-a', 'Question Alpha');
+    const b = studySession('pending-save-b', 'Question Beta');
+    useStore.getState().addSession(a);
+    useStore.getState().addSession(b);
+    useStore.getState().setActiveSession(a.id);
+    useStore.setState({ panelOpen: true, status: 'ready' });
+    const { container, unmount } = mountPanel();
+    await flush();
+    let release = () => {};
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    mockLocalStorage.set.mockImplementationOnce(async (items) => {
+      await held;
+      Object.assign(storageData, items);
+    });
+    try {
+      act(() => { (container.querySelector('button[aria-label="Save session"]') as HTMLButtonElement).click(); });
+      await flush();
+      act(() => { useStore.getState().setActiveSession(b.id); });
+      await flush();
+      release();
+      await flush();
+      expect(await isSessionSaved(a.id)).toBe(true);
+      expect(await isSessionSaved(b.id)).toBe(false);
+      expect(container.querySelector('button[aria-label="Save session"]')).toBeTruthy();
+      expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeNull();
+    } finally {
+      release();
+      unmount();
+    }
+  });
+
   it('shows Save after unsaving the active session', async () => {
     const session = studySession();
     storageData[SAVED_SESSIONS_KEY] = [sessionToSnapshot(session)];

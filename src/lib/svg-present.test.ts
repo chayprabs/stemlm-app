@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { decodeSvgText, presentSvg } from './svg-present';
+import { compileDiagram, presentCompiledDiagram } from './resolve-diagram';
 
 describe('decodeSvgText', () => {
   it('converts common LaTeX unit fragments to Unicode', () => {
@@ -330,5 +331,138 @@ describe('presentSvg', () => {
     expect(out).toContain('points="0,0 6,3 0,6"');
     expect(out).toContain('fill="#4ade80"');
     expect(out).not.toContain('points="5,0 6,4');
+  });
+});
+
+describe('presentSvg content-size scaling', () => {
+  const sample =
+    '<svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">' +
+    '<line x1="10" y1="50" x2="190" y2="50" stroke="#333" stroke-width="2"/>' +
+    '</svg>';
+
+  function sizeOf(svg: string): { width: number; height: number } {
+    const w = /\swidth="(\d+)"/.exec(svg)?.[1];
+    const h = /\sheight="(\d+)"/.exec(svg)?.[1];
+    return { width: Number(w), height: Number(h) };
+  }
+
+  it('keeps the profile box when no scale is supplied', () => {
+    const base = sizeOf(presentSvg(sample, 'light', 'step'));
+    expect(base.width).toBeGreaterThan(0);
+    expect(sizeOf(presentSvg(sample, 'light', 'step', 1))).toEqual(base);
+  });
+
+  it('grows and shrinks the rendered box proportionally', () => {
+    const base = sizeOf(presentSvg(sample, 'light', 'step'));
+    const big = sizeOf(presentSvg(sample, 'light', 'step', 1.36));
+    const small = sizeOf(presentSvg(sample, 'light', 'step', 0.9));
+    expect(big.width).toBe(Math.round(base.width * 1.36));
+    expect(big.height).toBe(Math.round(base.height * 1.36));
+    expect(small.width).toBe(Math.round(base.width * 0.9));
+    expect(big.width / big.height).toBeCloseTo(base.width / base.height, 1);
+  });
+
+  it('writes the scaled box into the inline style so CSS and markup agree', () => {
+    const out = presentSvg(sample, 'light', 'step', 1.24);
+    const { width, height } = sizeOf(out);
+    expect(out).toContain(`width:${width}px`);
+    expect(out).toContain(`height:${height}px`);
+    expect(out).toContain('max-width:100%');
+  });
+
+  it('ignores a nonsense scale instead of collapsing the figure', () => {
+    const base = sizeOf(presentSvg(sample, 'light', 'step'));
+    for (const bad of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(sizeOf(presentSvg(sample, 'light', 'step', bad))).toEqual(base);
+    }
+  });
+
+  it('leaves the print profile at its own bounds', () => {
+    const print = sizeOf(presentSvg(sample, 'light', 'print'));
+    expect(sizeOf(presentSvg(sample, 'light', 'print', 1))).toEqual(print);
+  });
+});
+
+describe('FIG-TEXT-01 empty labels', () => {
+  const parse = (svg: string) => new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+
+  it('keeps every label after an empty <text> as its own rendered element', () => {
+    const raw =
+      '<svg viewBox="0 0 300 120"><rect x="0" y="0" width="300" height="120" fill="none" stroke="#333"/>' +
+      '<text x="20" y="20"></text>' +
+      ['A', 'a', 'AA', 'Aa', 'aa'].map((label, i) => `<text x="${40 + i * 50}" y="60">${label}</text>`).join('') +
+      '</svg>';
+    const root = parse(presentSvg(raw, 'light'));
+    expect(root.querySelectorAll('text text')).toHaveLength(0);
+    const labels = [...root.querySelectorAll('text')].map((el) => el.textContent);
+    expect(labels).toEqual(['', 'A', 'a', 'AA', 'Aa', 'aa']);
+    for (const text of root.querySelectorAll('text')) {
+      expect(text.getAttribute('font-family')).toBeTruthy();
+      expect(text.getAttribute('font-size')).toBeTruthy();
+    }
+  });
+
+  it('keeps label markup as text, never as elements or attributes', () => {
+    const raw =
+      '<svg viewBox="0 0 200 80"><text x="10" y="20"/>' +
+      '<text x="10" y="40">&quot;&gt;&lt;img src=x onerror=alert(1)&gt; \\Omega</text></svg>';
+    const out = presentSvg(raw, 'light');
+    const root = parse(out);
+    expect(root.querySelector('img')).toBeNull();
+    expect(out).not.toContain('<img');
+    expect(root.querySelectorAll('text')[1]?.textContent).toBe('"><img src=x onerror=alert(1)> Ω');
+  });
+
+  it('decodes text around nested tspans without dropping inner spacing', () => {
+    const raw = '<svg viewBox="0 0 200 80"><text x="10" y="40">V<tspan dy="3">out</tspan> = 5 \\Omega</text></svg>';
+    const text = parse(presentSvg(raw, 'light')).querySelector('text')!;
+    expect(text.textContent).toBe('Vout = 5 Ω');
+    expect(text.querySelector('tspan')?.textContent).toBe('out');
+  });
+
+  it('renders every Punnett header and cell through the full figure pipeline', async () => {
+    const compiled = await compileDiagram({
+      type: 'table',
+      content: 'kind: punnett\ncols: A, a\nrows: A, a\ncells:\n  - AA,Aa\n  - Aa,aa',
+    });
+    const presented = presentCompiledDiagram(compiled, 'light');
+    expect(presented.ok).toBe(true);
+    const root = parse(presented.svg);
+    expect(root.querySelectorAll('text text')).toHaveLength(0);
+    const labels = [...root.querySelectorAll('text')].map((el) => el.textContent ?? '').filter(Boolean);
+    for (const label of ['A', 'a', 'AA', 'Aa', 'aa']) expect(labels).toContain(label);
+    expect(labels.filter((label) => label === 'Aa')).toHaveLength(2);
+  });
+});
+
+describe('SVG-PRESENT-02 compiler output keeps its layout', () => {
+  const parse = (svg: string) => new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+  const labels = (svg: string) => [...parse(svg).querySelectorAll('text')].map((text) => ({
+    id: (text.getAttribute('id') ?? '').replace(/^slm[a-z0-9]+-/, ''),
+    at: `${text.getAttribute('x')},${text.getAttribute('y')}`,
+    size: text.getAttribute('font-size'),
+  }));
+
+  it('never moves or resizes the labels the layout kernel placed', async () => {
+    for (const [type, content] of [
+      ['graph', 'node: a Glucose\nnode: b Glucose-6-phosphate\nnode: c Fructose-6-phosphate\nedge: a b hexokinase\nedge: b c isomerase\nrankdir: TB'],
+      ['circuit', 'std: ieee\nV1: n1 0 DC 12\nR1: n1 n2 4k\nR2: n2 0 6k\nR3: n2 0 12k\nprobe: V_out=n2'],
+    ] as const) {
+      const compiled = await compileDiagram({ type, content });
+      expect(compiled.ok).toBe(true);
+      for (const profile of ['step', 'solution', 'print'] as const) {
+        expect(labels(presentCompiledDiagram(compiled, 'light', profile).svg), `${type} ${profile}`).toEqual(labels(compiled.svg));
+      }
+    }
+  });
+
+  it('shows a compiler figure at full width instead of shrinking its text below 8px', async () => {
+    const compiled = await compileDiagram({ type: 'graph', content: 'node: a Reactant pool\nnode: b Intermediate one\nnode: c Intermediate two\nnode: d Transition state\nnode: e Final product\nedge: a b\nedge: b c\nedge: c d\nedge: d e\nrankdir: TB' });
+    expect(compiled.ok).toBe(true);
+    const root = parse(presentCompiledDiagram(compiled, 'light', 'step').svg);
+    const [, , w, h] = root.getAttribute('viewBox')!.split(/\s+/).map(Number);
+    const scale = Math.min(Number(root.getAttribute('width')) / w!, Number(root.getAttribute('height')) / h!);
+    expect(12 * scale).toBeGreaterThanOrEqual(8);
+    expect(root.getAttribute('data-stemlm-tall')).toBe('true');
   });
 });

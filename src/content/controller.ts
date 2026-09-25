@@ -28,7 +28,12 @@ import {
 import { buildStepEntries } from '@/src/lib/step-entries';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
-import { applyStepPatch, findResumeToken, stitchResume, groupResumeParts } from '@/src/protocol/apply';
+import {
+  applyStepPatch,
+  findResumeToken,
+  stitchResume,
+  groupResumeParts,
+} from '@/src/protocol/apply';
 import type {
   Capsule,
   Diagram,
@@ -38,13 +43,14 @@ import type {
   StepFollowup,
   Subject,
 } from '@/src/protocol/types';
-import type { FollowupIntent, RepairPromptOptions } from '@/src/protocol/builder';
+import type { FollowupIntent } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { rememberCurrentChat } from '@/src/lib/last-chat';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { auditCapsuleDiagrams } from '@/src/protocol/diagram-quality';
 import { auditStepQuality } from '@/src/protocol/step-quality';
+import { STEP_COUNT_MAX } from '@/src/protocol/protocol';
 
 /** Fallback key when mirrored/workspace sessions strip bulky raw text. */
 function sessionDedupKey(
@@ -67,6 +73,63 @@ const DEBOUNCE_MS = 350;
  * "panel stuck on loading even though the answer is here" bug.
  */
 const STABILITY_MS = 1500;
+/** Allow a longer quiet period for explanations/refusals that omit the capsule entirely. */
+const NO_CAPSULE_STABILITY_MS = 10_000;
+/**
+ * A partial answer that stops changing is usually a slow stream (Gemini/Grok
+ * chunking, a network hiccup), not a malformed one. Report it only after this
+ * long with no change and no streaming indicator; while the provider still
+ * shows one, wait up to STREAMING_STALL_MS (a stuck indicator must not pin the
+ * panel on "loading" forever).
+ */
+const PARTIAL_STALL_MS = 10_000;
+const STREAMING_STALL_MS = 60_000;
+
+const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end', 'malformed_verify']);
+
+/**
+ * Closing blocks a finished full answer may lack (D11): its steps are still
+ * shown, with a soft notice naming what is missing.
+ */
+const OPTIONAL_CLOSING_BLOCKS: Record<string, string> = {
+  missing_verify: 'final check',
+  missing_uncertainty: 'assumptions',
+  missing_solution: 'summary',
+};
+
+function missingClosingNotice(result: ParseResult): string | undefined {
+  const mode = result.capsule?.meta.mode;
+  // Patches and Ask-in-chat answers are incremental: they never carry these blocks.
+  if (result.patch?.length || mode === 'patch' || mode === 'resolve') return undefined;
+  const missing = [...new Set(result.warningCodes)].flatMap((code) => OPTIONAL_CLOSING_BLOCKS[code] ?? []);
+  if (!missing.length) return undefined;
+  const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(missing);
+  return `This answer arrived without its ${list}. The steps are complete; double-check the final result.`;
+}
+
+function hasUsableParsedContent(result: ParseResult): boolean {
+  return Boolean(
+    result.status !== 'empty' &&
+    ((result.capsule && result.capsule.steps.length > 0) ||
+      (result.patch && result.patch.length > 0) ||
+      (result.questions && result.questions.some((q) => q.steps.length > 0)))
+  );
+}
+
+/** Full answers need the complete contract; repair/follow-up modes stay incremental. */
+function hasCaptureContract(result: ParseResult): boolean {
+  if (!hasUsableParsedContent(result)) return false;
+  const hasOversizedCapsule =
+    result.warningCodes.includes('invalid_step_count') &&
+    Boolean(
+      (result.capsule && result.capsule.steps.length > STEP_COUNT_MAX) ||
+        result.questions?.some((question) => question.steps.length > STEP_COUNT_MAX),
+    );
+  if (hasOversizedCapsule) return false;
+  const mode = result.capsule?.meta.mode;
+  if (result.patch?.length || mode === 'patch' || mode === 'resolve') return true;
+  return !result.warningCodes.some((code) => FULL_CAPSULE_BLOCK_WARNINGS.has(code));
+}
 
 function makeId(): string {
   return `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -118,14 +181,9 @@ export function keepActiveQid(active: Session, incoming: Capsule): Capsule {
   return { ...incoming, meta: { ...incoming.meta, qid } };
 }
 
-export interface FigureRepairRequest {
-  sessionId: string;
-  subject: Subject;
-  stepId?: string;
-  family: string;
-  failingKeys: string[];
-  code: string;
-  reason: string;
+interface ComposerOperation {
+  isCurrent: () => boolean;
+  recordDraft: () => void;
 }
 
 export class StemController {
@@ -148,19 +206,39 @@ export class StemController {
   private watching = false;
   /** Cleared on each inject/follow-up so stale chat capsules do not block capture. */
   private captureEpoch = 0;
+  private composerGeneration = 0;
+  private preparedComposer: ComposerOperation | null = null;
 
   // Answer-started detection (used to open the panel only once the assistant
   // actually begins responding, rather than the moment we inject).
   private answerStarted = false;
   private baselineBlocks = 0;
+  private baselineAssistantText = '';
   private onAnswerStartedCb: (() => void) | null = null;
 
   // Stability tracking for the no-`@end` fallback.
   private stableText = '';
   private stableSince = 0;
 
-  constructor(adapter: PlatformAdapter) {
+  constructor(adapter: PlatformAdapter, private readonly delivery: 'auto' | 'file' = 'auto') {
     this.adapter = adapter;
+  }
+
+  private beginComposerOperation(): ComposerOperation {
+    const generation = ++this.composerGeneration;
+    const editor = this.adapter.findEditor();
+    const root = this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document;
+    const url = location.href;
+    let draft = this.adapter.getEditorText();
+    return {
+      isCurrent: () => generation === this.composerGeneration &&
+        useStore.getState().settings.stemlmEnabled !== false &&
+        location.href === url && Boolean(editor?.isConnected) &&
+        this.adapter.findEditor() === editor &&
+        (this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document) === root &&
+        this.adapter.getEditorText() === draft,
+      recordDraft: () => { draft = this.adapter.getEditorText(); },
+    };
   }
 
   get platformId() {
@@ -205,7 +283,7 @@ export class StemController {
     }
 
     const hasUserContent = this.composerHasUserContent();
-    this.lastQuestion = question;
+    const operation = this.beginComposerOperation();
 
     const buildOpt = { hasImageAttachment };
     const payload = buildInjectionPayload(question, buildOpt);
@@ -216,8 +294,18 @@ export class StemController {
 
     const attached = await attachTextFile(payload.fileContent, {
       filename: PROTOCOL_FILENAME,
+      inputIsAdditive: this.adapter.id === 'claude',
       preserveExisting: hasImageAttachment,
+      requireConfirmation: this.delivery === 'file',
+      root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
     });
+    if (!operation.isCurrent()) return false;
+
+    if (!attached.ok && this.delivery === 'file') {
+      store.setStatus('error', 'Could not attach the stemLM instruction file. Wait for uploads to finish, then try the + button again. Your question is unchanged.');
+      store.openPanel();
+      return false;
+    }
 
     if (attached.ok) {
       await new Promise((r) => setTimeout(r, 80));
@@ -225,6 +313,7 @@ export class StemController {
         ? buildComposerPointer({
             hasImageAttachment,
             hasQuestion: question.length > 0,
+            protocolAttachmentConfirmed: true,
           })
         : hasUserContent
           ? buildComposerAppendix({
@@ -233,41 +322,59 @@ export class StemController {
             })
           : payload.composerText;
       const mode = hasUserContent || alreadyInThread ? 'append' : 'replace';
-      ok = await this.insertVerifiedPrompt(stub, mode, { fileAttach: true });
+      ok = await this.insertVerifiedPrompt(stub, mode, {
+        fileAttach: true,
+        attachmentConfirmed: attached.ok,
+        operation,
+      });
       if (ok) injectionMethod = 'file';
       // File already on the composer — never dump the protocol wall as well.
     } else if (alreadyInThread || hasImageAttachment) {
-      const stub = buildComposerPointer({
+      const pointerOptions = {
         hasImageAttachment,
         hasQuestion: question.length > 0,
-      });
+      };
+      const stub = hasImageAttachment
+        ? buildComposerAppendix(pointerOptions)
+        : buildComposerPointer(pointerOptions);
       ok = await this.insertVerifiedPrompt(stub, hasUserContent ? 'append' : 'replace', {
         fileAttach: true,
+        operation,
       });
       injectionMethod = 'text';
     } else if (hasUserContent) {
       const built = buildInjectionAppendix(question, buildOpt);
-      ok = await this.insertVerifiedPrompt(built.prompt, 'append');
+      ok = await this.insertVerifiedPrompt(built.prompt, 'append', { operation });
       injectionMethod = 'text';
     } else {
       const built = buildInjectionPrompt(question, buildOpt);
-      ok = await this.insertVerifiedPrompt(built.prompt, 'replace');
+      ok = await this.insertVerifiedPrompt(built.prompt, 'replace', { operation });
       injectionMethod = 'text';
     }
 
+    if (!operation.isCurrent()) return false;
     if (!ok) {
       store.setStatus(
         'error',
-        'Could not paste the stemLM protocol into the chat box. Click in the input and try stemLM again.',
+        'Could not add the stemLM study guide to the chat box. Click in the input and try stemLM again.',
       );
       store.openPanel();
       return false;
     }
 
+    this.preparedComposer = operation;
+    this.lastQuestion = question;
     store.setButtonInjected(true);
-    store.setStatus('loading');
+    if (!hasUserContent && attached.ok) {
+      this.adapter.focusComposerQuestionSlot();
+      store.setStatus('idle', 'Instructions attached. Type your question above the stemLM line, then send when ready.');
+    } else {
+      store.setStatus('loading');
+    }
+    this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
     this.beginCaptureEpoch();
+    this.seedCapturedFromPage();
     this.armAnswerDetection();
     void rememberCurrentChat(this.adapter.id);
     void trackEvent('question_asked', {
@@ -280,44 +387,6 @@ export class StemController {
     return true;
   }
 
-  /** Insert a student-initiated, targeted repair through the follow-up path. */
-  async repairFigure(request: FigureRepairRequest): Promise<boolean> {
-    const store = useStore.getState();
-    const target = store.sessions.find((session) => session.id === request.sessionId);
-    if (!target || store.activeSessionId !== request.sessionId) {
-      void trackEvent('extension_error', {
-        platform: this.adapter.id,
-        source: 'repair',
-        family: request.family,
-        parse_error_code: request.code,
-        repair_used: false,
-      });
-      return false;
-    }
-    const step = request.stepId
-      ? target.capsule.steps.find((candidate) => candidate.id === request.stepId)
-      : undefined;
-    const selection = `Repair the ${request.family} figure${step ? ` in step "${step.title}"` : ''}.`;
-    const repair: RepairPromptOptions = {
-      errorCode: request.code,
-      family: request.family,
-      failingKeys: request.failingKeys,
-      reason: request.reason,
-    };
-    const ok = await this.followUp(selection, step?.title, request.subject, {
-      intent: 'dig-deeper',
-      repair,
-    });
-    void trackEvent('extension_error', {
-      platform: this.adapter.id,
-      source: 'repair',
-      family: request.family,
-      parse_error_code: request.code,
-      repair_used: ok,
-    });
-    return ok;
-  }
-
   /** Inject a quote-reply that drills into selected text and re-arm capture. */
   async followUp(
     selection: string,
@@ -325,7 +394,6 @@ export class StemController {
     subject: Subject,
     opt?: {
       intent?: FollowupIntent;
-      repair?: RepairPromptOptions;
       /** Attach the answer inline after this step instead of replacing the session. */
       anchor?: { sessionId: string; anchorStepId: string };
     },
@@ -355,24 +423,38 @@ export class StemController {
       stepTitle,
       subject,
       intent: opt?.intent,
-      repair: opt?.repair,
     };
     const payload = buildFollowupPayload(followOpt);
-    const attached = await attachTextFile(payload.fileContent, { filename: PROTOCOL_FILENAME });
+    const operation = this.beginComposerOperation();
+    const attached = await attachTextFile(payload.fileContent, {
+      filename: PROTOCOL_FILENAME,
+      inputIsAdditive: this.adapter.id === 'claude',
+      requireConfirmation: this.delivery === 'file',
+      root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
+    });
+    if (!operation.isCurrent()) return false;
+    if (!attached.ok && this.delivery === 'file') {
+      store.setStatus('error', 'Could not attach the stemLM instruction file. Wait for uploads to finish, then try Ask in chat again. Your draft is unchanged.');
+      return false;
+    }
     let ok: boolean;
     if (attached.ok) {
       // Brief pause so Gemini's uploader finishes before we replace composer text.
       await new Promise((r) => setTimeout(r, 150));
       ok = await this.insertVerifiedPrompt(`${FOLLOWUP_QUESTION_SLOT}${payload.composerText}`, 'replace', {
         fileAttach: true,
+        attachmentConfirmed: attached.ok,
         followUp: true,
+        operation,
       });
     } else {
       ok = await this.insertVerifiedPrompt(buildFollowupAskInChatPrompt(followOpt), 'replace', {
         followUp: true,
+        operation,
       });
     }
 
+    if (!operation.isCurrent()) return false;
     if (!ok) {
       useStore
         .getState()
@@ -431,12 +513,15 @@ export class StemController {
   private async insertVerifiedPrompt(
     prompt: string,
     mode: 'replace' | 'append' = 'replace',
-    opt?: { fileAttach?: boolean; followUp?: boolean },
+    opt?: { fileAttach?: boolean; followUp?: boolean; attachmentConfirmed?: boolean; operation?: ComposerOperation },
   ): Promise<boolean> {
     const looksComplete = (text: string) => this.promptLooksComplete(text, opt);
 
     const tryOnce = () => {
-      if (!this.adapter.insertPrompt(prompt, mode)) return false;
+      if (opt?.operation && !opt.operation.isCurrent()) return false;
+      const inserted = this.adapter.insertPrompt(prompt, mode);
+      opt?.operation?.recordDraft();
+      if (!inserted) return false;
       return looksComplete(this.adapter.getEditorText());
     };
 
@@ -452,17 +537,14 @@ export class StemController {
 
   private promptLooksComplete(
     text: string,
-    opt?: { fileAttach?: boolean; followUp?: boolean },
+    opt?: { fileAttach?: boolean; followUp?: boolean; attachmentConfirmed?: boolean },
   ): boolean {
     if (opt?.followUp) {
       const hasContext =
         text.includes(FOLLOWUP_CONTEXT_HEADER) || text.includes('stemLM follow-up context');
       if (!hasContext) return false;
       if (opt.fileAttach) {
-        return (
-          composerTextHasProtocol(text) ||
-          this.adapter.composerHasAttachments()
-        );
+        return composerTextHasProtocol(text) || Boolean(opt.attachmentConfirmed);
       }
       return (
         text.includes('stemLM instructions') &&
@@ -512,6 +594,7 @@ export class StemController {
   /** Reset answer-started detection and snapshot the current message count. */
   private armAnswerDetection(): void {
     this.answerStarted = false;
+    this.baselineAssistantText = this.adapter.getLatestAssistantText();
     this.stableText = '';
     this.stableSince = 0;
     try {
@@ -536,6 +619,7 @@ export class StemController {
   }
 
   stopWatching(): void {
+    this.composerGeneration += 1;
     this.watching = false;
     this.observer?.disconnect();
     this.observer = null;
@@ -583,7 +667,10 @@ export class StemController {
     const capsules = this.adapter.extractCapsules();
     const latest = capsules[capsules.length - 1];
 
-    if (latest && looksComplete(latest)) {
+    // An unclosed metadata block ending in @end may still be streaming @endmeta.
+    // Keep that prefix on the existing stability path, not the final-error path.
+    if (latest && looksComplete(latest) &&
+        (/^\s*@endmeta\b/m.test(latest) || hasUsableParsedContent(parse(latest)))) {
       this.tryCapture(latest, true);
       return;
     }
@@ -599,14 +686,17 @@ export class StemController {
     }
     // Re-evaluate once mutations go quiet for STABILITY_MS.
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
-    this.stabilityTimer = setTimeout(() => this.evaluateStable(), STABILITY_MS);
+    const delay = candidate.includes('@meta') ? STABILITY_MS : NO_CAPSULE_STABILITY_MS;
+    this.stabilityTimer = setTimeout(() => this.evaluateStable(), delay);
   }
 
   /** The best partial-capsule text on the page, if any (code block or message text). */
   private partialCandidate(latest: string | undefined): string | null {
     if (latest && latest.includes('@meta')) return latest;
     const text = this.adapter.getLatestAssistantText();
-    return text && text.includes('@meta') ? text : null;
+    if (text && text.includes('@meta')) return text;
+    return useStore.getState().status === 'loading' && text.trim() && text !== this.baselineAssistantText
+      ? text : null;
   }
 
   /** Fired STABILITY_MS after the last change to a partial capsule. */
@@ -622,7 +712,18 @@ export class StemController {
     if (!candidate) return;
     // Only act if the text is still the one we measured as stable.
     if (candidate.trim() !== this.stableText) return;
-    this.tryCapture(candidate, false);
+    // A paused stream is not an error: keep waiting, and keep any follow-up
+    // anchor, so the finished answer still lands where the student asked.
+    const quietFor = Date.now() - this.stableSince;
+    const stall = this.adapter.isStreaming() ? STREAMING_STALL_MS : PARTIAL_STALL_MS;
+    if (quietFor < stall) {
+      this.stabilityTimer = setTimeout(() => this.evaluateStable(), Math.min(STABILITY_MS, stall - quietFor));
+      return;
+    }
+    // A stable prefix is still a prefix. Surface an explicit error state but
+    // leave the watcher alive so a later final @end can be reconciled and
+    // captured without storing or duplicating the incomplete answer.
+    this.offerRepairPrompt(parse(candidate));
   }
 
   /**
@@ -638,11 +739,11 @@ export class StemController {
       return;
     }
     if (this.pendingResume) {
-      const sameToken = !resumeToken || resumeToken === this.pendingResume.token;
+      const sameToken = Boolean(resumeToken && resumeToken === this.pendingResume.token);
       if (sameToken) {
         candidate = stitchResume([this.pendingResume.raw, candidate]);
-        this.pendingResume = null;
       }
+      this.pendingResume = null;
     }
 
     const key = candidate.trim();
@@ -652,11 +753,7 @@ export class StemController {
     }
 
     const result = parse(candidate);
-    const usable =
-      result.status !== 'empty' &&
-      ((result.capsule && result.capsule.steps.length > 0) ||
-        (result.patch && result.patch.length > 0) ||
-        (result.questions && result.questions.some((q) => q.steps.length > 0)));
+    const usable = hasCaptureContract(result);
     if (!usable) {
       if (complete) {
         this.rememberCaptured(key);
@@ -674,7 +771,14 @@ export class StemController {
 
   /** Surface malformed responses without mutating the user's chat composer. */
   private offerRepairPrompt(result: ParseResult): void {
-    const code = result.errorCode ?? result.warningCodes[0] ?? 'no_usable_content';
+    const code = result.errorCode ??
+      result.warningCodes.find((warning) => FULL_CAPSULE_BLOCK_WARNINGS.has(warning)) ??
+      result.warningCodes[0] ?? 'no_usable_content';
+    // This response cannot satisfy the pending follow-up request. Do not
+    // let its capture mode leak into the next ordinary injection: otherwise a
+    // same-topic capsule without a qid can replace the active session.
+    this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
     useStore
       .getState()
       .setStatus('error', `stemLM couldn't read a structured answer from this response. Parser code: ${code}.`);
@@ -748,6 +852,14 @@ export class StemController {
     return true;
   }
 
+  /** A patch was refused. Nothing is mutated; the student can retry. */
+  private rejectPatch(detail: string): void {
+    this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
+    useStore.getState().setStatus('error', `This update was not applied to the answer. ${detail}`);
+    this.resetInjection();
+  }
+
   private captureFromText(text: string, question: string, parsed?: ParseResult): void {
     const result = parsed ?? parse(text);
     const store = useStore.getState();
@@ -756,13 +868,49 @@ export class StemController {
     // Anchored Ask-in-chat (step or whole-solution): never patch, never replace,
     // never open a new session. The answer hangs off the originating view only.
     if (this.pendingFollowUpCapture && this.pendingFollowUpAnchor) {
-      if (this.attachAnchoredFollowup(result)) return;
-      this.offerRepairPrompt(result);
-      return;
+      const target = store.sessions.find((session) => session.id === this.pendingFollowUpAnchor!.sessionId);
+      const incoming = result.questions?.length === 1 ? result.questions[0] : result.capsule;
+      const expectedQid = target?.capsule.meta.qid;
+      const qidMatches = expectedQid
+        ? incoming?.meta.qid === expectedQid
+        : incoming?.meta.mode === 'resolve';
+      const anchoredContractMatches = Boolean(
+        target &&
+        incoming &&
+        qidMatches &&
+        incoming.meta.mode === 'resolve' &&
+        !result.patch?.length,
+      );
+      if (anchoredContractMatches) {
+        if (this.attachAnchoredFollowup(result)) return;
+        this.offerRepairPrompt(result);
+        return;
+      }
+      // A wrong qid/mode is not an anchored answer. Clear the capture mode and
+      // let normal routing decide whether it is a new question or a patch.
+      this.pendingFollowUpCapture = false;
+      this.pendingFollowUpAnchor = null;
     }
 
     if (result.patch && result.patch.length && active) {
+      const incoming = result.capsule;
+      const incomingQid = incoming?.meta.qid;
+      const activeQid = active.capsule.meta.qid;
+      const qidMismatch = Boolean(incomingQid && activeQid && incomingQid !== activeQid);
+      const modeContradiction = incoming?.meta.mode === 'new' || incoming?.meta.mode === 'full';
+      if (qidMismatch || modeContradiction) {
+        this.rejectPatch(
+          qidMismatch
+            ? `This patch targets question ${incomingQid}, not the answer on screen.`
+            : 'This response declares a full answer and a patch at the same time.',
+        );
+        return;
+      }
       const patched = applyStepPatch(active.capsule, result.patch);
+      if (!patched.ok) {
+        this.rejectPatch(patched.warnings[0] ?? 'The patch did not match the current answer.');
+        return;
+      }
       this.commitSession(
         { ...active, updatedAt: Date.now(), capsule: patched.capsule, raw: result.raw },
         true,
@@ -868,10 +1016,7 @@ export class StemController {
         had_mermaid: diagrams.some((d) => d.type === 'mermaid'),
       });
     }
-    void rememberCurrentChat(this.adapter.id);
-    this.pendingFollowUpCapture = false;
-    this.pendingFollowUpAnchor = null;
-    this.resetInjection();
+    this.settleCapture(result);
   }
 
   /**
@@ -907,9 +1052,12 @@ export class StemController {
       const id = session.id;
       useStore.setState((s) => {
         const maxStep = Math.max(0, buildStepEntries(session).length - 1);
+        // Only the answer the student is reading may move its step cursor.
+        const activeStepIndex =
+          s.activeSessionId === id ? Math.min(s.activeStepIndex, maxStep) : s.activeStepIndex;
         return {
           sessions: s.sessions.map((sess) => (sess.id === id ? session : sess)),
-          activeStepIndex: Math.min(s.activeStepIndex, maxStep),
+          activeStepIndex,
           status: 'ready',
           errorMessage: undefined,
         };
@@ -917,6 +1065,16 @@ export class StemController {
     } else {
       useStore.getState().addSession(session);
     }
+  }
+
+  /** Leave capture mode after an answer was stored; surface any D11 notice. */
+  private settleCapture(result: ParseResult): void {
+    void rememberCurrentChat(this.adapter.id);
+    this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
+    this.resetInjection();
+    const notice = missingClosingNotice(result);
+    if (notice) useStore.getState().setStatus('ready', notice);
   }
 
   private finishCapture(capsule: Session['capsule'], result: ParseResult): void {
@@ -928,10 +1086,7 @@ export class StemController {
       auditStepQuality(s, { archetype: capsule.meta.archetype }),
     );
     const diagramIssues = auditCapsuleDiagrams(capsule);
-    void rememberCurrentChat(this.adapter.id);
-    this.pendingFollowUpCapture = false;
-    this.pendingFollowUpAnchor = null;
-    this.resetInjection();
+    this.settleCapture(result);
     void trackEvent('question_solved', {
       platform: this.adapter.id,
       subject: capsule.meta.subject,
@@ -979,10 +1134,16 @@ export class StemController {
 
     const store = useStore.getState();
     if (store.sessions.length === 0) {
-      store.setStatus(
-        'error',
-        'No stemLM answers found in this chat. Solve a question with stemLM first.',
-      );
+      const candidates = groupResumeParts(this.adapter.extractCapsules());
+      const rejected = candidates.reverse().find((candidate) => candidate.includes('@meta'));
+      if (rejected) {
+        this.offerRepairPrompt(parse(rejected));
+      } else {
+        store.setStatus(
+          'error',
+          'No stemLM answers found in this chat. Solve a question with stemLM first.',
+        );
+      }
     }
     this.startWatching();
     return 0;
@@ -1010,8 +1171,7 @@ export class StemController {
       if (!key.includes('@meta') || seen.has(key)) continue;
 
       const result = parse(candidate);
-      const usable =
-        result.status !== 'empty' && result.capsule && result.capsule.steps.length > 0;
+      const usable = hasCaptureContract(result) && result.capsule && result.capsule.steps.length > 0;
       if (!usable) continue;
 
       const dedupKey =
@@ -1052,8 +1212,14 @@ export class StemController {
     return this.lastQuestion;
   }
 
+  /** A successful attachment still belongs to this exact editor, route and draft. */
+  isCurrentDraftInjected(): boolean {
+    return useStore.getState().buttonInjected && this.preparedComposer?.isCurrent() === true;
+  }
+
   /** Allow the user to inject again (e.g. after starting a new question). */
   resetInjection(): void {
+    this.preparedComposer = null;
     useStore.getState().setButtonInjected(false);
   }
 
@@ -1091,7 +1257,7 @@ export class StemController {
 let controller: StemController | null = null;
 
 export function initController(adapter: PlatformAdapter): StemController {
-  controller = new StemController(adapter);
+  controller = new StemController(adapter, 'file');
   return controller;
 }
 

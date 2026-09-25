@@ -22,7 +22,30 @@ function buildSession(): Session {
 }
 
 describe('SolutionView', () => {
-  it('renders stacked steps with index marks and diagrams — no question or Full solution appendix', () => {
+  it('keeps the affected solution explanation usable without a repair prompt', () => {
+    const session = buildSession();
+    session.capsule.steps.push({
+      id: 's-repair',
+      index: session.capsule.steps.length + 1,
+      title: 'Draw the changed circuit state',
+      body: 'Draw the circuit after opening the source branch.',
+    });
+
+    const html = renderToStaticMarkup(<SolutionView session={session} theme="light" />);
+    const root = document.createElement('div');
+    root.innerHTML = html;
+    const steps = root.querySelectorAll('.slm-solution-step');
+    const affectedStep = steps[steps.length - 1] as Element;
+    const repair = affectedStep.querySelector('[data-repair-family]');
+
+    expect(repair).toBeNull();
+    expect(affectedStep.textContent).toContain('Draw the circuit after opening the source branch.');
+    expect(affectedStep.querySelector('.slm-step-diagram')).toBeNull();
+    expect(root.textContent).toContain('Ask in chat');
+    expect(root.querySelector('.slm-solution')?.firstElementChild).not.toBe(repair);
+  });
+
+  it('renders stacked steps with index marks while diagrams await client validation', () => {
     const session = buildSession();
     const html = renderToStaticMarkup(<SolutionView session={session} theme="light" />);
 
@@ -31,7 +54,7 @@ describe('SolutionView', () => {
     expect(html).not.toContain('Step-by-step');
     expect(html).toContain('slm-step-index');
     expect(html).toContain('Label the circuit');
-    expect(html).toContain('slm-step-diagram');
+    expect(html).not.toContain('slm-step-diagram');
     expect(html).not.toContain('Full solution');
     expect(html).not.toContain('slm-solution-full');
     expect(html).toContain('katex');

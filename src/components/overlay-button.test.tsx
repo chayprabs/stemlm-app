@@ -198,4 +198,33 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     });
     expect(container.querySelector('.slm-inject-btn')).toBeNull();
   });
+
+  it('starts only one attachment when activated twice before React renders', async () => {
+    let finish!: (ok: boolean) => void;
+    inject.mockImplementationOnce(() => new Promise<boolean>((resolve) => { finish = resolve; }));
+    useStore.setState({ buttonInjected: false, status: 'idle' });
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    const button = container.querySelector('button')!;
+    act(() => { button.click(); button.click(); });
+    expect(inject).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(true); });
+  });
+
+  it('shows a recoverable error when attachment unexpectedly rejects', async () => {
+    inject.mockRejectedValueOnce(new Error('Host editor disconnected'));
+    useStore.setState({ buttonInjected: false, status: 'idle' });
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    await act(async () => { container.querySelector('button')!.click(); });
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toMatch(/try.*again/i);
+    expect(useStore.getState().panelOpen).toBe(true);
+    expect(container.querySelector('.slm-inject-btn')).not.toBeNull();
+    expect(container.querySelector('.slm-inject-status')).toBeNull();
+  });
 });

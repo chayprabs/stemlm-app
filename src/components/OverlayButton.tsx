@@ -183,7 +183,7 @@ function useInjectMount(
 
 function InjectSpinner() {
   return (
-    <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="slm-inject-spinner" width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
       <circle
         cx="12"
         cy="12"
@@ -235,6 +235,7 @@ export function OverlayButton() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const onMainRef = useRef<() => void>(() => {});
   const armedRef = useRef(false);
+  const pastingRef = useRef(false);
 
   const adapter = detectAdapter();
   const hostScheme = detectHostScheme();
@@ -266,8 +267,9 @@ export function OverlayButton() {
   }, [injected, adapter]);
 
   function onMain() {
-    if (pasting) return;
+    if (pastingRef.current) return;
     const ctrl = getController();
+    if (!ctrl) return;
     const text = adapter?.getEditorText().trim() ?? '';
     const question = cleanSessionQuestion(text);
     const last = ctrl?.getLastQuestion().trim() ?? '';
@@ -286,8 +288,20 @@ export function OverlayButton() {
       togglePanel();
       return;
     }
+    pastingRef.current = true;
     setPasting(true);
-    void ctrl?.inject().finally(() => setPasting(false));
+    void (async () => {
+      try {
+        await ctrl.inject();
+      } catch {
+        const store = useStore.getState();
+        store.setStatus('error', 'Could not finish attaching the stemLM instruction file. Please try the + button again.');
+        store.openPanel();
+      } finally {
+        pastingRef.current = false;
+        setPasting(false);
+      }
+    })();
   }
 
   onMainRef.current = onMain;
@@ -325,31 +339,34 @@ export function OverlayButton() {
       ? panelOpen
         ? 'stemLM panel open'
         : 'stemLM attached — open panel'
-      : 'Solve with stemLM';
+      : 'Add stemLM instructions';
 
-  const content = pasting ? (
-    <span className="slm-inject-status" aria-live="polite" title={title}>
-      <InjectSpinner />
-    </span>
-  ) : (
-    <button
-      type="button"
-      className={`slm-inject-btn ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
-      data-stemlm-inject="true"
-      data-glyph={injected ? 'tick' : 'plus'}
-      onClick={(e) => {
-        e.stopPropagation();
-        if (armedRef.current) return;
-        onMain();
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      title={title}
-      aria-label={title}
-      aria-pressed={injected}
-    >
-      <InjectGlyph attached={injected} />
-    </button>
+  const content = (
+    <>
+      <button
+        type="button"
+        className={`slm-inject-btn ${pasting ? 'is-loading' : ''} ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
+        data-stemlm-inject="true"
+        data-glyph={injected ? 'tick' : 'plus'}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (armedRef.current || pastingRef.current) return;
+          onMain();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        title={title}
+        aria-label={title}
+        aria-pressed={injected}
+        aria-busy={pasting}
+        aria-disabled={pasting}
+      >
+        {pasting ? <InjectSpinner /> : <InjectGlyph attached={injected} />}
+      </button>
+      <span className="slm-inject-live" role="status" aria-live="polite">
+        {pasting ? 'Attaching stemLM instructions' : injected ? 'stemLM instructions attached' : ''}
+      </span>
+    </>
   );
 
   const shell = (

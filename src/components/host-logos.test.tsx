@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { ReactNode } from 'react';
-import { ChatGptLogo, ClaudeLogo, GeminiLogo, GrokLogo, HostLogo } from './host-logos';
+import { ClaudeLogo, GeminiLogo, GrokLogo, HostLogo } from './host-logos';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -28,10 +28,9 @@ describe('host logos', () => {
     document.body.replaceChildren();
   });
 
-  it('ships the official ChatGPT bloom, Claude asterisk, Gemini spark, and Grok 2025 mark', () => {
-    const chatgpt = render(<ChatGptLogo />);
-    expect(chatgpt.container.innerHTML).toContain('M22.2819 9.8211');
-    expect(chatgpt.container.innerHTML).not.toContain('M12.9 2.4');
+  it('omits the retired logo and ships the Claude asterisk, Gemini spark, and Grok 2025 mark', () => {
+    const chatgpt = render(<HostLogo id="chatgpt" />);
+    expect(chatgpt.container.innerHTML).toBe('');
     chatgpt.unmount();
 
     const claude = render(<ClaudeLogo />);
@@ -63,7 +62,8 @@ describe('host logos', () => {
         <HostLogo id="grok" />
       </>,
     );
-    expect(container.querySelectorAll('svg')).toHaveLength(4);
+    expect(container.querySelectorAll('svg')).toHaveLength(3);
+    expect(container.innerHTML).not.toContain('M22.2819 9.8211');
     unmount();
   });
 });

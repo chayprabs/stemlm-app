@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   ALL_SAVED_SUBJECTS,
   ALL_SAVED_TIME,
@@ -56,6 +56,22 @@ const library = [
     savedAt: 1,
   }),
 ];
+
+it('PERS-02 filters a hundred records with a pasted question within 500 ms', () => {
+  const items = Array.from({ length: 100 }, (_, i) => snap({
+    id: `s-${i}`,
+    question: `Question ${i}: ${Array.from({ length: 220 }, (_, w) => `token${(i * 7 + w) % 997}`).join(' ').slice(0, 400)}`,
+    subject: i % 2 ? 'Physics' : 'Chemistry',
+    topic: `Topic ${i} equilibrium kinetics`,
+  }));
+  const query = items[3]!.question;
+  const start = performance.now();
+  const result = filterSavedSessions(items, { query });
+  const ms = performance.now() - start;
+  console.log(`PERS-02 items=${items.length} queryChars=${query.length} milliseconds=${ms.toFixed(1)}`);
+  expect(result[0]!.id).toBe('s-3');
+  expect(ms).toBeLessThan(500);
+});
 
 describe('savedSessionQuestion', () => {
   it('labels a row with the question as written, not the topic', () => {
@@ -210,5 +226,24 @@ describe('search placeholder', () => {
   it('is question-search copy, not a generic Search', () => {
     expect(SAVED_SEARCH_PLACEHOLDER.toLowerCase()).toMatch(/question/);
     expect(SAVED_SEARCH_PLACEHOLDER).not.toBe('Search');
+  });
+});
+
+describe('long pasted search tokens', () => {
+  it('finds a close long token within a bounded array working budget', () => {
+    const token = 'a'.repeat(3000);
+    const items = [snap({ id: 'close', question: `${token}c`, topic: '' })];
+    const originalFill = Array.prototype.fill;
+    let filledCells = 0;
+    const fill = vi.spyOn(Array.prototype, 'fill').mockImplementation(function (this: unknown[], value, start, end) {
+      filledCells += this.length;
+      if (filledCells > 100_000) throw new Error('Search exceeded its array working budget');
+      return originalFill.call(this, value, start, end);
+    });
+    try {
+      expect(filterSavedSessions(items, { query: `${token}b` }).map((item) => item.id)).toEqual(['close']);
+    } finally {
+      fill.mockRestore();
+    }
   });
 });

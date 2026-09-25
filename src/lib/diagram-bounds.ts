@@ -32,9 +32,9 @@ export function parseViewBox(viewBox: string | null | undefined): {
 } | null {
   if (!viewBox) return null;
   const parts = viewBox.trim().split(/[\s,]+/).map(Number);
-  if (parts.length < 4 || parts.some((n) => Number.isNaN(n))) return null;
-  const w = parts[2]! - parts[0]!;
-  const h = parts[3]! - parts[1]!;
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  const w = parts[2]!;
+  const h = parts[3]!;
   if (w <= 0 || h <= 0) return null;
   return { x: parts[0]!, y: parts[1]!, w, h };
 }

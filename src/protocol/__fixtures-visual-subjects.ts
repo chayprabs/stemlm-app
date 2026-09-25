@@ -13,6 +13,7 @@ function structuralCapsule(subject: string, topic: string): string {
     'version: 1',
     `subject: ${subject}`,
     `topic: ${topic}`,
+    'archetype: conceptual',
     'question: Structural fixture — Gemini generates real solutions at runtime.',
     '@endmeta',
     '@step',

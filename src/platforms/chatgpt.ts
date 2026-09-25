@@ -2,6 +2,8 @@ import { createAdapter } from './factory';
 import type { AdapterConfig } from './types';
 
 /**
+ * Retired adapter fixture, retained only for shared DOM regression coverage.
+ * It is not registered by detect.ts or included in production entry points.
  * ChatGPT (chatgpt.com, chat.openai.com).
  * Composer is `#prompt-textarea` (contenteditable ProseMirror, historically a
  * textarea). The leading + opens an attach menu — do not click it; attach via
@@ -14,7 +16,7 @@ import type { AdapterConfig } from './types';
 const config: AdapterConfig = {
   id: 'chatgpt',
   label: 'ChatGPT',
-  hosts: /(^|\.)(chatgpt\.com|chat\.openai\.com)$/i,
+  hosts: /^(?:www\.)?(chatgpt\.com|chat\.openai\.com)$/i,
   composerDock: 'outside-shell',
   editor: [
     '#prompt-textarea',

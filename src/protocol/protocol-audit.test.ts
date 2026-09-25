@@ -142,6 +142,20 @@ describe('shipped protocol file (criterion 1)', () => {
     expect(FILE).toMatch(/NEVER <svg>/i);
   });
 
+  it('D1 routes flowcharts and state machines to type=graph and never teaches Mermaid', () => {
+    for (const key of ['decision', 'terminal', 'start', 'accept']) {
+      expect(FILE).toMatch(new RegExp(`^SCHEMA graph key=${key} :: <node-id>`, 'm'));
+    }
+    expect(FILE).toContain('NEVER emit type=svg or type=mermaid');
+    expect(FILE.replaceAll('type=mermaid', '')).not.toMatch(/mermaid/i);
+  });
+
+  it('distinguishes documented semantic point values from forbidden SVG geometry', () => {
+    expect(FILE).not.toContain('never emit coordinates or guess geometry');
+    expect(FILE).toContain('Numeric positions may appear only in documented semantic keys');
+    expect(FILE).toContain('SCENE GEOMETRY RELATIONS');
+  });
+
   it('publishes compiler-executable spec forms instead of treating admission hints as keys', () => {
     expect(FILE).toContain('the `any` column is admission only, not an allowed-key list');
     expect(FILE).toContain('data: x,y; x,y');
@@ -240,7 +254,7 @@ describe('composer stubs stay short and isolated', () => {
     expect(stub.indexOf('Find the range')).toBeLessThan(stub.indexOf('--- stemLM ---'));
     expect(stub).not.toContain('OUTPUT:');
     expect(stub).not.toContain('@meta');
-    expect(stub).toContain('stemlm-protocol.txt');
+    expect(stub).toContain('stemLM study guide');
     expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(900);
   });
 
@@ -280,6 +294,14 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
   it('qualifies visual MUST to state-changing steps', () => {
     expect(FILE).toMatch(/Visual state-changing steps MUST include a complete labeled @diagram SPEC/i);
     expect(FILE).not.toMatch(/^CRITICAL:.*Visual steps MUST include a complete labeled @diagram SPEC \(not SVG\)\.$/m);
+  });
+
+  it('keeps fixed family queues subordinate to source fidelity', () => {
+    expect(FILE).toContain(
+      'When the caller supplies a fixed queue family, use it only when it can represent the inventoried source faithfully; otherwise OMIT the figure and state the limitation.',
+    );
+    expect(FILE).toContain("Never alter the question's visual content to fit a queue family.");
+    expect(FILE).not.toContain('choose the question visual content to fit that family.');
   });
 
   it('keeps text-heavy source layouts from becoming unrelated graph diagrams', () => {
@@ -333,13 +355,13 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
     expect(FILE).toContain('NMR δ increases right-to-left');
     expect(FILE).toContain('Fischer D/L ≠ R/S');
     expect(FILE).toContain('Oh CFT t2g below eg');
-    expect(FILE).toContain('quote every mermaid node label');
+    expect(FILE).toContain('a flowchart test without decision:; a state machine without start:');
     expect(FILE).not.toContain('type=punnett');
   });
 
   it('copies locale circuit into std: and names the protocol file as not the problem', () => {
     expect(FILE).toMatch(/Copy @meta locale circuit=IEEE\|IEC into (?:this spec as )?std:/i);
-    expect(FILE).toContain('any attached file is the problem, not the protocol file');
+    expect(FILE).toContain("transcribe only the student's question into @meta question:");
     expect(FILE).toContain('intro + DEPTH deep');
     expect(FILE).toContain('Add skipped algebra and named substitutions');
     expect(FILE).toContain(

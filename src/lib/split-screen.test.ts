@@ -19,6 +19,8 @@ describe('split-screen', () => {
     const style = document.getElementById(SPLIT_STYLE_ID);
     expect(style?.textContent).toContain('calc(50vw - 8px)');
     expect(style?.textContent).toContain('transition: width 0.28s');
+    expect(style?.textContent).toContain('html.stemlm-split { overflow-x: hidden !important; }');
+    expect(style?.textContent).toContain('overflow-x:hidden!important');
   });
 
   it('uses the default majority fraction, not 50vw, for a fresh open', () => {
@@ -27,7 +29,7 @@ describe('split-screen', () => {
     const panelVw = panelWidthVw(DEFAULT_SPLIT_RATIO);
     const pageVw = pageWidthVw(DEFAULT_SPLIT_RATIO);
     expect(panelVw).toBeGreaterThan(50);
-    expect(panelVw).toBeLessThanOrEqual(58);
+    expect(panelVw).toBe(DEFAULT_SPLIT_RATIO * 100);
     expect(style?.textContent).toContain(`calc(${pageVw}vw - 8px)`);
     expect(style?.textContent).not.toContain('calc(50vw - 8px)');
   });
@@ -37,6 +39,26 @@ describe('split-screen', () => {
     const style = document.getElementById(SPLIT_STYLE_ID);
     expect(style?.textContent).toContain('transition: none');
     expect(document.documentElement.classList.contains('stemlm-split-dragging')).toBe(true);
+  });
+
+  it('shrinks the host far enough for the minimum panel on a narrow viewport', () => {
+    const previous = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+    try {
+      applySplit(0.75, false);
+      const style = document.getElementById(SPLIT_STYLE_ID)?.textContent ?? '';
+      expect(style).toContain('calc(12.5vw - 8px)');
+      expect(style).toContain('max-width:calc(100vw - 87.5vw - 8px)');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous });
+    }
+  });
+
+  it('disables the resize grip transition under reduced motion', () => {
+    const css = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toContain('.slm-resize-grip');
+    expect(reduced).toContain('transition: none');
   });
 
   it('removes split classes and styles on teardown', () => {

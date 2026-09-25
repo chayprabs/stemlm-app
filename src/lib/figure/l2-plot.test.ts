@@ -202,4 +202,106 @@ describe('L2 plot capability probes', () => {
     expect(result.scene.strokes.some((stroke) => stroke.id === 'marker-pole0')).toBe(true);
   });
 
+  it('fails closed for an asymptote outside the declared domain', () => {
+    const result = compile('fn: x\ndomain: 0 10\nasymptote: x=999');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/asymptote|domain|outside/i);
+  });
+
+  it('fails closed for malformed semantic declarations instead of compiling a partial plot', () => {
+    const malformed = [
+      'fn: x\ndomain: 0 1\nregion: between=fn from=0 to=1 trailing',
+      'fn: x\ndomain: 0 1\npanel: p role=unsupported',
+      'fn: x\ndomain: 0 1\nguide: reference=missing',
+      'fn: x\ndomain: 0 1\neq: y=x\neq_slot: nowhere',
+    ];
+
+    for (const content of malformed) {
+      expect(compile(content)).toMatchObject({ ok: false, code: 'malformed' });
+    }
+  });
+
+  it.each([
+    ['empty-fn-mixed', 'fn: x\nfn:\ndomain: 0 1', /empty|fn/i],
+    ['empty-data-mixed', 'data: 0,0;1,1\ndata:\ndomain: 0 1', /empty|data/i],
+    ['empty-point-mixed', 'fn: x\npoint: 0,0\npoint:\ndomain: 0 1', /empty|point/i],
+    ['empty-asymptote-mixed', 'fn: x\nasymptote: x=0.5\nasymptote:\ndomain: 0 1', /empty|asymptote/i],
+  ])('fails closed for %s instead of dropping an empty declaration', (_name, content, reason) => {
+    const result = compile(content);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(reason);
+  });
+
+  it('fails closed for an unsupported marker declaration', () => {
+    const result = compile('fn: x\nmarker: diamond=0.5,0.5\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/marker|unsupported/i);
+  });
+
+  it('fails closed when a bounded region names a missing comparison series', () => {
+    const result = compile('fn: x\nregion: between=fn,missing from=0 to=1\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/region|target|missing|series/i);
+  });
+
+  it('fails closed when a bounded region target is missing instead of emitting a partial polygon', () => {
+    const result = compile('kind: comparison\nfn: x\nfn: x^2\nregion: between=fn,ghost from=0 to=1\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/region|target|missing|series/i);
+  });
+
+  it('fails closed for an unsupported declared drop direction', () => {
+    const result = compile('kind: function\nfn: x\npoint: 0.5,0.5\ndrop: diagonal\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/drop|unsupported|direction|malformed/i);
+  });
+
+  it('fails closed when a label assignment targets an undeclared series', () => {
+    const result = compile('kind: function\nfn: x\ndomain: 0 1\nlabel: curve=ghost value=unrepresented');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/label|target|series|missing/i);
+  });
+
+  it('fails closed when an NMR peak declaration includes unsupported fields', () => {
+    const result = compile('fn: x\npeaks: 1,2,triplet\ndomain: 0 2');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/peak|unsupported|field|malformed/i);
+  });
+
+  it('fails closed when an equation has no corresponding plotted series', () => {
+    const result = compile('fn: x\neq: y=x\neq: y=x+1\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/equation|series|extra|mismatch/i);
+  });
+
+  it('fails closed when a declared step panel has no step observations', () => {
+    const result = compile('fn: x\npanel: observations role=step\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/panel|data|series|step|empty/i);
+  });
+
+  it('fails closed for duplicate panel identities', () => {
+    const result = compile('fn: x\npanel: top role=continuous\npanel: top role=step\ndomain: 0 1');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toMatch(/panel|duplicate/i);
+  });
+
+  it('fails closed for an unkeyed non-empty declaration instead of silently dropping it', () => {
+    const result = compile('# plot comments remain allowed\n// another plot comment\nfn: x\ndomain: 0 1\nthis is malformed');
+    expect(result).toMatchObject({ ok: false, code: 'malformed' });
+    if (!result.ok) expect(result.reason).toMatch(/declaration|malformed|syntax/i);
+
+    const valid = compile('# plot comments remain allowed\nkind: waveform\nfn: x\ndomain: 0 1');
+    expect(valid.ok).toBe(true);
+  });
+
+  it('fails closed for a declared unsupported semantic key instead of reusing a valid scene', () => {
+    const valid = compile('kind: function\nfn: x\ndomain: 0 1');
+    const unsupported = compile('kind: function\nfn: x\ndomain: 0 1\nunsupported_semantic: declared');
+    expect(valid.ok).toBe(true);
+    if (valid.ok && unsupported.ok) expect(unsupported.scene).toEqual(valid.scene);
+    expect(unsupported).toMatchObject({ ok: false, code: 'malformed' });
+    if (!unsupported.ok) expect(unsupported.reason).toMatch(/unsupported|plot|declaration|semantic/i);
+  });
+
 });

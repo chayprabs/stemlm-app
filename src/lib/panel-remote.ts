@@ -9,11 +9,12 @@ import { rememberCurrentChat } from '@/src/lib/last-chat';
 import type { PlatformId } from '@/src/platforms/types';
 import { setPanelActionResult, takePendingPanelAction } from '@/src/lib/tab-workspace';
 import { setSettings } from '@/src/lib/settings';
-import { DEFAULT_SPLIT_RATIO } from '@/src/lib/split-ratio';
+import { DEFAULT_SPLIT_RATIO, MAX_SPLIT_RATIO } from '@/src/lib/split-ratio';
 
 export interface PanelMessageResult {
   ok: boolean;
   loaded?: number;
+  error?: string;
 }
 
 export async function handleStemLmPanelMessage(
@@ -27,12 +28,17 @@ export async function handleStemLmPanelMessage(
 
   if (type === 'stemlm:open-panel') {
     const store = useStore.getState();
-    store.setSplitRatio(DEFAULT_SPLIT_RATIO);
+    // A pre-settings build could leave the store at the 75% popup clamp while
+    // its settings object still has the old default. Migrate only that
+    // unsynchronised legacy state; an explicitly persisted 75% choice is valid.
+    if (store.splitRatio === MAX_SPLIT_RATIO && store.settings.splitRatio !== store.splitRatio) {
+      store.setSplitRatio(DEFAULT_SPLIT_RATIO);
+      void setSettings({ splitRatio: DEFAULT_SPLIT_RATIO }).then(
+        (next) => useStore.getState().setSettings(next),
+        () => undefined,
+      );
+    }
     store.openPanel();
-    void setSettings({ splitRatio: DEFAULT_SPLIT_RATIO }).then(
-      (next) => useStore.getState().setSettings(next),
-      () => undefined,
-    );
     void trackEvent('panel_opened', { platform, source: 'toolbar' });
     return { ok: true };
   }
@@ -50,8 +56,11 @@ export async function handleStemLmPanelMessage(
 
   if (type === 'stemlm:ask-here') {
     const store = useStore.getState();
-    if (!store.buttonInjected) {
-      const ok = (await getController()?.inject()) ?? false;
+    if (!store.settings.stemlmEnabled) return { ok: false, error: 'stemlm-disabled' };
+    const controller = getController();
+    if (!store.buttonInjected || !controller?.isCurrentDraftInjected()) {
+      if (store.buttonInjected) controller?.resetInjection();
+      const ok = (await controller?.inject()) ?? false;
       if (!ok) {
         store.openPanel();
         return { ok: false };
@@ -85,9 +94,16 @@ const OVERLAY_PENDING = new Set<StemLmMessage['type']>([
 export async function consumePendingPanelAction(
   tabId: number,
   platform: PlatformId,
+  isCurrent: () => boolean = () => true,
+  remoteClaim = false,
 ): Promise<PanelMessageResult | null> {
-  const pending = await takePendingPanelAction(tabId);
+  const pending = await takePendingPanelAction(tabId, remoteClaim);
   if (!pending) return null;
+  if (!isCurrent()) {
+    const result = { ok: false };
+    await setPanelActionResult(tabId, result);
+    return result;
+  }
   // Stale settings/library launches used to reopen a floating card on the chat
   // page after a reload. Those sheets now live in the toolbar popup only.
   if (OVERLAY_PENDING.has(pending)) {

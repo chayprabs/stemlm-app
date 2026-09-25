@@ -54,6 +54,12 @@ describe('leftover catalog completeness', () => {
       expect(canonicalizeDiagramType(token)).not.toBe('svg');
     }
   });
+
+  it('does not treat inherited property names as registered leftovers', () => {
+    for (const token of ['__proto__', 'constructor', 'toString']) {
+      expect(leftoverRegistered(token), token).toBe(false);
+    }
+  });
 });
 
 describe('leftover compilers through compileDiagramSpec', () => {
@@ -200,6 +206,31 @@ describe('leftover compilers through compileDiagramSpec', () => {
     expect(labelText).toMatch(/V=2L/);
     const slash = result.scene.strokes.find((s) => s.id === 'g1' && s.dash);
     expect(slash).toBeUndefined();
+  });
+
+  it('fails closed for malformed semantic declarations across L8 and L11', async () => {
+    const cases = [
+      ['truss', 'joints: A,B\nmembers: A-B; A->'],
+      ['reactor', 'units: A,B\nstreams: A->'],
+      ['mohr', 'sigma: nope'],
+      ['wall', 'h: nope'],
+      ['rc', 'b: nope'],
+      ['gear', 'z1: -2\nz2: 4'],
+      ['soil', 'layers: sand,,clay'],
+      ['array', 'cells: 1,2;'],
+      ['array', 'cells: 1,2\ncells:'],
+      ['list', 'nodes: A,,B'],
+      ['pipeline', 'stages: A,,B'],
+      ['ring', 'nodes: A,,B'],
+      ['stack', 'layers: A,,B'],
+      ['kmap', 'vars: AB,CD\nminterms: 0,,1'],
+      ['schematic', 'nodes: A,,B\nrelations: A->B feeds'],
+      ['datapath', 'nodes: A,,B\nrelations: A->B feeds'],
+    ] as const;
+    for (const [type, content] of cases) {
+      const result = await compileDiagramSpec(d(type, content), 'step');
+      expect(result.ok, `${type}: ${content}`).toBe(false);
+    }
   });
 
   it('does not smuggle research-only names as FAMILY_CATALOG families', () => {

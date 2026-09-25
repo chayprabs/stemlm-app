@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { measureBreaks } from './pdf-raster';
 import {
   A4_HEIGHT_PT,
   A4_WIDTH_PT,
@@ -84,6 +85,33 @@ describe('usableCandidates', () => {
 });
 
 describe('planPages', () => {
+  it('measures a diagram taller than a page as breakable content', () => {
+    const root = document.createElement('div');
+    const diagram = document.createElement('div');
+    diagram.className = 'slm-step-diagram';
+    root.append(diagram);
+    root.getBoundingClientRect = () => new DOMRect(0, 0, 688, 3000);
+    diagram.getBoundingClientRect = () => new DOMRect(0, 200, 688, 2800);
+    expect(measureBreaks(root).forbidden).not.toContainEqual([200, 3000]);
+  });
+  it('splits an oversized parent without emitting tiny pages for nested diagram wrappers', () => {
+    expect(planPages({ totalHeight: 2000, pageHeight: 1000, forbidden: [[0, 200], [200, 2000], [230, 1950]] }))
+      .toEqual([{ top: 0, height: 200 }, { top: 200, height: 1000 }, { top: 1200, height: 800 }]);
+  });
+  it('does not start new pages for finished headings before an oversized diagram', () => {
+    const pages = planPages({
+      totalHeight: 2500,
+      pageHeight: 1000,
+      forbidden: [[0, 200], [220, 250], [270, 300], [350, 2500]],
+    });
+    expect(pages).toEqual([
+      { top: 0, height: 350 },
+      { top: 350, height: 1000 },
+      { top: 1350, height: 1000 },
+      { top: 2350, height: 150 },
+    ]);
+  });
+
   it('returns a single slice when the column fits one page', () => {
     const pages = planPages({ totalHeight: 640, pageHeight: CONTENT_HEIGHT_PX });
     expect(pages).toEqual([{ top: 0, height: 640 }]);

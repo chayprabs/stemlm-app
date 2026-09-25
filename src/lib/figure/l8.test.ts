@@ -4,10 +4,25 @@ import { join, resolve } from 'node:path';
 import { compileDiagramSpec } from './compile';
 import type { Diagram } from '@/src/protocol/types';
 import type { Scene } from './types';
+import { renderDiagramRegistry } from '@/src/protocol/registries';
+
+it('SUS-02 documents and enforces the existing central point-load grammar', async () => {
+  for (const load of ['load: udl 5 kN/m', 'w: 5', 'loads: udl@4']) {
+    const result = await compileDiagramSpec({ type: 'beam', content: `L: 8\nsupports: pin@0, roller@8\n${load}` });
+    expect(result.ok, load).toBe(false);
+  }
+  expect(renderDiagramRegistry()).toContain('loads: point LABEL down@x');
+  expect(renderDiagramRegistry()).toContain('x=L/2');
+});
 
 function diagram(type: string, content: string): Diagram {
   return { type, content };
 }
+
+it.each(['point P up@4', 'point P left@4'])('SUS-02 refuses unsupported beam direction %s', async (load) => {
+  const result = await compileDiagramSpec({ type: 'beam', content: `L: 8\nsupports: pin@0, roller@8\nloads: ${load}` });
+  expect(result.ok).toBe(false);
+});
 
 function ids(scene: Scene): string[] {
   return [
@@ -71,6 +86,113 @@ describe('L8 permanent probes', () => {
   it('frame rejects duplicate panel IDs instead of silently compiling', async () => {
     const result = await compileDiagramSpec(diagram('frame', 'members: none\npanels: a|left, a|right'), 'step');
     expect(result.ok).toBe(false);
+  });
+
+  it('L8 rejects malformed declared records instead of compiling partial figures', async () => {
+    const cases: Array<[string, string]> = [
+      ['sfd', 'L: 8\nV: 0 8; malformed; 8 -2\nM: 0 4; 8 0'],
+      ['truss', 'joints: A,B\nmembers: A-B\nmembers: malformed'],
+      ['column', 'joints: A,B\nmembers: A-B\nmembers: malformed'],
+      ['reactor', 'type: cstr\nunits: feed, reactor\nstreams: malformed'],
+      ['soil', 'phases: solid 0.5, liquid 0.5, malformed'],
+      ['cam', 'profile: rise 2, malformed, fall 2'],
+      ['gear', 'z1: nope\nz2: 24'],
+    ];
+    for (const [type, content] of cases) {
+      const result = await compileDiagramSpec(diagram(type, content), 'step');
+      expect(result.ok, type).toBe(false);
+      if (!result.ok) expect(result.code, type).toBe('malformed');
+    }
+  });
+
+  it('truss rejects duplicate member declarations instead of drawing duplicate strokes', async () => {
+    const result = await compileDiagramSpec(diagram('truss', [
+      'joints: A, B',
+      'members: A-B',
+      'members: A-B',
+      'supports: pin@A, roller@B',
+    ].join('\n')), 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('malformed');
+  });
+
+  it('reactor fails closed for an unsupported declared reactor type', async () => {
+    const result = await compileDiagramSpec(diagram('reactor', [
+      'type: batch',
+      'units: feed, reactor, product',
+      'streams: feed->reactor, reactor->product',
+    ].join('\n')), 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('malformed');
+  });
+
+  it('truss fails closed for an unsupported declared support kind', async () => {
+    const result = await compileDiagramSpec(diagram('truss', [
+      'joints: A, B',
+      'members: A-B',
+      'supports: banana@A',
+    ].join('\n')), 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('malformed');
+  });
+
+  it('truss and column fail closed for unsupported declared semantic keys', async () => {
+    for (const type of ['truss', 'column']) {
+      const valid = await compileDiagramSpec(diagram(type, [
+        ...(type === 'column' ? ['L: 1'] : []),
+        'joints: A, B',
+        'members: A-B',
+      ].join('\n')), 'step');
+      const unsupported = await compileDiagramSpec(diagram(type, [
+        ...(type === 'column' ? ['L: 1'] : []),
+        'joints: A, B',
+        'members: A-B',
+        'unsupported_semantic: declared',
+      ].join('\n')), 'step');
+
+      expect(valid.ok, `${type}: valid neighbor`).toBe(true);
+      expect(unsupported.ok, `${type}: unsupported key`).toBe(false);
+      if (!unsupported.ok) {
+        expect(unsupported.code, `${type}: unsupported key`).toBe('malformed');
+        expect(unsupported.reason, `${type}: unsupported key`).toContain('unsupported_semantic');
+      }
+    }
+  });
+
+  it.each([
+    ['reactor-unknown-edge', 'reactor', 'type: cstr\nunits: feed, reactor\nstreams: feed->mystery'],
+    ['pfd-duplicate-edge', 'pfd', 'units: feed, reactor\nconnections: feed->reactor, feed->reactor'],
+    ['unknown-support-target', 'truss', 'joints: A,B\nmembers: A-B\nsupports: pin@missing'],
+    ['sfd-unknown-supports', 'sfd', 'L: 8\nsupports: pin@middle, roller@8\nV: 0 8; 8 -2\nM: 0 0; 8 0'],
+    ['sfd-empty-supports', 'sfd', 'L: 8\nsupports:\nV: 0 8; 8 -2\nM: 0 0; 8 0'],
+    ['beam-empty-loads', 'beam', 'L: 8\nsupports: pin@0, roller@8\nloads:'],
+    ['mohr-empty-sigma', 'mohr', 'sigma:\nsy: 10\ntau: 5'],
+    ['wall-empty-height', 'wall', 'h:\nwall: retaining'],
+    ['rc-empty-width', 'rc', 'b:\nh: 5'],
+    ['duplicate-soil-phase', 'soil', 'phases: solid 0.5, liquid 0.25, solid 0.25'],
+    ['cam-trailing-junk', 'cam', 'profile: rise 2 trailing, dwell 1, fall 2'],
+  ] as const)('%s fails closed instead of compiling a partial/default figure', async (_name, type, content) => {
+    const result = await compileDiagramSpec(diagram(type, content), 'step');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe('malformed');
+  });
+
+  it('frame refuses scaffolds that cannot provide bounded readable cells', async () => {
+    const invalid = await compileDiagramSpec(diagram('frame', 'panels: a|only\nscaffold: 100x100'), 'step');
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.code).toBe('malformed');
+
+    const valid = await compileDiagramSpec(diagram('frame', 'panels: a|one, b|two\nscaffold: grid_2x1'), 'step');
+    expect(valid.ok).toBe(true);
+    if (!valid.ok) return;
+    for (const panel of valid.scene.panels ?? []) {
+      expect(panel.bbox.w).toBeGreaterThan(0);
+      expect(panel.bbox.h).toBeGreaterThan(0);
+      expect(panel.bbox.x).toBeGreaterThanOrEqual(0);
+      expect(panel.bbox.y).toBeGreaterThanOrEqual(0);
+      expect(panel.bbox.x + panel.bbox.w).toBeLessThanOrEqual(valid.scene.width);
+      expect(panel.bbox.y + panel.bbox.h).toBeLessThanOrEqual(valid.scene.height);
+    }
   });
 
   it('SFD consumes supports, loads, and both ordinate series', async () => {

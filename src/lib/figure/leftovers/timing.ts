@@ -8,11 +8,12 @@ type TimingSignal = { name: string; wave: string };
 function parseWaveJson(raw: string): TimingSignal[] | null {
   try {
     const value = JSON.parse(raw) as { signal?: unknown };
-    if (!Array.isArray(value.signal)) return null;
+    if (!value || !Array.isArray(value.signal) || Object.keys(value).some((key) => key !== 'signal')) return null;
     const signals: TimingSignal[] = [];
     for (const item of value.signal) {
       if (!item || typeof item !== 'object') return null;
       const row = item as { name?: unknown; wave?: unknown };
+      if (Object.keys(row).some((key) => key !== 'name' && key !== 'wave')) return null;
       if (typeof row.name !== 'string' || !row.name.trim() || typeof row.wave !== 'string') return null;
       signals.push({ name: row.name.trim(), wave: row.wave.trim() });
     }
@@ -29,7 +30,7 @@ function parseSignalLine(line: string): TimingSignal | null {
 }
 
 function validWave(wave: string): boolean {
-  return wave.length > 0 && /^[01hlpxnz.]+$/i.test(wave) && /[01hlpxnz]/i.test(wave);
+  return wave.length > 0 && wave[0] !== '.' && /^[01hlpxnz.]+$/i.test(wave);
 }
 
 /** A deliberately small WaveJSON subset. Invalid asserted waveforms fail closed. */
@@ -38,9 +39,16 @@ export async function compileTiming(spec: SpecDoc, ctx: CompileCtx): Promise<Com
   const b = new SceneBuilder('timing', w, h);
   b.hl(spec.highlight);
 
+  if (spec.invalidDeclarations.length || spec.lists.size || spec.emptyDeclarations.size) {
+    return { ok: false, code: 'malformed', reason: 'timing requires non-empty inline declarations' };
+  }
+
   let signals: TimingSignal[] = [];
   const waveRaw = specGet(spec, 'wave');
   if (waveRaw?.trim().startsWith('{')) {
+    if (specGetAll(spec, 'wave').length !== 1 || specGetAll(spec, 'signal').length) {
+      return { ok: false, code: 'malformed', reason: 'timing cannot mix WaveJSON with additional wave or signal declarations' };
+    }
     const parsed = parseWaveJson(waveRaw.trim());
     if (!parsed || parsed.some((s) => !validWave(s.wave))) {
       return { ok: false, code: 'malformed', reason: 'timing invalid WaveJSON signal list' };
@@ -59,34 +67,46 @@ export async function compileTiming(spec: SpecDoc, ctx: CompileCtx): Promise<Com
     }
   }
 
-  const rowH = Math.min(28, (h - 16) / Math.max(1, signals.length));
+  const rowH = Math.min(28, (h - 32) / Math.max(1, signals.length));
+  const periods = Math.max(...signals.map((signal) => signal.wave.length));
+  const x0 = 56;
+  const dw = (w - 70) / periods;
+  if (rowH < 22 || dw < 6 || new Set(signals.map((signal) => signal.name)).size !== signals.length) {
+    return { ok: false, code: 'malformed', reason: 'timing requires unique names and enough space for every declared row and cycle' };
+  }
   signals.forEach((s, si) => {
     const y = 18 + si * rowH;
     b.label(`label-${si}`, s.name, 28, y, { protected: true, anchorId: `row-${si}` });
-    const n = Math.max(s.wave.length, 4);
-    const x0 = 56;
-    const dw = (w - 70) / n;
-    let prev = '0';
+    let prev = '';
+    let endY: number | undefined;
     let px = x0;
-    for (let i = 0; i < n; i++) {
-      const symbol = s.wave[i] ?? '.';
-      const bit = symbol === '.' ? prev : symbol.toLowerCase();
-      const high = bit === '1' || bit === 'h' || bit === 'p';
-      const mid = bit === 'x' || bit === 'z';
-      const yBit = mid ? y : high ? y - 8 : y + 8;
-      if (i > 0 && symbol !== '.' && bit !== prev) {
-        b.line(`${s.name}-${i}-edge`, px, prev === '1' || prev === 'h' || prev === 'p' ? y - 8 : y + 8, px, yBit, {
-          width: 1.4, color: 'accent', role: 'annotation',
-        });
-      }
+    for (let i = 0; i < s.wave.length; i++) {
+      const symbol = s.wave[i]!;
+      const state = symbol === '.' ? prev : symbol;
+      const bit = state.toLowerCase();
       if (bit === 'p' || bit === 'n') {
-        b.line(`${s.name}${i}r`, px, bit === 'p' ? y + 8 : y - 8, px, bit === 'p' ? y - 8 : y + 8, {
-          width: 1.4, color: 'accent', role: 'annotation',
+        const firstY = bit === 'p' ? y - 8 : y + 8;
+        const secondY = bit === 'p' ? y + 8 : y - 8;
+        b.line(`${s.name}${i}r`, px, endY ?? secondY, px, firstY, {
+          width: 1.4, color: 'accent', role: 'annotation', markerEnd: state === 'P' || state === 'N',
         });
+        b.line(`${s.name}-${i}`, px, firstY, px + dw / 2, firstY, { width: 1.6, role: 'geometry' });
+        b.line(`${s.name}-${i}-half-edge`, px + dw / 2, firstY, px + dw / 2, secondY, { width: 1.4, color: 'accent', role: 'annotation' });
+        b.line(`${s.name}-${i}-half`, px + dw / 2, secondY, px + dw, secondY, { width: 1.6, role: 'geometry' });
+        endY = secondY;
+      } else if (bit === 'x') {
+        b.rect(`${s.name}-${i}`, px, y - 8, dw, 16, { role: 'geometry', pattern: 'hatch', fill: 'muted', width: 1 });
+        endY = undefined;
+      } else {
+        const yBit = bit === 'z' ? y : bit === '1' || bit === 'h' ? y - 8 : y + 8;
+        if (endY !== undefined && endY !== yBit) {
+          b.line(`${s.name}-${i}-edge`, px, endY, px, yBit, { width: 1.4, color: 'accent', role: 'annotation' });
+        }
+        b.line(`${s.name}-${i}`, px, yBit, px + dw, yBit, { width: 1.6, role: 'geometry' });
+        endY = yBit;
       }
-      b.line(`${s.name}-${i}`, px, yBit, px + dw, yBit, { width: 1.6, role: 'geometry' });
       px += dw;
-      prev = bit;
+      prev = state;
     }
   });
   const clock = specGet(spec, 'clock');

@@ -1,9 +1,15 @@
 /** Chat hosts stemLM actually ships adapters for. */
-export const PLATFORM_IDS = ['chatgpt', 'claude', 'gemini', 'grok'] as const;
-export type PlatformId = (typeof PLATFORM_IDS)[number];
+export const PLATFORM_IDS = ['claude', 'gemini', 'grok'] as const;
+export type SupportedPlatformId = (typeof PLATFORM_IDS)[number];
+/** The retired identifier remains readable in existing saved study records. */
+export type PlatformId = SupportedPlatformId | 'chatgpt';
+
+export function isSupportedPlatformId(value: unknown): value is SupportedPlatformId {
+  return typeof value === 'string' && (PLATFORM_IDS as readonly string[]).includes(value);
+}
 
 export function isPlatformId(value: unknown): value is PlatformId {
-  return typeof value === 'string' && (PLATFORM_IDS as readonly string[]).includes(value);
+  return value === 'chatgpt' || isSupportedPlatformId(value);
 }
 
 /**
@@ -107,7 +113,7 @@ export interface AdapterConfig {
   hosts: RegExp;
   /**
    * `before-plus` inserts into the composer row (Claude / Gemini).
-   * `outside-shell` viewport-fixes just left of the visual box (ChatGPT / Grok)
+   * `outside-shell` viewport-fixes just left of the visual box (Grok)
    * so host grid/overflow/React reconciliation cannot hide or shift the control.
    */
   composerDock?: ComposerDock;

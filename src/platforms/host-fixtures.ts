@@ -1,9 +1,8 @@
 /**
- * Representative composer DOMs for the four shipped chat hosts.
+ * Representative composer DOMs for the three shipped chat hosts.
  * Used by adapter / inject / slot tests — not imported by runtime code.
  */
 import type { PlatformAdapter, PlatformId } from './types';
-import { chatgptAdapter } from './chatgpt';
 import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
 import { grokAdapter } from './grok';
@@ -31,13 +30,6 @@ export interface HostFixtureSpec {
 }
 
 export const HOST_FIXTURES: HostFixtureSpec[] = [
-  {
-    id: 'chatgpt',
-    adapter: chatgptAdapter,
-    plusLabel: 'Add files and more',
-    sendLabel: 'Send prompt',
-    stopLabel: 'Stop generating',
-  },
   {
     id: 'claude',
     adapter: claudeAdapter,

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { Session } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
@@ -11,9 +10,21 @@ import { StepWork } from './StepWork';
 import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
-import { RepairFigureButton, type FigureRepairFailure } from './RepairFigureButton';
-import type { DiagramCompileFailure } from './DiagramRenderer';
-import { auditCapsuleDiagrams, diagramQualityMessage } from '@/src/protocol/diagram-quality';
+
+function learnerFacingFollowupHint(raw: string | undefined): string {
+  const cleaned = raw ? stripProtocolMarkers(raw).trim() : '';
+  const internalInstruction =
+    /\b(?:mode\s*:\s*(?:patch|new|resolve|full)|op\s*=\s*(?:replace|insert|delete)|qid|step\s+id|figure\s+repair|(?:replace|insert|delete|repair)\s+(?:the\s+|this\s+|a\s+)?(?:diagram|figure|step|patch))\b/i;
+  if (
+    cleaned &&
+    !/\b(?:q\d+\.)?s\d+\b/i.test(cleaned) &&
+    !/@(?:meta|step|patch|diagram|end)\b/i.test(cleaned) &&
+    !internalInstruction.test(cleaned)
+  ) {
+    return `Try: ${cleaned}`;
+  }
+  return 'Ask a question about this step; its work and formula will be added to chat.';
+}
 
 export function StepCard({
   session,
@@ -24,7 +35,7 @@ export function StepCard({
   index: number;
   theme: ResolvedTheme;
 }) {
-  const [compileFailure, setCompileFailure] = useState<DiagramCompileFailure | null>(null);
+  const reducedMotion = useReducedMotion();
   const step = session.capsule.steps[index];
   if (!step) return null;
 
@@ -32,35 +43,24 @@ export function StepCard({
   // the composer, the student types the question, and the answer comes back
   // anchored right after this step in the rail.
   const followupSelection = buildStepFollowupSelection(session, step);
-  const suggested = step.followup ? stripProtocolMarkers(step.followup) : undefined;
-  const qualityCode = index === 0 ? auditCapsuleDiagrams(session.capsule)[0] : undefined;
-  const qualityDiagram = session.capsule.steps
-    .map((candidate) => candidate.diagram)
-    .find((diagram): diagram is NonNullable<typeof diagram> => Boolean(diagram));
-  const qualityFailure: FigureRepairFailure | null = qualityCode
-    ? {
-        family: qualityDiagram?.type ?? step.diagram?.type ?? 'figure',
-        failingKeys: qualityDiagram
-          ? [...new Set(qualityDiagram.content.split('\n').map((line) => /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/.exec(line)?.[1]?.toLowerCase()).filter((key): key is string => Boolean(key)))]
-          : [],
-        code: qualityCode,
-        reason: diagramQualityMessage(qualityCode, session.capsule),
-      }
-    : null;
-  const repairFailure: FigureRepairFailure | null = compileFailure ?? qualityFailure;
+  const suggested = learnerFacingFollowupHint(step.followup);
+  // Answer-level flags open the answer; its checks and assumptions close it.
+  // Printing either inside every step makes them read as that step's work.
+  const isFirst = index === 0;
+  const isLast = index === session.capsule.steps.length - 1;
   return (
     <motion.article
       key={step.id}
       className="slm-card"
-      initial={{ opacity: 0, y: 8 }}
+      initial={reducedMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+      exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
+      transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
     >
       <header className="slm-card-head">
-        <h2 className="slm-card-title">{step.title}</h2>
+        <h2 className="slm-card-title"><MathMarkdown content={step.title} inline /></h2>
       </header>
-      <CapsuleSignals capsule={session.capsule} />
+      {isFirst && <CapsuleSignals capsule={session.capsule} />}
 
       {shouldShowFormulaBlock(step) && step.formula && (
         <div className="slm-formula">
@@ -70,18 +70,9 @@ export function StepCard({
       )}
 
       <StepWork step={step} className="slm-step-work slm-card-body" />
-      <StudentAnswerNotes capsule={session.capsule} />
 
       {step.diagram && (
-        <div className="slm-step-diagram">
-          <span className="slm-step-diagram-label">Diagram</span>
-          <DiagramRenderer diagram={step.diagram} theme={theme} onCompileFailure={setCompileFailure} />
-          {repairFailure && <RepairFigureButton session={session} stepId={step.id} failure={repairFailure} />}
-        </div>
-      )}
-
-      {!step.diagram && repairFailure && (
-        <RepairFigureButton session={session} stepId={step.id} failure={repairFailure} />
+        <DiagramRenderer diagram={step.diagram} theme={theme} section />
       )}
 
       {step.takeaway && (
@@ -90,6 +81,8 @@ export function StepCard({
           <MathMarkdown content={step.takeaway} />
         </div>
       )}
+
+      {isLast && <StudentAnswerNotes capsule={session.capsule} />}
 
       {step.quickCheck && (
         <QuickCheck check={step.quickCheck} platform={session.platform} checkNumber={step.index} />
@@ -101,7 +94,7 @@ export function StepCard({
         stepTitle={step.title}
         intent="ask"
         anchor={{ sessionId: session.id, anchorStepId: step.id }}
-        hint={suggested ? `Try: ${suggested}` : undefined}
+        hint={suggested}
       />
     </motion.article>
   );

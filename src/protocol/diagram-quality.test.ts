@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Capsule, Step } from './types';
 import {
+  auditCapsuleDiagramIssues,
   auditCapsuleDiagrams,
   auditStepDiagramCompleteness,
   diagramQualityMessage,
@@ -121,6 +122,22 @@ describe('extractMentionedComponents', () => {
     expect(comps).toContain('rpi');
     expect(comps).toContain('gm');
   });
+
+  it('never turns ordinary prose words into electrical designators', () => {
+    const comps = extractMentionedComponents('It is important in optics. The ray is normal to BC.');
+    expect(comps).not.toContain('it');
+    expect(comps).not.toContain('is');
+    expect(comps).not.toContain('in');
+    expect(comps).not.toContain('if');
+    expect(comps).toHaveLength(0);
+  });
+
+  it('still recognizes canonical current designators', () => {
+    const comps = extractMentionedComponents('The collector current $I_C$ splits from $I_B$ and $I_1$.');
+    expect(comps).toContain('ic');
+    expect(comps).toContain('ib');
+    expect(comps).toContain('i1');
+  });
 });
 
 describe('auditStepDiagramCompleteness', () => {
@@ -162,6 +179,79 @@ describe('auditStepDiagramCompleteness', () => {
 });
 
 describe('auditCapsuleDiagrams', () => {
+  it('does not demand a second figure for an algebra-only optics derivation', () => {
+    const derivation = makeStep({
+      index: 2,
+      title: 'Convert the index gradient into an optical path difference across the beam',
+      body: 'The optical path difference is $\\Delta L=(n_2-n_1)d$.',
+      formula: '$$\\Delta L=(n_2-n_1)d$$',
+    });
+    const capsule = makeSubjectCapsule(
+      'Physics',
+      [
+        makeStep({
+          index: 1,
+          title: 'Read the slab geometry',
+          body: 'The source figure fixes the slab thickness and index gradient.',
+          diagram: {
+            type: 'scene',
+            content: [
+              'kind: geom',
+              'point: A 0 0',
+              'point: B 1 0',
+              'segment: slab A B',
+            ].join('\n'),
+          },
+        }),
+        derivation,
+        makeStep({
+          index: 3,
+          title: 'Draw the emergent wavefront and ray direction',
+          body: 'The wavefront normal gives the outgoing ray.',
+          diagram: {
+            type: 'scene',
+            content: [
+              'kind: geom',
+              'point: A 0 0',
+              'point: B 0 1',
+              'point: C 1 1',
+              'segment: wavefront A B',
+              'segment: ray B C',
+              'relation: perpendicular wavefront ray',
+            ].join('\n'),
+          },
+        }),
+      ],
+      'A light beam crosses a slab with a refractive-index gradient. Find its deflection.',
+      'Graded-index slab',
+    );
+
+    expect(stepNeedsDiagram(derivation, capsule)).toBe(false);
+    expect(auditCapsuleDiagramIssues(capsule)).not.toContainEqual(
+      expect.objectContaining({ stepId: 's2', code: 'missing_circuit_diagram' }),
+    );
+  });
+
+  it('identifies the exact later step whose diagram fails quality validation', () => {
+    const capsule = makeCapsule([
+      makeStep({
+        index: 1,
+        title: 'Draw the original circuit',
+        diagram: { type: 'svg', content: RICH_EE_SVG },
+      }),
+      makeStep({
+        index: 2,
+        title: 'Draw the changed circuit state',
+        diagram: { type: 'svg', content: MINIMAL_SVG },
+      }),
+    ]);
+
+    expect(auditCapsuleDiagramIssues(capsule)).toContainEqual({
+      code: 'diagram_incomplete',
+      stepId: 's2',
+    });
+  });
+
   it('flags sparse circuit capsules like lazy model output', () => {
     const capsule = makeCapsule([
       makeStep({
@@ -613,5 +703,109 @@ describe('catalog-driven typed-spec audit', () => {
       }),
     ], 'Draw the requested figure.');
     expect(auditStepDiagramCompleteness(capsule.steps[0]!, capsule)).toContain('diagram_incomplete');
+  });
+});
+
+describe('subject-scoped component audit', () => {
+  it('does not report a valid physics scene as omitting electrical components', () => {
+    const capsule = makeSubjectCapsule(
+      'Physics',
+      [
+        makeStep({
+          index: 1,
+          title: 'Draw the incident ray and the normal at the interface',
+          body: 'It is important in optics that the ray is normal to BC when it enters the prism face.',
+          diagram: {
+            type: 'scene',
+            content: [
+              'kind: geom',
+              'point: A 0 0',
+              'point: B 1 0',
+              'point: C 1 1',
+              'segment: face B C',
+              'segment: ray A B',
+              'relation: perpendicular face ray',
+            ].join('\n'),
+          },
+        }),
+      ],
+      'A ray enters a prism. Trace the optical path through the glass.',
+      'Prism optics',
+    );
+
+    expect(auditStepDiagramCompleteness(capsule.steps[0]!, capsule)).not.toContain('diagram_incomplete');
+    expect(auditCapsuleDiagrams(capsule)).not.toContain('diagram_incomplete');
+  });
+
+  it('still reports an electrical spec that omits a component named in the body', () => {
+    const capsule = makeCapsule(
+      [
+        makeStep({
+          index: 1,
+          title: 'Draw the biased amplifier',
+          body: 'The collector load R_C sets the gain and R_E degenerates the emitter.',
+          diagram: { type: 'circuit', content: 'std: ieee\nR_E: e gnd 1k\nwire: e gnd' },
+        }),
+      ],
+      'Consider the circuit below: a common-emitter amplifier with R_C and R_E.',
+    );
+
+    expect(auditStepDiagramCompleteness(capsule.steps[0]!, capsule)).toContain('diagram_incomplete');
+  });
+});
+
+describe('contextual visual-step classification', () => {
+  const structural = makeSubjectCapsule(
+    'Civil',
+    [],
+    'A simply supported beam carries a uniform load. Find the reactions and the shear.',
+    'Beam loading',
+  );
+  const optics = makeSubjectCapsule(
+    'Physics',
+    [],
+    'A light beam crosses a slab with a refractive-index gradient. Find its deflection.',
+    'Graded-index slab',
+  );
+
+  it('requires a figure for a visual verb applied to a structural object', () => {
+    expect(
+      stepNeedsDiagram(
+        makeStep({ index: 1, title: 'Represent the beam loading and supports' }),
+        structural,
+      ),
+    ).toBe(true);
+  });
+
+  it('requires a figure when a visual verb traces an optical path', () => {
+    expect(
+      stepNeedsDiagram(makeStep({ index: 2, title: 'Trace the optical beam path' }), optics),
+    ).toBe(true);
+  });
+
+  it('keeps a purely algebraic optics title non-visual', () => {
+    expect(
+      stepNeedsDiagram(
+        makeStep({
+          index: 3,
+          title: 'Convert the index gradient into an optical path difference across the beam',
+          body: 'The optical path difference is $\Delta L=(n_2-n_1)d$.',
+        }),
+        optics,
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps a structural arithmetic title non-visual', () => {
+    expect(
+      stepNeedsDiagram(
+        makeStep({
+          index: 4,
+          title: 'Substitute the numeric span into the reaction expression',
+          body: 'With $L=6\,\text{m}$: $R_A=wL/2=30\,\text{kN}$.',
+        }),
+        structural,
+      ),
+    ).toBe(false);
   });
 });

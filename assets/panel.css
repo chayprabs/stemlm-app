@@ -19,10 +19,10 @@
   flex-shrink: 0;
 }
 .slm-diagram--step .slm-diagram-svg svg {
-  max-height: 165px;
+  max-height: var(--slm-content-diagram-height);
 }
 .slm-diagram--solution .slm-diagram-svg svg {
-  max-height: 185px;
+  max-height: var(--slm-content-solution-diagram-height);
 }
 .slm-wordmark {
   display: inline-flex;
@@ -80,6 +80,8 @@
 }
 .slm-btn:focus-visible,
 .slm-icon-btn:focus-visible,
+.slm-content-scale-btn:focus-visible,
+.slm-followup-action:focus-visible,
 .slm-tab:focus-visible,
 .slm-inject-btn:focus-visible,
 .slm-rail-dot:focus-visible,
@@ -251,6 +253,9 @@
 .slm-inject-btn:active {
   transform: scale(0.94);
 }
+.slm-inject-btn[aria-disabled='true'] {
+  cursor: wait;
+}
 .slm-inject-btn.is-attached,
 .slm-inject-btn.is-panel-open {
   border-color: var(--slm-signal);
@@ -285,8 +290,20 @@
   height: var(--slm-inject-size, 32px);
   color: var(--slm-signal);
 }
-.slm-inject-status svg {
+.slm-inject-status svg,
+.slm-inject-spinner {
   animation: slm-spin 0.9s linear infinite;
+}
+.slm-inject-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .slm-inject-glyph {
   position: relative;
@@ -327,7 +344,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .slm-inject-status svg {
+  .slm-inject-status svg,
+  .slm-inject-spinner {
     animation: none;
   }
   .slm-inject-btn,
@@ -346,6 +364,13 @@
   --slm-read-size: 15px;
   --slm-title-size: 1.05rem;
   --slm-question-size: 1.125rem;
+  --slm-content-read-size: var(--slm-read-size);
+  --slm-content-title-size: var(--slm-title-size);
+  --slm-content-question-size: var(--slm-question-size);
+  --slm-content-space: 1;
+  --slm-content-diagram-width: 438px;
+  --slm-content-diagram-height: 241px;
+  --slm-content-solution-diagram-height: 270px;
   --slm-brand-size: 25px;
   --slm-rail-size: 2.75rem;
   position: fixed;
@@ -354,8 +379,8 @@
   bottom: var(--slm-panel-inset, 8px);
   z-index: 2147483630;
   height: auto;
-  width: 55vw;
-  min-width: 0;
+  width: 68vw;
+  min-width: min(280px, calc(100vw - (2 * var(--slm-panel-inset, 8px))));
   max-width: calc(100vw - (2 * var(--slm-panel-inset, 8px)));
   display: flex;
   flex-direction: column;
@@ -366,6 +391,43 @@
   box-shadow: var(--slm-shadow);
   overflow: hidden;
   color-scheme: inherit;
+}
+
+.slm-panel[data-content-scale='1'] {
+  --slm-content-read-size: calc(var(--slm-read-size) - 1px);
+  --slm-content-title-size: calc(var(--slm-title-size) - 0.04rem);
+  --slm-content-question-size: calc(var(--slm-question-size) - 0.04rem);
+  --slm-content-space: 0.94;
+  --slm-content-diagram-width: 393px;
+  --slm-content-diagram-height: 216px;
+  --slm-content-solution-diagram-height: 242px;
+}
+.slm-panel[data-content-scale='3'] {
+  --slm-content-read-size: calc(var(--slm-read-size) + 1px);
+  --slm-content-title-size: calc(var(--slm-title-size) + 0.06rem);
+  --slm-content-question-size: calc(var(--slm-question-size) + 0.06rem);
+  --slm-content-space: 1.06;
+  --slm-content-diagram-width: 492px;
+  --slm-content-diagram-height: 271px;
+  --slm-content-solution-diagram-height: 303px;
+}
+.slm-panel[data-content-scale='4'] {
+  --slm-content-read-size: calc(var(--slm-read-size) + 2px);
+  --slm-content-title-size: calc(var(--slm-title-size) + 0.12rem);
+  --slm-content-question-size: calc(var(--slm-question-size) + 0.12rem);
+  --slm-content-space: 1.12;
+  --slm-content-diagram-width: 543px;
+  --slm-content-diagram-height: 299px;
+  --slm-content-solution-diagram-height: 335px;
+}
+.slm-panel[data-content-scale='5'] {
+  --slm-content-read-size: calc(var(--slm-read-size) + 3px);
+  --slm-content-title-size: calc(var(--slm-title-size) + 0.18rem);
+  --slm-content-question-size: calc(var(--slm-question-size) + 0.18rem);
+  --slm-content-space: 1.18;
+  --slm-content-diagram-width: 597px;
+  --slm-content-diagram-height: 328px;
+  --slm-content-solution-diagram-height: 368px;
 }
 
 .slm-resize-handle {
@@ -434,6 +496,64 @@
   gap: 0.1rem;
   flex-shrink: 0;
 }
+/* Announced by assistive technology, never painted. */
+.slm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.slm-content-scale {
+  display: inline-flex;
+  align-items: stretch;
+  height: 1.9rem;
+  margin-right: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--slm-signal) 34%, var(--slm-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--slm-signal) 8%, var(--slm-bg-subtle));
+  overflow: hidden;
+}
+.slm-content-scale-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--slm-signal) 78%, var(--slm-fg));
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, opacity 0.14s ease;
+}
+.slm-content-scale-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.9;
+}
+.slm-content-scale-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--slm-signal) 15%, transparent);
+  color: var(--slm-signal);
+}
+.slm-content-scale-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--slm-signal) 22%, transparent);
+}
+.slm-content-scale-btn:disabled {
+  color: var(--slm-fg-subtle);
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.slm-content-scale-divider {
+  width: 1px;
+  margin: 0.35rem 0;
+  background: color-mix(in srgb, var(--slm-signal) 24%, var(--slm-border));
+}
 .slm-header-title,
 .slm-topic-row {
   display: flex;
@@ -481,11 +601,17 @@
 }
 .slm-topic {
   margin: 0;
-  font-size: var(--slm-question-size);
+  font-size: var(--slm-content-question-size);
   font-weight: 575;
   letter-spacing: -0.02em;
   line-height: 1.45;
   color: var(--slm-fg);
+}
+/* `.slm-prose` declares `font-size: inherit` later in the sheet, so the
+   question needs the higher-specificity selector to keep its own size token. */
+.slm-topic-row .slm-topic,
+.slm-header-title .slm-topic {
+  font-size: var(--slm-content-question-size);
 }
 .slm-topic-row .slm-topic p,
 .slm-header-title .slm-topic p {
@@ -500,6 +626,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.slm-panel[data-content-scale] .slm-topic-scroll.is-single .slm-topic {
+  white-space: normal;
+}
+.slm-panel[data-content-scale] .slm-topic-scroll.is-single .slm-topic p {
+  display: -webkit-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .slm-header-nav,
 .slm-header-bottom {
@@ -711,7 +848,7 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 1.1rem var(--slm-pad-x) 4.75rem;
+  padding: 1.1rem var(--slm-pad-x) 1.2rem;
 }
 .slm-diagram-svg {
   width: 100%;
@@ -891,7 +1028,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  margin-bottom: 0.9rem;
+  margin-bottom: calc(0.9rem * var(--slm-content-space));
 }
 .slm-signals {
   display: flex;
@@ -910,7 +1047,7 @@
 }
 .slm-answer-notes {
   margin: 0.15rem 0 0.9rem;
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   color: var(--slm-fg);
   line-height: 1.65;
 }
@@ -934,14 +1071,14 @@
 }
 .slm-card-title {
   margin: 0;
-  font-size: var(--slm-title-size);
+  font-size: var(--slm-content-title-size);
   font-weight: 575;
   letter-spacing: -0.022em;
   line-height: 1.4;
   color: var(--slm-fg);
 }
 .slm-step-diagram {
-  margin: 0.85rem 0 1rem;
+  margin: calc(0.85rem * var(--slm-content-space)) 0 calc(1rem * var(--slm-content-space));
   padding: 0.85rem 0.9rem;
   background: var(--slm-formula-bg);
   border: 1px solid var(--slm-formula-border);
@@ -967,15 +1104,114 @@
 .slm-step-diagram .slm-diagram-svg {
   width: 100%;
 }
+/* The frame carries the size budget. A shrink-to-fit inline-block would size
+   itself to the SVG's intrinsic width instead, which pins every figure at its
+   compiled width and ignores the content-size setting. */
+.slm-step-diagram .slm-diagram-frame {
+  display: block;
+  width: min(100%, var(--slm-content-diagram-width));
+}
 .slm-step-diagram .slm-diagram-svg svg {
   display: block;
-  width: auto;
+  /* Override the presenter's intrinsic inline size as a coupled aspect ratio. */
+  width: 100% !important;
   max-width: 100%;
-  height: auto;
-  max-height: 165px;
+  height: auto !important;
+  max-height: var(--slm-content-diagram-height);
 }
 .slm-step-diagram .slm-diagram--solution .slm-diagram-svg svg {
-  max-height: 185px;
+  max-height: var(--slm-content-solution-diagram-height);
+}
+.slm-step-diagram-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.slm-step-diagram-head .slm-step-diagram-label {
+  margin-bottom: 0;
+}
+/* The control keeps the label row at text height; its hit area overhangs the padding. */
+.slm-diagram-enlarge {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: -0.4rem -0.45rem -0.4rem 0;
+}
+.slm-step-diagram .slm-diagram-frame {
+  cursor: zoom-in;
+}
+
+/* ---------- figure lightbox ---------- */
+.slm-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: auto;
+  font-family: var(--font-sans);
+  color: var(--slm-fg);
+}
+.slm-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: color-mix(in srgb, #000 55%, transparent);
+  cursor: zoom-out;
+}
+.slm-lightbox-dialog {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  padding: 2.75rem 1.25rem 1.25rem;
+  background: var(--slm-bg);
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--slm-shadow);
+  animation: slm-lightbox-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slm-lightbox-dialog:focus {
+  outline: none;
+}
+.slm-lightbox-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+.slm-lightbox-figure {
+  padding: 0;
+  background: transparent;
+}
+.slm-lightbox-frame {
+  display: block;
+  max-width: none;
+}
+.slm-lightbox-frame .slm-diagram-svg svg {
+  width: 100% !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+}
+.slm-lightbox-figure figcaption {
+  margin-top: 0.75rem;
+  font-size: 13px;
+}
+@keyframes slm-lightbox-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slm-lightbox-dialog {
+    animation: none;
+  }
 }
 .slm-formula {
   margin: 0.35rem 0 1rem;
@@ -985,6 +1221,7 @@
   border-radius: var(--radius-md);
   overflow-x: auto;
   text-align: center;
+  font-size: var(--slm-content-read-size);
 }
 .slm-formula-label {
   display: block;
@@ -1009,7 +1246,7 @@
   margin-bottom: 0.3rem;
 }
 .slm-step-work-body {
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   color: var(--slm-fg);
   line-height: 1.65;
 }
@@ -1026,8 +1263,13 @@
 .slm-formula .katex .katex-html {
   color: var(--slm-formula-fg);
 }
+/* This selector follows the prose rule below it in the cascade. Formula text
+   remains visibly larger without making the surrounding reading text large. */
+.slm-formula .slm-prose .katex {
+  font-size: 1.15em;
+}
 .slm-card-body {
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   color: var(--slm-fg);
   line-height: 1.65;
 }
@@ -1040,7 +1282,7 @@
   border: 1px solid var(--slm-border);
   background: var(--slm-bg-subtle);
   border-radius: var(--radius-md);
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   line-height: 1.55;
 }
 .slm-takeaway-label {
@@ -1143,6 +1385,38 @@
   background: var(--slm-bg-subtle);
   color: var(--slm-fg);
 }
+.slm-followup-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+/* Result states read as state, not as a new button: same box, tinted edge. */
+.slm-followup-action[data-state='copied'],
+.slm-followup-action[data-state='added'] {
+  border-color: color-mix(in srgb, var(--slm-signal) 42%, var(--slm-border));
+  color: var(--slm-fg);
+}
+.slm-followup-action[data-state='failed'] {
+  border-color: color-mix(in srgb, var(--slm-error) 45%, var(--slm-border));
+  color: var(--slm-fg);
+}
+.slm-followup-action[data-state='sending'] {
+  opacity: 0.72;
+}
+.slm-followup--ask {
+  margin-top: 1rem;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--slm-bg-elevated) 82%, var(--slm-bg-subtle));
+}
+.slm-followup--ask .slm-followup-label {
+  color: var(--slm-fg-muted);
+}
+.slm-followup--ask .slm-followup-action--ask {
+  border-color: color-mix(in srgb, var(--slm-signal) 28%, var(--slm-border));
+  background: color-mix(in srgb, var(--slm-signal) 10%, var(--slm-bg-subtle));
+  color: var(--slm-fg);
+}
 
 /* ---------- inline Ask-in-chat answer card ---------- */
 .slm-card--followup {
@@ -1193,6 +1467,12 @@
   justify-content: center;
   gap: 0;
   width: auto;
+}
+.slm-stepnav-slot {
+  position: relative;
+  flex: 0 0 3.7rem;
+  min-height: 3.7rem;
+  pointer-events: none;
 }
 .slm-stepnav--overlay {
   position: absolute;
@@ -1274,6 +1554,9 @@
 .slm-diagram-frame {
   position: relative;
   display: inline-block;
+  /* Shrink-to-fit around the SVG would otherwise let a wide figure push the
+     reading column sideways in a narrow panel. */
+  max-width: 100%;
   line-height: 0;
 }
 .slm-diagram-overlay {
@@ -1513,7 +1796,7 @@
   margin-bottom: 1.5rem;
 }
 .slm-solution-step {
-  padding: 1.05rem 0 1.15rem;
+  padding: calc(1.05rem * var(--slm-content-space)) 0 calc(1.15rem * var(--slm-content-space));
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--slm-border-subtle);
@@ -1538,14 +1821,14 @@
   margin: 0;
   flex: 1;
   min-width: 0;
-  font-size: 1rem;
+  font-size: var(--slm-content-title-size);
   font-weight: 560;
   line-height: 1.35;
   letter-spacing: -0.02em;
   color: var(--slm-fg);
 }
 .slm-solution-step-body {
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   color: var(--slm-fg);
   line-height: 1.65;
 }
@@ -1557,7 +1840,7 @@
   border-radius: 0;
 }
 .slm-solution-full-body {
-  font-size: var(--slm-read-size);
+  font-size: var(--slm-content-read-size);
   color: var(--slm-fg);
   line-height: 1.65;
 }
@@ -1687,6 +1970,17 @@
   padding: 0.1rem 0.3rem;
   border-radius: 4px;
 }
+/* TeX KaTeX could not parse: show the source like inline code, not as red body text
+   (KaTeX writes an inline error colour, hence !important). */
+.slm-prose .katex-error {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--slm-fg) !important;
+  background: var(--slm-bg-subtle);
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
 .slm-prose pre {
   background: var(--slm-bg-subtle);
   border: 1px solid var(--slm-border);
@@ -1730,7 +2024,7 @@
   color: var(--slm-formula-fg);
 }
 
-.slm-solution { font-size: var(--slm-read-size); }
+.slm-solution { font-size: var(--slm-content-read-size); }
 .slm-selectable { user-select: text; }
 
 .slm-error-fallback {
@@ -1775,9 +2069,26 @@
   min-height: 2.75rem;
   padding: 0.35rem var(--slm-pad-x);
   gap: 0.45rem;
+  /* Brand + tabs and the control cluster cannot share one 280px row without
+     colliding, so the controls take a row of their own. */
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
 }
 .slm-panel[data-width='narrow'] .slm-header-leading {
   gap: 0.5rem;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.slm-panel[data-width='narrow'] .slm-header-actions {
+  flex: 1 1 100%;
+  justify-content: flex-end;
+}
+.slm-panel[data-width='narrow'] .slm-content-scale {
+  height: 1.75rem;
+  margin-right: 0.18rem;
+}
+.slm-panel[data-width='narrow'] .slm-content-scale-btn {
+  width: 1.55rem;
 }
 
 .slm-panel[data-width='narrow'] .slm-header-title,
@@ -1802,7 +2113,7 @@
   padding: 0.7rem 0.3rem 0.9rem;
 }
 .slm-panel[data-width='narrow'] .slm-read {
-  padding: 0.85rem var(--slm-pad-x) 4.5rem;
+  padding: 0.85rem var(--slm-pad-x) 1rem;
 }
 .slm-panel[data-width='narrow'] .slm-stepnav--overlay {
   right: var(--slm-pad-x);
@@ -1852,7 +2163,7 @@
   --slm-rail-size: 2.85rem;
 }
 .slm-panel[data-width='wide'] .slm-read {
-  padding: 1.35rem 1.5rem 5rem;
+  padding: 1.35rem 1.5rem;
 }
 .slm-panel[data-width='wide'] .slm-solution {
   padding-top: 1.5rem;
@@ -1890,10 +2201,16 @@
   .slm-icon-save,
   .slm-save-glyph,
   .slm-icon-btn--close svg,
+  .slm-stepnav-btn,
+  .slm-resize-grip,
   .slm-session-pill,
   .slm-session-pill-remove {
     transition: none;
     animation: none;
+  }
+  .slm-step-rail,
+  .slm-session-switch {
+    scroll-behavior: auto;
   }
   .slm-icon-btn:active:not(:disabled),
   .slm-theme-btn.is-dark .slm-theme-glyph,

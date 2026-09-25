@@ -1,32 +1,43 @@
 /**
  * Shared diagram → sanitized SVG resolution for the panel and PDF export.
  *
- * Compile is theme-agnostic (spec / mermaid / hatch SVG). Theme is applied in
+ * Compile is theme-agnostic (spec / hatch SVG). Theme is applied in
  * presentSvg so a light↔dark toggle never re-runs the compiler.
  */
 import type { Diagram } from '@/src/protocol/types';
 import type { ResolvedTheme } from './theme';
 import { sanitizeSvg, extractSvg } from './sanitize';
-import { renderMermaid } from './mermaid';
 import type { DiagramSizeProfile } from './diagram-bounds';
 import { presentSvg } from './svg-present';
-import type { Overlay } from './figure/types';
+import type { CompileFailCode, Overlay } from './figure/types';
 import { canonicalizeDiagramType } from './figure/catalog';
+import { compileDiagramSpec } from './figure/compile';
+import { svgMarkupHasGraphicShapes } from './mount-svg';
+import { renderOverlayHtml } from './figure/overlay';
+import { parseSpec } from './figure/spec';
+import { validateSfdSemantics } from './figure/leftovers/sfd';
 
 export const DIAGRAM_COMPILE_TIMEOUT_MS = 12_000;
-const MERMAID_TIMEOUT_MS = DIAGRAM_COMPILE_TIMEOUT_MS;
 
-export interface ResolvedDiagramMarkup {
+export interface DiagramDiagnostic {
+  family: string;
+  stage: 'compile' | 'sanitize' | 'presentation';
+  code: CompileFailCode;
+  reason: string;
+}
+
+interface DiagramMarkup {
   svg: string;
   overlays: Overlay[];
 }
+
+export type ResolvedDiagramMarkup = DiagramMarkup & (
+  | { ok: true }
+  | { ok: false; diagnostic: DiagramDiagnostic }
+);
 
 /** Pre-theme sanitized SVG. Recolor with presentCompiledDiagram. */
-export interface CompiledDiagram {
-  svg: string;
-  overlays: Overlay[];
-  fromMermaid: boolean;
-}
+export type CompiledDiagram = ResolvedDiagramMarkup;
 
 /** Strip fences / HTML-entity encoding so extractSvg can find markup. */
 export function normalizeDiagramSource(content: string): string {
@@ -42,9 +53,11 @@ export function normalizeDiagramSource(content: string): string {
   return s;
 }
 
+class DiagramTimeout extends Error {}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('diagram render timeout')), ms);
+    const timer = setTimeout(() => reject(new DiagramTimeout('diagram render timeout')), ms);
     promise.then(
       (v) => {
         clearTimeout(timer);
@@ -58,51 +71,76 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function cleanSvg(svg: string, fromMermaid = false): string {
-  return sanitizeSvg(extractSvg(svg), { preserveInlineStyles: fromMermaid });
+function cleanSvg(svg: string): string {
+  if (svg.length > 2_000_000) return '';
+  return sanitizeSvg(extractSvg(svg));
 }
 
-const EMPTY_COMPILED: CompiledDiagram = { svg: '', overlays: [], fromMermaid: false };
+function hidden(diagnostic: DiagramDiagnostic): CompiledDiagram {
+  return { ok: false, svg: '', overlays: [], diagnostic };
+}
 
-/**
- * Compile a diagram to sanitized SVG without baking panel theme colors.
- * Mermaid always uses the light engine so a theme toggle does not re-render.
- */
+function admitSvg(family: string, source: string, overlays: Overlay[]): CompiledDiagram {
+  const svg = cleanSvg(source);
+  if (!svg || !svgMarkupHasGraphicShapes(svg)) {
+    return hidden({ family, stage: 'sanitize', code: 'malformed', reason: 'no usable graphic remains after sanitizing' });
+  }
+  for (const overlay of overlays) {
+    if (![overlay.x, overlay.y, overlay.width, overlay.height].every(Number.isFinite) ||
+      overlay.width < 0 || overlay.height < 0) {
+      return hidden({ family, stage: 'presentation', code: 'malformed', reason: `invalid figure label ${overlay.id}` });
+    }
+    try {
+      renderOverlayHtml(overlay, true);
+    } catch {
+      return hidden({ family, stage: 'presentation', code: 'malformed', reason: `invalid figure label ${overlay.id}` });
+    }
+  }
+  return { ok: true, svg, overlays };
+}
+
+/** Compile a diagram to sanitized SVG without baking panel theme colors. */
 export async function compileDiagram(
   diagram: Diagram,
   profile: DiagramSizeProfile = 'step',
 ): Promise<CompiledDiagram> {
+  const type = canonicalizeDiagramType(diagram.type);
   try {
-    const type = canonicalizeDiagramType(diagram.type);
     if (type === 'svg') {
-      return {
-        svg: cleanSvg(normalizeDiagramSource(diagram.content)),
-        overlays: [],
-        fromMermaid: false,
-      };
+      return admitSvg(type, normalizeDiagramSource(diagram.content), []);
     }
     if (type === 'mermaid') {
-      const rendered = await withTimeout(renderMermaid(diagram.content, 'light'), MERMAID_TIMEOUT_MS);
-      return { svg: cleanSvg(rendered, true), overlays: [], fromMermaid: true };
+      // Mermaid is no longer rendered (flowcharts and state machines compile as
+      // type=graph); an answer saved with one keeps it hidden, like any failed figure.
+      return hidden({ family: type, stage: 'compile', code: 'refused', reason: 'mermaid diagrams are not rendered; use type=graph' });
     }
-    const { compileDiagramSpec } = await import('./figure/compile');
     const result = await withTimeout(compileDiagramSpec(diagram, profile), DIAGRAM_COMPILE_TIMEOUT_MS);
-    if (!result.ok) return EMPTY_COMPILED;
-    return { svg: cleanSvg(result.svg), overlays: result.overlays, fromMermaid: false };
-  } catch {
-    return EMPTY_COMPILED;
+    if (!result.ok) return hidden({ family: type, stage: 'compile', code: result.code, reason: result.reason });
+    if (type === 'sfd') {
+      const reason = validateSfdSemantics(parseSpec(type, diagram.content));
+      if (reason) return hidden({ family: type, stage: 'compile', code: 'malformed', reason });
+    }
+    return admitSvg(type, result.svg, result.overlays);
+  } catch (error) {
+    return hidden({ family: type, stage: 'compile', code: error instanceof DiagramTimeout ? 'timeout' : 'throw', reason: error instanceof Error ? error.message : 'diagram compilation failed' });
   }
 }
 
-/** Apply theme colors to a previously compiled diagram. Sync — no spec/mermaid work. */
+/** Apply theme colors to a previously compiled diagram. Sync — no compiler work. */
 export function presentCompiledDiagram(
   compiled: CompiledDiagram,
   theme: ResolvedTheme,
   profile: DiagramSizeProfile = 'step',
+  displayScale = 1,
 ): ResolvedDiagramMarkup {
-  if (!compiled.svg) return { svg: '', overlays: [] };
-  const svg = presentSvg(compiled.svg, theme, profile);
-  return { svg, overlays: svg ? compiled.overlays : [] };
+  if (!compiled.ok) return compiled;
+  try {
+    const svg = presentSvg(compiled.svg, theme, profile, displayScale);
+    if (svg && svgMarkupHasGraphicShapes(svg)) return { ok: true, svg, overlays: compiled.overlays };
+  } catch {
+    // A presentation failure must not discard the surrounding answer or report.
+  }
+  return hidden({ family: 'presentation', stage: 'presentation', code: 'malformed', reason: 'figure cannot be presented safely' });
 }
 
 /** Resolve a diagram to sanitized SVG + overlays, or empty svg on failure. */

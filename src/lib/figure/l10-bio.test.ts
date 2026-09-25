@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import type { CompileResult, Scene } from './types';
 import { SceneBuilder } from './scene-build';
 import { parseSpec } from './spec';
+import { compileDiagramSpec } from './compile';
 import {
   compileAnatomy,
   compileCellBio,
@@ -79,6 +80,24 @@ function quadraticEndpoints(d: string): [{ x: number; y: number }, { x: number; 
     { x: Number(match[3]), y: Number(match[4]) },
   ];
 }
+
+describe('L10 malformed semantic declarations', () => {
+  it('fails closed when declared biological elements are empty or malformed', async () => {
+    const cases = [
+      ['pcr', 'cycle: denature,,anneal'],
+      ['ecg', 'waves: P,,Q'],
+      ['division', 'phase: prophase,,metaphase'],
+      ['restriction', 'sites: EcoRI,,BamHI'],
+      ['gel', 'lanes: 1,,2'],
+      ['membrane', 'kind: membrane-cycle\nstate: A open\nstate:\nstate: B closed\norder: A -> B -> A'],
+      ['anatomy', 'kind: paired-apparatus\nnode: a paired-pore\nnode: b paired-pore\nnode: c paired-pore\ngroup: left contains=a,,b\ngroup: right contains=c\nedge: left right compares'],
+    ] as const;
+    for (const [type, content] of cases) {
+      const result = await compileDiagramSpec({ type, content }, 'step');
+      expect(result.ok, `${type}: ${content}`).toBe(false);
+    }
+  });
+});
 
 describe('L10 cell compiler and round-trip certificate', () => {
   it('preserves labelled terminals and every parallel source branch', () => {
@@ -160,6 +179,9 @@ describe('L10 directed and phase cycles', () => {
     const result = compileCycle(parseSpec('cycle', [
       'kind: directed-weighted',
       'node: s source',
+      'node: n1 intermediate',
+      'node: n2 intermediate',
+      'node: n3 intermediate',
       'node: t target',
       'edge: s n1 weight=5',
       'edge: n1 n2 weight=2',
@@ -186,6 +208,11 @@ describe('L10 directed and phase cycles', () => {
       'node: G2 phase',
       'node: M group',
       'node: G0 branch',
+      'node: prophase phase',
+      'node: metaphase phase',
+      'node: anaphase phase',
+      'node: telophase phase',
+      'node: cytokinesis phase',
       'group: M contains=prophase,metaphase,anaphase,telophase,cytokinesis',
       'order: G1 -> S -> G2 -> M -> G1',
       'edge: G1 G0 branch',
@@ -224,6 +251,11 @@ describe('L10 directed and phase cycles', () => {
       'node: G2 phase',
       'node: M group',
       'node: G0 branch',
+      'node: prophase phase',
+      'node: metaphase phase',
+      'node: anaphase phase',
+      'node: telophase phase',
+      'node: cytokinesis phase',
       'group: M contains=prophase,metaphase,anaphase,telophase,cytokinesis',
       'order: G1 -> S -> G2 -> M -> G1',
       'edge: G1 G0 branch',
@@ -332,8 +364,8 @@ describe('L10 DEV render hook', () => {
       ['cell-parallel-two-branches', compileCellBio, 'kind: parallel-source\nnode: A terminal\nnode: C terminal\nedge: A C source-branch epsilon1 r1\nedge: A C source-branch epsilon2 r2\nlabel: I attaches=external-current\norder: A -> C'],
       ['cell-equivalent-preserves-terminals', compileCellBio, 'kind: equivalent-source\nnode: A terminal\nnode: C terminal\nedge: A C equivalent-source epsiloneq req\nlabel: epsiloneq attaches=equivalent-source'],
       ['cycle-wait-three-node', compileCycle, 'kind: directed-cycle\nnode: Pi process\nnode: Pj process\nnode: Pk process\nedge: Pi Pj waits label=x\nedge: Pj Pk waits label=y\nedge: Pk Pi waits label=z\norder: Pi -> Pj -> Pk -> Pi'],
-      ['cycle-negative-weight-witness', compileCycle, 'kind: directed-weighted\nnode: s source\nnode: t target\nedge: s n1 weight=5\nedge: n1 n2 weight=2\nedge: n2 n3 weight=-8\nedge: n3 n2 weight=1\nedge: n3 t weight=3\nlabel: undefined attaches=negative-cycle'],
-      ['cycle-phase-group-branch', compileCycle, 'kind: phase-cycle\nnode: G1 phase\nnode: S phase\nnode: G2 phase\nnode: M group\nnode: G0 branch\ngroup: M contains=prophase,metaphase,anaphase,telophase,cytokinesis\norder: G1 -> S -> G2 -> M -> G1\nedge: G1 G0 branch'],
+      ['cycle-negative-weight-witness', compileCycle, 'kind: directed-weighted\nnode: s source\nnode: n1 intermediate\nnode: n2 intermediate\nnode: n3 intermediate\nnode: t target\nedge: s n1 weight=5\nedge: n1 n2 weight=2\nedge: n2 n3 weight=-8\nedge: n3 n2 weight=1\nedge: n3 t weight=3\nlabel: undefined attaches=negative-cycle'],
+      ['cycle-phase-group-branch', compileCycle, 'kind: phase-cycle\nnode: G1 phase\nnode: S phase\nnode: G2 phase\nnode: M group\nnode: G0 branch\nnode: prophase phase\nnode: metaphase phase\nnode: anaphase phase\nnode: telophase phase\nnode: cytokinesis phase\ngroup: M contains=prophase,metaphase,anaphase,telophase,cytokinesis\norder: G1 -> S -> G2 -> M -> G1\nedge: G1 G0 branch'],
       ['membrane-boustrophedon-order', compileMembrane, 'kind: membrane-cycle\nstate: A inward-open\nstate: B inward-open\nstate: C outward-open\nstate: D outward-open\nstate: E occluded\nstate: F inward-open\norder: A -> B -> C -> D -> E -> F -> A\ndirection: sodium outward\ndirection: potassium inward\nlabel: ATP attaches=B\nlabel: ADP attaches=C\nlabel: Pi attaches=E'],
       ['anatomy-parabola-relations', compileAnatomy, 'kind: conic\nnode: parabola locus\nnode: axis symmetry-line\nnode: directrix line\nnode: vertex point\nnode: focus point\nedge: parabola axis symmetric-about\nedge: vertex axis lies-on\nedge: focus axis lies-on\nlabel: Directrix attaches=directrix\nlabel: Vertex attaches=vertex\nlabel: Focus attaches=focus'],
       ['anatomy-stomata-paired-views', compileAnatomy, 'kind: paired-apparatus\nnode: bean-guard-cells paired-guard-cells\nnode: dumbbell-guard-cells paired-guard-cells\nnode: bean-pore pore\nnode: dumbbell-pore pore\ngroup: bean-view contains=bean-guard-cells,bean-pore\ngroup: dumbbell-view contains=dumbbell-guard-cells,dumbbell-pore\nedge: bean-view dumbbell-view compares\nlabel: stomatal pore attaches=bean-pore'],

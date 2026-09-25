@@ -1,6 +1,7 @@
 import type { Scene, SemanticColor } from './types';
 import type { LayoutResult } from './slk';
 import { FONT_SANS_SVG } from '@/src/lib/fonts';
+import { labelMarkup } from './label-format';
 
 const COLOR: Record<SemanticColor, string> = {
   neutral: '#334155',
@@ -85,7 +86,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
     if (p.overlay) continue;
     const text = p.label.text ?? '';
     parts.push(
-      `<text id="${esc(p.label.id)}" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${layout.fontSize}" fill="${COLOR.neutral}">${esc(text)}</text>`,
+      `<text id="${esc(p.label.id)}" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${layout.fontSize}" fill="${COLOR.neutral}">${labelMarkup(text, layout.fontSize)}</text>`,
     );
   }
 

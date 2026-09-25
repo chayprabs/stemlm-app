@@ -9,9 +9,6 @@ export default defineConfig({
     },
   },
   define: {
-    // Mirror the build-time GA constants so analytics.ts loads in tests (no-op).
-    __GA_MEASUREMENT_ID__: '""',
-    __GA_API_SECRET__: '""',
   },
   test: {
     environment: 'happy-dom',

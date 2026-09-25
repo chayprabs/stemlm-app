@@ -39,9 +39,9 @@ describe('split-ratio', () => {
     expect(ratioFromPointer(1200, 1600)).toBe(0.25);
   });
 
-  it('uses a modest-majority default that CSS and clamp fallbacks share', () => {
+  it('uses the reading-first default that CSS and clamp fallbacks share', () => {
     expect(DEFAULT_SPLIT_RATIO).toBeGreaterThan(0.5);
-    expect(DEFAULT_SPLIT_RATIO).toBeLessThanOrEqual(0.58);
+    expect(DEFAULT_SPLIT_RATIO).toBeCloseTo(0.68);
     expect(clampSplitRatio(Number.NaN, 1600)).toBe(DEFAULT_SPLIT_RATIO);
     expect(hydrateSplitRatio(0.5)).toBe(DEFAULT_SPLIT_RATIO);
     expect(hydrateSplitRatio(0.75)).toBe(DEFAULT_SPLIT_RATIO);
@@ -52,10 +52,15 @@ describe('split-ratio', () => {
     expect(width).toBeTruthy();
     expect(Number(width![1]) / 100).toBe(DEFAULT_SPLIT_RATIO);
     expect(panelCss).not.toMatch(/\.slm-panel\s*\{[^}]*width:\s*50vw/);
+    expect(panelCss).toMatch(/\.slm-panel\s*\{[^}]*min-width:\s*min\(280px,/);
   });
 
   it('does not rewrite the stored 55/45 split using the popup window width', () => {
     expect(hydrateSplitRatio(DEFAULT_SPLIT_RATIO)).toBe(DEFAULT_SPLIT_RATIO);
     expect(clampSplitRatio(DEFAULT_SPLIT_RATIO, 312)).toBe(MAX_SPLIT_RATIO);
+  });
+
+  it('preserves an explicitly resized 75% panel', () => {
+    expect(hydrateSplitRatio(0.75, undefined, { preserveLegacyValues: true })).toBe(0.75);
   });
 });

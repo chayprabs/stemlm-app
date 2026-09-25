@@ -1,12 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
-
-vi.mock('./mermaid', () => ({
-  renderMermaid: vi.fn(
-    async () =>
-      '<svg viewBox="0 0 100 60"><style>.node{fill:#fff}</style><rect width="40" height="20" style="fill:#eee;stroke:#333"/></svg>',
-  ),
-}));
-
+import { describe, it, expect } from 'vitest';
 import {
   compileDiagram,
   normalizeDiagramSource,
@@ -32,7 +24,7 @@ describe('resolveDiagramSvg', () => {
     const svg = await resolveDiagramSvg(
       {
         type: 'svg',
-        content: '<svg viewBox="0 0 40 20"><text x="1" y="10">probe-diagram</text></svg>',
+        content: '<svg viewBox="0 0 40 20"><circle cx="20" cy="10" r="5"/><text x="1" y="10">probe-diagram</text></svg>',
       },
       'dark',
     );
@@ -65,13 +57,10 @@ describe('resolveDiagramSvg', () => {
     expect(svg).toContain('fill="#16a34a"');
   });
 
-  it('preserves mermaid inline styles through the resolve path', async () => {
-    const svg = await resolveDiagramSvg(
-      { type: 'mermaid', content: 'graph TD\n  A["Start"] --> B["End"]' },
-      'light',
-    );
-    expect(svg).toContain('<svg');
-    expect(svg).toMatch(/style=|fill=|stroke=/i);
+  it('keeps a saved Mermaid diagram hidden now that flowcharts compile as graphs', async () => {
+    const compiled = await compileDiagram({ type: 'mermaid', content: 'graph TD\n  A["Start"] --> B["End"]' });
+    expect(compiled).toMatchObject({ ok: false, svg: '', diagnostic: { family: 'mermaid', code: 'refused' } });
+    expect(await resolveDiagramSvg({ type: 'mermaid', content: 'flowchart LR\n  A --> B' }, 'light')).toBe('');
   });
 
   it('compiles type=plot through the real resolve path with graphic shapes', async () => {
@@ -99,7 +88,7 @@ describe('resolveDiagramSvg', () => {
     const svg = await resolveDiagramSvg(
       {
         type: 'svg',
-        content: '<svg viewBox="0 0 520 260"><text x="1" y="10">pdf-diagram</text></svg>',
+        content: '<svg viewBox="0 0 520 260"><circle cx="260" cy="130" r="50"/><text x="1" y="10">pdf-diagram</text></svg>',
       },
       'light',
       'print',
@@ -124,5 +113,31 @@ describe('resolveDiagramSvg', () => {
     expect(light.svg).toContain('data-stemlm-theme="light"');
     expect(dark.svg).toContain('IBM Plex Sans');
     expect(light.svg).toContain('IBM Plex Sans');
+  });
+});
+
+describe('content-size scaling is panel-only', () => {
+  const spec = {
+    type: 'plot',
+    content: 'kind: function\nfn: x\ndomain: 0 4\nxlabel: t (s)\nylabel: x (m)',
+  } as const;
+
+  function widthOf(svg: string): number {
+    return Number(/\swidth="(\d+)"/.exec(svg)?.[1] ?? 0);
+  }
+
+  it('scales the panel profile but leaves the print profile fixed', async () => {
+    const compiled = await compileDiagram(spec, 'step');
+    const step = presentCompiledDiagram(compiled, 'light', 'step');
+    const stepLarge = presentCompiledDiagram(compiled, 'light', 'step', 1.36);
+    expect(widthOf(step.svg)).toBeGreaterThan(0);
+    expect(widthOf(stepLarge.svg)).toBeGreaterThan(widthOf(step.svg));
+
+    // The PDF path resolves its own 'print' profile with no scale argument, so
+    // a reader's content-size choice can never reach exported output.
+    const printCompiled = await compileDiagram(spec, 'print');
+    const print = presentCompiledDiagram(printCompiled, 'light', 'print');
+    const printAgain = presentCompiledDiagram(printCompiled, 'light', 'print');
+    expect(widthOf(print.svg)).toBe(widthOf(printAgain.svg));
   });
 });

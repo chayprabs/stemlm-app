@@ -64,13 +64,22 @@ function launchErrorMessage(err: unknown): string {
   }
   if (code === 'no-active-tab') return 'No active tab found.';
   if (code === 'no-tab') return 'Could not open a new tab.';
+  if (code === 'stemlm-disabled') return 'Turn stemLM on in the toolbar popup, then try again.';
+  if (code === 'content-chat-changed') return 'The chat changed. Open stemLM again in the chat you want to use.';
+  if (code === 'content-script-startup-failed' || code === 'content-script-no-acknowledgement') {
+    return 'Could not start stemLM. Keep a copy of your draft, then refresh the chat and try again.';
+  }
+  if (code === 'content-script-timeout' || code === 'content-script-starting') {
+    return 'stemLM is not ready yet. Try again shortly. If it stays unavailable, keep a copy of your draft before refreshing the chat.';
+  }
   return 'Could not start stemLM. Try refreshing the page.';
 }
 
 /** Open the study panel without loading the conversation. */
 export async function openStudyPanel(): Promise<LaunchResult> {
   try {
-    await deliverStemLmMessage('stemlm:open-panel');
+    const result = await deliverStemLmMessage('stemlm:open-panel');
+    if (result.ok !== true) throw new Error(result.error || 'content script rejected message');
     const tab = await getActiveTab();
     await rememberUrl(tab?.url);
     return { ok: true };

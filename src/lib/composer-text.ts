@@ -5,19 +5,38 @@
  * (Vs=48) and the underlying LaTeX (V_s = 48) concatenated on one line.
  */
 
-/** Remove compact assignments immediately before their subscript LaTeX twin. */
+/**
+ * Remove compact assignments immediately before their subscript LaTeX twin.
+ *
+ * A compact form is a duplicate only when it names the SAME symbol as the
+ * subscripted form that follows (`Vs=48` before `V_s`). Without that identity
+ * check the pattern deletes ordinary math: `L=(n_2-n_1)d` loses ` L=(`.
+ */
 function stripCompactBeforeSubscript(text: string): string {
-  let t = text.replace(/([A-Za-z][A-Za-z0-9]*)=((?:[^A-Za-z\\]|\\(?!Omega))+?)(?=[A-Za-z]_)/g, '');
-  // Vx=2I3V_x — compact lacks underscore but shares the leading letter with V_x
-  t = t.replace(/([A-Z][a-z]?\d*)=([^_=]+?)(?=[A-Z]_)/g, '');
-  return t;
+  // Start at a token boundary: otherwise a long identifier without '=' is
+  // scanned again from every suffix, blocking the provider's main thread.
+  return text.replace(
+    /\b([A-Za-z])([A-Za-z0-9]+)=([^\s_=]+(?:[ \t]*[ΩΩ])?)(?=\1_(?:\{\2\}|\2)\s*=)/g,
+    (match: string, _letter: string, _subscript: string, value: string, offset: number) => {
+      const twin = text.slice(offset + match.length).replace(/^[^=]+=/, '');
+      const compact = (s: string) => s.replace(/\\Omega/g, 'Ω').replace(/[\\_{}\s,]/g, '');
+      const expected = compact(value);
+      const actual = compact(twin);
+      return actual.startsWith(expected) && !(/\d$/.test(expected) && /^\d/.test(actual.slice(expected.length)))
+        ? '' : match;
+    },
+  );
 }
 
-/** Drop a trailing compact repeat after a subscript assignment was kept. */
+/**
+ * Drop a trailing compact repeat after a subscript assignment was kept —
+ * again only when both name the same symbol, so a second, unrelated
+ * assignment (`R_1 = 2 and V=12`) is never deleted.
+ */
 function stripTrailingCompactRepeat(text: string): string {
   return text.replace(
-    /([A-Za-z]_\{?[A-Za-z0-9]+\}?\s*=\s*[^,;.\n]+?)\s+([A-Za-z][A-Za-z0-9]*)=([^,;.\n]+)/g,
-    '$1',
+    /([A-Za-z])(_\{?[A-Za-z0-9]+\}?\s*=\s*[^,;.\n=_]+?)\s+\1[A-Za-z0-9]*=[^,;.\n=_]+/g,
+    '$1$2',
   );
 }
 
@@ -106,7 +125,7 @@ const BLOCK_TAGS = new Set(['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'
 
 /** True when innerText glues a compact assignment to its subscript twin (Vs=48V_s). */
 export function hasComposerMathDuplicates(text: string): boolean {
-  return /[A-Za-z][A-Za-z0-9]*=[^\s_=\n]+[A-Za-z]_/.test(text);
+  return /\b[A-Za-z][A-Za-z0-9]*=[^\s_=\n]+[A-Za-z]_/.test(text);
 }
 
 function readInlineNodes(node: Node): string {

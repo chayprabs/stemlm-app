@@ -83,6 +83,9 @@ const SLOT_CSS = `
 [data-stemlm-composer-slot] .slm-inject-btn:active {
   transform: scale(0.94);
 }
+[data-stemlm-composer-slot] .slm-inject-btn[aria-disabled="true"] {
+  cursor: wait;
+}
 [data-stemlm-composer-slot] .slm-inject-btn.is-attached,
 [data-stemlm-composer-slot] .slm-inject-btn.is-panel-open {
   border-color: ${INJECT_SIGNAL};
@@ -96,6 +99,20 @@ const SLOT_CSS = `
   width: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
   height: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
   color: ${INJECT_SIGNAL};
+}
+[data-stemlm-composer-slot] .slm-inject-spinner {
+  animation: slm-spin 0.9s linear infinite;
+}
+[data-stemlm-composer-slot] .slm-inject-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 [data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] .slm-inject-btn {
   background: rgba(20, 20, 20, 0.72);
@@ -158,6 +175,9 @@ const SLOT_CSS = `
 [data-stemlm-composer-host] {
   position: relative;
 }
+@keyframes slm-spin {
+  to { transform: rotate(360deg); }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-stemlm-composer-slot] .slm-inject-btn,
   [data-stemlm-composer-slot] .slm-inject-glyph svg {
@@ -165,6 +185,9 @@ const SLOT_CSS = `
   }
   [data-stemlm-composer-slot] .slm-inject-btn:active {
     transform: none;
+  }
+  [data-stemlm-composer-slot] .slm-inject-spinner {
+    animation: none;
   }
 }
 `;

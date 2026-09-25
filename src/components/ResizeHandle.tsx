@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/src/state/store';
 import { setSettings } from '@/src/lib/settings';
-import { ratioFromPointer } from '@/src/lib/split-ratio';
+import { MAX_SPLIT_RATIO, layoutSplitRatio, minSplitRatio, ratioFromPointer, viewportWidth } from '@/src/lib/split-ratio';
 
 /**
  * Draggable divider on the panel's left edge. Dragging updates the split ratio
@@ -12,6 +12,11 @@ export function ResizeHandle() {
   const setSplitRatio = useStore((s) => s.setSplitRatio);
   const setSplitDragging = useStore((s) => s.setSplitDragging);
   const setStoreSettings = useStore((s) => s.setSettings);
+  const splitRatio = useStore((s) => s.splitRatio);
+  const currentViewport = viewportWidth();
+  const effectiveRatio = layoutSplitRatio(splitRatio, currentViewport);
+  const minimumPercent = Math.round(minSplitRatio(currentViewport) * 100);
+  const maximumPercent = Math.max(Math.round(MAX_SPLIT_RATIO * 100), minimumPercent);
   const draggingRef = useRef(false);
   const handleRef = useRef<HTMLDivElement>(null);
 
@@ -28,8 +33,12 @@ export function ResizeHandle() {
       }
 
       const ratio = useStore.getState().splitRatio;
-      const updated = await setSettings({ splitRatio: ratio });
-      setStoreSettings(updated);
+      try {
+        const updated = await setSettings({ splitRatio: ratio });
+        setStoreSettings(updated);
+      } catch {
+        useStore.getState().setStatus('error', 'Could not save panel size. Try again.');
+      }
     }
 
     function onMove(e: PointerEvent) {
@@ -59,8 +68,10 @@ export function ResizeHandle() {
       className="slm-resize-handle"
       role="separator"
       aria-orientation="vertical"
-      aria-valuemin={25}
-      aria-valuemax={75}
+      aria-valuemin={minimumPercent}
+      aria-valuemax={maximumPercent}
+      aria-valuenow={Math.round(effectiveRatio * 100)}
+      aria-valuetext={`${Math.round(effectiveRatio * 100)}% panel width`}
       tabIndex={0}
       aria-label="Resize study panel"
       title="Drag to resize"
@@ -86,8 +97,12 @@ export function ResizeHandle() {
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           void (async () => {
             const ratio = useStore.getState().splitRatio;
-            const updated = await setSettings({ splitRatio: ratio });
-            setStoreSettings(updated);
+            try {
+              const updated = await setSettings({ splitRatio: ratio });
+              setStoreSettings(updated);
+            } catch {
+              useStore.getState().setStatus('error', 'Could not save panel size. Try again.');
+            }
           })();
         }
       }}

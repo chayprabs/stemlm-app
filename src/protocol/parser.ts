@@ -28,6 +28,7 @@ import {
   SUBJECTS,
 } from './types';
 import { findResumeToken } from './apply';
+import { isCapsuleEndLine } from './capsule-boundary';
 import {
   CAPSULE_END_TOKEN,
   CAPSULE_FENCE_TAG,
@@ -117,6 +118,16 @@ const STRUCTURAL_MARKERS = new Set([
   CAPSULE_END_TOKEN,
 ]);
 
+/** Bound provider/model text before recursive parsing or block allocation. */
+export const MAX_CAPSULE_CHARS = 256_000;
+const MAX_NESTED_QUESTION_DEPTH = 64;
+const STRUCTURAL_FAILURE_CODES = new Set<ParseWarningCode>([
+  'duplicate_step_id',
+  'duplicate_diagram_id',
+  'invalid_mode',
+  'invalid_patch_op',
+]);
+
 function addWarning(
   warnings: string[],
   warningCodes: ParseWarningCode[],
@@ -125,6 +136,16 @@ function addWarning(
 ): void {
   warnings.push(message);
   warningCodes.push(code);
+}
+
+function parserFailure(raw: string, reason: string): ParseResult {
+  return {
+    status: 'empty',
+    warnings: [`Capsule could not be parsed safely: ${reason}`],
+    warningCodes: ['parser_failure'],
+    errorCode: 'parser_failure',
+    raw,
+  };
 }
 
 function isStructural(line: string): boolean {
@@ -154,6 +175,13 @@ export function solutionDiagramRegexGlobal(): RegExp {
 
 export { SOLUTION_DIAGRAM_RE };
 
+/** `text` through its first end-marker line (normalized to `@end`), or null when it has none. */
+function throughEndLine(text: string): string | null {
+  const lines = text.split('\n');
+  const end = lines.findIndex((line) => isCapsuleEndLine(line));
+  return end === -1 ? null : [...lines.slice(0, end), CAPSULE_END_TOKEN].join('\n');
+}
+
 /**
  * Locate the capsule body within arbitrary text. Tries (1) a ```stemlm fenced
  * block, (2) any fenced block that contains @meta, (3) a bare @meta..@end span.
@@ -167,12 +195,8 @@ export function findCapsuleRaw(text: string): string | null {
   const taggedOpen = new RegExp('^```+\\s*' + CAPSULE_FENCE_TAG + '\\b[^\\n]*$', 'im').exec(text);
   if (taggedOpen) {
     const afterOpen = text.slice(taggedOpen.index + taggedOpen[0].length).replace(/^\r?\n/, '');
-    const lines = afterOpen.split('\n');
-    for (let k = 0; k < lines.length; k++) {
-      if ((lines[k] ?? '').trim() === CAPSULE_END_TOKEN) {
-        return lines.slice(0, k + 1).join('\n');
-      }
-    }
+    const throughEnd = throughEndLine(afterOpen);
+    if (throughEnd !== null) return throughEnd;
     const tagged = new RegExp(
       '```+\\s*' + CAPSULE_FENCE_TAG + '\\b[^\\n]*\\n([\\s\\S]*?)\\n?```+',
       'i',
@@ -181,24 +205,19 @@ export function findCapsuleRaw(text: string): string | null {
     return afterOpen;
   }
 
-  // 2) Any fenced block containing @meta.
-  const fenceRe = /```+[^\n]*\n([\s\S]*?)\n?```+/g;
+  // 2) Any fenced block containing @meta. A fence glued before `@end` is the
+  // end marker, not the block's close.
+  const fenceRe = /```+[^\n]*\n([\s\S]*?)\n?```+(?!`)(?![\t ]*@end\b)/g;
   let m: RegExpExecArray | null;
   while ((m = fenceRe.exec(text)) !== null) {
-    if (m[1] && m[1].includes('@meta')) return m[1];
+    if (m[1] && m[1].includes('@meta')) return throughEndLine(m[1]) ?? m[1];
   }
 
   // 3) Bare span from @meta to a standalone @end line (model dropped the fence).
   const start = text.indexOf('@meta');
   if (start !== -1) {
     const after = text.slice(start);
-    const lines = after.split('\n');
-    for (let k = 0; k < lines.length; k++) {
-      if ((lines[k] ?? '').trim() === CAPSULE_END_TOKEN) {
-        return lines.slice(0, k + 1).join('\n');
-      }
-    }
-    return after;
+    return throughEndLine(after) ?? after;
   }
 
   return null;
@@ -474,6 +493,11 @@ function parseStep(
       const dAttrs = parseMarkerAttrs(t);
       c.i++;
       const content = readBlock(c, '@enddiagram');
+      if (step.diagram) {
+        addWarning(warnings, warningCodes, 'duplicate_diagram',
+          `Step ${index} contained multiple diagrams; only the first was retained.`);
+        continue;
+      }
       if (content) {
         const caption = captionFromSpec(content, type);
         step.diagram = {
@@ -621,6 +645,45 @@ function normalizeMode(value: string | undefined): CapsuleMode | undefined {
   return (CAPSULE_MODES as string[]).includes(t) ? t : undefined;
 }
 
+function warnDuplicateIdentifiers(
+  capsule: Capsule,
+  warnings: string[],
+  warningCodes: ParseWarningCode[],
+): void {
+  const stepIds = new Set<string>();
+  for (const step of capsule.steps) {
+    if (stepIds.has(step.id)) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'duplicate_step_id',
+        `Capsule declared duplicate step id "${step.id}".`,
+      );
+    } else {
+      stepIds.add(step.id);
+    }
+  }
+
+  const diagramIds = new Set<string>();
+  const diagrams = [
+    ...capsule.steps.flatMap((step) => (step.diagram ? [step.diagram] : [])),
+    ...capsule.solutionDiagrams,
+  ];
+  for (const diagram of diagrams) {
+    if (!diagram.id) continue;
+    if (diagramIds.has(diagram.id)) {
+      addWarning(
+        warnings,
+        warningCodes,
+        'duplicate_diagram_id',
+        `Capsule declared duplicate diagram id "${diagram.id}".`,
+      );
+    } else {
+      diagramIds.add(diagram.id);
+    }
+  }
+}
+
 function parseMethodList(value: string): VerifyMethod[] {
   const out: VerifyMethod[] = [];
   for (const part of value.split(/[,;]/)) {
@@ -631,8 +694,32 @@ function parseMethodList(value: string): VerifyMethod[] {
   return out;
 }
 
-function parseVerifyBlock(c: Cursor): VerificationBlock {
+function isConcreteVerificationEvidence(notes: string, methods: VerifyMethod[]): boolean {
+  const text = notes.trim();
+  if (!text) return false;
+
+  // Alternate-method checks may be symbolic (for example, a proof's
+  // independent implication), while numeric checks must expose some
+  // operation/value evidence rather than a bare "verified" claim.
+  if (methods.includes('alt')) return true;
+  if (!/\d/.test(text)) return false;
+  return (
+    /[=+\-*/×÷→]/.test(text) ||
+    /\b(?:check(?:ed)?|conserv(?:e|ation)|dimension(?:al)?|limit|magnitude|recover(?:ed|s)?|return(?:ed|s)?|substitut(?:e|ed|ion)|unit(?:s)?|within)\b/i.test(
+      text,
+    )
+  );
+}
+
+function parseVerifyBlock(
+  c: Cursor,
+  warnings?: string[],
+  warningCodes?: ParseWarningCode[],
+): VerificationBlock {
   const block: VerificationBlock = { methods: [], status: 'pass', notes: '' };
+  let malformedStatus = false;
+  let sawStatus = false;
+  let rawMethods = '';
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
@@ -645,11 +732,61 @@ function parseVerifyBlock(c: Cursor): VerificationBlock {
     const status = readInlineValue(line, 'status');
     const notes = readInlineValue(line, 'notes');
     const correction = readInlineValue(line, 'correction');
-    if (methods !== null) block.methods = parseMethodList(methods);
-    else if (status !== null) block.status = status.toLowerCase() === 'fail' ? 'fail' : 'pass';
+    if (methods !== null) {
+      rawMethods = methods;
+      block.methods = parseMethodList(methods);
+    }
+    else if (status !== null) {
+      sawStatus = true;
+      const normalized = status.trim().toLowerCase();
+      if (normalized === 'pass' || normalized === 'fail') block.status = normalized;
+      else {
+        malformedStatus = true;
+        block.status = 'fail';
+      }
+    }
     else if (notes !== null) block.notes = notes;
     else if (correction !== null) block.correction = correction;
     c.i++;
+  }
+  if (warnings && warningCodes) {
+    const reasons: string[] = [];
+    if (malformedStatus) reasons.push('status must be pass or fail');
+    if (!sawStatus) reasons.push('status is required');
+    if (!block.methods.length) reasons.push('at least one known verification method is required');
+    const suppliedMethods = rawMethods
+      .split(/[,;]/)
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean);
+    if (
+      suppliedMethods.some((method) => {
+        const token = method === 'alternate' || method === 'alt-method' ? 'alt' : method;
+        return !(VERIFY_METHOD_TOKENS as string[]).includes(token);
+      })
+    ) {
+      reasons.push('methods must use known verification tokens');
+    }
+    if (!block.notes.trim()) reasons.push('notes must show the performed verification');
+    if (block.status === 'fail' && !block.correction?.trim()) {
+      reasons.push('a failed verification requires a visible correction');
+    }
+    const evidence = `${block.notes} ${block.correction ?? ''}`.trim();
+    if (!isConcreteVerificationEvidence(evidence, block.methods)) {
+      reasons.push('verification notes must show an expression, substitution, or recovered value');
+    }
+    if (reasons.length) {
+      block.status = 'fail';
+      if (!block.correction?.trim()) {
+        block.correction =
+          'Verification was malformed or incomplete; do not treat the result as verified.';
+      }
+      addWarning(
+        warnings,
+        warningCodes,
+        'malformed_verify',
+        `Malformed @verify block: ${reasons.join('; ')}.`,
+      );
+    }
   }
   return block;
 }
@@ -688,8 +825,16 @@ function parsePatchBlock(
   warningCodes: ParseWarningCode[],
 ): PatchOp {
   const opRaw = (attrs.op || 'replace').toLowerCase();
-  const op: PatchOp['op'] =
-    opRaw === 'insert' ? 'insert' : opRaw === 'delete' ? 'delete' : 'replace';
+  const supported = opRaw === 'replace' || opRaw === 'insert' || opRaw === 'delete';
+  if (!supported) {
+    addWarning(
+      warnings,
+      warningCodes,
+      'invalid_patch_op',
+      `Patch declared unsupported operation "${attrs.op ?? opRaw}".`,
+    );
+  }
+  const op: PatchOp['op'] = supported ? (opRaw as PatchOp['op']) : 'replace';
   const patch: PatchOp = { op, id: attrs.id, after: attrs.after };
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
@@ -712,7 +857,7 @@ function parsePatchBlock(
     }
     if (t === '@verify' || /^@verify\b/.test(t)) {
       c.i++;
-      patch.verification = parseVerifyBlock(c);
+      patch.verification = parseVerifyBlock(c, warnings, warningCodes);
       continue;
     }
     if (t === '@uncertainty' || /^@uncertainty\b/.test(t)) {
@@ -786,14 +931,24 @@ function bodyPacksMultipleMoves(body: string): boolean {
 }
 
 /** Parse the capsule body (already-extracted text) into a Capsule. */
-export function parseCapsule(
+function parseCapsuleInternal(
   capsuleText: string,
   opt?: { nestedQuestion?: boolean },
+  depth = 0,
 ): ParseResult {
+  if (capsuleText.length > MAX_CAPSULE_CHARS) {
+    return parserFailure(capsuleText, 'input exceeds the maximum capsule size');
+  }
+  if (depth > MAX_NESTED_QUESTION_DEPTH) {
+    return parserFailure(capsuleText, 'nested question depth exceeds the maximum');
+  }
   const warnings: string[] = [];
   const warningCodes: ParseWarningCode[] = [];
   const raw = capsuleText;
-  const normalizedText = normalizeCapsuleText(capsuleText.replace(/\r\n/g, '\n'));
+  const normalizedText = normalizeCapsuleText(capsuleText.replace(/\r\n/g, '\n'))
+    .split('\n')
+    .map((line) => isCapsuleEndLine(line) ? CAPSULE_END_TOKEN : line)
+    .join('\n');
   const lines = normalizedText.split('\n');
   const c: Cursor = { lines, i: 0 };
 
@@ -817,7 +972,7 @@ export function parseCapsule(
   let uncertainty: UncertaintyBlock | undefined;
   let resumeToken: string | undefined;
 
-  if (capsuleText.includes('```')) {
+  if (normalizedText.includes('```')) {
     addWarning(
       warnings,
       warningCodes,
@@ -878,7 +1033,18 @@ export function parseCapsule(
         else if (archV !== null) archetype = normalizeArchetype(archV);
         else if (levelV !== null) level = normalizeLevel(levelV);
         else if (localeV !== null) locale = localeV;
-        else if (modeV !== null) mode = normalizeMode(modeV);
+        else if (modeV !== null) {
+          const normalizedMode = normalizeMode(modeV);
+          if (normalizedMode) mode = normalizedMode;
+          else {
+            addWarning(
+              warnings,
+              warningCodes,
+              'invalid_mode',
+              `Capsule declared unsupported metadata mode "${modeV}".`,
+            );
+          }
+        }
         c.i++;
       }
       continue;
@@ -935,9 +1101,10 @@ export function parseCapsule(
         }
         wrapped = ['@meta', ...headers, '@endmeta', ...rest].join('\n');
       }
-      const innerParsed = parseCapsule(
+      const innerParsed = parseCapsuleInternal(
         wrapped.endsWith(CAPSULE_END_TOKEN) ? wrapped : `${wrapped}\n${CAPSULE_END_TOKEN}`,
         { nestedQuestion: true },
+        depth + 1,
       );
       if (innerParsed.capsule) {
         innerParsed.capsule.meta.qid =
@@ -954,6 +1121,9 @@ export function parseCapsule(
       innerParsed.warningCodes.forEach((code, i) => {
         addWarning(warnings, warningCodes, code, innerParsed.warnings[i] ?? code);
       });
+      if (innerParsed.warningCodes.includes('parser_failure')) {
+        return parserFailure(raw, 'nested question input exceeds the parser safety limit');
+      }
       continue;
     }
     if (t === '@patch' || /^@patch\b/.test(t)) {
@@ -964,7 +1134,7 @@ export function parseCapsule(
     }
     if (t === '@verify' || /^@verify\b/.test(t)) {
       c.i++;
-      verification = parseVerifyBlock(c);
+      verification = parseVerifyBlock(c, warnings, warningCodes);
       continue;
     }
     if (t === '@uncertainty' || /^@uncertainty\b/.test(t)) {
@@ -1003,10 +1173,9 @@ export function parseCapsule(
   const isPatchOnly = patch.length > 0 && steps.length === 0;
   const isQuestionWrapper = questions.length > 0 && steps.length === 0;
   if (
-    !opt?.nestedQuestion &&
     !isPatchOnly &&
     steps.length > 0 &&
-    (steps.length < STEP_COUNT_MIN || steps.length > STEP_COUNT_MAX)
+    (steps.length > STEP_COUNT_MAX || (!opt?.nestedQuestion && steps.length < STEP_COUNT_MIN))
   ) {
     addWarning(
       warnings,
@@ -1125,6 +1294,18 @@ export function parseCapsule(
     }
   }
 
+  warnDuplicateIdentifiers(capsule, warnings, warningCodes);
+  if (warningCodes.some((code) => STRUCTURAL_FAILURE_CODES.has(code))) {
+    return {
+      status: 'empty',
+      warnings,
+      warningCodes,
+      errorCode: 'invalid_structure',
+      raw,
+      ...(resumeToken ? { resumeToken } : {}),
+    };
+  }
+
   const hasQuestions = questions.length > 0 && questions.some((q) => q.steps.length > 0);
   const hasPatch = patch.length > 0;
   if (steps.length === 0 && !solution && !hasQuestions && !hasPatch) {
@@ -1133,6 +1314,9 @@ export function parseCapsule(
   }
 
   const usableSteps = capsule.steps.length > 0 || hasPatch;
+  // Preserve the parser's tolerant recovery contract. Capture policy uses the
+  // warning codes above to reject incomplete full answers; callers that need to
+  // inspect or repair a recoverable fragment still receive its parsed blocks.
   const status = usableSteps ? 'ok' : 'partial';
   return {
     status,
@@ -1146,25 +1330,65 @@ export function parseCapsule(
   };
 }
 
+/** Parse an extracted capsule without allowing hostile input to escape the parser boundary. */
+export function parseCapsule(
+  capsuleText: string,
+  opt?: { nestedQuestion?: boolean },
+): ParseResult {
+  const raw = typeof capsuleText === 'string' ? capsuleText : '';
+  if (raw.length > MAX_CAPSULE_CHARS) {
+    return parserFailure(raw, 'input exceeds the maximum capsule size');
+  }
+  try {
+    return parseCapsuleInternal(raw, opt, 0);
+  } catch {
+    return parserFailure(raw, 'input contains an unsupported or oversized block');
+  }
+}
+
 /** Top-level: find + parse a capsule from arbitrary message text. */
 export function parse(text: string): ParseResult {
-  const capsuleText = findCapsuleRaw(text);
-  if (capsuleText === null) {
-    return {
-      status: 'empty',
-      warnings: ['No stemLM capsule found in text.'],
-      warningCodes: ['no_capsule'],
-      errorCode: 'no_capsule',
-      raw: text,
-    };
+  const raw = typeof text === 'string' ? text : '';
+  if (raw.length > MAX_CAPSULE_CHARS) {
+    return parserFailure(raw, 'input exceeds the maximum capsule size');
   }
-  const result = parseCapsule(capsuleText);
-  if (!/```+\s*stemlm\b/i.test(text) && text.includes('@meta')) {
-    return {
-      ...result,
-      warnings: ['Capsule was parsed without an explicit stemlm fence.', ...result.warnings],
-      warningCodes: ['missing_fence', ...result.warningCodes],
-    };
+  try {
+    const capsuleText = findCapsuleRaw(raw);
+    if (capsuleText === null) {
+      return {
+        status: 'empty',
+        warnings: ['No stemLM capsule found in text.'],
+        warningCodes: ['no_capsule'],
+        errorCode: 'no_capsule',
+        raw,
+      };
+    }
+    const result = parseCapsule(capsuleText);
+    const openings = [...raw.matchAll(/^```+\s*stemlm\b[^\n]*$/gim)];
+    if (openings.length > 1) {
+      addWarning(result.warnings, result.warningCodes, 'ambiguous_capsules',
+        'Multiple stemLM capsules were present; only the first was parsed.');
+    }
+    const sourceStart = openings[0] ? openings[0].index! + openings[0][0].length : raw.indexOf('@meta');
+    const sourceLines = raw.slice(Math.max(0, sourceStart)).split('\n');
+    const end = sourceLines.findIndex(isCapsuleEndLine);
+    if (end >= 0 && !/`{3,}\s*$/.test(sourceLines[end]!)) {
+      const tail = sourceLines.slice(end + 1);
+      const close = tail.findIndex((line) => /^\s*`{3,}\s*$/.test(line));
+      if (tail.slice(0, close < 0 ? undefined : close).some((line) => line.trim() && !isCapsuleEndLine(line))) {
+        addWarning(result.warnings, result.warningCodes, 'trailing_content_discarded',
+          'Content after @end was discarded; check the answer for missing qualifications.');
+      }
+    }
+    if (!/```+\s*stemlm\b/i.test(raw) && raw.includes('@meta')) {
+      return {
+        ...result,
+        warnings: ['Capsule was parsed without an explicit stemLM fence.', ...result.warnings],
+        warningCodes: ['missing_fence', ...result.warningCodes],
+      };
+    }
+    return result;
+  } catch {
+    return parserFailure(raw, 'input contains an unsupported or oversized block');
   }
-  return result;
 }

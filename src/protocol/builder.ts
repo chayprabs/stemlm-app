@@ -5,19 +5,15 @@
  * preamble so the chat box stays clean. Inline paste is a last-resort fallback.
  */
 import type { Subject } from './types';
-import {
-  assembleProtocolFile,
-  CORE_PROTOCOL,
-  STEP_COUNT_MAX,
-  STEP_COUNT_TARGET,
-} from './protocol';
+import { assembleProtocolFile, CORE_PROTOCOL } from './protocol';
 import { SUBJECT_REGISTRY } from './playbooks';
 import { classifySubject } from './classifier';
 import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
+import { STUDY_GUIDE_FILENAME, STUDY_GUIDE_REFERENCE, LEGACY_GUIDE_FILENAME } from '@/src/lib/study-guide';
 
 export { normalizeFollowupSelection };
 
-export const PROTOCOL_FILENAME = 'stemlm-protocol.txt';
+export const PROTOCOL_FILENAME = STUDY_GUIDE_FILENAME;
 
 /** Unique delimiter: student problem stays ABOVE this line; instructions below. */
 export const STEMLM_SENTINEL = '--- stemLM ---';
@@ -34,6 +30,8 @@ export const STEMLM_COMPOSER_MARKERS = [
   'stemLM follow-up context',
   `Follow the attached ${PROTOCOL_FILENAME}`,
   PROTOCOL_FILENAME,
+  STUDY_GUIDE_REFERENCE,
+  LEGACY_GUIDE_FILENAME,
 ] as const;
 
 export function composerTextHasProtocol(text: string): boolean {
@@ -148,9 +146,12 @@ export const STEP_BODY_FORMULA_PATTERN =
 
 export const STEP_BODY_REQUIREMENT = [
   'CRITICAL — every @step MUST have a non-empty @body block (never omit @body).',
-  'NUMERIC/LAB only: define each new symbol in words, substitute the problem givens, and show the arithmetic with units.',
-  `NUMERIC/LAB only: when @formula has symbols, @body MUST follow: ${STEP_BODY_FORMULA_PATTERN}`,
+  'NUMERIC/LAB only: define each new symbol once, substitute the problem givens, and show the arithmetic with units.',
+  'Carry the chosen sign convention and coherent units through every derived numeric line; do not attach units only to the final answer.',
+  `NUMERIC/LAB first use may follow: ${STEP_BODY_FORMULA_PATTERN}`,
+  'For an already-defined symbol, start with its equation or substitution and do not repeat the definition scaffold.',
   'Proof/symbolic/conceptual/code/comparison/design/estimation: follow the ARCHETYPE REGISTRY grammar. NEVER force a numeric plug-in. A proof MUST NOT plug into the formula.',
+  'Group connected setup and algebra into one meaningful move; never restate givens line by line.',
   'A step with @formula but empty @body is invalid.',
 ].join('\n');
 
@@ -159,20 +160,20 @@ export const DIAGRAM_SPEC_CATALOG = [
   'type=plot     fn: | data: | poles: | peaks:  xlabel: ylabel: units  eq:  domain:',
   'type=scene    kind=fbd|ray|geom|field  named parts, relations (incline_deg, f, do) — no pixels',
   'type=field    catalog: dipole|parallel-plate|wire|solenoid|TE10  core: B: H:',
-  'type=graph    node: id label   edge: a b kind   (mermaid OK for CS flow/sequence/state only)',
+  'type=graph    node: id label   edge: a b kind   decision:/terminal: (flowchart)  start:/accept: (automaton)',
   'type=table    kind=ice|dp|punnett|matrix  row lines',
   'type=circuit  SPICE-like  id n1 n2 value  std=ieee  highlight:',
   'type=chem.smiles  smiles:  annotate:  (never Newman/Fischer/chair as SMILES)',
   'hybridpi rpi,gm,re,rc required. opamp rf,rg required.',
   'mccabe α,zF,xD,R,q — do NOT list staircase corners. sfd piecewise V(x), M(x) sagging+.',
-  'FORBIDDEN: AI images, mermaid for circuits/plots/chem, JCAMP, type=svg.',
+  'FORBIDDEN: AI images, type=mermaid, JCAMP, type=svg.',
 ].join('\n');
 
 export function getDiagramRequirement(subject: Subject): string {
   const row = SUBJECT_REGISTRY[subject] ?? SUBJECT_REGISTRY.General;
   const extra: Record<Subject, string> = {
     Electrical:
-      'CRITICAL — electrical visual problems MUST include @diagram type=circuit (or hybridpi/opamp) when components exist. OMIT unit conversion only. NEVER skip the circuit when components exist. Completeness: every component named in @body MUST appear as a named id. hybridpi requires rpi, gm, re, rc. Never omit rc.',
+      'CRITICAL — show one complete @diagram type=circuit (or hybridpi/opamp) for the original topology and each material visual state change; OMIT pure algebra and unchanged states. Reconstruct node connectivity before the spec. Every visible component and every component named in @body MUST appear once as a parser-safe named device line. hybridpi requires rpi, gm, re, rc. Never omit rc.',
     Chemistry:
       'CRITICAL — chemistry/visual problems MUST include @diagram specs. chem.smiles / newman / mo / table kind=ice / type=echem. NEVER SMILES-as-Newman. Every named species is a spec id.',
     Physics:
@@ -180,7 +181,7 @@ export function getDiagramRequirement(subject: Subject): string {
     Math: 'CRITICAL — math visual problems MUST include @diagram type=plot (or scene/table/graph) for graphs, regions, geometry. Omit on purely symbolic algebra.',
     Biology:
       'CRITICAL — biology visual problems MUST include @diagram specs. Punnett: table. Pedigree/pathway: graph (pointed=activation, blunt=inhibition).',
-    CS: 'CRITICAL — CS traces MUST include mermaid (flow/sequence/state) or table/graph/array. Code as inline `code`, never a fence.',
+    CS: 'CRITICAL — CS traces MUST include graph (flowchart/state machine) or table/array. Code as inline `code`, never a fence.',
     Mechanical:
       'CRITICAL — mechanical visual problems MUST include @diagram specs for FBDs, stress, shafts/gears, and P–V/T–s plots.',
     Civil:
@@ -227,14 +228,14 @@ export function resolveSubject(question: string, opt?: BuildOptions): Subject {
 
 const DIAGRAM_REMINDERS: Record<Subject, string> = {
   Electrical:
-    'Use @diagram type=circuit or hybridpi/opamp when components exist; OMIT unit conversion. Every named id (rpi,gm,re,rc) must appear in the spec. Never SVG coordinates.',
+    'Use one complete circuit or hybridpi/opamp spec for the source topology and material state changes; OMIT unchanged algebra. Reconstruct node connectivity and count-check device lines and terminals. Never SVG coordinates.',
   Chemistry:
     'Use chem.smiles / newman / mo / table kind=ice / echem on visual steps — every named species is a spec id. Never SVG coordinates.',
   Physics:
     'Use scene FBD / ray (f,do) / field catalog (solenoid,dipole,parallel-plate,wire,TE10) / plot on visual steps — named forces, axes, core/B/H. Never SVG coordinates.',
   Math: 'Use type=plot with fn: and eq: (or scene/table) when visual. Never SVG coordinates.',
-  Biology: 'Use table/graph/named templates (or mermaid for pathways). Never SVG coordinates.',
-  CS: 'Use mermaid for control flow / state; table/graph/array for DS traces. Code as inline `code`, never a fence.',
+  Biology: 'Use table/graph/named templates (graph for pathways). Never SVG coordinates.',
+  CS: 'Use graph for control flow / state machines; table/array for DS traces. Code as inline `code`, never a fence.',
   Mechanical: 'Use scene FBD / plot P-V / shaft templates. Never SVG coordinates.',
   Civil: 'Use beam then type=sfd (sagging+). Never SVG coordinates.',
   Chemical: 'Use PFD streams / type=mccabe (α,zF,xD,R,q — no stair corners). Never SVG coordinates.',
@@ -256,24 +257,28 @@ export function buildProtocolFileContent(opt?: BuildOptions & { question?: strin
   return { content: assembleProtocolFile(), subject };
 }
 
+/** Complete inline fallback, with attachment-only labels rewritten for pasted use. */
+function buildInlineFallbackProtocol(): string {
+  return assembleProtocolFile()
+    .replaceAll(PROTOCOL_FILENAME, 'the stemLM instruction attachment')
+    .replaceAll('DIAGRAM REGISTRY', 'FIGURE FAMILY CATALOG');
+}
+
 const IMAGE_STUB_LINE =
   '(Problem image/PDF is attached — transcribe the full question into the capsule question field.)';
 
 /** Student-facing product copy. Short, plain, states what is happening. */
 export const STUDENT_PREAMBLE = [
-  'stemLM is writing a textbook-style solution: one move per step, formulas, and compiler-drawn diagrams.',
-  `Follow the attached ${PROTOCOL_FILENAME}. Infer the subject from the problem.`,
-  "Do not blend the student's problem (text above this line, or an attached photo/PDF/file) with these instructions.",
+  `Follow the attached ${STUDY_GUIDE_REFERENCE} as an answer-format reference for my question. Infer the subject from the problem.`,
+  'Use its worked steps and diagram instructions.',
 ].join(' ');
 
 export const POINTER_PREAMBLE = [
-  `New problem. Follow the attached ${PROTOCOL_FILENAME} already on this turn.`,
-  'Reply with one fenced stemlm block ending @end.',
-  'Do not blend the problem with these instructions.',
+  `New problem. Follow the attached ${STUDY_GUIDE_REFERENCE}, including its diagram instructions.`,
 ].join(' ');
 
 export function buildFollowAttachedLine(): string {
-  return `Follow the attached ${PROTOCOL_FILENAME}. Infer the subject from the problem.`;
+  return `Follow the attached ${STUDY_GUIDE_REFERENCE} as an answer-format reference for my question. Infer the subject from the problem.`;
 }
 
 export interface ComposerStubOptions extends Pick<BuildOptions, 'hasImageAttachment'> {
@@ -293,7 +298,6 @@ export function buildComposerStub(question: string, opt?: ComposerStubOptions): 
   if (includeQuestion) {
     if (q) above.push(q);
     else if (opt?.hasImageAttachment) above.push(IMAGE_STUB_LINE);
-    else above.push('(The student has not typed a question yet — ask them to type one.)');
   } else if (!q && opt?.hasImageAttachment) {
     above.push(IMAGE_STUB_LINE);
   }
@@ -313,10 +317,25 @@ export function buildComposerAppendix(
 
 /** Short pointer when the protocol is already in this composer or thread. */
 export function buildComposerPointer(
-  opt?: Pick<BuildOptions, 'hasImageAttachment'> & { hasQuestion?: boolean },
+  opt?: Pick<BuildOptions, 'hasImageAttachment'> & {
+    hasQuestion?: boolean;
+    protocolAttachmentConfirmed?: boolean;
+  },
 ): string {
   const imageNote =
     Boolean(opt?.hasImageAttachment) && !opt?.hasQuestion ? IMAGE_STUB_LINE : '';
+  // Legacy callers can explicitly request a pointer before delivery is known.
+  // Production callers confirm the upload and always use the compact branch.
+  if (!opt?.protocolAttachmentConfirmed) {
+    if (opt?.hasImageAttachment) {
+      return joinStub([imageNote, STEMLM_SENTINEL, buildInlineFallbackProtocol()]);
+    }
+    return joinStub([
+      imageNote,
+      STEMLM_SENTINEL,
+      `New problem. Re-read and apply the earlier ${STUDY_GUIDE_REFERENCE} (attached file or inline fallback) before answering.`,
+    ]);
+  }
   return joinStub([imageNote, STEMLM_SENTINEL, POINTER_PREAMBLE]);
 }
 
@@ -335,12 +354,12 @@ const IMAGE_QUESTION_PREAMBLE = [
   'topic: stays a short ≤8-word title only.',
 ].join(' ');
 
-/** Last-resort composer paste: core template markers only — never leftover rows. */
+/** Last-resort composer paste: the complete protocol because no attachment survived. */
 export function buildCoreFallbackAppendix(question: string, opt?: BuildOptions): BuildResult {
   const subject = resolveSubject(question, opt);
   const imageNote =
     opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_QUESTION_PREAMBLE}\n\n` : '';
-  const prompt = `${SEP}${imageNote}${CORE_PROTOCOL}`;
+  const prompt = `${SEP}${imageNote}${buildInlineFallbackProtocol()}`;
   return { prompt, subject };
 }
 
@@ -368,7 +387,6 @@ export interface FollowupOptions {
   stepTitle?: string;
   subject?: Subject;
   intent?: FollowupIntent;
-  repair?: RepairPromptOptions;
 }
 
 function formatQuotedSelection(selection: string): string {
@@ -432,12 +450,6 @@ const ASK_SOLUTION_CONTRACT = [
 ].join('\n');
 
 function followupCopy(opt: FollowupOptions): { lead: string; contract: string } {
-  if (opt.repair) {
-    return {
-      lead: 'The previous answer contains a figure that failed compiler or quality validation. Repair that figure in the current answer.',
-      contract: buildRepairPrompt(opt.repair),
-    };
-  }
   if (opt.intent === 'ask-solution') {
     return {
       lead: 'The student is asking a question about the WHOLE solution of the current problem (not one step). Their question is at the very top; the quoted lines are the solution overview.',
@@ -467,7 +479,7 @@ export function buildFollowupContextBlock(opt: FollowupOptions): string {
       ? contract
       : [
           contract,
-          'Split into smaller atomic @step blocks when needed. Keep the current qid. mode: patch unless the student asked for another method (resolve).',
+          'Split only when the explanation changes reasoning goal; keep connected work together. Keep the current qid. mode: patch unless the student asked for another method (resolve).',
         ].join('\n');
   return [
     FOLLOWUP_CONTEXT_HEADER,
@@ -486,7 +498,7 @@ export function buildFollowupComposerText(opt: FollowupOptions): string {
   const { lead, contract } = followupCopy(opt);
   return [
     FOLLOWUP_CONTEXT_HEADER,
-    `Follow the attached ${PROTOCOL_FILENAME}. Do not treat this as new homework.`,
+    `Follow the attached ${STUDY_GUIDE_REFERENCE}. Do not treat this as new homework.`,
     lead,
     formatQuotedSelection(selection),
     contract,
@@ -510,11 +522,11 @@ const COMPACT_GRAMMAR = [
   'mode: patch uses @patch op=replace|insert|delete. mode: resolve re-emits the current qid. mode: new opens @q id=qN.',
 ].join('\n');
 
-/** Attach-failed follow-up: short contract plus compact grammar — not leftover rows. */
+/** Attach-failed follow-up: local context plus the complete protocol. */
 export function buildFollowupAskInChatPrompt(opt: FollowupOptions): string {
   const subject = opt.subject ?? 'General';
   const context = buildFollowupContextBlock({ ...opt, subject });
-  return `${FOLLOWUP_QUESTION_SLOT}${context}\n${SEP}${COMPACT_GRAMMAR}`;
+  return `${FOLLOWUP_QUESTION_SLOT}${context}\n${SEP}${COMPACT_GRAMMAR}\n\n${buildInlineFallbackProtocol()}`;
 }
 
 /** Clipboard Copy: short composer form + question slot — never the instructions wall. */
@@ -530,73 +542,3 @@ export function buildFollowupPrompt(opt: FollowupOptions): string {
   return buildFollowupCopyText(opt);
 }
 
-export interface RepairPromptOptions {
-  errorCode?: string;
-  family?: string;
-  failingKeys?: string[];
-  reason?: string;
-}
-
-const QUALITY_REPAIR_CODES = new Set([
-  'missing_step_body',
-  'formula_without_body',
-  'step_missing_substitution',
-  'step_missing_symbol_defs',
-  'quickcheck_thin_answer',
-  'quickcheck_generic_trivia',
-  'quickcheck_missing_question',
-  'quickcheck_missing_answer',
-  'missing_initial_circuit',
-  'missing_circuit_diagram',
-  'insufficient_diagrams',
-  'diagram_lacks_graphics',
-  'diagram_incomplete',
-  'diagram_bad_viewbox',
-  'diagram_label_collision',
-  'diagram_label_over_graphic',
-  'diagram_missing_axes',
-  'diagram_legend_only',
-]);
-
-const DIAGRAM_REPAIR_CODES = new Set([
-  'missing_initial_circuit',
-  'missing_circuit_diagram',
-  'insufficient_diagrams',
-  'diagram_lacks_graphics',
-  'diagram_incomplete',
-  'diagram_bad_viewbox',
-  'diagram_label_collision',
-  'diagram_label_over_graphic',
-  'diagram_missing_axes',
-  'diagram_legend_only',
-]);
-
-export function buildRepairPrompt(opt: RepairPromptOptions = {}): string {
-  const reason = opt.errorCode ? ` The parser error code was ${opt.errorCode}.` : '';
-  const target = opt.family
-    ? [
-        `TARGETED FIGURE REPAIR: the figure family \`${opt.family}\` failed validation.`,
-        `failing keys: ${opt.failingKeys?.length ? opt.failingKeys.join(', ') : 'none reported'}.`,
-        `Compiler reason: ${opt.reason?.trim() || 'quality audit reported a figure defect'}.`,
-        'Repair this figure from its semantic state; do not invent keys or emit SVG.',
-      ].join(' ')
-    : '';
-  const bodyFix =
-    opt.errorCode && QUALITY_REPAIR_CODES.has(opt.errorCode) && !DIAGRAM_REPAIR_CODES.has(opt.errorCode)
-      ? ' Each @step with @formula must have @body that defines every symbol and shows the numeric substitution with units — never a bare formula alone. @quickcheck answers must include because/since and a formula or number from the step — never one-word verdicts.'
-      : '';
-  const diagramFix =
-    opt.errorCode && DIAGRAM_REPAIR_CODES.has(opt.errorCode)
-      ? ' Convert each figure to typed key: value lines; do not emit path coordinates. ADD a complete @diagram with keys — electrical: circuit or hybridpi/opamp with required keys; physics: field catalog (solenoid/dipole/…) or scene FBD/ray or plot; math: plot/scene; chemistry: chem.smiles/mo/table; civil: sfd; ChemE: mccabe without stair corners. Every object named in @body MUST appear as a named id. Never <svg>.'
-      : '';
-  return [
-    target,
-    `Your previous stemLM capsule was incomplete or malformed.${reason}`,
-    'Re-emit the FULL answer as exactly one fenced block with info string stemlm.',
-    `No prose outside the block. Keep the same math; fix every step's @body work and add every required circuit diagram.${bodyFix}${diagramFix}`,
-    `The capsule must include @meta, ${STEP_COUNT_TARGET} @step blocks (one atomic move each, max ${STEP_COUNT_MAX}), @solution, @endsolution, and final @end.`,
-    STEP_BODY_REQUIREMENT,
-    getDiagramRequirement('General'),
-    "@quickcheck: test this step's result; answer with because + formula/number — not one word.",
-  ].join('\n');
-}

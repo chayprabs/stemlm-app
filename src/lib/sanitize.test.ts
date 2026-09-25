@@ -2,11 +2,35 @@ import { describe, it, expect } from 'vitest';
 import { sanitizeSvg, extractSvg } from './sanitize';
 
 describe('sanitizeSvg', () => {
+  it('SEC-02 refuses dense markup before expensive DOM sanitization', () => {
+    const svg = `<svg>${'<circle cx="1" cy="1" r="1"/>'.repeat(20_000)}</svg>`;
+    const start = performance.now();
+    expect(sanitizeSvg(svg)).toBe('');
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it('SEC-02 refuses attribute-heavy markup before DOM sanitization', () => {
+    const svg = `<svg><path ${Array.from({ length: 40_000 }, (_, i) => `a${i}="v"`).join(' ')}/></svg>`;
+    expect(sanitizeSvg(svg)).toBe('');
+  });
   it('keeps drawing primitives', () => {
     const out = sanitizeSvg('<svg viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10"/><text x="1" y="2">A</text></svg>');
     expect(out).toContain('<svg');
     expect(out).toContain('line');
     expect(out).toContain('text');
+  });
+
+  it('keeps the compiler-owned family identity while rejecting arbitrary data attributes', () => {
+    const out = sanitizeSvg(
+      '<svg viewBox="0 0 10 10" data-stemlm-family="plot" data-hostile="x"><line x1="0" y1="0" x2="10" y2="10"/></svg>',
+    );
+    expect(out).toContain('data-stemlm-family="plot"');
+    expect(out).not.toContain('data-hostile');
+  });
+
+  it('rejects an SVG with a non-positive viewBox dimension', () => {
+    const out = sanitizeSvg('<svg viewBox="0 0 -1 1"><rect width="1" height="1"/></svg>');
+    expect(out).toBe('');
   });
 
   it('strips <script> tags and their code', () => {
@@ -124,24 +148,16 @@ describe('sanitizeSvg — EE circuit primitives', () => {
   });
 });
 
-describe('sanitizeSvg preserveInlineStyles', () => {
-  it('keeps safe inline fill/stroke styles for mermaid output', () => {
+describe('sanitizeSvg inline styles', () => {
+  it('strips every inline style and embedded stylesheet, safe-looking or not', () => {
     const out = sanitizeSvg(
-      '<svg viewBox="0 0 10 10"><rect width="5" height="5" style="fill:#edf2ff;stroke:#333"/></svg>',
-      { preserveInlineStyles: true },
+      '<svg viewBox="0 0 10 10"><style>rect{fill:url(https://evil.example/x)}</style>' +
+      '<rect width="5" height="5" style="fill:#edf2ff;stroke:#333"/>' +
+      '<rect width="5" height="5" style="fill:url(https://evil.example/x)"/></svg>',
     );
-    expect(out).toContain('style=');
-    expect(out).toContain('fill:#edf2ff');
+    expect(out).toContain('<rect');
+    expect(out).not.toMatch(/style/i);
     expect(out).not.toContain('https://');
-  });
-
-  it('still strips dangerous inline styles when preserving mermaid styles', () => {
-    const out = sanitizeSvg(
-      '<svg viewBox="0 0 10 10"><rect width="5" height="5" style="fill:url(https://evil.example/x)"/></svg>',
-      { preserveInlineStyles: true },
-    );
-    expect(out).not.toContain('https://');
-    expect(out).not.toMatch(/style\s*=\s*["'][^"']*url\(/i);
   });
 });
 

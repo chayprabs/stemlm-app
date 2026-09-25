@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCopy, IconReply } from './icons';
 import { getController } from '@/src/content/controller';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
@@ -10,6 +10,11 @@ import {
 } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
+
+type CopyState = 'idle' | 'copied' | 'failed';
+type SendState = 'idle' | 'sending' | 'added';
+
+const RESET_MS = 1400;
 
 /**
  * Per-step actions: copy the ready-made follow-up prompt, or send it straight
@@ -32,9 +37,18 @@ export function FollowupBar({
   /** Optional helper text shown under the label (e.g. suggested question). */
   hint?: string;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [sendState, setSendState] = useState<SendState>('idle');
+  const sendingRef = useRef(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAsk = isAskIntent(intent);
   const displayFollowup = isAsk ? hint ?? null : stripProtocolMarkers(followup);
+
+  useEffect(() => () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+  }, []);
 
   function buildPrompt() {
     return buildFollowupCopyText({
@@ -45,13 +59,19 @@ export function FollowupBar({
     });
   }
 
+  function flashCopy(next: CopyState) {
+    setCopyState(next);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopyState('idle'), RESET_MS);
+  }
+
   async function copy() {
     if (isEmptyFollowupSelection(followup)) return;
     try {
       await navigator.clipboard.writeText(buildPrompt());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
+      flashCopy('copied');
     } catch {
+      flashCopy('failed');
       useStore
         .getState()
         .setStatus('error', 'Could not copy to clipboard. Select the text and copy manually.');
@@ -59,7 +79,7 @@ export function FollowupBar({
   }
 
   async function ask() {
-    if (isEmptyFollowupSelection(followup)) return;
+    if (isEmptyFollowupSelection(followup) || sendingRef.current) return;
     const ctrl = getController();
     if (!ctrl) {
       useStore
@@ -67,12 +87,48 @@ export function FollowupBar({
         .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
       return;
     }
-    const ok = await ctrl.followUp(followup, stepTitle, subject, { intent, anchor });
-    if (ok === false) {
+    sendingRef.current = true;
+    setSendState('sending');
+    try {
+      const ok = await ctrl.followUp(followup, stepTitle, subject, { intent, anchor });
+      if (ok !== false) {
+        setSendState('added');
+        resetTimer.current = setTimeout(() => setSendState('idle'), RESET_MS);
+        return;
+      }
+    } catch {
+      // The controller can fail on a detached provider tab or rejected runtime
+      // message. Keep the panel usable and make the failure actionable.
+    }
+    if (useStore.getState().status !== 'error') {
       useStore
         .getState()
         .setStatus('error', 'Could not send the follow-up to the chat box. Click in the input and try again.');
     }
+    setSendState('idle');
+    sendingRef.current = false;
+    return;
+  }
+
+  function askFinished() {
+    if (sendState === 'sending') return 'Adding…';
+    if (sendState === 'added') return 'Added to chat';
+    return 'Ask in chat';
+  }
+
+  function copyLabel() {
+    if (copyState === 'copied') return 'Copied';
+    if (copyState === 'failed') return 'Copy failed';
+    return 'Copy';
+  }
+
+  /** One spoken sentence per completed action — buttons alone are not announced. */
+  function liveMessage() {
+    if (sendState === 'sending') return 'Adding the follow-up to the chat box.';
+    if (sendState === 'added') return 'Follow-up added to the chat box. Send it to get an answer.';
+    if (copyState === 'copied') return 'Follow-up prompt copied to the clipboard.';
+    if (copyState === 'failed') return 'Could not copy the follow-up prompt.';
+    return '';
   }
 
   return (
@@ -82,13 +138,30 @@ export function FollowupBar({
         {displayFollowup && <p className="slm-followup-text">{displayFollowup}</p>}
       </div>
       <div className="slm-followup-actions">
-        <button type="button" className="slm-followup-action" onClick={copy}>
-          <IconCopy /> {copied ? 'Copied' : 'Copy'}
+        <button
+          type="button"
+          className="slm-followup-action"
+          onClick={() => void copy()}
+          data-state={copyState === 'idle' ? undefined : copyState}
+        >
+          <IconCopy /> {copyLabel()}
         </button>
-        <button type="button" className="slm-followup-action slm-followup-action--ask" onClick={() => void ask()}>
-          <IconReply /> Ask in chat
+        <button
+          type="button"
+          className="slm-followup-action slm-followup-action--ask"
+          onClick={() => void ask().finally(() => {
+            sendingRef.current = false;
+          })}
+          disabled={sendState === 'sending'}
+          aria-busy={sendState === 'sending'}
+          data-state={sendState === 'idle' ? undefined : sendState}
+        >
+          <IconReply /> {askFinished()}
         </button>
       </div>
+      <span className="slm-sr-only" role="status" aria-live="polite">
+        {liveMessage()}
+      </span>
     </div>
   );
 }

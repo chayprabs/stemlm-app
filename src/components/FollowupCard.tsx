@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { Capsule, Session, StepFollowup } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
@@ -16,7 +16,7 @@ export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme
       {capsule.steps.map((step) => (
         <section key={step.id} className="slm-followup-answer-block">
           {capsule.steps.length > 1 && (
-            <h3 className="slm-followup-answer-title">{step.title}</h3>
+            <h3 className="slm-followup-answer-title"><MathMarkdown content={step.title} inline /></h3>
           )}
           {shouldShowFormulaBlock(step) && step.formula && (
             <div className="slm-formula">
@@ -26,10 +26,7 @@ export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme
           )}
           <StepWork step={step} className="slm-step-work slm-card-body" />
           {step.diagram && (
-            <div className="slm-step-diagram">
-              <span className="slm-step-diagram-label">Diagram</span>
-              <DiagramRenderer diagram={step.diagram} theme={theme} />
-            </div>
+            <DiagramRenderer diagram={step.diagram} theme={theme} section />
           )}
           {step.takeaway && (
             <div className="slm-takeaway slm-selectable">
@@ -68,6 +65,7 @@ export function FollowupCard({
   ordinal: number;
   theme: ResolvedTheme;
 }) {
+  const reducedMotion = useReducedMotion();
   const anchorStep = session.capsule.steps.find((s) => s.id === followup.anchorStepId);
   const problem =
     cleanSessionQuestion(session.question) ||
@@ -85,17 +83,17 @@ export function FollowupCard({
     <motion.article
       key={followup.id}
       className="slm-card slm-card--followup"
-      initial={{ opacity: 0, y: 8 }}
+      initial={reducedMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+      exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
+      transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
     >
       <header className="slm-card-head">
         <span className="slm-followup-card-kicker">
           Follow-up {ordinal > 1 ? `${ordinal} ` : ''}· after step {anchorStepNumber}
         </span>
         <h2 className="slm-card-title">
-          {followup.question || followup.capsule.meta.topic || 'Your question'}
+          <MathMarkdown content={followup.question || followup.capsule.meta.topic || 'Your question'} inline />
         </h2>
       </header>
 

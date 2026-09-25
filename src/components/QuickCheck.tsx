@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { QuickCheck as QuickCheckType } from '@/src/protocol/types';
 import { MathMarkdown } from './MathMarkdown';
 import { IconEye } from './icons';
@@ -15,6 +15,7 @@ export function QuickCheck({
   checkNumber?: number;
 }) {
   const [revealed, setRevealed] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   return (
     <div className="slm-quickcheck">
@@ -42,9 +43,9 @@ export function QuickCheck({
         <AnimatePresence>
           <motion.div
             className="slm-quickcheck-a"
-            initial={{ opacity: 0, height: 0 }}
+            initial={reducedMotion ? false : { opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
+            transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: 'easeOut' }}
           >
             <MathMarkdown content={check.answer} />
           </motion.div>

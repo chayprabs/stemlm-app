@@ -1,17 +1,22 @@
 import type { CompileCtx, CompileResult } from '../types';
-import { specGet, specGetAll, specHas, specNumber, type SpecDoc } from '../spec';
+import { specGet, specGetAll, specHasEmptyDelimitedValue, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
 
-function parsePieces(raw: string | undefined): { x: number; y: number }[] {
-  if (!raw) return [];
-  return raw.split(';').flatMap((p) => {
-    const nums = p.trim().split(/[\s,]+/).map(Number);
-    if (nums.length >= 2 && Number.isFinite(nums[0]) && Number.isFinite(nums[1])) {
-      return [{ x: nums[0]!, y: nums[1]! }];
+function parsePieces(raw: string | undefined): { points: { x: number; y: number }[]; malformed: boolean } {
+  if (!raw) return { points: [], malformed: false };
+  const points: { x: number; y: number }[] = [];
+  let malformed = false;
+  raw.split(';').forEach((piece) => {
+    const value = piece.trim();
+    const nums = value ? value.split(/[\s,]+/).map(Number) : [];
+    if (nums.length === 2 && nums.every((number) => Number.isFinite(number))) {
+      points.push({ x: nums[0]!, y: nums[1]! });
+    } else {
+      malformed = true;
     }
-    return [];
   });
+  return { points, malformed };
 }
 
 function fail(reason: string): CompileResult {
@@ -19,9 +24,10 @@ function fail(reason: string): CompileResult {
 }
 
 type Station = { kind: string; at: number; label: string };
+type ParsedStations = { stations: Station[]; malformed: boolean };
 
-function parseStations(raw: string | undefined, length: number): Station[] {
-  if (!raw) return [];
+function parseStations(raw: string | undefined, length: number): ParsedStations {
+  if (!raw) return { stations: [], malformed: false };
   const rawItems: string[] = [];
   if (raw.trim().startsWith('[')) {
     try {
@@ -37,16 +43,32 @@ function parseStations(raw: string | undefined, length: number): Station[] {
     } catch { /* use line syntax below */ }
   }
   if (!rawItems.length) rawItems.push(...raw.split(/[,;]+/));
-  return rawItems.flatMap((item, index) => {
+  let malformed = false;
+  const stations = rawItems.flatMap((item, index) => {
     const value = item.trim();
-    if (!value) return [];
-    const at = /@\s*(-?\d+(?:\.\d+)?)/.exec(value)?.[1];
+    if (!value) {
+      malformed = true;
+      return [];
+    }
+    const atMatch = /@\s*([^\s]+)$/.exec(value);
+    const at = atMatch?.[1];
     const namedAt = /\b(?:left|inlet|start)\b/i.test(value) ? 0 : /\b(?:right|outlet|end)\b/i.test(value) ? length : undefined;
-    const n = at === undefined ? (namedAt ?? (Number.isFinite(Number(value)) ? Number(value) : index === 0 ? 0 : length)) : Number(at);
-    if (!Number.isFinite(n) || n < 0 || n > length) return [];
+    const hasExplicitTarget = value.includes('@');
+    const n = at === undefined
+      ? (namedAt ?? (Number.isFinite(Number(value)) ? Number(value) : index === 0 ? 0 : length))
+      : /^(?:-?\d+(?:\.\d+)?|-?\.\d+)$/.test(at)
+        ? Number(at)
+        : namedAt !== undefined && /^(?:left|inlet|start|right|outlet|end)$/i.test(at)
+          ? namedAt
+          : NaN;
+    if (!Number.isFinite(n) || n < 0 || n > length || (hasExplicitTarget && at === undefined)) {
+      malformed = true;
+      return [];
+    }
     const kind = value.replace(/@\s*-?\d+(?:\.\d+)?/, '').replace(/\b(?:left|right|inlet|outlet|start|end)\b/gi, '').trim().split(/\s+/)[0] || 'point';
     return [{ kind: kind.toLowerCase(), at: n, label: value }];
   });
+  return { stations, malformed };
 }
 
 function drawSupport(b: SceneBuilder, id: string, kind: string, x: number, y: number): void {
@@ -70,12 +92,85 @@ function ordinate(points: { x: number; y: number }[], mapX: (x: number) => numbe
   return points.flatMap((point) => [mapX(point.x), y0 - (point.y / max) * height]);
 }
 
+/** Physical admission is separate from preserving supplied ordinate geometry. */
+export function validateSfdSemantics(spec: SpecDoc): string | null {
+  const length = specNumber(spec, 'l', 8) ?? 8;
+  const shear = parsePieces(specGetAll(spec, 'v').join(';')).points;
+  const moment = parsePieces(specGetAll(spec, 'm').join(';')).points;
+  const distanceTolerance = Math.max(1, length) * 1e-9;
+  for (const [name, points] of [['V', shear], ['M', moment]] as const) {
+    if (points.length < 2 || Math.abs(points[0]!.x) > distanceTolerance ||
+      Math.abs(points[points.length - 1]!.x - length) > distanceTolerance) {
+      return `${name} ordinates must cover the complete beam span`;
+    }
+    if (points.some((point, i) => point.x < 0 || point.x > length || (i > 0 && point.x < points[i - 1]!.x))) {
+      return `${name} stations must be ordered and inside the beam span`;
+    }
+  }
+  const supports = parseStations(specGetAll(spec, 'supports').join(','), length).stations;
+  if (supports.some(support => support.kind !== 'pin' && support.kind !== 'roller')) {
+    return 'sfd can depict pin and roller supports only';
+  }
+  const loads = parseStations(specGetAll(spec, 'loads').join(','), length).stations;
+  if (loads.some(load => !/^(?:point\s+\S+(?:\s+down)?|[A-Za-z]\d*)\s*@/i.test(load.label))) {
+    return 'sfd can depict downward point loads only; other loading must not be substituted';
+  }
+  // Allow ordinary rounded ordinates, without accepting a different moment curve.
+  const scale = Math.max(1, ...moment.map(point => Math.abs(point.y)), ...shear.map(point => Math.abs(point.y) * length));
+  const tolerance = scale * 1e-4;
+  const numericLoads = new Map<number, number>();
+  for (const load of loads) {
+    const quantity = /^point\s+([+-]?\d+(?:\.\d+)?)(?:[A-Za-z]+)?(?:\s+down)?\s*@/i.exec(load.label);
+    if (!quantity) continue;
+    const magnitude = Number(quantity[1]);
+    if (magnitude <= 0) return 'a downward point load must have a positive magnitude';
+    numericLoads.set(load.at, (numericLoads.get(load.at) ?? 0) + magnitude);
+  }
+  for (const [at, magnitude] of numericLoads) {
+    if (at === 0 || at === length || supports.some(support => support.at === at)) continue;
+    const ordinates = shear.filter(point => Math.abs(point.x - at) <= distanceTolerance);
+    const jump = ordinates.length > 1 ? ordinates[ordinates.length - 1]!.y - ordinates[0]!.y : 0;
+    if (Math.abs(jump + magnitude) > Math.max(1, magnitude) * 1e-4) {
+      return 'the shear jump must match the declared downward point load in consistent units';
+    }
+  }
+  for (let i = 1; i < moment.length; i++) {
+    const start = moment[i - 1]!;
+    const end = moment[i]!;
+    if (end.x === start.x && Math.abs(end.y - start.y) > tolerance) {
+      return 'sfd cannot depict the concentrated couple required by a moment jump';
+    }
+    let integral = 0;
+    for (let j = 1; j < shear.length; j++) {
+      const left = shear[j - 1]!;
+      const right = shear[j]!;
+      const from = Math.max(start.x, left.x);
+      const to = Math.min(end.x, right.x);
+      if (to <= from) continue;
+      const slope = (right.y - left.y) / (right.x - left.x);
+      integral += (left.y + slope * ((from + to) / 2 - left.x)) * (to - from);
+    }
+    if (Math.abs(end.y - start.y - integral) > tolerance) {
+      return 'supplied shear and moment ordinates contradict dM/dx = V';
+    }
+  }
+  const endpointSupports = supports.length ? supports.filter(support => support.at === 0 || support.at === length) : [{ at: 0 }, { at: length }];
+  if (endpointSupports.some(support => moment.some(point => point.x === support.at && Math.abs(point.y) > tolerance))) {
+    return 'moment must be zero at a pin or roller beam end without an applied couple';
+  }
+  return null;
+}
+
 export function compileSfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const L = specNumber(spec, 'l', 8) ?? 8;
-  const V = parsePieces(specGet(spec, 'v'));
-  const M = parsePieces(specGet(spec, 'm'));
+  const parsedV = parsePieces(specGetAll(spec, 'v').join(';'));
+  const parsedM = parsePieces(specGetAll(spec, 'm').join(';'));
+  const V = parsedV.points;
+  const M = parsedM.points;
   const sign = specGet(spec, 'sign');
   if (!Number.isFinite(L) || L <= 0) return fail('length must be positive');
+  if (parsedV.malformed) return fail('V series contains a malformed ordinate piece');
+  if (parsedM.malformed) return fail('M series contains a malformed ordinate piece');
   if (!V.length || !M.length) return fail('sfd requires both V and M ordinate series');
   if (sign && sign.toLowerCase().replace(/[\s_-]+/g, '') !== 'sagging+' && sign.toLowerCase().replace(/[\s_-]+/g, '') !== 'saggingpositive') {
     return fail('sfd supports the sagging-positive sign convention only');
@@ -89,13 +184,17 @@ export function compileSfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const padR = 12;
   const mapX = (x: number) => padL + (x / L) * (w - padL - padR);
 
-  const supports = parseStations(specGet(spec, 'supports'), L);
+  if (specHasEmptyDelimitedValue(spec, 'supports') || specHasEmptyDelimitedValue(spec, 'loads')) return fail('sfd contains an empty station declaration');
+  const parsedSupports = parseStations(specGetAll(spec, 'supports').join(','), L);
+  const parsedLoads = parseStations(specGetAll(spec, 'loads').join(','), L);
+  if (parsedSupports.malformed || parsedLoads.malformed) return fail('sfd contains an unknown or malformed station target');
+  const supports = parsedSupports.stations;
   supports.forEach((support, index) => {
     const id = `support-${support.kind}-${index}`;
     drawSupport(b, id, support.kind, mapX(support.at), 25);
     b.label(`${id}-label`, support.kind, mapX(support.at), 11, { slot: 'N', priority: 'optional' });
   });
-  const loads = parseStations(specGet(spec, 'loads'), L);
+  const loads = parsedLoads.stations;
   loads.forEach((load, index) => {
     const x = mapX(load.at);
     b.line(`load-${index}`, x, 28, x, 49, { color: 'danger', role: 'annotation', markerEnd: true });
@@ -135,11 +234,22 @@ export function compileSfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 }
 
 export function compileBeam(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  const allowed = new Set(['l', 'span', 'supports', 'loads', 'reactions', 'elastic_curve', 'caption', 'highlight']);
+  const unknown = [...spec.values.keys(), ...spec.lists.keys()].filter((key) => !allowed.has(key));
+  if (unknown.length) return fail(`unsupported beam key: ${unknown.join(', ')}`);
+  if (specGetAll(spec, 'loads').some((line) => line.split(/[,;]+/).some((load) => !/^\s*(?:point\s+\S+\s+down|[A-Za-z]\d*)\s*@\s*\S+\s*$/.test(load)))) {
+    return fail('beam loads must be point LABEL down@x or a point-force symbol@x');
+  }
   const L = specNumber(spec, 'l', specNumber(spec, 'span', 8)) ?? 8;
   if (!Number.isFinite(L) || L <= 0) return fail('beam span must be positive');
-  const supports = parseStations(specGet(spec, 'supports'), L);
-  const loads = parseStations(specGet(spec, 'loads'), L);
-  const reactions = parseStations(specGet(spec, 'reactions'), L);
+  if (specHasEmptyDelimitedValue(spec, 'supports') || specHasEmptyDelimitedValue(spec, 'loads') || specHasEmptyDelimitedValue(spec, 'reactions')) return fail('beam contains an empty station declaration');
+  const parsedSupports = parseStations(specGetAll(spec, 'supports').join(','), L);
+  const parsedLoads = parseStations(specGetAll(spec, 'loads').join(','), L);
+  const parsedReactions = parseStations(specGetAll(spec, 'reactions').join(','), L);
+  if (parsedSupports.malformed || parsedLoads.malformed || parsedReactions.malformed) return fail('beam contains an unknown or malformed station target');
+  const supports = parsedSupports.stations;
+  const loads = parsedLoads.stations;
+  const reactions = parsedReactions.stations;
   if (supports.length < 2) return fail('beam requires two supports');
   const tolerance = Math.max(1e-6, L * 1e-6);
   const endpointSupports = supports.length === 2

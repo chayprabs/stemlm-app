@@ -6,6 +6,8 @@ import type { ResolvedTheme } from './theme';
 import {
   type DiagramSizeProfile,
   computeDisplaySize,
+  DIAGRAM_BOUNDS,
+  MAX_DIAGRAM_UPSCALE,
   getDisplayScale,
   parseViewBox as parseViewBoxDims,
 } from './diagram-bounds';
@@ -685,30 +687,41 @@ function compensateScaledText(root: Element, profile: DiagramSizeProfile): void 
   }
 }
 
-function decodeTextNodes(svg: string): string {
-  return svg.replace(
-    /<(text|tspan)([^>]*)>([\s\S]*?)<\/\1>/gi,
-    (full, tag: string, attrs: string, content: string) => {
-      const decoded = decodeSvgText(content);
-      let nextAttrs = attrs;
-      if (!/\bfont-family\s*=/i.test(nextAttrs)) {
-        nextAttrs += ` font-family="${FONT_SANS_SVG}"`;
-      }
-      if (!/\bfont-size\s*=/i.test(nextAttrs)) {
-        nextAttrs += ' font-size="14"';
-      }
-      return decoded === content && nextAttrs === attrs
-        ? full
-        : `<${tag}${nextAttrs}>${decoded}</${tag}>`;
-    },
-  );
+/**
+ * Decode LaTeX in label text and default the label font, in the DOM. Only
+ * text-node data changes, so a label can never turn into markup, and an empty
+ * `<text/>` cannot swallow the labels after it.
+ */
+function decodeTextNodes(root: Element): void {
+  for (const text of root.querySelectorAll('text')) {
+    if (!text.getAttribute('font-family')) text.setAttribute('font-family', FONT_SANS_SVG);
+    if (!text.getAttribute('font-size')) text.setAttribute('font-size', '14');
+    const runs: Text[] = [];
+    const walker = text.ownerDocument.createTreeWalker(text, 4 /* NodeFilter.SHOW_TEXT */);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) runs.push(node as Text);
+    runs.forEach((run, i) => {
+      // decodeSvgText trims; keep the spaces that separate this run from its tspan siblings.
+      const lead = i > 0 && /^\s/.test(run.data) ? ' ' : '';
+      const trail = i < runs.length - 1 && /\s$/.test(run.data) ? ' ' : '';
+      const core = decodeSvgText(run.data);
+      const next = core ? `${lead}${core}${trail}` : lead || trail;
+      if (next !== run.data) run.data = next;
+    });
+  }
 }
 
-/** Prepare sanitized SVG markup for themed, proportional panel display. */
+/**
+ * Prepare sanitized SVG markup for themed, proportional panel display.
+ *
+ * `displayScale` is the reader's content-size preference. It multiplies the
+ * profile's computed box only; the compiler still owns the geometry, and the
+ * print profile is never called with a scale, so PDF output is unaffected.
+ */
 export function presentSvg(
   svg: string,
   theme: ResolvedTheme,
   profile: DiagramSizeProfile = 'step',
+  displayScale = 1,
 ): string {
   if (!svg.trim()) return svg;
 
@@ -723,12 +736,34 @@ export function presentSvg(
     root.setAttribute('viewBox', '0 0 100 100');
   }
 
-  const { width, height } = computeDisplaySize(root.getAttribute('viewBox'), profile);
+  const viewBox = root.getAttribute('viewBox');
+  const base = computeDisplaySize(viewBox, profile);
+  const bounds = parseViewBoxDims(viewBox);
+  const labels = [...root.querySelectorAll('text')].filter((text) => !text.closest('marker'));
+  // The layout kernel already placed compiler output collision-free at its own font
+  // sizes; moving or resizing those labels afterwards only ever broke that layout
+  // (SVG-PRESENT-02). Compiler figures therefore switch to the full-width layout as
+  // soon as text would fall below 8px, while hand-authored SVG keeps its text
+  // compensated instead.
+  const compiled = root.hasAttribute('data-stemlm-family');
+  const minLabelPx = compiled ? 8 : 6;
+  const tall = Boolean(bounds && labels.some((text) => textFontSize(text) * base.height / bounds.h < minLabelPx));
+  if (tall && bounds) {
+    // Preserve readable scene text by using the available width. The reading
+    // scroller and report pagination already accommodate content of any height.
+    const scale = Math.min(DIAGRAM_BOUNDS[profile].maxW / bounds.w, MAX_DIAGRAM_UPSCALE[profile]);
+    base.width = Math.round(bounds.w * scale);
+    base.height = Math.round(bounds.h * scale);
+    root.setAttribute('data-stemlm-tall', 'true');
+  }
+  const factor = Number.isFinite(displayScale) && displayScale > 0 ? displayScale : 1;
+  const width = Math.max(1, Math.round(base.width * factor));
+  const height = Math.max(1, Math.round(base.height * factor));
   root.setAttribute('width', String(width));
   root.setAttribute('height', String(height));
   root.setAttribute(
     'style',
-    `display:block;width:${width}px;height:${height}px;max-width:100%;`,
+    `display:block;width:${width}px;height:${tall ? 'auto' : `${height}px`};max-width:100%;${tall ? 'max-height:none;' : ''}`,
   );
   root.setAttribute('data-stemlm-theme', theme);
   root.setAttribute('data-stemlm-size', profile);
@@ -741,11 +776,13 @@ export function presentSvg(
   themeSvgTree(root, theme);
   syncMarkerFills(root);
   normalizeLabelTypography(root);
-  nudgeLabelsAwayFromGraphics(root);
-  spreadOverlappingLabels(root);
-  compensateScaledText(root, profile);
-  clampLabelsToViewBox(root);
+  if (!compiled) {
+    nudgeLabelsAwayFromGraphics(root);
+    spreadOverlappingLabels(root);
+    if (!tall) compensateScaledText(root, profile);
+    clampLabelsToViewBox(root);
+  }
+  decodeTextNodes(root);
 
-  let out = new XMLSerializer().serializeToString(root);
-  return decodeTextNodes(out);
+  return new XMLSerializer().serializeToString(root);
 }

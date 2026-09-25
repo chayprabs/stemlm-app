@@ -76,11 +76,153 @@ const LATEX_OPERATOR =
 
 export type MathRenderMode = 'auto' | 'display';
 
+/** Keep KaTeX work bounded when a malformed model response is very large. */
+export const MAX_MATH_RENDER_CHARS = 120_000;
+
 type MathSegment = { math: boolean; text: string };
+
+type ProtectedCode = { text: string; literals: Array<{ token: string; value: string }> };
+
+/**
+ * Programming identifiers are not math: `snake_case_name`, `x_1_2` (two or more
+ * underscores) and `max_value` (a word subscripted by a word).
+ */
+const CODE_IDENTIFIER =
+  /[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+){2,}(?![A-Za-z0-9_{])|[A-Za-z][A-Za-z0-9]+_[A-Za-z][A-Za-z0-9]+(?![A-Za-z0-9_{])/y;
+
+function protectCodeLiterals(src: string): ProtectedCode {
+  const literals: ProtectedCode['literals'] = [];
+  let out = '';
+  let cursor = 0;
+  let i = 0;
+
+  const protect = (start: number, end: number) => {
+    // Private-use sentinels contain no digits, operators, or LaTeX-like words,
+    // so the later STEM token wrapper cannot mistake a placeholder for math.
+    const ordinal = literals.length;
+    const token = `\uE000${String.fromCharCode(
+      0xe100 + Math.floor(ordinal / 0x1700),
+      0xe100 + (ordinal % 0x1700),
+    )}\uE001`;
+    out += src.slice(cursor, start) + token;
+    literals.push({ token, value: src.slice(start, end) });
+    cursor = end;
+    i = end;
+  };
+
+  while (i < src.length) {
+    if (i === 0 || /[\s("']/.test(src[i - 1]!)) {
+      const path = /^(?:https?:\/\/[^\s<>]+|(?:[A-Za-z]:[\\/]|(?:[A-Za-z0-9_.-]+[\\/])+)[^\s<>]*\.[A-Za-z][A-Za-z0-9]*)/.exec(src.slice(i));
+      if (path) {
+        protect(i, i + path[0].length);
+        continue;
+      }
+    }
+    const lineStart = i === 0 || src[i - 1] === '\n';
+    if (lineStart) {
+      const lineEnd = src.indexOf('\n', i);
+      const openEnd = lineEnd === -1 ? src.length : lineEnd;
+      const opening = /^\s{0,3}(`{3,}|~{3,})/.exec(src.slice(i, openEnd));
+      if (opening?.[1]) {
+        const fenceChar = opening[1][0]!;
+        const fenceLength = opening[1].length;
+        let closeStart = lineEnd === -1 ? src.length : lineEnd + 1;
+        let blockEnd = src.length;
+        while (closeStart < src.length) {
+          const closeEnd = src.indexOf('\n', closeStart);
+          const closeLineEnd = closeEnd === -1 ? src.length : closeEnd;
+          const closeLine = src.slice(closeStart, closeLineEnd);
+          const closing = /^\s{0,3}(`{3,}|~{3,})\s*$/.exec(closeLine);
+          if (
+            closing?.[1]?.[0] === fenceChar &&
+            closing[1].length >= fenceLength
+          ) {
+            blockEnd = closeLineEnd;
+            break;
+          }
+          if (closeEnd === -1) break;
+          closeStart = closeEnd + 1;
+        }
+        protect(i, blockEnd);
+        continue;
+      }
+    }
+
+    if (src[i] === '`') {
+      let runEnd = i + 1;
+      while (src[runEnd] === '`') runEnd += 1;
+      const marker = src.slice(i, runEnd);
+      const close = src.indexOf(marker, runEnd);
+      if (close !== -1) {
+        protect(i, close + marker.length);
+        continue;
+      }
+    }
+
+    if (i === 0 || !/[A-Za-z0-9_\\]/.test(src[i - 1]!)) {
+      CODE_IDENTIFIER.lastIndex = i;
+      const identifier = CODE_IDENTIFIER.exec(src);
+      if (identifier) {
+        protect(i, i + identifier[0].length);
+        continue;
+      }
+    }
+    i += 1;
+  }
+
+  out += src.slice(cursor);
+  return { text: out, literals };
+}
+
+function restoreCodeLiterals(src: string, literals: ProtectedCode['literals']): string {
+  let out = src;
+  // A replacement callback preserves `$` byte-for-byte; a replacement string
+  // would interpret `$$` as the special "insert one dollar" sequence.
+  for (const { token, value } of literals) out = out.replaceAll(token, () => value);
+  return out;
+}
+
+function protectEscapedMathLiterals(src: string): ProtectedCode {
+  const literals: ProtectedCode['literals'] = [];
+  const text = src.replace(/\\\$\\\$[\s\S]*?\\\$\\\$|\\\$[^\n]*?\\\$/g, (value) => {
+    const ordinal = literals.length;
+    const token = `\uE010${String.fromCharCode(
+      0xe200 + Math.floor(ordinal / 0x1600),
+      0xe200 + (ordinal % 0x1600),
+    )}\uE011`;
+    literals.push({ token, value });
+    return token;
+  });
+  return { text, literals };
+}
+
+function isEscapedAt(src: string, index: number): boolean {
+  let slashes = 0;
+  for (let i = index - 1; i >= 0 && src[i] === '\\'; i--) slashes += 1;
+  return slashes % 2 === 1;
+}
+
+function findUnescapedDelimiter(src: string, delimiter: '$' | '$$', from: number): number {
+  let index = src.indexOf(delimiter, from);
+  while (index !== -1) {
+    if (!isEscapedAt(src, index)) return index;
+    index = src.indexOf(delimiter, index + delimiter.length);
+  }
+  return -1;
+}
 
 /** Convert \(..\) / \[..\] to $..$ / $$..$$. */
 export function normalizeMathDelimiters(src: string): string {
   return src
+    .replace(/\\text\{[^{}]*\}/g, (text) => text.replace(/\\?\$/g, () => '\\textdollar{}'))
+    // JSX/DOM extraction can preserve a doubled slash. Treat that as a
+    // literal delimiter spelling instead of turning half of it into math.
+    .replace(/\\\\\[(.+?)\\\\\]/gs, (_m, inner: string) =>
+      '\\$\\$' + inner + '\\$\\$',
+    )
+    .replace(/\\\\\((.+?)\\\\\)/gs, (_m, inner: string) =>
+      '\\$' + inner + '\\$',
+    )
     .replace(/\\\[(.+?)\\\]/gs, (_m, inner: string) => `$$${inner}$$`)
     .replace(/\\\((.+?)\\\)/gs, (_m, inner: string) => `$${inner}$`);
 }
@@ -96,6 +238,102 @@ export function protectFragileLatexCommands(src: string): string {
 /** Book-style stacked fractions for unicode vulgar fractions. */
 export function normalizeUnicodeFractions(src: string): string {
   return src.replace(UNICODE_FRAC_RE, (ch) => UNICODE_FRACS[ch] ?? ch);
+}
+
+/**
+ * Drop one unmatched `$$` token so a truncated display delimiter cannot make
+ * remark-math consume the rest of a prose paragraph as one broken formula.
+ */
+export function repairUnmatchedDisplayDelimiter(src: string): string {
+  let inline = false;
+  let displayOpen: number | null = null;
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] !== '$' || isEscapedAt(src, i)) continue;
+    if (inline) {
+      inline = false;
+      continue;
+    }
+    if (displayOpen !== null) {
+      if (src[i + 1] === '$') {
+        displayOpen = null;
+        i += 1;
+      }
+      continue;
+    }
+    if (src[i + 1] === '$') {
+      displayOpen = i;
+      i += 1;
+      continue;
+    }
+    inline = true;
+  }
+  if (displayOpen === null) return src;
+  const unmatched = displayOpen;
+  return `${src.slice(0, unmatched)}${src.slice(unmatched + 2)}`;
+}
+
+function rootAtomEnd(src: string, start: number): number {
+  let atomStart = start;
+  if (src[atomStart] === '+' || src[atomStart] === '-') {
+    atomStart = skipSpaces(src, atomStart + 1);
+  }
+  if (src[atomStart] === '{') {
+    const arg = readBracedArg(src, atomStart);
+    return arg ? atomStart + arg.length : start;
+  }
+  const atom = src.slice(atomStart).match(/^[A-Za-z0-9](?:_\{[^{}]+\}|_[A-Za-z0-9])?(?:\^\{[^{}]+\}|\^[A-Za-z0-9])?/);
+  return atom ? atomStart + atom[0].length : start;
+}
+
+function normalizeRootText(src: string): string {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const named = src.slice(i).match(/^(sqrt|cbrt)\s*\(/i);
+    const atBoundary = i === 0 || !/[A-Za-z0-9_\\]/.test(src[i - 1]!);
+    if (named && atBoundary) {
+      const open = i + named[0].lastIndexOf('(');
+      const close = findMatching(src, open, '(', ')');
+      if (close >= 0) {
+        const index = named[1]!.toLowerCase() === 'cbrt' ? '[3]' : '';
+        out += `\\sqrt${index}{${normalizeRootText(src.slice(open + 1, close))}}`;
+        i = close + 1;
+        continue;
+      }
+    }
+
+    const symbol = src[i];
+    if (symbol === '√' || symbol === '∛' || symbol === '∜') {
+      const degree = symbol === '∛' ? '[3]' : symbol === '∜' ? '[4]' : '';
+      const start = skipSpaces(src, i + 1);
+      if (src[start] === '(') {
+        const close = findMatching(src, start, '(', ')');
+        if (close >= 0) {
+          out += `\\sqrt${degree}{${normalizeRootText(src.slice(start + 1, close))}}`;
+          i = close + 1;
+          continue;
+        }
+      }
+      const end = rootAtomEnd(src, start);
+      if (end > start) {
+        const atom = src.slice(start, end).replace(/^\{([\s\S]*)\}$/, '$1');
+        out += `\\sqrt${degree}{${atom}}`;
+        i = end;
+        continue;
+      }
+    }
+
+    out += src[i];
+    i += 1;
+  }
+  return out;
+}
+
+/** Convert common calculator/plain-text root notation to documented KaTeX. */
+export function normalizeRootNotation(src: string): string {
+  return splitMathSegments(src)
+    .map((segment) => normalizeRootText(segment.text))
+    .join('');
 }
 
 export function hasMathDelimiters(src: string): boolean {
@@ -138,8 +376,20 @@ function skipSpaces(src: string, i: number): number {
 }
 
 function stripMathDecorations(text: string): string {
-  return text
-    .replace(/\\[A-Za-z]+(\s*\{[^{}]*\}){0,2}/g, ' ')
+  let plain = '';
+  let end = 0;
+  for (const command of text.matchAll(/\\[A-Za-z]+/g)) {
+    if (command.index < end) continue;
+    plain += text.slice(end, command.index) + ' ';
+    end = command.index + command[0].length;
+    for (let argument = 0; argument < 2; argument += 1) {
+      const start = skipSpaces(text, end);
+      const braces = readBracedArg(text, start);
+      if (!braces) break;
+      end = start + braces.length;
+    }
+  }
+  return (plain + text.slice(end))
     .replace(/_\{[^{}]*\}/g, ' ')
     .replace(/_[A-Za-z0-9]+/g, ' ')
     .replace(/\^\{[^{}]*\}/g, ' ')
@@ -207,14 +457,41 @@ function isAlreadyDelimitedMath(text: string): boolean {
   return /^\$[^$\n]+\$$/.test(t);
 }
 
+/**
+ * `$5 … $` opens with an amount and does not close like math: the closing `$`
+ * follows a space or precedes a digit (`$7, so $12`), or the span is prose.
+ */
+function isCurrencySpan(line: string, open: number, close: number): boolean {
+  if (!/\d/.test(line[open + 1] ?? '')) return false;
+  return /\s/.test(line[close - 1]!) || /\d/.test(line[close + 1] ?? '') ||
+    looksLikeProseWithMath(line.slice(open + 1, close));
+}
+
 /** Split a line into math-delimited and plain-text runs. */
 export function splitMathSegments(line: string): MathSegment[] {
   const segments: MathSegment[] = [];
   let i = 0;
 
   while (i < line.length) {
+    // Inline code is literal: `$$not math$$` must survive byte for byte.
+    if (line[i] === '`') {
+      const close = line.indexOf('`', i + 1);
+      if (close !== -1) {
+        segments.push({ math: false, text: line.slice(i, close + 1) });
+        i = close + 1;
+        continue;
+      }
+    }
+
+    // An escaped `\$` is a literal dollar sign, never a delimiter.
+    if (line[i] === '\\' && line[i + 1] === '$') {
+      segments.push({ math: false, text: line.slice(i, i + 2) });
+      i += 2;
+      continue;
+    }
+
     if (line.startsWith('$$', i)) {
-      const end = line.indexOf('$$', i + 2);
+      const end = findUnescapedDelimiter(line, '$$', i + 2);
       if (end !== -1) {
         segments.push({ math: true, text: line.slice(i, end + 2) });
         i = end + 2;
@@ -223,16 +500,25 @@ export function splitMathSegments(line: string): MathSegment[] {
     }
 
     if (line[i] === '$' && line[i + 1] !== '$') {
-      const end = line.indexOf('$', i + 1);
+      const end = findUnescapedDelimiter(line, '$', i + 1);
       if (end !== -1) {
+        if (isCurrencySpan(line, i, end)) {
+          segments.push({ math: true, text: '\\$' + line.slice(i + 1, end) });
+          i = end;
+          continue;
+        }
         segments.push({ math: true, text: line.slice(i, end + 1) });
         i = end + 1;
         continue;
       }
     }
 
-    const next = line.indexOf('$', i);
-    const end = next === -1 ? line.length : next;
+    let end = i;
+    while (end < line.length) {
+      if (line[end] === '`' || (line[end] === '\\' && line[end + 1] === '$')) break;
+      if (line[end] === '$' && !isEscapedAt(line, end)) break;
+      end += 1;
+    }
     if (end === i) {
       // Treat stray delimiters as literal text so we always make progress.
       segments.push({ math: false, text: '$' });
@@ -247,15 +533,31 @@ export function splitMathSegments(line: string): MathSegment[] {
   return segments.length ? segments : [{ math: false, text: line }];
 }
 
+/** `$5 and $7` is money the model never meant as math. */
+const CURRENCY_OPENER = /^\$\d/;
+
+/**
+ * A delimited span is prose only when it reads as a phrase: two or more sentence
+ * words (3+ letters, lowercase or Capitalised). Point names (`ABC`), unit symbols
+ * and math functions never count, so `$\angle ABC = 90^{\circ}$` stays one formula.
+ */
+function isProseInsideDelimiters(inner: string): boolean {
+  return (stripMathDecorations(inner).match(/\b(?:[A-Z][a-z]{2,}|[a-z]{3,})\b/g) ?? [])
+    .filter((word) => !MATH_FUNS.has(word.toLowerCase())).length >= 2;
+}
+
 function unwrapProseMathDelimiters(segment: string): string {
   const t = segment.trim();
   if (t.startsWith('$$') && t.endsWith('$$')) {
     const inner = t.slice(2, -2);
-    return looksLikeProseWithMath(inner) ? inner : segment;
+    return isProseInsideDelimiters(inner) ? inner : segment;
   }
   if (t.startsWith('$') && t.endsWith('$') && t.length > 2) {
     const inner = t.slice(1, -1);
-    return looksLikeProseWithMath(inner) ? inner : segment;
+    // Two currency amounts read as one `$..$` span. Escaping keeps both dollar
+    // signs visible; dropping them would silently delete them from the prose.
+    if (CURRENCY_OPENER.test(t) && looksLikeProseWithMath(inner)) return segment.replace(/\$/g, '\\$');
+    return isProseInsideDelimiters(inner) ? inner : segment;
   }
   return segment;
 }
@@ -449,7 +751,8 @@ function parseParens(src: string, i: number): number {
   const close = findMatching(src, i, '(', ')');
   if (close < 0) return i;
   const inner = src.slice(i + 1, close);
-  if (!innerIsMath(inner)) return i;
+  const unitRatio = /^[A-Za-z]+(?:\s*[\/×·]\s*[A-Za-z]+)+$/.test(inner.trim());
+  if (!innerIsMath(inner) && !unitRatio) return i;
   return parseSubSup(src, close + 1);
 }
 
@@ -596,14 +899,34 @@ function parseMathExpr(src: string, start: number): number {
   return end;
 }
 
+/** Any Unicode letter or digit — Greek included, so `Δx` is one token. */
+const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+
 function isMathBoundary(src: string, i: number): boolean {
   if (i <= 0) return true;
   const prev = src[i - 1]!;
   const cur = src[i]!;
-  // Don't start a match in the middle of an English word (`rad/s^2` → not `d/s^2`).
+  // Don't start a match in the middle of a word (`rad/s^2` → not `d/s^2`), and
+  // never split a symbol from its Greek prefix (`Δx` → not `Δ$x$`).
   // Do allow `b|\vec{R}|`, `x_0`, `2\pi` (digit/symbol boundaries).
-  if (/[A-Za-z]/.test(prev) && /[A-Za-z]/.test(cur)) return false;
+  if (WORD_CHARACTER.test(prev) && WORD_CHARACTER.test(cur)) return false;
   return true;
+}
+
+const UNIT_SYMBOL = String.raw`[pnumcdkMGT]?(?:mol|cd|Pa|Hz|Wb|eV|rad|sr|atm|bar|min|m|g|s|A|K|N|J|W|V|C|F|H|T|S|L|h)(?:\^\{?[+\-]?\d+\}?)?`;
+const TRAILING_UNIT = new RegExp(String.raw`(\d)\s+(${UNIT_SYMBOL}(?:\s*[/·*]\s*${UNIT_SYMBOL})*)$`);
+
+/** `g = 9.81 m/s^2` → `g = 9.81\,\mathrm{m/s^2}`: a unit after a number is upright, not a variable. */
+function uprightTrailingUnit(math: string): string {
+  return math.replace(TRAILING_UNIT, (_match, digit: string, unit: string) => `${digit}\\,\\mathrm{${unit}}`);
+}
+
+/** `V_out` → `V_{out}`: a one-letter symbol takes the whole word as its subscript. */
+function braceWordSubscripts(text: string): string {
+  return text.replace(
+    /(^|[^A-Za-z0-9\\_])([A-Za-z])_([A-Za-z]{2,}[0-9]*|[0-9]{2,})(?![A-Za-z0-9_{])/g,
+    '$1$2_{$3}',
+  );
 }
 
 function wrapUndelimitedStemTokens(text: string): string {
@@ -618,9 +941,10 @@ function wrapUndelimitedStemTokens(text: string): string {
         continue;
       }
     }
-    const end = parseMathExpr(text, i);
-    if (end > i && isMathBoundary(text, i)) {
-      out += wrapAsMath(text.slice(i, end), false);
+    const end = isMathBoundary(text, i) ? parseMathExpr(text, i) : i;
+    if (end > i) {
+      if (out.endsWith('$')) out += ' ';
+      out += wrapAsMath(uprightTrailingUnit(text.slice(i, end)), false);
       i = end;
       continue;
     }
@@ -683,8 +1007,35 @@ function wrapRawLatexLine(line: string, forceDisplay: boolean): string {
   return wrapFragmentsInLine(processed);
 }
 
+/**
+ * `$E =⏎mc^2$`: models wrap long inline math onto the next line. Markdown reads a
+ * soft break as a space, so rejoin the two lines when the `$` pair is tight
+ * (no space inside either delimiter, no digit after the closer).
+ */
+function joinSoftBrokenInlineMath(src: string): string {
+  const lines = src.split('\n');
+  for (let n = 0; n + 1 < lines.length; n++) {
+    const line = lines[n]!;
+    const next = lines[n + 1]!;
+    if (isStructuralMarkdownLine(line) || isStructuralMarkdownLine(next)) continue;
+    if (/^\s*(?:[-*+>]|\d+[.)])\s/.test(next)) continue;
+    const segments = splitMathSegments(line);
+    const tail = segments.at(-1)!;
+    const opener = segments.at(-2);
+    if (opener?.math !== false || opener.text !== '$' || tail.math) continue;
+    if (!/^[^\s\d]/.test(tail.text) || /[$`]/.test(tail.text)) continue;
+    const close = findUnescapedDelimiter(next, '$', 0);
+    if (close < 1 || /\s/.test(next[close - 1]!) || /[$\d]/.test(next[close + 1] ?? '')) continue;
+    if (next.slice(0, close).includes('`')) continue;
+    lines.splice(n, 2, `${line.trimEnd()} ${next.trimStart()}`);
+    n -= 1;
+  }
+  return lines.join('\n');
+}
+
 /** Wrap undelimited LaTeX after list markers or colons within a prose line. */
 function wrapInlineRawLatexSegments(line: string): string {
+  if (hasMathDelimiters(line)) return line;
   const listMatch = /^(\s*[-*+]\s+)(.+)$/.exec(line);
   if (listMatch?.[1] && listMatch[2]) {
     const prefix = listMatch[1];
@@ -709,27 +1060,77 @@ function wrapInlineRawLatexSegments(line: string): string {
  * Prepare capsule math for MathMarkdown / KaTeX.
  * @param mode — `display` for @formula blocks; `auto` for mixed prose.
  */
-export function prepareMathForRender(content: string, mode: MathRenderMode = 'auto'): string {
-  let src = dedupeComposerMath(stripProtocolMarkers(content));
+export function prepareMathForRender(content: string, mode: MathRenderMode = 'auto', markdown = false): string {
+  if (content.length > MAX_MATH_RENDER_CHARS) {
+    return 'Math content is too large to typeset safely.';
+  }
+  const protectedCode = protectCodeLiterals(content);
+  let src = dedupeComposerMath(stripProtocolMarkers(protectedCode.text));
   if (!src.trim()) return src;
 
   src = protectFragileLatexCommands(src);
   src = normalizeMathDelimiters(src);
+  const protectedEscapedMath = protectEscapedMathLiterals(src);
+  src = protectedEscapedMath.text;
+  const displayLiterals: ProtectedCode['literals'] = [];
+  const markdownDelimiters = (value: string) => markdown
+    ? value.replace(/^([\t ]*)\$\$([\s\S]*?)\$\$[\t ]*(?=\n|$)/gm,
+      (_match, indent: string, math: string) => `${indent}$$\n${math.trim().split('\n').map((line) => indent + line).join('\n')}\n${indent}$$`)
+    : value;
+  const restoreLiterals = (value: string) =>
+    restoreCodeLiterals(
+      restoreCodeLiterals(markdownDelimiters(restoreCodeLiterals(value, displayLiterals)), protectedEscapedMath.literals),
+      protectedCode.literals,
+    );
+  src = repairUnmatchedDisplayDelimiter(src);
   src = normalizeUnicodeFractions(src);
+  src = normalizeRootNotation(src);
 
   const forceDisplay = mode === 'display';
   const trimmed = src.trim();
 
   if (forceDisplay && trimmed && !hasMathDelimiters(trimmed)) {
-    return wrapAsMath(trimmed, true);
+    return restoreLiterals(wrapAsMath(braceWordSubscripts(trimmed), true));
   }
 
   if (forceDisplay && /^\$[^$\n]+\$$/.test(trimmed)) {
-    return wrapAsMath(trimmed.slice(1, -1), true);
+    return restoreLiterals(wrapAsMath(trimmed.slice(1, -1), true));
   }
 
-  const lines = src.split('\n');
-  return lines
-    .map((line) => wrapInlineRawLatexSegments(wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay))))
+  // Everything inside a fenced code block is literal: the student is reading
+  // code, not math, and `let x_1 = $2;` must survive byte for byte.
+  let inFence = false;
+  src = src.replace(/(?<!\\)\$\$[\s\S]*?\$\$/g, (value) => {
+    if (!value.includes('\n')) return value;
+    const token = `\uE020${String.fromCharCode(0xe300 + displayLiterals.length)}\uE021`;
+    displayLiterals.push({ token, value });
+    return token;
+  });
+  const lines = joinSoftBrokenInlineMath(src).split('\n');
+  const prepared = lines
+    .map((line) => {
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      line = splitMathSegments(line).map((segment) => {
+        // remark-math ends inline math at any `$`, even an escaped one.
+        if (segment.math) {
+          return segment.text.startsWith('$')
+            ? segment.text.replace(/(?<!\\)\\\$/g, '\\text{\\textdollar}')
+            : segment.text;
+        }
+        if (segment.text === '$') return markdown ? '\\$' : '$';
+        return braceWordSubscripts(segment.text);
+      }).join('');
+      if (markdown && /^\s*\|/.test(line)) {
+        return splitMathSegments(line).map((segment) => segment.math
+          ? segment.text.replace(/(?<!\\)\|/g, '\\vert ')
+          : segment.text).join('');
+      }
+      return wrapInlineRawLatexSegments(wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay)));
+    })
     .join('\n');
+  return restoreLiterals(prepared);
 }

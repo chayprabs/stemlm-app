@@ -5,6 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { DiagramRenderer } from './DiagramRenderer';
 import { parseCapsule } from '@/src/protocol/parser';
 import { MECHANICAL_AXIAL_STRESS_BAR } from '@/src/protocol/__fixtures-visual-subjects';
+import { useStore } from '@/src/state/store';
+import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -130,7 +132,7 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(svgHtml).not.toContain('<path d="M0,0 L20,10');
   });
 
-  it('falls back when the diagram is labels only (no drawable shapes)', async () => {
+  it('hides the whole section when only labels survive validation', async () => {
     const diagram = {
       type: 'svg' as const,
       content:
@@ -142,8 +144,8 @@ describe('DiagramRenderer in shadow DOM', () => {
 
     await flushDiagram();
 
-    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
-    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('Port 2');
+    expect(mounted.shadow.querySelector('figure, pre, .slm-step-diagram')).toBeNull();
+    expect(mounted.shadow.textContent).not.toContain('Port 2');
   });
 
   it('mounts a compiled plot spec with SVG and overlay siblings', async () => {
@@ -212,32 +214,36 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(html).toContain('RL');
   });
 
-  it('prose-only field body falls back to pre, not a fake figure', async () => {
+  it('hides a prose-only field body and retains its diagnostic', async () => {
+    const onCompileFailure = vi.fn();
     const diagram = {
       type: 'field',
       content:
         'SPEC: A cross-section of a solenoid coil wrapped around a solid cylindrical core.\n- The core is shaded.',
     };
-    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" section onCompileFailure={onCompileFailure} />);
     host = mounted.host;
     root = mounted.root;
-    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
-    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
-    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('SPEC:');
+    await flushUntil(() => onCompileFailure.mock.calls.some(([failure]) => failure != null));
+    expect(onCompileFailure).toHaveBeenCalledWith(expect.objectContaining({ code: 'malformed' }));
+    expect(mounted.shadow.querySelector('figure, pre, .slm-step-diagram')).toBeNull();
+    expect(mounted.shadow.textContent).not.toContain('SPEC:');
     expect(mounted.shadow.querySelector('figure.slm-diagram svg')).toBeNull();
   });
 
-  it('failed compile shows slm-diagram--failed + spec source', async () => {
+  it('failed compile hides its section and source', async () => {
+    const onCompileFailure = vi.fn();
     const diagram = { type: 'plot', content: 'xlabel: t' };
-    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" />);
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="dark" section onCompileFailure={onCompileFailure} />);
     host = mounted.host;
     root = mounted.root;
-    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
-    expect(mounted.shadow.querySelector('.slm-diagram--failed')).toBeTruthy();
-    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('xlabel: t');
+    await flushUntil(() => onCompileFailure.mock.calls.some(([failure]) => failure != null));
+    expect(onCompileFailure).toHaveBeenCalledWith(expect.objectContaining({ code: 'malformed' }));
+    expect(mounted.shadow.querySelector('figure, pre, .slm-step-diagram')).toBeNull();
+    expect(mounted.shadow.textContent).not.toContain('xlabel: t');
   });
 
-  it('reports typed compiler diagnostics beside the unchanged fallback', async () => {
+  it('reports typed compiler diagnostics internally with no fallback', async () => {
     const onCompileFailure = vi.fn();
     const diagram = { type: 'plot', content: 'kind: comparison\nfn: x\ndomain: 0 1\nguide: x=35; y=1' };
     const mounted = mountInShadow(
@@ -248,9 +254,10 @@ describe('DiagramRenderer in shadow DOM', () => {
     host = mounted.host;
     root = mounted.root;
 
-    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram--failed')));
+    await flushUntil(() => onCompileFailure.mock.calls.some(([failure]) => failure != null));
 
-    expect(mounted.shadow.querySelector('.slm-diagram-fallback')?.textContent).toContain('guide: x=35; y=1');
+    expect(mounted.shadow.querySelector('figure, pre, .slm-step-diagram')).toBeNull();
+    expect(mounted.shadow.textContent).not.toContain('guide: x=35; y=1');
     expect(onCompileFailure).toHaveBeenCalledWith(expect.objectContaining({
       family: 'plot',
       code: 'malformed',
@@ -296,5 +303,47 @@ describe('DiagramRenderer in shadow DOM', () => {
     expect(spy.mock.calls.length).toBe(calls);
     expect(mounted.shadow.querySelector('svg')?.getAttribute('data-stemlm-theme')).toBe('dark');
     spy.mockRestore();
+  });
+});
+
+describe('DiagramRenderer content-size scaling', () => {
+  let host: HTMLElement | undefined;
+  let root: Root | undefined;
+
+  afterEach(() => {
+    act(() => root?.unmount());
+    host?.remove();
+    host = undefined;
+    root = undefined;
+    useStore.setState({ settings: DEFAULT_SETTINGS });
+  });
+
+  const diagram = {
+    type: 'plot',
+    content: 'kind: function\nfn: x\ndomain: 0 4\nxlabel: t (s)\nylabel: x (m)',
+  } as const;
+
+  async function widthAtScale(scale: 1 | 2 | 3 | 4 | 5): Promise<number> {
+    useStore.setState({ settings: { ...DEFAULT_SETTINGS, contentScale: scale } });
+    const mounted = mountInShadow(<DiagramRenderer diagram={diagram} theme="light" />);
+    host = mounted.host;
+    root = mounted.root;
+    await flushUntil(() => Boolean(mounted.shadow.querySelector('.slm-diagram-svg svg')));
+    const svg = mounted.shadow.querySelector('.slm-diagram-svg svg');
+    const width = Number(svg?.getAttribute('width') ?? 0);
+    act(() => mounted.root.unmount());
+    mounted.host.remove();
+    host = undefined;
+    root = undefined;
+    return width;
+  }
+
+  it('renders a larger figure box at a larger reading level', async () => {
+    const small = await widthAtScale(1);
+    const base = await widthAtScale(2);
+    const large = await widthAtScale(5);
+    expect(base).toBeGreaterThan(0);
+    expect(small).toBeLessThan(base);
+    expect(large).toBeGreaterThan(base);
   });
 });

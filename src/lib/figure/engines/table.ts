@@ -4,11 +4,12 @@ import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
 import { measureText } from '../geom';
 import { FONT_FLOOR, FONT_MIN } from '../types';
+import { TABLE_VARIANTS } from '../catalog';
 
 const COMMON_KEYS = new Set(['kind', 'highlight', 'highlight_row', 'caption']);
-const MATRIX_KEYS = new Set(['headers', 'header', 'row', 'rows']);
-const ICE_KEYS = new Set(['species', 'i', 'c', 'e']);
-const PUNNETT_KEYS = new Set(['cols', 'columns', 'rows', 'cells']);
+const MATRIX_KEYS = new Set(TABLE_VARIANTS.matrix!.allowed);
+const ICE_KEYS = new Set(TABLE_VARIANTS.ice!.allowed);
+const PUNNETT_KEYS = new Set(TABLE_VARIANTS.punnett!.allowed);
 const TABLE_MIN_COLUMN_WIDTH = 28;
 const TABLE_LABEL_LINE_GAP = 4;
 const TABLE_CELL_INSET = 6;
@@ -538,7 +539,18 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
       break;
     }
   }
-  if (!rowGroups || !columnGroups || !rowHeights) {
+  // If only height is constrained, grow a coherent table before splitting its
+  // columns. Keep the existing wrapping/tiling choice for width-heavy prose.
+  const unwrappedWidths = Array.from({ length: cols }, () => TABLE_MIN_COLUMN_WIDTH);
+  const measureUnwrapped = (value: string, column: number) => {
+    if (column >= 0 && column < cols) {
+      unwrappedWidths[column] = Math.max(unwrappedWidths[column]!, cellMeasure(value, FONT_MIN).w + TABLE_CELL_INSET * 2);
+    }
+  };
+  headers.forEach((header, column) => measureUnwrapped(header, column + headerOffset));
+  rows.forEach((row) => row.forEach((value, cell) => measureUnwrapped(value, rowCellColumn(row.length, cell, cols))));
+  const fitsUnwrapped = unwrappedWidths.reduce((sum, width) => sum + width, 0) <= gridW;
+  if ((!rowGroups || !columnGroups || !rowHeights) && !fitsUnwrapped) {
     // When several columns cannot share a readable fixed-width tile, stack
     // single-column panels vertically so phrases can wrap at word boundaries.
     if (cols > 1) {

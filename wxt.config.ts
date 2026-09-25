@@ -52,9 +52,8 @@ function asciiSafeOutput(): BundlePlugin {
 }
 
 // stemLM WXT configuration.
-// GA4 Measurement Protocol credentials are injected at build time via env vars
-// (see .env.example). They are intentionally empty by default — the analytics
-// module no-ops until the user fills them in.
+// Analytics is disabled in the distributed client; no telemetry secret is
+// injected into extension JavaScript. Provider permissions are HTTPS-only.
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: '.',
@@ -76,36 +75,26 @@ export default defineConfig({
   },
   vite: () => ({
     plugins: [tailwindcss(), asciiSafeOutput()],
-    define: {
-      __GA_MEASUREMENT_ID__: JSON.stringify(process.env.STEMLM_GA_MEASUREMENT_ID ?? ''),
-      __GA_API_SECRET__: JSON.stringify(process.env.STEMLM_GA_API_SECRET ?? ''),
-    },
+    define: {},
   }),
   manifest: {
-    name: 'stemLM — Structured STEM Study Overlay',
+    name: 'stemLM',
     short_name: 'stemLM',
-    description:
-      'Turn ChatGPT, Claude, Gemini, and Grok into a guided STEM study workspace: step-by-step solutions, step-synced diagrams, quick-checks, and clean PDF export.',
+    description: 'Clear STEM solutions with useful steps and diagrams.',
     homepage_url: 'https://github.com/chayprabs/stemlm-app',
     minimum_chrome_version: '116',
-    permissions: ['storage', 'tabs', 'downloads'],
+    // unlimitedStorage: saved answers are never evicted to fit a quota (D12). No install warning.
+    permissions: ['storage', 'unlimitedStorage', 'tabs', 'downloads'],
     host_permissions: [
-      'https://fonts.googleapis.com/*',
-      'https://fonts.gstatic.com/*',
-      'https://www.google-analytics.com/*',
-      '*://chatgpt.com/*',
-      '*://*.chatgpt.com/*',
-      '*://chat.openai.com/*',
-      '*://*.chat.openai.com/*',
-      '*://claude.ai/*',
-      '*://*.claude.ai/*',
-      '*://gemini.google.com/*',
-      '*://*.gemini.google.com/*',
-      '*://grok.com/*',
-      '*://*.grok.com/*',
+      'https://claude.ai/*',
+      'https://www.claude.ai/*',
+      'https://gemini.google.com/*',
+      'https://www.gemini.google.com/*',
+      'https://grok.com/*',
+      'https://www.grok.com/*',
     ],
     action: {
-      default_title: 'stemLM — study overlay',
+      default_title: 'stemLM',
     },
     options_ui: {
       open_in_tab: true,
@@ -114,16 +103,12 @@ export default defineConfig({
       {
         resources: ['icon/*.png'],
         matches: [
-          '*://chatgpt.com/*',
-          '*://*.chatgpt.com/*',
-          '*://chat.openai.com/*',
-          '*://*.chat.openai.com/*',
-          '*://claude.ai/*',
-          '*://*.claude.ai/*',
-          '*://gemini.google.com/*',
-          '*://*.gemini.google.com/*',
-          '*://grok.com/*',
-          '*://*.grok.com/*',
+          'https://claude.ai/*',
+          'https://www.claude.ai/*',
+          'https://gemini.google.com/*',
+          'https://www.gemini.google.com/*',
+          'https://grok.com/*',
+          'https://www.grok.com/*',
         ],
         use_dynamic_url: true,
       },

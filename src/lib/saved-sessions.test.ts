@@ -6,9 +6,12 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   return {
     storageData,
     mockLocalStorage: {
-      get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),
+        get: vi.fn(async (key: string | null) => key === null ? { ...storageData } : { [key]: storageData[key] }),
       set: vi.fn(async (items: Record<string, unknown>) => {
         Object.assign(storageData, items);
+      }),
+      remove: vi.fn(async (keys: string[]) => {
+        for (const key of keys) delete storageData[key];
       }),
     },
   };
@@ -36,6 +39,8 @@ vi.mock('wxt/browser', () => ({
       create: windowsCreateMock,
     },
     runtime: {
+      sendMessage: async (message: import('@/src/lib/saved-session-storage').SavedSessionMutationMessage) =>
+        (await import('@/src/lib/saved-session-storage')).handleSavedSessionMutation(message),
       getURL: (path: string) => `chrome-extension://test${path}`,
     },
   },
@@ -52,6 +57,7 @@ vi.mock('./pdf', async (importOriginal) => {
 
 import {
   SAVED_SESSIONS_KEY,
+  SAVED_SESSION_RECORD_PREFIX,
   getSavedSessions,
   getSavedSession,
   saveSession,
@@ -64,7 +70,6 @@ import {
   snapshotToSession,
   normalizeStoredSession,
   estimateSnapshotBytes,
-  trimSavedSessionsToBudget,
   MAX_SAVED_BYTES,
 } from './saved-sessions';
 
@@ -102,6 +107,28 @@ function storedSnapshots(): unknown[] {
 }
 
 describe('saved-sessions', () => {
+  // D12 (2026-09-24): migration keeps every legacy record (it used to prune past 100
+  // items / 4 MB); each migrated per-record key is cleaned up once the aggregate commits.
+  it.each([false, true])('PERS-03 migrates every legacy record without pruning (over the old byte budget: %s)', async (overBytes) => {
+    const count = overBytes ? 10 : 150;
+    const legacy = Array.from({ length: count }, (_, i) => {
+      const session = makeSession({ id: `legacy-${i}` });
+      if (overBytes) session.capsule.steps[0]!.body = 'x'.repeat(Math.ceil(MAX_SAVED_BYTES / 7));
+      const snapshot = { ...sessionToSnapshot(session), savedAt: i + 1 };
+      const key = `${SAVED_SESSION_RECORD_PREFIX}${encodeURIComponent(snapshot.id)}`;
+      storageData[key] = { kind: 'snapshot', snapshot };
+      return { key, snapshot };
+    });
+    await saveSession(makeSession({ id: 'newest' }));
+    const aggregate = await getSavedSessions();
+    expect(aggregate).toHaveLength(count + 1);
+    for (const { key, snapshot } of legacy) {
+      expect(aggregate.some((row) => row.id === snapshot.id)).toBe(true);
+      expect(storageData[key]).toBeUndefined();
+    }
+    console.log(`PERS-03 legacy=${count} visible=${aggregate.length}`);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     for (const key of Object.keys(storageData)) {
@@ -176,49 +203,9 @@ describe('saved-sessions', () => {
     });
   });
 
-  describe('trimSavedSessionsToBudget', () => {
-    it('drops oldest snapshots when the byte budget is exceeded', () => {
-      const heavy = sessionToSnapshot(
-        makeSession({
-          id: 'heavy',
-          capsule: {
-            meta: { version: 1, subject: 'Math', topic: 'Big' },
-            steps: [
-              {
-                id: 'step-1',
-                index: 1,
-                title: 'Diagram',
-                body: 'x',
-                diagram: { type: 'svg', content: `<svg>${'x'.repeat(5_000)}</svg>` },
-              },
-            ],
-            solution: 'done',
-            solutionDiagrams: [],
-          },
-        }),
-      );
-      const older = sessionToSnapshot(makeSession({ id: 'older' }));
-      const newest = sessionToSnapshot(makeSession({ id: 'newest' }));
-      const budget = estimateSnapshotBytes([newest, heavy]) + 128;
-      expect(estimateSnapshotBytes([newest, heavy, older])).toBeGreaterThan(budget);
-      const { sessions, prunedCount } = trimSavedSessionsToBudget(
-        [
-          { ...older, savedAt: 1 },
-          { ...heavy, savedAt: 2 },
-          { ...newest, savedAt: 3 },
-        ],
-        budget,
-      );
-      expect(prunedCount).toBeGreaterThan(0);
-      expect(sessions.map((s) => s.id)).toEqual(['newest', 'heavy']);
-      expect(estimateSnapshotBytes(sessions)).toBeLessThanOrEqual(budget);
-    });
-  });
-
   describe('saveSession', () => {
     it('stores a compact snapshot with steps', async () => {
-      const result = await saveSession(makeSession({ id: 'new', question: 'Integrate x' }));
-      expect(result.prunedCount).toBe(0);
+      await expect(saveSession(makeSession({ id: 'new', question: 'Integrate x' }))).resolves.toBeUndefined();
 
       const stored = storedSnapshots()[0] as Record<string, unknown>;
       expect(stored.id).toBe('new');
@@ -283,7 +270,8 @@ describe('saved-sessions', () => {
       expect(stored[0]?.steps.map((s) => s.title)).toEqual(['Write the equation', 'Isolate x']);
     });
 
-    it('enforces the MAX_SAVED limit of 100 sessions', async () => {
+    // D12: the 101st save used to evict the oldest; now every save is kept.
+    it('keeps the oldest saved answer when the 101st is saved', async () => {
       const existing = Array.from({ length: 100 }, (_, i) => ({
         ...sessionToSnapshot(makeSession({ id: `s-${i}` })),
         savedAt: i + 1,
@@ -293,10 +281,39 @@ describe('saved-sessions', () => {
       await saveSession(makeSession({ id: 'overflow' }));
 
       const stored = storedSnapshots() as Array<{ id: string }>;
-      expect(stored).toHaveLength(100);
-      expect(stored.some((s) => s.id === 'overflow')).toBe(true);
-      expect(stored.some((s) => s.id === 's-0')).toBe(false);
+      expect(stored).toHaveLength(101);
+      expect(stored[0]?.id).toBe('overflow');
+      expect(stored.some((s) => s.id === 's-0')).toBe(true);
     });
+
+    // D12: a legacy per-record snapshot the old 100-item limit hid is a real saved
+    // answer; with nothing evicted any more, migration keeps it.
+    it('keeps a legacy durable record the old aggregate limit had hidden', async () => {
+      const aggregate = Array.from({ length: 100 }, (_, i) => ({
+        ...sessionToSnapshot(makeSession({ id: `s-${i}` })),
+        savedAt: i + 1,
+      }));
+      const pruned = { ...sessionToSnapshot(makeSession({ id: 'pruned' })), savedAt: 0 };
+      storageData[SAVED_SESSIONS_KEY] = aggregate;
+      storageData[`${SAVED_SESSION_RECORD_PREFIX}${encodeURIComponent(pruned.id)}`] = {
+        kind: 'snapshot',
+        snapshot: pruned,
+      };
+
+      await saveSession(makeSession({ id: 'newest' }));
+
+      expect((await getSavedSessions()).some((session) => session.id === 'pruned')).toBe(true);
+    });
+  });
+
+  it('merges durable per-record snapshots so independent contexts cannot lose a save', async () => {
+    const a = sessionToSnapshot(makeSession({ id: 'a', question: 'alpha' }));
+    const b = sessionToSnapshot(makeSession({ id: 'b', question: 'beta' }));
+    storageData[SAVED_SESSIONS_KEY] = [a];
+    storageData['stemlm_saved_session_record_a-v1'] = { kind: 'snapshot', snapshot: a };
+    storageData['stemlm_saved_session_record_b-v1'] = { kind: 'snapshot', snapshot: b };
+
+    expect((await getSavedSessions()).map((session) => session.id).sort()).toEqual(['a', 'b']);
   });
 
   describe('deleteSavedSession', () => {

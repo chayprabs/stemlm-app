@@ -11,7 +11,9 @@ const { storageData, mockLocalStorage, tabsCreateMock, tabsSendMessageMock, wind
     return {
       storageData,
       mockLocalStorage: {
-        get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),
+        get: vi.fn(async (key: string | null) =>
+          key === null ? { ...storageData } : { [key]: storageData[key] },
+        ),
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(storageData, items);
         }),
@@ -36,6 +38,8 @@ vi.mock('wxt/browser', () => ({
       create: windowsCreateMock,
     },
     runtime: {
+      sendMessage: async (message: import('@/src/lib/saved-session-storage').SavedSessionMutationMessage) =>
+        (await import('@/src/lib/saved-session-storage')).handleSavedSessionMutation(message),
       getURL: (path: string) => `chrome-extension://test${path}`,
       id: 'test',
     },
@@ -754,6 +758,28 @@ describe('library chrome CSS', () => {
     expect(css).toMatch(/\.slm-library-chips\s*\{[^}]*overflow-x:\s*auto/);
     expect(css).not.toMatch(/\.slm-library-chips\s*\{[^}]*flex-wrap:\s*wrap/);
     expect(css).toMatch(/\.slm-library-chip\s*\{[^}]*white-space:\s*nowrap/);
+  });
+
+  it('disables category rail smooth scrolling for reduced-motion users', () => {
+    const css = pagesCss();
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.slm-library-chips\s*\{[^}]*scroll-behavior:\s*auto/);
+  });
+
+  it('disables every saved-page transition for reduced-motion users', () => {
+    const css = pagesCss();
+    const reduced = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    for (const selector of [
+      '.slm-popup-action',
+      '.slm-popup-host',
+      '.slm-library-row',
+      '.slm-library-check',
+      '.slm-library-row-actions',
+      '.slm-settings-link',
+    ]) {
+      expect(reduced, selector).toContain(selector);
+    }
+    expect(reduced).toContain('transition: none');
   });
 
   it('closes the gap between the time label and its caret', () => {

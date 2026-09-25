@@ -10,7 +10,7 @@ import type { AdapterConfig } from './types';
 const config: AdapterConfig = {
   id: 'grok',
   label: 'Grok',
-  hosts: /(^|\.)grok\.com$/i,
+  hosts: /^(?:www\.)?grok\.com$/i,
   composerDock: 'outside-shell',
   editor: [
     'textarea[placeholder*="What do you want to know" i]',

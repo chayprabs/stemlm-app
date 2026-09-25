@@ -10,3 +10,5 @@ allowBuilds:
   esbuild: true
   sharp: true
   spawn-sync: true
+overrides:
+  dompurify: ^3.4.14

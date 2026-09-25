@@ -9,7 +9,7 @@ import type { AdapterConfig } from './types';
 const config: AdapterConfig = {
   id: 'gemini',
   label: 'Gemini',
-  hosts: /(^|\.)gemini\.google\.com$/i,
+  hosts: /^(?:www\.)?gemini\.google\.com$/i,
   composerDock: 'before-plus',
   editor: [
     'rich-textarea div.ql-editor[contenteditable="true"]',
@@ -21,6 +21,7 @@ const config: AdapterConfig = {
     '.input-area',
     'div.input-area-container',
     'div[class*="input-area"]:has(rich-textarea)',
+    '.text-input-field:has(rich-textarea)',
     'rich-textarea',
   ],
   composerActionRow: [
@@ -54,6 +55,7 @@ const config: AdapterConfig = {
     'input-area-v2',
     'input-area',
     'div.input-area',
+    '.text-input-field:has(rich-textarea)',
     'rich-textarea',
     'div[class*="input-container"]',
   ],

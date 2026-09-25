@@ -3,7 +3,8 @@
  * rail, and question cards with download / open actions. "Merge PDF" turns the
  * list into a picker and combines the picked questions into one continuous PDF.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import {
   deleteSavedSession,
   downloadSavedSessionPdf,
@@ -188,6 +189,7 @@ function CategoryRail({
 }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState({ start: false, end: false });
+  const reducedMotion = useReducedMotion();
 
   const sync = useCallback(() => {
     const rail = railRef.current;
@@ -219,7 +221,10 @@ function CategoryRail({
   function nudge(direction: -1 | 1) {
     const rail = railRef.current;
     if (!rail) return;
-    rail.scrollBy({ left: direction * Math.max(120, rail.clientWidth * 0.7), behavior: 'smooth' });
+    rail.scrollBy({
+      left: direction * Math.max(120, rail.clientWidth * 0.7),
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    });
   }
 
   return (
@@ -288,6 +293,7 @@ export function SavedSessionList({
 }) {
   const [items, setItems] = useState(sessions);
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
   const [subject, setSubject] = useState(ALL_SAVED_SUBJECTS);
   const [time, setTime] = useState<SavedTimeFilter>(ALL_SAVED_TIME);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -303,8 +309,8 @@ export function SavedSessionList({
 
   const subjects = useMemo(() => savedSessionSubjects(items), [items]);
   const visible = useMemo(
-    () => filterSavedSessions(items, { query, subject, time }),
-    [items, query, subject, time],
+    () => filterSavedSessions(items, { query: deferredQuery, subject, time }),
+    [items, deferredQuery, subject, time],
   );
 
   const pickedSet = useMemo(() => new Set(picked), [picked]);

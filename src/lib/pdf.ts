@@ -29,10 +29,13 @@ import {
   type RenderedPage,
 } from './pdf-raster';
 import { trackEvent } from './analytics';
-import { FONT_CSS_HREF, FONT_MONO, FONT_SANS, KATEX_CSS_HREF } from './fonts';
+import { FONT_CSS_HREF, FONT_MONO, FONT_SANS } from './fonts';
 import { BRAND_SIGNAL } from '@/src/components/brand';
-/** Vendored from katex@0.16.25 so print math uses the same HTML+CSS as the panel. */
+/** Reuse the installed panel font/CSS build; report documents carry their fonts offline. */
 import katexCssRaw from './katex.min.css.txt?raw';
+const katexFonts = import.meta.glob<string>('/node_modules/katex/dist/fonts/*.woff2', {
+  eager: true, query: '?inline', import: 'default',
+});
 
 export type PdfExportMethod = 'print' | 'download' | 'view' | 'failed';
 
@@ -49,8 +52,8 @@ export interface PdfExportResult {
 export type PdfFailureReason = 'blank' | 'render' | 'save' | 'empty' | 'timeout';
 
 /**
- * Figures are resolved one at a time and some engines are slow (mermaid alone
- * can hold a 12s timeout). Past this budget the remaining figures are dropped
+ * Figures are resolved one at a time and a slow engine can hold its 12s
+ * compile timeout. Past this budget the remaining figures are dropped
  * so a question with several heavy diagrams still exports.
  */
 const DIAGRAM_BUDGET_MS = 20_000;
@@ -81,7 +84,9 @@ const T = {
   bg: '#ffffff',
   fg: '#121212',
   fgMuted: '#5c5c63',
-  fgSubtle: '#8a8a92',
+  // The footer is 8.5pt on white paper; keep it above the normal-text
+  // contrast threshold instead of using a decorative gray that fades in print.
+  fgSubtle: '#5c5c63',
   border: '#e2e2e4',
   borderSubtle: '#ebebed',
   signal: BRAND_SIGNAL,
@@ -93,8 +98,11 @@ const T = {
 } as const;
 
 function katexPrintCss(): string {
-  const fontBase = KATEX_CSS_HREF.replace(/katex\.min\.css$/, 'fonts/');
-  return katexCssRaw.replace(/url\((['"]?)fonts\//g, `url($1${fontBase}`);
+  return katexCssRaw.replace(/src:url\(fonts\/([^)]*\.woff2)\)[^;}]+/g, (_match, name: string) => {
+    const font = katexFonts[`/node_modules/katex/dist/fonts/${name}`];
+    if (!font) throw new Error(`Missing bundled math font: ${name}`);
+    return `src:url(${font}) format("woff2")`;
+  });
 }
 
 /** Basename Chrome uses for Save as PDF — not the question, topic, or chat host. */
@@ -115,7 +123,7 @@ interface ResolvedDiagrams {
 /**
  * One unrenderable figure must never cost the whole document. Each diagram is
  * isolated: on failure it is simply absent from the map, and `ResolvedDiagram`
- * falls back to the spec source or renders nothing.
+ * renders nothing, including its section heading and surrounding box.
  */
 async function resolveKeyedDiagrams(
   entries: readonly { key: string; diagram: Diagram }[],
@@ -130,6 +138,10 @@ async function resolveKeyedDiagrams(
     }
     try {
       const resolved = await resolveDiagram(diagram, 'light', 'print');
+      if (!resolved.ok) {
+        reportPdfIssue(`diagram ${key}`, resolved.diagnostic);
+        continue;
+      }
       svg[key] = resolved.svg;
       overlays[key] = resolved.overlays;
     } catch (err) {
@@ -198,6 +210,10 @@ body{font:11pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-adj
 .slm-prose :first-child{margin-top:0;}
 .slm-prose :last-child{margin-bottom:0;}
 .slm-report-topic,.slm-report-step-head,.slm-report-step-title{break-after:avoid;page-break-after:avoid;}
+.slm-report-step-intro{break-inside:avoid;page-break-inside:avoid;}
+.slm-step-work{break-before:avoid;page-break-before:avoid;}
+.slm-step-work-label{break-after:avoid;page-break-after:avoid;}
+.slm-step-work-body{break-before:avoid;page-break-before:avoid;}
 .slm-formula,.slm-takeaway,.slm-step-diagram,pre,table{break-inside:avoid;page-break-inside:avoid;}
 thead{display:table-header-group;}
 ul,ol{margin:0 0 6px;padding-left:20px;}
@@ -206,6 +222,7 @@ table{border-collapse:collapse;width:100%;margin:0 0 6px;font-size:10.5pt;}
 th,td{border:1px solid ${T.border};padding:5px 8px;text-align:left;}
 pre{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};padding:8px;font-size:10pt;overflow-x:auto;}
 code{font-family:${FONT_MONO};font-size:.88em;}
+.katex-error{font-family:${FONT_MONO};font-size:.88em;color:${T.fg}!important;background:${T.bgSubtle};padding:0 3px;border-radius:3px;overflow-wrap:anywhere;}
 .katex .katex-mathml{position:absolute!important;clip:rect(1px,1px,1px,1px)!important;padding:0!important;border:0!important;height:1px!important;width:1px!important;overflow:hidden!important;}
 .slm-signals{margin:0 0 8px;}
 .slm-signal--flag{font-size:10.5pt;font-weight:600;color:${T.fg};background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};padding:6px 10px;margin:0 0 6px;}
@@ -304,6 +321,39 @@ export async function renderMergedReportHtml(sessions: readonly Session[]): Prom
   return buildMergedReportDocument(sessions, resolved.svg, resolved.overlays);
 }
 
+const PRINT_FRAME_TIMEOUT_MS = 15_000;
+
+async function waitForPrintFrame(doc: Document, win: Window): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      win.removeEventListener('load', onLoad);
+      if (error) reject(error);
+      else resolve();
+    };
+    const go = async () => {
+      if (settled) return;
+      try {
+        await Promise.race([
+          Promise.resolve((doc as Document & { fonts?: FontFaceSet }).fonts?.ready),
+          new Promise<void>((fontResolve) => setTimeout(fontResolve, 3_000)),
+        ]);
+      } catch {
+        /* font readiness is optional; the print frame still has fallback fonts */
+      }
+      finish();
+    };
+    const onLoad = () => setTimeout(() => void go(), 80);
+    timer = setTimeout(() => finish(new Error('print frame timed out')), PRINT_FRAME_TIMEOUT_MS);
+    if (doc.readyState === 'complete') setTimeout(() => void go(), 80);
+    else win.addEventListener('load', onLoad, { once: true });
+  });
+}
+
 export async function exportSessionPdf(session: Session): Promise<PdfExportResult> {
   let iframe: HTMLIFrameElement | null = null;
   try {
@@ -325,18 +375,7 @@ export async function exportSessionPdf(session: Session): Promise<PdfExportResul
     doc.write(html);
     doc.close();
 
-    await new Promise<void>((resolve) => {
-      const go = async () => {
-        try {
-          await (doc as Document & { fonts?: FontFaceSet }).fonts?.ready;
-        } catch {
-          /* ignore */
-        }
-        resolve();
-      };
-      if (doc.readyState === 'complete') setTimeout(go, 80);
-      else win.addEventListener('load', () => setTimeout(go, 80), { once: true });
-    });
+    await waitForPrintFrame(doc, win);
 
     // Short title reduces browser print header noise (date/URL still depend on print settings).
     doc.title = printTitle;

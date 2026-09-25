@@ -4,7 +4,9 @@
  * a student attaches an image or PDF — additive, so existing uploads stay.
  */
 
-export const PROTOCOL_ATTACHMENT_NAME = 'stemlm-protocol.txt';
+import { STUDY_GUIDE_FILENAME } from './study-guide';
+
+export const PROTOCOL_ATTACHMENT_NAME = STUDY_GUIDE_FILENAME;
 
 const DEFAULT_FILE_INPUT_SELECTORS = [
   'images-files-uploader input[type="file"]',
@@ -64,6 +66,7 @@ export function createTextFile(content: string, filename: string): File {
 function queryFirst(selectors: string[], root: ParentNode = document): HTMLInputElement | null {
   for (const sel of selectors) {
     try {
+      if (root instanceof HTMLInputElement && root.matches(sel)) return root;
       const el = root.querySelector<HTMLInputElement>(sel);
       if (el) return el;
     } catch {
@@ -73,10 +76,10 @@ function queryFirst(selectors: string[], root: ParentNode = document): HTMLInput
   return null;
 }
 
-function queryButton(selectors: string[]): HTMLElement | null {
+function queryButton(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     try {
-      const el = document.querySelector<HTMLElement>(sel);
+      const el = root.querySelector<HTMLElement>(sel);
       if (el && !opensUploadMenu(el)) return el;
     } catch {
       /* skip */
@@ -86,7 +89,7 @@ function queryButton(selectors: string[]): HTMLElement | null {
 }
 
 /**
- * Leading + on Gemini / ChatGPT / Claude / Grok often opens a menu, not a
+ * Leading + on Gemini / Claude / Grok often opens a menu, not a
  * hidden file input. Clicking it is wrong — skip those controls.
  */
 function opensUploadMenu(el: HTMLElement): boolean {
@@ -126,6 +129,16 @@ export function hasNamedAttachment(
   filename: string,
   root: ParentNode = document,
 ): boolean {
+  // A native FileList is authoritative even when a provider has not rendered
+  // a chip yet. This closes the short window where the upload succeeded but
+  // the host preview is still asynchronous.
+  try {
+    for (const input of root.querySelectorAll<HTMLInputElement>('input[type="file"]')) {
+      if (Array.from(input.files ?? []).some((file) => file.name === filename)) return true;
+    }
+  } catch {
+    /* hosts may expose a non-standard FileList */
+  }
   const sels = [
     ...COMPOSER_ATTACHMENT_SELECTORS,
     'images-files-uploader',
@@ -150,24 +163,57 @@ export function hasNamedAttachment(
 
 function isShownChip(el: Element): boolean {
   if (!(el instanceof HTMLElement) || !el.isConnected) return false;
-  if (el.hidden || el.getAttribute('aria-hidden') === 'true') return false;
-  const style = el.style;
-  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+    if (node.hidden || node.getAttribute('aria-hidden') === 'true') return false;
+    const style = getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+  }
   return true;
+}
+
+/** Provider acknowledgement, excluding a FileList we assigned ourselves. */
+export function hasConfirmedAttachment(filename: string, root: ParentNode = document): boolean {
+  const selectors = [
+    ...COMPOSER_ATTACHMENT_SELECTORS,
+    '[class*="chip"]',
+    '[class*="preview"]',
+    '[class*="attachment"]',
+  ];
+  const previewSelector = selectors.join(', ');
+  for (const selector of selectors) {
+    for (const el of root.querySelectorAll(selector)) {
+      if (!isShownChip(el) || !elementMentionsFilename(el, filename)) continue;
+      // Filename labels can themselves match a preview selector. Inspect their
+      // containing preview too, where providers put progress and error states.
+      let preview = el;
+      let blocked = Boolean(el.closest('[aria-busy="true"]'));
+      while (!blocked) {
+        blocked = Boolean(preview.querySelector('[aria-busy="true"], [role="progressbar"]')) ||
+          /upload failed|failed to upload|file not supported|unsupported file|upload error|couldn.t upload/i.test(preview.textContent ?? '');
+        const parent = preview.parentElement?.closest(previewSelector);
+        if (!parent || parent === root || !root.contains(parent)) break;
+        preview = parent;
+      }
+      if (blocked) continue;
+      return true;
+    }
+  }
+  return false;
 }
 
 /** True when any file/image chip is visible (problem photo, PDF, etc.). */
 export function hasAnyAttachment(root: ParentNode = document): boolean {
   for (const sel of COMPOSER_ATTACHMENT_SELECTORS) {
     try {
-      const el = root.querySelector(sel);
-      if (el && isShownChip(el)) return true;
+      for (const el of root.querySelectorAll(sel)) {
+        if (isShownChip(el)) return true;
+      }
     } catch {
       /* skip */
     }
   }
   const uploader = root.querySelector('images-files-uploader');
-  return Boolean(uploader && uploader.childElementCount > 1);
+  return Boolean(uploader && isShownChip(uploader) && uploader.childElementCount > 1);
 }
 
 function existingInputFiles(input: HTMLInputElement): File[] {
@@ -206,9 +252,11 @@ export function assignFileToInput(
     const dt = new DataTransfer();
     fill(dt);
     input.files = dt.files;
-    if (input.files?.length) {
+    if (Array.from(input.files ?? []).some((f) => f.name === file.name)) {
       fireInputChange(input);
-      return Array.from(input.files).some((f) => f.name === file.name);
+      // React/Angular commonly clear the native input after consuming its files.
+      // Delivery is confirmed separately from this one-time assignment.
+      return true;
     }
   } catch {
     /* fall through */
@@ -219,9 +267,9 @@ export function assignFileToInput(
     fill(dt);
     const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files');
     desc?.set?.call(input, dt.files);
+    if (!Array.from(input.files ?? []).some((f) => f.name === file.name)) return false;
     fireInputChange(input);
-    const files = input.files ? Array.from(input.files) : [];
-    return files.some((f) => f.name === file.name);
+    return true;
   } catch {
     return false;
   }
@@ -269,6 +317,8 @@ export interface FindFileInputOptions {
   fileInputSelectors?: string[];
   uploadButtonSelectors?: string[];
   waitMs?: number;
+  /** The active composer, so stale thread attachments and other editors cannot win. */
+  root?: ParentNode;
 }
 
 /**
@@ -282,20 +332,21 @@ export async function findFileInput(opt: FindFileInputOptions = {}): Promise<HTM
   const waitMs = opt.waitMs ?? 2500;
   const deadline = Date.now() + waitMs;
 
-  let input = queryFirst(fileSels);
+  const root = opt.root ?? document;
+  let input = queryFirst(fileSels, root);
   if (input) return input;
 
-  const btn = queryButton(btnSels);
+  const btn = queryButton(btnSels, root);
   if (btn) {
     btn.click();
     while (Date.now() < deadline) {
       await sleep(80);
-      input = queryFirst(fileSels);
+      input = queryFirst(fileSels, root);
       if (input) return input;
     }
   }
 
-  return queryFirst(fileSels);
+  return queryFirst(fileSels, root);
 }
 
 export interface WaitAttachmentOptions {
@@ -303,6 +354,9 @@ export interface WaitAttachmentOptions {
   timeoutMs?: number;
   /** When set, wait for THIS filename — not any pre-existing image/PDF chip. */
   filename?: string;
+  root?: ParentNode;
+  /** Require a visible provider preview instead of trusting native assignment. */
+  requireConfirmation?: boolean;
 }
 
 /** Wait until the UI shows an uploaded file chip/preview. */
@@ -310,12 +364,16 @@ export async function waitForAttachment(opt: WaitAttachmentOptions = {}): Promis
   const filename = opt.filename;
   const timeoutMs = opt.timeoutMs ?? 4000;
   const deadline = Date.now() + timeoutMs;
+  const root = opt.root ?? document;
+  const confirmed = () => filename
+    ? (opt.requireConfirmation ? hasConfirmedAttachment(filename, root) : hasNamedAttachment(filename, root))
+    : hasAnyAttachment(root);
 
   while (Date.now() < deadline) {
-    if (filename ? hasNamedAttachment(filename) : hasAnyAttachment()) return true;
+    if (confirmed()) return true;
     await sleep(80);
   }
-  return filename ? hasNamedAttachment(filename) : hasAnyAttachment();
+  return confirmed();
 }
 
 function sleep(ms: number): Promise<void> {
@@ -330,8 +388,10 @@ export interface AttachTextFileOptions extends FindFileInputOptions, WaitAttachm
    * already attached). Only additive drop/paste is attempted.
    */
   preserveExisting?: boolean;
-  /** Short confirm window for drop/paste so we can fall through quickly. */
+  /** Optional confirmation window for each additive upload attempt. */
   additiveTimeoutMs?: number;
+  /** Verified provider inputs append uploads to their own state (Claude). */
+  inputIsAdditive?: boolean;
 }
 
 async function tryAdditiveAttach(
@@ -339,13 +399,15 @@ async function tryAdditiveAttach(
   filename: string,
   targets: string[],
   timeoutMs: number,
+  opt: WaitAttachmentOptions,
 ): Promise<'drop' | 'paste' | null> {
   const seen = new Set<HTMLElement>();
   const els: HTMLElement[] = [];
   for (const sel of targets) {
     let el: HTMLElement | null = null;
     try {
-      el = document.querySelector<HTMLElement>(sel);
+      const root = opt.root ?? document;
+      el = root instanceof HTMLElement && root.matches(sel) ? root : root.querySelector<HTMLElement>(sel);
     } catch {
       continue;
     }
@@ -356,10 +418,10 @@ async function tryAdditiveAttach(
   }
 
   for (const el of els) {
-    if (tryDropFile(el, file) && (await waitForAttachment({ filename, timeoutMs }))) {
+    if (tryDropFile(el, file) && (await waitForAttachment({ ...opt, filename, timeoutMs }))) {
       return 'drop';
     }
-    if (tryPasteFile(el, file) && (await waitForAttachment({ filename, timeoutMs }))) {
+    if (tryPasteFile(el, file) && (await waitForAttachment({ ...opt, filename, timeoutMs }))) {
       return 'paste';
     }
   }
@@ -375,28 +437,44 @@ export async function attachTextFile(
   opt: AttachTextFileOptions = {},
 ): Promise<{ ok: boolean; method: 'input' | 'drop' | 'paste' | 'existing' | 'none' }> {
   const filename = opt.filename ?? PROTOCOL_ATTACHMENT_NAME;
-  if (hasNamedAttachment(filename)) return { ok: true, method: 'existing' };
+  const root = opt.root ?? document;
+  const existing = opt.requireConfirmation
+    ? hasConfirmedAttachment(filename, root)
+    : hasNamedAttachment(filename, root);
+  if (existing) return { ok: true, method: 'existing' };
 
   const file = createTextFile(content, filename);
   const dropTargets = opt.dropTargets ?? DEFAULT_DROP_TARGETS;
-  const preserveExisting = opt.preserveExisting ?? hasAnyAttachment();
-  const additiveTimeoutMs =
-    opt.additiveTimeoutMs ?? (preserveExisting ? 800 : 200);
+  const preserveExisting = opt.preserveExisting ?? hasAnyAttachment(root);
+  const additiveTimeoutMs = opt.additiveTimeoutMs ??
+    (opt.requireConfirmation ? (opt.timeoutMs ?? 4000) : (preserveExisting ? 800 : 200));
 
-  const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs);
-  if (additive) return { ok: true, method: additive };
+  // Claude's native handler appends to its attachment state and keeps filenames.
+  // Its file-paste handler renames files; do not take that detour when the native
+  // input is available. Other hosts retain the conservative additive-first path.
+  const directInput = opt.inputIsAdditive ? await findFileInput(opt) : null;
+  if (opt.inputIsAdditive && !directInput) return { ok: false, method: 'none' };
+  if (!directInput) {
+    const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs, opt);
+    if (additive) return { ok: true, method: additive };
+  }
 
-  const input = await findFileInput(opt);
+  const input = directInput ?? await findFileInput(opt);
   if (!input) return { ok: false, method: 'none' };
 
   const prior = existingInputFiles(input).filter((f) => f.name !== filename);
 
-  if (preserveExisting && prior.length === 0 && hasAnyAttachment()) {
+  if (!opt.inputIsAdditive && preserveExisting && prior.length === 0 && hasAnyAttachment(root)) {
     // FileList does not hold the image/PDF chip — assigning would replace it.
     return { ok: false, method: 'none' };
   }
 
   if (!assignFileToInput(input, file, { keepExisting: true })) return { ok: false, method: 'none' };
+
+  if (opt.requireConfirmation) {
+    const confirmed = await waitForAttachment({ ...opt, filename });
+    return confirmed ? { ok: true, method: 'input' } : { ok: false, method: 'none' };
+  }
 
   const files = input.files ? Array.from(input.files) : [];
   const hasProtocol = files.some((f) => f.name === filename);

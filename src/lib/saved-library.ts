@@ -180,29 +180,40 @@ function tokenize(text: string): string[] {
     .filter((token) => token.length >= 2);
 }
 
-/** Damerau–Levenshtein, capped. Enough for short STEM tokens and typos. */
+/** Only distances up to two affect ranking; keep three narrow rows, not an n×m matrix. */
+const distanceRows = [new Uint8Array(7), new Uint8Array(7), new Uint8Array(7)] as const;
 function editDistance(a: string, b: string): number {
   if (a === b) return 0;
   const n = a.length;
   const m = b.length;
-  if (n === 0) return m;
-  if (m === 0) return n;
-  const dp: number[][] = Array.from({ length: n + 1 }, (_, i) => {
-    const row = new Array<number>(m + 1).fill(0);
-    row[0] = i;
-    return row;
-  });
-  for (let j = 0; j <= m; j += 1) dp[0]![j] = j;
+  if (Math.abs(n - m) > 2) return 3;
+  if (n === 0 || m === 0) return Math.min(3, Math.max(n, m));
+  // This synchronous calculation has no callbacks; reuse buffers across token pairs.
+  let beforePrevious = distanceRows[0].fill(3);
+  let previous = distanceRows[1].fill(3);
+  let current = distanceRows[2];
+  for (let j = 0; j <= Math.min(m, 2); j += 1) previous[j + 3] = j;
   for (let i = 1; i <= n; i += 1) {
-    for (let j = 1; j <= m; j += 1) {
+    current.fill(3);
+    if (i <= 2) current[3 - i] = i;
+    let minimum = i <= 2 ? i : 3;
+    for (let j = Math.max(1, i - 2); j <= Math.min(m, i + 2); j += 1) {
+      const offset = j - i + 3;
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + cost);
+      let distance = Math.min(previous[offset + 1]! + 1, current[offset - 1]! + 1, previous[offset]! + cost);
       if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
-        dp[i]![j] = Math.min(dp[i]![j]!, dp[i - 2]![j - 2]! + 1);
+        distance = Math.min(distance, beforePrevious[offset]! + 1);
       }
+      current[offset] = Math.min(3, distance);
+      minimum = Math.min(minimum, distance);
     }
+    if (minimum > 2) return 3;
+    const reusable = beforePrevious;
+    beforePrevious = previous;
+    previous = current;
+    current = reusable;
   }
-  return dp[n]![m]!;
+  return previous[m - n + 3]!;
 }
 
 function tokenSimilarity(queryToken: string, hayToken: string): number {
@@ -221,15 +232,23 @@ function searchableText(item: SavedFilterable): string {
   return `${item.question} ${item.meta.question ?? ''} ${item.meta.topic} ${item.meta.subject}`;
 }
 
-function tokenScore(item: SavedFilterable, query: string): number {
-  const qTokens = tokenize(query).filter((token) => token.length >= 3);
+function tokenScore(item: SavedFilterable, qTokens: string[], similarities: Map<string, number>): number {
   if (qTokens.length === 0) return 0;
   const hay = tokenize(searchableText(item));
   let hits = 0;
   let weight = 0;
   for (const token of qTokens) {
     let best = 0;
-    for (const h of hay) best = Math.max(best, tokenSimilarity(token, h));
+    for (const h of hay) {
+      const key = `${token}\0${h}`;
+      let score = similarities.get(key);
+      if (score === undefined) {
+        score = tokenSimilarity(token, h);
+        similarities.set(key, score);
+      }
+      best = Math.max(best, score);
+      if (best === 1) break;
+    }
     if (best > 0) {
       hits += 1;
       weight += best;
@@ -240,7 +259,11 @@ function tokenScore(item: SavedFilterable, query: string): number {
 }
 
 function rankedSearch<T extends SavedFilterable>(items: T[], query: string): T[] {
-  const fuseHits = fuseIndex(items).search(query);
+  const qTokens = tokenize(query).filter((token) => token.length >= 3);
+  const similarities = new Map<string, number>();
+  // Fuse splits long patterns into many independent searches. The bounded
+  // token matcher below handles pasted long expressions without that cost.
+  const fuseHits = query.length <= 256 ? fuseIndex(items).search(query) : [];
   const fuseScore = new Map<string, number>();
   for (const hit of fuseHits) {
     fuseScore.set(hit.item.id, 1 - (hit.score ?? 1));
@@ -248,7 +271,7 @@ function rankedSearch<T extends SavedFilterable>(items: T[], query: string): T[]
 
   const scored = items
     .map((item) => {
-      const tokens = tokenScore(item, query);
+      const tokens = tokenScore(item, qTokens, similarities);
       const fuse = fuseScore.get(item.id) ?? 0;
       return { item, score: Math.max(tokens, fuse) + 0.15 * Math.min(tokens, fuse) };
     })

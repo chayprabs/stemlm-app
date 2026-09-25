@@ -19,22 +19,27 @@ export interface MathMarkdownProps {
   className?: string;
   /** Use for @formula blocks — always display-size KaTeX. */
   mathMode?: MathRenderMode;
+  /** Keep prose and math inside a heading without nested block elements. */
+  inline?: boolean;
 }
 
 export const MathMarkdown = memo(function MathMarkdown({
   content,
   className,
   mathMode = 'auto',
+  inline = false,
 }: MathMarkdownProps) {
+  const Wrapper = inline ? 'span' : 'div';
   return (
-    <div className={`slm-prose ${className ?? ''}`}>
+    <Wrapper className={`slm-prose ${className ?? ''}`}>
       <Markdown
         remarkPlugins={[remarkMath, remarkGfm]} // math first so GFM cannot italicize A_{safe}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, trust: false }]]}
         urlTransform={safeUrl}
+        components={inline ? { p: 'span' } : undefined}
       >
-        {prepareMathForRender(content, mathMode)}
+        {prepareMathForRender(content, mathMode, true)}
       </Markdown>
-    </div>
+    </Wrapper>
   );
 });

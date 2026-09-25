@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import type { StepEntry } from '@/src/lib/step-entries';
 import { StepIndexMark, FollowupIndexMark } from './step-index';
 
@@ -16,13 +17,14 @@ export function StepList({
   onSelect: (index: number) => void;
 }) {
   const railRef = useRef<HTMLElement>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
     const active = rail.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
-    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeIndex, entries.length]);
+    active?.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+  }, [activeIndex, entries.length, reducedMotion]);
 
   return (
     <nav ref={railRef} className="slm-step-rail" aria-label="Solution steps">

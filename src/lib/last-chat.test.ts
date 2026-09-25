@@ -30,7 +30,7 @@ describe('last chat persistence', () => {
     for (const key of Object.keys(localStore)) delete localStore[key];
   });
 
-  it('accepts the four shipped chat URLs and rejects unsupported hosts', () => {
+  it('accepts the three shipped chat URLs and rejects retired or unsupported hosts', () => {
     expect(
       isLastChatRecord({
         url: 'https://gemini.google.com/app/abc',
@@ -38,10 +38,7 @@ describe('last chat persistence', () => {
         savedAt: 1,
       }),
     ).toBe(true);
-    expect(lastChatFromUrl('https://chatgpt.com/c/1', 'chatgpt')).toMatchObject({
-      url: 'https://chatgpt.com/c/1',
-      platform: 'chatgpt',
-    });
+    expect(lastChatFromUrl('https://chatgpt.com/c/1', 'chatgpt')).toBeNull();
     expect(lastChatFromUrl('https://claude.ai/chat/1', 'claude')).toMatchObject({
       platform: 'claude',
     });
@@ -63,5 +60,14 @@ describe('last chat persistence', () => {
 
   it('returns null when nothing is stored', async () => {
     expect(await getLastChat()).toBeNull();
+  });
+
+  it('does not let an older chat record overwrite a newer one', async () => {
+    const newer = lastChatFromUrl('https://gemini.google.com/app/newer', 'gemini', 200)!;
+    const older = lastChatFromUrl('https://gemini.google.com/app/older', 'gemini', 100)!;
+    await rememberLastChat(newer);
+    await rememberLastChat(older);
+
+    expect(await getLastChat()).toEqual(newer);
   });
 });

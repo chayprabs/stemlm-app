@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import type { Session, Step } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
@@ -12,27 +13,21 @@ import { FollowupBar } from './FollowupBar';
 import { FollowupAnswerBody } from './FollowupCard';
 import { SOLUTION_ANCHOR_ID, solutionFollowups } from '@/src/lib/step-entries';
 import { buildSolutionFollowupSelection } from '@/src/lib/followup-selection';
-import { RepairFigureButton, type FigureRepairFailure } from './RepairFigureButton';
-import type { DiagramCompileFailure } from './DiagramRenderer';
-import { auditCapsuleDiagrams, diagramQualityMessage } from '@/src/protocol/diagram-quality';
 
 function SolutionStep({
-  session,
   step,
   index,
   theme,
 }: {
-  session: Session;
   step: Step;
   index: number;
   theme: ResolvedTheme;
 }) {
-  const [compileFailure, setCompileFailure] = useState<DiagramCompileFailure | null>(null);
   return (
     <article className="slm-solution-step">
       <header className="slm-solution-step-head">
         <StepIndexMark n={index + 1} />
-        <h3 className="slm-solution-step-title">{step.title}</h3>
+        <h3 className="slm-solution-step-title"><MathMarkdown content={step.title} inline /></h3>
       </header>
 
       {shouldShowFormulaBlock(step) && step.formula && (
@@ -45,11 +40,7 @@ function SolutionStep({
       <StepWork step={step} className="slm-step-work slm-solution-step-body" />
 
       {step.diagram && (
-        <div className="slm-step-diagram">
-          <span className="slm-step-diagram-label">Diagram</span>
-          <DiagramRenderer diagram={step.diagram} theme={theme} onCompileFailure={setCompileFailure} />
-          {compileFailure && <RepairFigureButton session={session} stepId={step.id} failure={compileFailure} />}
-        </div>
+        <DiagramRenderer diagram={step.diagram} theme={theme} section />
       )}
 
       {step.takeaway && (
@@ -71,38 +62,31 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
   const hasSteps = steps.length > 0;
   const hasSolutionText = solution.trim().length > 0;
-  const qualityCode = auditCapsuleDiagrams(session.capsule)[0];
-  const qualityDiagram = steps.map((step) => step.diagram).find(Boolean);
-  const qualityFailure: FigureRepairFailure | null = qualityCode
-    ? {
-        family: qualityDiagram?.type ?? 'figure',
-        failingKeys: qualityDiagram
-          ? [...new Set(qualityDiagram.content.split('\n').map((line) => /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/.exec(line)?.[1]?.toLowerCase()).filter((key): key is string => Boolean(key)))]
-          : [],
-        code: qualityCode,
-        reason: diagramQualityMessage(qualityCode, session.capsule),
-      }
-    : null;
 
   // Solution-tab follow-ups chain below the solution; scroll to the newest.
   const followups = solutionFollowups(session);
+  const reducedMotion = useReducedMotion();
   const followupsEndRef = useRef<HTMLDivElement>(null);
   const prevCount = useRef(followups.length);
   useEffect(() => {
     if (followups.length > prevCount.current) {
-      followupsEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      followupsEndRef.current?.scrollIntoView({ block: 'end', behavior: reducedMotion ? 'auto' : 'smooth' });
     }
     prevCount.current = followups.length;
-  }, [followups.length]);
+  }, [followups.length, reducedMotion]);
 
   return (
     <div className="slm-solution">
       <CapsuleSignals capsule={session.capsule} />
-      {qualityFailure && <RepairFigureButton session={session} failure={qualityFailure} />}
       {hasSteps && (
         <section className="slm-solution-steps" aria-label="Solution steps">
           {steps.map((step, i) => (
-            <SolutionStep key={step.id} session={session} step={step} index={i} theme={theme} />
+            <SolutionStep
+              key={step.id}
+              step={step}
+              index={i}
+              theme={theme}
+            />
           ))}
         </section>
       )}
@@ -116,10 +100,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
                 if (!Number.isFinite(idx)) return <Fragment key={`d-${i}`} />;
                 const diagram = solutionDiagrams[idx];
                 return diagram ? (
-                  <div key={`d-${i}`} className="slm-step-diagram">
-                    <span className="slm-step-diagram-label">Diagram</span>
-                    <DiagramRenderer diagram={diagram} theme={theme} size="solution" />
-                  </div>
+                  <DiagramRenderer key={`d-${i}`} diagram={diagram} theme={theme} size="solution" section />
                 ) : null;
               }
               return part.trim() ? (
@@ -144,7 +125,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
               Follow-up{followups.length > 1 ? ` ${i + 1}` : ''} · whole solution
             </span>
             <h2 className="slm-card-title">
-              {f.question || f.capsule.meta.topic || 'Your question'}
+              <MathMarkdown content={f.question || f.capsule.meta.topic || 'Your question'} inline />
             </h2>
           </header>
           <FollowupAnswerBody capsule={f.capsule} theme={theme} />

@@ -1,0 +1,14 @@
+import { describe, expect, it } from 'vitest';
+import { dedupeComposerMath, hasComposerMathDuplicates } from './composer-text';
+
+describe('composer extraction work budget', () => {
+  it('preserves a long unbroken token without repeatedly rescanning its suffixes', () => {
+    const input = 'a'.repeat(120_000);
+    const start = performance.now();
+    expect(dedupeComposerMath(input)).toBe(input);
+    expect(hasComposerMathDuplicates(input)).toBe(false);
+    const elapsed = performance.now() - start;
+    console.log(`COMPOSER_TOKEN_MS=${elapsed.toFixed(1)}`);
+    expect(elapsed).toBeLessThan(1000);
+  });
+});

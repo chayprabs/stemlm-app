@@ -2,7 +2,8 @@ import type { CompileCtx, CompileResult, Scene } from '../types';
 import { ExprError, compileExpr } from '../pratt';
 import { specGet, specGetAll, specHas, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
-import { layoutAndCompile } from '../pipeline';
+import { emitSvg } from '../emit';
+import { layoutScene, overlaysFromLayout, strokeSegments, type LayoutResult } from '../slk';
 import { measureText } from '../geom';
 import { FONT_MIN, LABEL_GAP } from '../types';
 
@@ -10,13 +11,43 @@ type Scale = 'linear' | 'log';
 type Point = { x: number; y: number };
 type Segment = { xs: number[]; ys: number[] };
 type Series = { id: string; kind: 'function' | 'data'; xs: number[]; ys: number[]; segments: Segment[]; source?: string };
+type EqSlot = 'N' | 'E' | 'S' | 'W' | 'NE' | 'NW' | 'SE' | 'SW' | 'auto';
 type PlotErrorCode = 'malformed';
+
+const EQ_SLOTS = new Set<EqSlot>(['N', 'E', 'S', 'W', 'NE', 'NW', 'SE', 'SW', 'auto']);
+const PANEL_ROLES = 'function|waveform|continuous|step|discrete|sample|observation';
+const PLOT_DECLARATION = /^\s*([A-Za-z][A-Za-z0-9_.-]*)\s*:/;
+const PLOT_DECLARATION_KEYS = new Set([
+  'kind', 'domain', 'var', 'fn', 'fn2', 'data', 'logx', 'logy', 'scale', 'panel', 'label',
+  'xlabel', 'ylabel', 'eq', 'eq_slot', 'point', 'point_label', 'marker', 'poles', 'zeros',
+  'peaks', 'guide', 'drop', 'asymptote', 'region', 'shade', 'caption', 'highlight',
+]);
 
 class PlotSpecError extends Error {
   constructor(public code: PlotErrorCode, message: string) { super(message); }
 }
 
 function fail(code: PlotErrorCode, message: string): never { throw new PlotSpecError(code, message); }
+
+function strokeBoundsCertificate(scene: Scene, layout: LayoutResult): boolean {
+  const epsilon = 0.5;
+  if (layout.strokes.some((segment) => ![segment.x1, segment.y1, segment.x2, segment.y2].every(Number.isFinite))) return false;
+  return scene.strokes.every((stroke) => {
+    if (!Number.isFinite(stroke.width ?? 1) || (stroke.width ?? 1) < 0) return false;
+    const segments = strokeSegments({ ...scene, strokes: [{ ...stroke, protected: false }] });
+    if (!segments.length) return false;
+    const extent = (stroke.width ?? 1) / 2;
+    return segments.every((segment) => [
+      segment.x1 - extent, segment.y1 - extent, segment.x2 - extent,
+      segment.y2 - extent, segment.x1 + extent, segment.y1 + extent,
+      segment.x2 + extent, segment.y2 + extent,
+    ].every(Number.isFinite) &&
+      segment.x1 - extent >= -epsilon && segment.x2 - extent >= -epsilon &&
+      segment.y1 - extent >= -epsilon && segment.y2 - extent >= -epsilon &&
+      segment.x1 + extent <= scene.width + epsilon && segment.x2 + extent <= scene.width + epsilon &&
+      segment.y1 + extent <= scene.height + epsilon && segment.y2 + extent <= scene.height + epsilon);
+  });
+}
 
 function parseNumber(value: string): number | null {
   const n = Number(value.trim());
@@ -125,6 +156,39 @@ function targetSeries(series: Series[], id: string): Series | undefined {
   return series.find((candidate) => candidate.id.toLowerCase() === id.trim().toLowerCase());
 }
 
+type PlotDropMode = 'both' | 'x' | 'y';
+
+function parseDropMode(spec: SpecDoc): PlotDropMode | undefined {
+  const declarations = specGetAll(spec, 'drop').map((raw) => raw.trim());
+  for (const raw of specGetAll(spec, 'guide')) {
+    const match = /^\s*drop\s*=\s*(.*?)\s*$/i.exec(raw);
+    if (match) declarations.push(match[1]!);
+  }
+  if (!declarations.length) return undefined;
+  const modes = declarations.map((raw) => {
+    const mode = raw.toLowerCase();
+    if (mode !== 'both' && mode !== 'x' && mode !== 'y') fail('malformed', `unsupported plot drop direction ${raw}`);
+    return mode as PlotDropMode;
+  });
+  if (new Set(modes).size !== 1) fail('malformed', 'plot drop declarations disagree');
+  return modes[0];
+}
+
+function validateLabelAssignments(spec: SpecDoc, allSeries: Series[]): void {
+  for (const raw of specGetAll(spec, 'label')) {
+    const assignment = assignments(raw);
+    if (!assignment.kind || !/^(curve|axis|region)$/.test(assignment.kind)) fail('malformed', `unsupported plot label assignment ${raw}`);
+    if (!assignment.value) fail('malformed', `plot label ${raw} needs a value`);
+    if (assignment.kind === 'curve') {
+      if (!assignment.target || !targetSeries(allSeries, assignment.target)) fail('malformed', `plot label target ${assignment.target ?? ''} is missing`);
+    } else if (assignment.kind === 'axis') {
+      if (!assignment.target || !/^(x|y)$/i.test(assignment.target)) fail('malformed', `plot axis label target ${assignment.target ?? ''} is unsupported`);
+    } else if (assignment.target) {
+      fail('malformed', `plot region label target ${assignment.target} is unsupported`);
+    }
+  }
+}
+
 function seriesPoint(series: Series, fraction: number): Point {
   const segment = series.segments[0] ?? { xs: series.xs, ys: series.ys };
   const index = Math.max(0, Math.min(segment.xs.length - 1, Math.floor(segment.xs.length * fraction)));
@@ -151,6 +215,13 @@ function parsePoleValues(spec: SpecDoc): number[] {
   });
 }
 
+function parseEqSlot(spec: SpecDoc): EqSlot {
+  const raw = specGet(spec, 'eq_slot');
+  const slot = (raw ?? 'NE').trim().toUpperCase();
+  if (!EQ_SLOTS.has(slot as EqSlot)) fail('malformed', `invalid plot equation slot ${raw ?? ''}`);
+  return slot as EqSlot;
+}
+
 function ensureSupportedKind(spec: SpecDoc): string {
   const kind = (specGet(spec, 'kind') ?? 'function').trim().toLowerCase();
   if (['pie', 'graph', 'portrait', 'photograph', 'prose', 'construction', 'infographic'].includes(kind)) fail('malformed', `unsupported: plot does not represent ${kind}`);
@@ -158,21 +229,40 @@ function ensureSupportedKind(spec: SpecDoc): string {
   return kind;
 }
 
+function validatePlotDeclarations(spec: SpecDoc): void {
+  for (const [index, line] of spec.raw.replace(/\r\n?/g, '\n').split('\n').entries()) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    const declaration = PLOT_DECLARATION.exec(line);
+    if (!declaration) fail('malformed', `invalid plot declaration on line ${index + 1}`);
+    if (!PLOT_DECLARATION_KEYS.has(declaration[1]!.toLowerCase())) fail('malformed', `unsupported plot declaration ${declaration[1]}`);
+  }
+}
+
 function parsePanels(spec: SpecDoc): Array<{ id: string; role: string }> {
-  return specGetAll(spec, 'panel').map((raw, index) => ({
-    id: /^\s*([A-Za-z][\w.-]*)/.exec(raw)?.[1]?.toLowerCase() ?? `panel${index + 1}`,
-    role: /\brole\s*=\s*([^\s]+)/i.exec(raw)?.[1] ?? `panel${index + 1}`,
-  }));
+  const ids = new Set<string>();
+  return specGetAll(spec, 'panel').map((raw, index) => {
+    const match = new RegExp(`^\\s*([A-Za-z][\\w.-]*)\\s+role\\s*=\\s*(${PANEL_ROLES})\\s*$`, 'i').exec(raw);
+    if (!match) fail('malformed', `invalid plot panel declaration ${raw}`);
+    const id = match[1]!.toLowerCase();
+    if (ids.has(id)) fail('malformed', `duplicate plot panel declaration ${id}`);
+    ids.add(id);
+    return { id, role: match[2]!.toLowerCase() || `panel${index + 1}` };
+  });
 }
 
 function panelSeries(panel: { role: string }, index: number, panels: Array<{ role: string }>, functions: Series[], data: Series[]): Series[] {
   const role = panel.role.toLowerCase();
-  if (/step|discrete|sample|observation/.test(role)) return data;
-  if (/continuous|function|wave/.test(role)) return functions;
-  return [...functions, ...data].filter((_, itemIndex) => itemIndex % panels.length === index);
+  const selected = /step|discrete|sample|observation/.test(role)
+    ? data
+    : /continuous|function|wave/.test(role)
+      ? functions
+      : [...functions, ...data].filter((_, itemIndex) => itemIndex % panels.length === index);
+  if (!selected.length) fail('malformed', 'plot panel ' + panel.role + ' has no plotted series');
+  return selected;
 }
 
-function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: number; w: number; h: number; prefix: string }, series: Series[], allSeries: Series[], spec: SpecDoc, domain: { min: number; max: number }, scale: { x: Scale; y: Scale }, kind: string, referenceIds: Set<string>, panelTitle: boolean): void {
+function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: number; w: number; h: number; prefix: string }, series: Series[], allSeries: Series[], spec: SpecDoc, domain: { min: number; max: number }, scale: { x: Scale; y: Scale }, kind: string, referenceIds: Set<string>, panelTitle: boolean, eqSlot: EqSlot): void {
   const labels = !panel.prefix ? specGetAll(spec, 'label').map(assignments) : [];
   const xlabel = !panel.prefix ? specGet(spec, 'xlabel') ?? labels.find((entry) => entry.kind === 'axis' && entry.target?.toLowerCase() === 'x')?.value : undefined;
   const ylabel = !panel.prefix ? specGet(spec, 'ylabel') ?? labels.find((entry) => entry.kind === 'axis' && entry.target?.toLowerCase() === 'y')?.value : undefined;
@@ -231,51 +321,82 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
     const label = specGetAll(spec, 'label').map(assignments).find((entryLabel) => entryLabel.kind === 'curve' && entryLabel.target?.toLowerCase() === entry.id.toLowerCase());
     if (label?.value) { const point = seriesPoint(entry, 0.72); const labelY = Math.max(panel.y + padT + 30, Math.min(y0 - 30, mapY(point.y))); b.label(id(`label-${entry.id}`), label.value, mapX(point.x), labelY, { slot: 'N', priority: 'required', anchorId: id(entry.id) }); }
     const equation = specGetAll(spec, 'eq')[seriesIndex];
-    if (equation) { const slot = (specGet(spec, 'eq_slot') ?? 'NE') as 'N' | 'E' | 'S' | 'W' | 'NE' | 'NW' | 'SE' | 'SW' | 'auto'; const point = seriesPoint(entry, 0.28); b.label(id(`eq${seriesIndex || ''}`), equation, mapX(point.x), mapY(point.y), { katex: true, slot, anchorId: id(entry.id), priority: 'required' }); }
+    if (equation) { const point = seriesPoint(entry, 0.28); b.label(id(`eq${seriesIndex || ''}`), equation, mapX(point.x), mapY(point.y), { katex: true, slot: eqSlot, anchorId: id(entry.id), priority: 'required' }); }
   });
   const addPointMarker = (markerKind: 'open' | 'closed' | 'point', raw: string, markerIndex: number) => { const point = strictPair(raw); if (!point) fail('malformed', `${markerKind} marker needs x,y`); if (point.x < domain.min || point.x > domain.max) fail('malformed', 'marker lies outside plot domain'); b.circle(id(`marker-${markerKind}${markerIndex}`), mapX(point.x), mapY(point.y), 3.5, { color: markerKind === 'open' ? 'muted' : 'accent', fill: markerKind === 'open' ? 'none' : markerKind === 'closed' ? 'accent' : 'solid', role: 'annotation' }); };
   const markerCounts = { open: 0, closed: 0, point: 0 };
   for (const raw of specGetAll(spec, 'marker')) { const match = /^(open|closed|point)\s*=\s*(.*)$/i.exec(raw); if (match) { const markerKind = match[1]!.toLowerCase() as 'open' | 'closed' | 'point'; addPointMarker(markerKind, match[2]!, markerCounts[markerKind]++); } }
   for (const raw of specGetAll(spec, 'point')) addPointMarker('point', raw, markerCounts.point++);
   specGetAll(spec, 'point').forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const pointLabel = specGetAll(spec, 'point_label')[pointIndex] ?? specGet(spec, 'point_label'); if (pointLabel) b.label(id(`pointl${pointIndex}`), pointLabel, mapX(point.x) - 12, mapY(point.y) - 12, { slot: 'NW', protected: true, priority: 'required' }); });
-  const drop = specGet(spec, 'drop') ?? specGetAll(spec, 'guide').map((raw) => /drop\s*=\s*(.*)$/i.exec(raw)?.[1]).find(Boolean) ?? '';
+  const drop = parseDropMode(spec);
   const markedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^point\s*=/i.test(raw)).map((raw) => raw.replace(/^point\s*=\s*/i, ''))];
-  markedPoints.forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const px = mapX(point.x); const py = mapY(point.y); if (drop.toLowerCase() === 'both' || drop.toLowerCase() === 'x') b.line(id(`dropx${pointIndex}`), px, py, px, xAxisY, { dash: true, color: 'guide', role: 'guide' }); if (drop.toLowerCase() === 'both' || drop.toLowerCase() === 'y') b.line(id(`dropy${pointIndex}`), px, py, x0, py, { dash: true, color: 'guide', role: 'guide' }); });
+  markedPoints.forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const px = mapX(point.x); const py = mapY(point.y); if (drop === 'both' || drop === 'x') b.line(id(`dropx${pointIndex}`), px, py, px, xAxisY, { dash: true, color: 'guide', role: 'guide' }); if (drop === 'both' || drop === 'y') b.line(id(`dropy${pointIndex}`), px, py, x0, py, { dash: true, color: 'guide', role: 'guide' }); });
   const guideCounts = { vertical: 0, horizontal: 0 };
+  specGetAll(spec, 'peaks').forEach((raw) => {
+    const parts = raw.trim().split(/[,\s;]+/);
+    if (parts.length !== 1 || parseNumber(parts[0]!) === null) fail('malformed', 'peak declaration contains unsupported fields');
+  });
   specGetAll(spec, 'guide').forEach((raw) => { const vertical = /^vertical\s*=\s*(.*)$/i.exec(raw); const horizontal = /^horizontal\s*=\s*(.*)$/i.exec(raw); if (vertical) { const value = parseNumber(vertical[1]!); if (value === null || value < domain.min || value > domain.max) fail('malformed', 'vertical guide lies outside domain'); b.line(id(`guide-vertical${guideCounts.vertical++}`), mapX(value), panel.y + padT, mapX(value), y0, { dash: true, color: 'guide', role: 'guide' }); } else if (horizontal) { const value = parseNumber(horizontal[1]!); if (value === null || (scale.y === 'log' ? value <= 0 : value < yMin || value > yMax)) fail('malformed', 'horizontal guide lies outside plotted range'); b.line(id(`guide-horizontal${guideCounts.horizontal++}`), x0, mapY(value), x0 + plotW, mapY(value), { dash: true, color: 'guide', role: 'guide' }); } else if (!/^reference\s*=/i.test(raw) && !/^drop\s*=/i.test(raw)) fail('malformed', `invalid guide ${raw}`); });
-  specGetAll(spec, 'asymptote').forEach((raw, asymptoteIndex) => { const vertical = /x\s*=\s*([-+\d.]+)/i.exec(raw); const horizontal = /y\s*=\s*([-+\d.]+)/i.exec(raw); if (vertical) b.line(id(`asymptote-x${asymptoteIndex}`), mapX(Number(vertical[1])), panel.y + padT, mapX(Number(vertical[1])), y0, { dash: true, color: 'guide', role: 'guide' }); else if (horizontal) b.line(id(`asymptote-y${asymptoteIndex}`), x0, mapY(Number(horizontal[1])), x0 + plotW, mapY(Number(horizontal[1])), { dash: true, color: 'guide', role: 'guide' }); else fail('malformed', 'invalid asymptote'); });
+  specGetAll(spec, 'asymptote').forEach((raw, asymptoteIndex) => {
+    const match = /^\s*([xy])\s*=\s*(.*?)\s*$/i.exec(raw);
+    if (!match) fail('malformed', 'invalid asymptote');
+    const axis = match[1]!.toLowerCase();
+    const value = parseNumber(match[2]!);
+    if (value === null) fail('malformed', 'asymptote needs a finite coordinate');
+    if (axis === 'x') {
+      if (value < domain.min || value > domain.max) fail('malformed', 'vertical asymptote lies outside domain');
+      b.line(id(`asymptote-x${asymptoteIndex}`), mapX(value), panel.y + padT, mapX(value), y0, { dash: true, color: 'guide', role: 'guide' });
+    } else {
+      if (scale.y === 'log' ? value <= 0 || value < yMin || value > yMax : value < yMin || value > yMax) fail('malformed', 'horizontal asymptote lies outside plotted range');
+      b.line(id(`asymptote-y${asymptoteIndex}`), x0, mapY(value), x0 + plotW, mapY(value), { dash: true, color: 'guide', role: 'guide' });
+    }
+  });
   const addSpecial = (raw: string, special: 'pole' | 'zero', specialIndex: number) => { const value = parseNumber(raw); if (value === null || value < domain.min || value > domain.max) fail('malformed', `${special} lies outside domain`); const x = mapX(value); if (special === 'pole') { const y = mapY(0); b.line(id(`marker-pole${specialIndex}`), x - 4, y - 4, x + 4, y + 4, { color: 'danger', width: 1.8, role: 'annotation' }); b.line(id(`marker-pole${specialIndex}-cross`), x - 4, y + 4, x + 4, y - 4, { color: 'danger', width: 1.8, role: 'annotation' }); } else b.circle(id(`marker-zero${specialIndex}`), x, mapY(0), 4, { color: 'muted', role: 'annotation' }); };
   specGetAll(spec, 'poles').forEach((raw, specialIndex) => addSpecial(raw, 'pole', specialIndex));
   specGetAll(spec, 'zeros').forEach((raw, specialIndex) => addSpecial(raw, 'zero', specialIndex));
   specGetAll(spec, 'marker').forEach((raw, markerSpecialIndex) => { const pole = /^pole\s*=\s*(.*)$/i.exec(raw); const zero = /^zero\s*=\s*(.*)$/i.exec(raw); if (pole) addSpecial(pole[1]!, 'pole', markerSpecialIndex); if (zero) addSpecial(zero[1]!, 'zero', markerSpecialIndex); });
   specGetAll(spec, 'peaks').forEach((raw, peakIndex) => { const value = parseNumber(raw.split(/[,\s]+/)[0]!); if (value === null || value < domain.min || value > domain.max) fail('malformed', 'peak lies outside domain'); const x = mapX(value); b.line(id(`peak${peakIndex}`), x, xAxisY, x, panel.y + padT + 6, { color: 'accent', width: 1.2, role: 'annotation' }); b.label(id(`peakn${peakIndex}`), String(peakIndex + 1), x, panel.y + padT + 5, { slot: 'N', priority: 'optional' }); });
   const regions = [...specGetAll(spec, 'region')]; const legacyShade = specGet(spec, 'shade'); if (legacyShade) regions.push(`between=fn from=${legacyShade.split(/\s+/)[0]} to=${legacyShade.split(/\s+/)[1]}`);
-  regions.forEach((raw, regionIndex) => { const between = /between\s*=\s*([^\s]+)\s+from\s*=\s*([^\s]+)\s+to\s*=\s*([^\s]+)/i.exec(raw); if (!between) fail('malformed', 'region needs between, from, and to'); const from = parseNumber(between[2]!); const to = parseNumber(between[3]!); if (from === null || to === null || !(to > from) || from < domain.min || to > domain.max) fail('malformed', 'region bounds are invalid'); const first = targetSeries(allSeries, between[1]!.split(',')[0]!); if (!first) fail('malformed', `region target ${between[1]} is missing`); const secondName = between[1]!.split(',')[1]; const second = secondName ? targetSeries(allSeries, secondName) : undefined; const upper = first.xs.map((value, pointIndex) => ({ x: value, y: first.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to); if (upper.length < 2) fail('malformed', 'region has too few samples'); const points = upper.map((point) => [mapX(point.x), mapY(point.y)]).flat(); if (second) points.push(...second.xs.map((value, pointIndex) => ({ x: value, y: second.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to).reverse().map((point) => [mapX(point.x), mapY(point.y)]).flat()); else points.push(mapX(to), mapY(0), mapX(from), mapY(0)); const regionId = id(`region${regionIndex}`); b.polygon(regionId, points, { color: 'accent', fill: 'accent', role: 'geometry' }); const regionLabel = specGetAll(spec, 'label').map(assignments).find((label) => label.kind === 'region'); if (regionLabel?.value) { const center = upper[Math.floor(upper.length / 2)]!; b.label(id(`region-label${regionIndex}`), regionLabel.value, mapX(center.x), mapY(center.y), { slot: 'N', priority: 'required', anchorId: regionId }); } });
+  regions.forEach((raw, regionIndex) => { const between = /^\s*between\s*=\s*([A-Za-z][A-Za-z0-9_.-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_.-]*)?)\s+from\s*=\s*([^\s]+)\s+to\s*=\s*([^\s]+)\s*$/i.exec(raw); if (!between) fail('malformed', 'region needs between, from, and to'); const from = parseNumber(between[2]!); const to = parseNumber(between[3]!); if (from === null || to === null || !(to > from) || from < domain.min || to > domain.max) fail('malformed', 'region bounds are invalid'); const first = targetSeries(allSeries, between[1]!.split(',')[0]!); if (!first) fail('malformed', `region target ${between[1]} is missing`); const secondName = between[1]!.split(',')[1]; const second = secondName ? targetSeries(allSeries, secondName) : undefined; if (secondName && !second) fail('malformed', 'region target ' + secondName + ' is missing'); const upper = first.xs.map((value, pointIndex) => ({ x: value, y: first.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to); if (upper.length < 2) fail('malformed', 'region has too few samples'); const points = upper.map((point) => [mapX(point.x), mapY(point.y)]).flat(); if (second) points.push(...second.xs.map((value, pointIndex) => ({ x: value, y: second.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to).reverse().map((point) => [mapX(point.x), mapY(point.y)]).flat()); else points.push(mapX(to), mapY(0), mapX(from), mapY(0)); const regionId = id('region' + regionIndex); b.polygon(regionId, points, { color: 'accent', fill: 'accent', role: 'geometry' }); const regionLabel = specGetAll(spec, 'label').map(assignments).find((label) => label.kind === 'region'); if (regionLabel?.value) { const center = upper[Math.floor(upper.length / 2)]!; b.label(id('region-label' + regionIndex), regionLabel.value, mapX(center.x), mapY(center.y), { slot: 'N', priority: 'required', anchorId: regionId }); } });
 }
 
 export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
+  validatePlotDeclarations(spec);
+  const emptyDeclaration = spec.emptyDeclarations.keys().next().value as string | undefined;
+  if (emptyDeclaration) fail('malformed', `plot declaration ${emptyDeclaration} must not be empty`);
   const kind = ensureSupportedKind(spec);
   const domain = parseDomain(spec);
   const scale = parseScale(spec);
   const variable = (specGet(spec, 'var') ?? 'x').trim().toLowerCase();
   if (!/^[a-z_][a-z0-9_]*$/i.test(variable)) fail('malformed', 'plot variable must be an identifier');
+  for (const raw of specGetAll(spec, 'marker')) {
+    const match = /^\s*(open|closed|point|pole|zero)\s*=\s*(.*?)\s*$/i.exec(raw);
+    if (!match || !match[2]) fail('malformed', `unsupported plot marker ${raw}`);
+  }
   const poles = parsePoleValues(spec);
   const functions: Series[] = [];
   for (const [index, source] of [...specGetAll(spec, 'fn'), ...specGetAll(spec, 'fn2')].entries()) { const compiled = compileExpr(source); const segments = sampleFn(compiled, variable, domain.min, domain.max, poles); if (!segments.length) fail('malformed', `function ${index + 1} has no finite samples`); functions.push({ id: index ? `fn${index + 1}` : 'fn', kind: 'function', xs: segments.flatMap((segment) => segment.xs), ys: segments.flatMap((segment) => segment.ys), segments, source }); }
   const data: Series[] = [];
   for (const [index, raw] of specGetAll(spec, 'data').entries()) { const points = parseData(raw); if (points.some((point) => point.x < domain.min || point.x > domain.max)) fail('malformed', 'data sample lies outside domain'); if (scale.x === 'log' && points.some((point) => !(point.x > 0))) fail('malformed', 'log x scale needs positive samples'); const id = index ? `data${index + 1}` : 'data'; const segment = { xs: points.map((point) => point.x), ys: points.map((point) => point.y) }; data.push({ id, kind: 'data', xs: segment.xs, ys: segment.ys, segments: [segment] }); }
+  if (specGetAll(spec, 'eq').length > functions.length + data.length) fail('malformed', 'plot has more equations than plotted series');
   if (!functions.length && !data.length && !specHas(spec, 'peaks') && !specHas(spec, 'poles')) fail('malformed', 'plot needs fn or data');
   if (scale.x === 'log' && functions.some((series) => series.xs.some((value) => !(value > 0)))) fail('malformed', 'log x scale needs a positive domain');
-  const panels = parsePanels(spec); const { w, h } = frameSize(ctx.profile); const b = new SceneBuilder('plot', w, h); b.hl(spec.highlight); const panelGap = 8; const panelHeight = panels.length ? (h - panelGap * (panels.length - 1)) / panels.length : h; const allSeries = [...functions, ...data]; const referenceIds = new Set<string>();
-  for (const raw of specGetAll(spec, 'guide')) { const reference = /^reference\s*=\s*(.*)$/i.exec(raw)?.[1]; if (reference) referenceIds.add(reference.trim().toLowerCase()); }
-  panels.forEach((panelSpec, index) => { const y = index * (panelHeight + panelGap); const panel = { role: panelSpec.role, x: 0, y, w, h: panelHeight, prefix: `${panelSpec.id}-` }; b.panel(panelSpec.id, panelSpec.role, 0, y, w, panelHeight); drawPlotPanel(b, panel, panelSeries(panelSpec, index, panels, functions, data), allSeries, spec, domain, scale, kind, referenceIds, true); });
-  if (!panels.length) drawPlotPanel(b, { role: kind, x: 0, y: 0, w, h, prefix: '' }, allSeries, allSeries, spec, domain, scale, kind, referenceIds, false);
+  const panels = parsePanels(spec); const { w, h } = frameSize(ctx.profile); const b = new SceneBuilder('plot', w, h); b.hl(spec.highlight); const panelGap = 8; const panelHeight = panels.length ? (h - panelGap * (panels.length - 1)) / panels.length : h; const allSeries = [...functions, ...data]; validateLabelAssignments(spec, allSeries); parseDropMode(spec); const referenceIds = new Set<string>(); const eqSlot = parseEqSlot(spec);
+  for (const raw of specGetAll(spec, 'guide')) { const reference = /^\s*reference\s*=\s*([A-Za-z][A-Za-z0-9_.-]*)\s*$/i.exec(raw); if (reference) { const target = targetSeries(allSeries, reference[1]!); if (!target) fail('malformed', `guide reference ${reference[1]} is missing`); referenceIds.add(reference[1]!.trim().toLowerCase()); } else if (/^\s*reference\s*=/i.test(raw)) fail('malformed', `invalid guide reference ${raw}`); }
+  panels.forEach((panelSpec, index) => { const y = index * (panelHeight + panelGap); const panel = { role: panelSpec.role, x: 0, y, w, h: panelHeight, prefix: `${panelSpec.id}-` }; b.panel(panelSpec.id, panelSpec.role, 0, y, w, panelHeight); drawPlotPanel(b, panel, panelSeries(panelSpec, index, panels, functions, data), allSeries, spec, domain, scale, kind, referenceIds, true, eqSlot); });
+  if (!panels.length) drawPlotPanel(b, { role: kind, x: 0, y: 0, w, h, prefix: '' }, allSeries, allSeries, spec, domain, scale, kind, referenceIds, false, eqSlot);
   if (spec.caption && !panels.length) b.label('caption', spec.caption, w / 2, 9, { protected: true, priority: 'required' });
   return b.scene();
 }
 
 export function compilePlot(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  try { return layoutAndCompile(buildPlotScene(spec, ctx)); } catch (error) { if (error instanceof PlotSpecError) return { ok: false, code: error.code, reason: error.message }; if (error instanceof ExprError) return { ok: false, code: 'expr', reason: error.message }; return { ok: false, code: 'throw', reason: error instanceof Error ? error.message : 'plot failed' }; }
+  try {
+    const scene = buildPlotScene(spec, ctx);
+    const layout = layoutScene(scene);
+    if (!layout.ok) return layout;
+    if (!strokeBoundsCertificate(scene, layout)) return { ok: false, code: 'unsatisfiable', reason: 'plot stroke bounds exceed the frame' };
+    return { ok: true, svg: emitSvg(scene, layout), overlays: overlaysFromLayout(layout), scene };
+  } catch (error) { if (error instanceof PlotSpecError) return { ok: false, code: error.code, reason: error.message }; if (error instanceof ExprError) return { ok: false, code: 'expr', reason: error.message }; return { ok: false, code: 'throw', reason: error instanceof Error ? error.message : 'plot failed' }; }
 }
 
 export function evaluatePlotFn(source: string, variable: string, value: number): number { return compileExpr(source)({ [variable]: value }); }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasComposerMathDuplicates, normalizeComposerText } from './composer-text';
+import { dedupeComposerMath, hasComposerMathDuplicates, normalizeComposerText } from './composer-text';
 
 describe('hasComposerMathDuplicates', () => {
   it('detects glued compact + subscript copies only', () => {
@@ -12,6 +12,17 @@ describe('hasComposerMathDuplicates', () => {
 });
 
 describe('normalizeComposerText', () => {
+  it('MATH-01 preserves distinct assignments across prose, for any symbol and value', () => {
+    for (const symbol of ['T', 'R', 'E', 'Q', 'H']) {
+      for (const gap of [' and ', '. The next quantity is ', ' for the first trial and then ']) {
+        for (const value of [17, 83, 301]) {
+          const source = `${symbol}=${value}${gap}${symbol}_c = ${value + 5}`;
+          expect(dedupeComposerMath(source)).toBe(source);
+        }
+      }
+    }
+  });
+
   it('removes compact duplicate before subscript form', () => {
     const raw = 'Consider the circuit. A DC voltage source Vs=48V_s = 48 V is connected';
     const out = normalizeComposerText(raw);
