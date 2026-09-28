@@ -69,6 +69,21 @@ export const PROTOCOL_LINE_MARKERS = new Set([
   '@resume',
 ]);
 
+/** Marker keywords, for case folding and splitting glued markers. */
+const MARKER_WORDS = new Set([...PROTOCOL_LINE_MARKERS, '@diagram']);
+
+/**
+ * Invisible characters that are never meaningful in a capsule (zero-width space,
+ * word joiner, BOM). ZWJ / ZWNJ are kept: they shape Indic and Persian text.
+ */
+const INVISIBLE_RE = /[\u200B\u2060\uFEFF]/g;
+
+/** `@STEP id=s1` → `@step id=s1`; only known marker keywords, never prose like `@Alice`. */
+function foldMarkerCase(line: string): string {
+  return line.replace(/^(\s*)(@[A-Za-z]+)/, (all, lead: string, word: string) =>
+    MARKER_WORDS.has(word.toLowerCase()) ? lead + word.toLowerCase() : all);
+}
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -90,15 +105,20 @@ function isProtocolOnlyLine(line: string): boolean {
  * inline glued markers (e.g. "$$…$$ @formulaend") become proper line breaks.
  */
 export function normalizeCapsuleText(text: string): string {
-  let s = text.replace(/\r\n/g, '\n');
+  let s = text.replace(/\r\n/g, '\n').replace(INVISIBLE_RE, '');
 
   s = s
     .split('\n')
-    .map((sourceLine) => {
-      const line = normalizeMarkerLine(sourceLine);
+    .flatMap((sourceLine) => {
+      const line = foldMarkerCase(normalizeMarkerLine(sourceLine));
       const t = line.trim();
+      // "@endbody @endstep": markers glued on one line become one per line.
+      const words = t.split(/\s+/);
+      if (words.length > 1 && words.every((w) => MARKER_WORDS.has(w.toLowerCase()))) {
+        return words.map((w) => ALT_END_MARKERS[w.toLowerCase()] ?? w.toLowerCase());
+      }
       const canonical = ALT_END_MARKERS[t];
-      return canonical ? line.replace(t, canonical) : line;
+      return [canonical ? line.replace(t, canonical) : line];
     })
     .join('\n');
 

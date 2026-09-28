@@ -21,13 +21,6 @@ export const IconChevronDown = (p: SVGProps<SVGSVGElement>) => (
     <path d="m3.2 5.7 4.8 4.8 4.8-4.8" />
   </svg>
 );
-
-export const IconSpark = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />
-  </svg>
-);
-
 export const IconCheck = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M20 6 9 17l-5-5" />
@@ -152,38 +145,11 @@ export const IconClock = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 6v6l4 2" />
   </svg>
 );
-
-/** Lucide CircleHelp. */
-export const IconHelp = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 18, height: 18, strokeWidth: 1.75, ...p })}>
-    <circle cx="12" cy="12" r="10" />
-    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-    <path d="M12 17h.01" />
-  </svg>
-);
-
-/** Lucide ListFilter — three staggered lines. */
-export const IconFilter = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base({ width: 16, height: 16, strokeWidth: 1.75, ...p })}>
-    <path d="M3 6h18" />
-    <path d="M7 12h10" />
-    <path d="M10 18h4" />
-  </svg>
-);
-
 export const IconMoon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
   </svg>
 );
-
-export const IconSun = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-  </svg>
-);
-
 /** Single sun–moon glyph. Parent `.slm-theme-btn.is-dark` morphs rays → crescent. */
 export const IconTheme = ({ className, ...p }: SVGProps<SVGSVGElement>) => (
   <svg
@@ -248,13 +214,6 @@ export const IconReply = (p: SVGProps<SVGSVGElement>) => (
     <path d="m9 17 4-4-4-4M15 17h5" />
   </svg>
 );
-
-export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <polygon points="6 4 20 12 6 20 6 4" />
-  </svg>
-);
-
 /** Lucide Eye — reveal a hidden answer. */
 export const IconEye = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
@@ -272,13 +231,5 @@ export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
 export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M5 12h14" />
-  </svg>
-);
-
-export const IconHistory = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <path d="M3 12a9 9 0 1 0 3-6.7" />
-    <path d="M3 4v5h5" />
-    <path d="M12 7v5l3 2" />
   </svg>
 );

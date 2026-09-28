@@ -446,9 +446,12 @@ export function syncComposerSlotGeometry(adapter: PlatformAdapter): void {
   slot.style.setProperty('--slm-inject-size', `${size}px`);
 
   if (slot.dataset.dock === 'before-plus') {
+    // Also clears what a previous outside (fixed) dock left inline.
     slot.style.position = '';
     slot.style.top = '';
     slot.style.left = '';
+    slot.style.zIndex = '';
+    slot.style.marginRight = '';
     return;
   }
 
@@ -511,6 +514,26 @@ export function syncComposerSlotGeometry(adapter: PlatformAdapter): void {
   applyFixed(next.top, next.left);
 }
 
+/**
+ * An outside dock needs empty page left of the composer. In a narrow window the composer hugs the
+ * edge, or a sidebar sits there, and the control would cover host UI or float above the box, so it
+ * docks inside instead. Without layout (zero-size frame) the configured dock stands.
+ */
+function roomLeftOfComposer(adapter: PlatformAdapter, leading: HTMLElement | null): boolean {
+  const frame = resolveComposerFrame(adapter) ?? adapter.getComposerShell();
+  const box = frame?.isConnected ? frame.getBoundingClientRect() : null;
+  if (!frame || !box || box.width === 0) return true;
+  const size = sizeFromLeading(leading);
+  const left = box.left - size - SLOT_GAP_PX;
+  if (left < 8) return false;
+  const align = leading?.isConnected && frame.contains(leading) ? leading.getBoundingClientRect() : box;
+  const y = align.top + align.height / 2;
+  // Only the composer's own wrappers (and stemlm itself) may be under the spot.
+  return [left + 2, left + size / 2, left + size - 2].every((x) =>
+    (document.elementsFromPoint?.(x, y) ?? []).every((el) =>
+      el.contains(frame) || el.tagName === 'STEMLM-ROOT' || Boolean(el.closest(COMPOSER_SLOT_SELECTOR))));
+}
+
 export function ensureComposerSlot(
   adapter: PlatformAdapter,
   scheme: 'light' | 'dark' = 'light',
@@ -520,7 +543,7 @@ export function ensureComposerSlot(
   let slot: HTMLElement | null = null;
   let dock: 'before-plus' | 'outside-shell' | 'fixed' = 'fixed';
 
-  const forceOutside = adapter.composerDock === 'outside-shell';
+  const forceOutside = adapter.composerDock === 'outside-shell' && roomLeftOfComposer(adapter, leading);
   const preferBeforePlus = !forceOutside && leading != null && canDockBeforePlus(leading);
 
   if (leading && preferBeforePlus) {
@@ -615,11 +638,5 @@ export function removeComposerSlot() {
     el.removeAttribute(HOST_ATTR);
   });
 }
-
-/** Test hook — returns the singleton slot element if allocated. */
-export function getComposerSlotElement(): HTMLElement | null {
-  return sharedSlot;
-}
-
 export const _composerSlotGap = SLOT_GAP_PX;
 export const _slotCss = SLOT_CSS;

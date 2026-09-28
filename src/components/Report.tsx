@@ -240,7 +240,7 @@ function ReportHead({ kicker, topic }: { kicker?: string; topic?: ReactNode }) {
 function ReportFoot() {
   return (
     <footer className="slm-report-foot">
-      <span>PDF made using stemLM</span>
+      <span>PDF made using stemlm</span>
       <a
         className="slm-report-foot-link"
         href={BRAND_SITE}

@@ -18,3 +18,8 @@ output/
 # Blind-elicitation samples are local evaluation manifests.
 # Kept on disk for re-measurement, never published.
 docs/history/blind-*.json
+
+# Local tool output: Playwright CLI state, test reports, scratch browser profiles.
+.playwright-cli/
+test-results/
+tmp/

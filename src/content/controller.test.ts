@@ -188,6 +188,26 @@ describe('production protocol delivery', () => {
     controller.stopWatching();
   });
 
+  // Live Grok 2026-09-27 (signed out): the host answered each upload with "Sign in to upload files"
+  // while stemlm told the student to wait for uploads to finish.
+  it('says the chat may need a sign-in before it accepts the guide file (UX-ERR-04)', async () => {
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Explain the conservation of momentum.';
+    const controller = initController(adapter);
+    expect(await controller.inject()).toBe(false);
+    const injectMessage = useStore.getState().errorMessage ?? '';
+    expect(await controller.followUp('Momentum is conserved', 'Conserve momentum', 'Physics', { intent: 'ask' })).toBe(false);
+    const followUpMessage = useStore.getState().errorMessage ?? '';
+    console.log('ATTACH_FAIL', JSON.stringify({ injectMessage, followUpMessage }));
+    for (const message of [injectMessage, followUpMessage]) {
+      expect(message).toMatch(/sign in/i);
+      expect(message).toMatch(/upload/i);
+      expect(message).toMatch(/unchanged/i);
+    }
+    controller.stopWatching();
+  });
+
   it('requires a visible upload acknowledgement inside the active composer', async () => {
     const adapter = new MockAdapter();
     const controller = initController(adapter);
@@ -989,6 +1009,105 @@ describe('StemController.followUp', () => {
   });
 });
 
+describe('CAP-OBS-01 replaced conversation root', () => {
+  beforeEach(resetStore);
+
+  it('keeps capturing after the host replaces the element it was watching', async () => {
+    document.body.replaceChildren(document.createElement('main'));
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    c.startWatching();
+    // Let the initial check run on the empty page first.
+    await new Promise((r) => setTimeout(r, 600));
+    expect(useStore.getState().sessions).toHaveLength(0);
+    const fresh = document.createElement('main');
+    document.querySelector('main')!.replaceWith(fresh);
+    adapter.capsules = [CAPSULE_BODY];
+    await new Promise((r) => setTimeout(r, 2200));
+    fresh.append(document.createTextNode('answer arrives'));
+    await vi.waitFor(() => expect(useStore.getState().sessions).toHaveLength(1), { timeout: 3000 });
+    c.stopWatching();
+  }, 10_000);
+});
+
+describe('FOLLOW-01 typed follow-up question source', () => {
+  it('reads the question from sent user messages, never from the composer draft', () => {
+    const header = '--- stemLM follow-up context (do not remove) ---';
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.textContent = `Draft still being typed\n\n${header}\nStep context`;
+    document.body.replaceChildren(editor);
+    const c = new StemController(new MockAdapter());
+    const extract = () => (c as unknown as { extractTypedFollowupQuestion(): string | undefined }).extractTypedFollowupQuestion();
+    expect(extract()).toBeUndefined();
+    const sent = document.createElement('div');
+    sent.setAttribute('data-testid', 'user-message');
+    sent.textContent = `Why does friction not matter here?\n\n${header}\nStep context`;
+    document.body.append(sent);
+    expect(extract()).toBe('Why does friction not matter here?');
+    c.stopWatching();
+  });
+});
+
+describe('DISABLED-01 answer started while stemLM is off', () => {
+  beforeEach(resetStore);
+
+  it.each([
+    [false, 0],
+    [true, 1],
+  ])('stemlmEnabled=%s fires the auto-open hook %i time(s)', async (enabled, calls) => {
+    useStore.setState({ settings: { ...useStore.getState().settings, stemlmEnabled: enabled } });
+    const adapter = new MockAdapter();
+    adapter.streaming = true;
+    const c = new StemController(adapter);
+    const onStarted = vi.fn();
+    c.setOnAnswerStarted(onStarted);
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(onStarted).toHaveBeenCalledTimes(calls);
+    c.stopWatching();
+    useStore.setState({ settings: { ...useStore.getState().settings, stemlmEnabled: true } });
+  });
+});
+
+describe('INJ-01 attach abandoned mid-way', () => {
+  beforeEach(resetStore);
+
+  it('tells the student when the chat box changed while the guide was attaching', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Find the acceleration of a 2 kg block on a 30 degree incline.';
+    vi.mocked(attachTextFile).mockImplementationOnce(async () => {
+      adapter.editorText = 'A different question typed meanwhile';
+      return { ok: true, method: 'input' };
+    });
+    const c = new StemController(adapter);
+    expect(await c.inject()).toBe(false);
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toMatch(/changed while stemlm was attaching/);
+    expect(useStore.getState().buttonInjected).toBe(false);
+    c.stopWatching();
+  });
+
+  it('stays quiet when a newer attempt took over', async () => {
+    const adapter = new MockAdapter();
+    adapter.editorText = 'Find the range of a projectile.';
+    const c = new StemController(adapter);
+    let release: () => void = () => {};
+    vi.mocked(attachTextFile).mockImplementationOnce(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true, method: 'input' });
+    }));
+    const first = c.inject();
+    await Promise.resolve();
+    vi.mocked(attachTextFile).mockResolvedValueOnce({ ok: true, method: 'input' });
+    const second = c.inject();
+    release();
+    expect(await first).toBe(false);
+    await second;
+    expect(useStore.getState().errorMessage ?? '').not.toMatch(/changed while/);
+    c.stopWatching();
+  });
+});
+
 describe('StemController.loadConversation', () => {
   beforeEach(resetStore);
 
@@ -1042,6 +1161,32 @@ describe('StemController.loadConversation', () => {
     expect(count).toBe(0);
     expect(useStore.getState().sessions).toHaveLength(0);
     expect(useStore.getState().status).toBe('error');
+    c.stopWatching();
+  });
+
+  it('LOAD-01 keeps sessions the page does not show and the follow-ups of reloaded ones', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [CAPSULE_BODY];
+    const c = new StemController(adapter);
+    expect(await c.loadConversation({ maxWaitMs: 0 })).toBe(1);
+    const loaded = useStore.getState().sessions[0]!;
+    useStore.getState().addFollowup(loaded.id, {
+      id: 'fu-1', anchorStepId: loaded.capsule.steps[0]!.id, question: 'Why?', capsule: loaded.capsule, createdAt: 1,
+    });
+    const restored = {
+      ...loaded,
+      id: 'restored-other-chat',
+      raw: 'restored',
+      followups: undefined,
+      capsule: { ...loaded.capsule, meta: { ...loaded.capsule.meta, topic: 'A question from another chat' } },
+    };
+    useStore.setState({ sessions: [restored, useStore.getState().sessions[0]!], activeSessionId: restored.id });
+
+    expect(await c.loadConversation({ maxWaitMs: 0 })).toBe(1);
+    const after = useStore.getState().sessions;
+    expect(after.map((s) => s.id)).toEqual(['restored-other-chat', loaded.id]);
+    expect(after[1]!.followups?.map((f) => f.id)).toEqual(['fu-1']);
+    expect(useStore.getState().activeSessionId).toBe(loaded.id);
     c.stopWatching();
   });
 
@@ -1788,6 +1933,77 @@ describe('StemController capture', () => {
     c.stopWatching();
   });
 
+  it('leads an unreadable-answer error with what to do, keeping the parser code as a detail line (UX-ERR-01)', async () => {
+    const adapter = new MockAdapter();
+    adapter.capsules = [MALFORMED_NO_STEPS_BODY];
+    const c = new StemController(adapter);
+
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
+    expect(lead).not.toMatch(/parser|code|capsule/i);
+    expect(lead).toMatch(/\+/);
+    expect(detail.join('\n')).toMatch(/^Parser code: \w+\.$/);
+    c.stopWatching();
+  });
+
+  // Live 2026-09-27: Grok "High Demand" and Gemini "Sorry, something went wrong" replies were
+  // reported as answers stemlm "couldn't read".
+  // Live Grok 2026-09-27: the chat stopped mid-step 6 (no @end) and stemlm said it "couldn't read" it.
+  it('says an answer the chat cut off stopped early and can be continued (UX-ERR-05)', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.editorText = 'Find the current from the battery.';
+      const injected = c.inject();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await injected).toBe(true);
+      adapter.capsules = [CAPSULE_BODY.replace(/@end\s*$/, '').replace(/@verify[\s\S]*$/, '@step id=s9\ntitle: Verify\n@body\nCurrents through the')];
+      await vi.advanceTimersByTimeAsync(25_000);
+
+      const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
+      console.log('MISSING_END_MESSAGE', JSON.stringify(useStore.getState().errorMessage));
+      expect(lead).toMatch(/stopped before the end/i);
+      expect(lead).toMatch(/continue/i);
+      expect(lead).toMatch(/\+/);
+      expect(lead).not.toMatch(/parser|code|capsule/i);
+      // D38: its closed steps are shown (cut off, unsaveable) with this notice, not an error.
+      expect(detail).toEqual([]);
+      expect(useStore.getState().status).toBe('ready');
+      expect(useStore.getState().sessions.map((s) => [s.cutOff, s.capsule.steps.length])).toEqual([[true, 2]]);
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
+  it('says a reply with no stemlm answer at all may be a chat error or limit (UX-ERR-02)', async () => {
+    vi.useFakeTimers();
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    try {
+      adapter.editorText = 'Find the current from the battery.';
+      const injected = c.inject();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await injected).toBe(true);
+      adapter.capsules = ['Grok is under heavy usage right now. Please try again later or upgrade your plan.'];
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
+      console.log('NO_CAPSULE_MESSAGE', JSON.stringify(useStore.getState().errorMessage));
+      expect(lead).toMatch(/no stemlm answer/i);
+      expect(lead).toMatch(/error|limit/i);
+      expect(lead).toMatch(/\+/);
+      expect(lead).not.toMatch(/parser|code|capsule/i);
+      expect(detail.join('\n')).toBe('Parser code: no_capsule.');
+    } finally {
+      c.stopWatching();
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps a stable partial pending and reconciles it when the final capsule arrives', async () => {
     const adapter = new MockAdapter();
     const c = new StemController(adapter);
@@ -1870,6 +2086,27 @@ describe('StemController capture', () => {
     expect(useStore.getState().status).toBe('ready');
     expect(useStore.getState().errorMessage).toBe(
       'This answer arrived without its final check and assumptions. The steps are complete; double-check the final result.',
+    );
+    c.stopWatching();
+  });
+
+  // D30 (2026-09-27, autopilot): a finished answer with a malformed @verify is kept,
+  // shown as not verified, instead of losing every step.
+  it('PARSE-04 stores a finished capsule whose check is malformed, marked not verified, with a soft notice', async () => {
+    const adapter = new MockAdapter();
+    const c = new StemController(adapter);
+    const body = CAPSULE_BODY.replace(/(@verify\n)[\s\S]*?(@endverify)/, '$1methods: vibes\nstatus: unsure\nnotes: looks right\n$2');
+    expect(body).toContain('status: unsure');
+    adapter.capsules = [body];
+    c.startWatching();
+    await new Promise((r) => setTimeout(r, 500));
+    const [session] = useStore.getState().sessions;
+    expect(session?.capsule.steps.length).toBeGreaterThan(0);
+    expect(session?.capsule.verification?.status).toBe('fail');
+    expect(session?.capsule.verification?.correction).toBeTruthy();
+    expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().errorMessage).toBe(
+      'The final check in this answer was incomplete, so the result is shown as not verified. Double-check it.',
     );
     c.stopWatching();
   });

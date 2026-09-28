@@ -1,51 +1,92 @@
 /**
- * pdf.html entry logic. Default mode renders the report.
- * `mode=download` / `mode=print` open the print dialog (Save as PDF).
+ * pdf.html entry logic. Default mode renders a saved report.
+ * `mode=download` saves a real PDF to Downloads (D7): a saved question by `id`,
+ * or the session a chat tab handed over by `job`. The window closes itself once
+ * the file is saved; a failure stays on screen. `mode=print` opens the print dialog.
  */
+import type { Session } from '@/src/protocol/types';
 import { getSavedSession, snapshotToSession } from '@/src/lib/saved-sessions';
-import { exportSessionPdf, renderSessionReportHtml } from '@/src/lib/pdf';
+import { downloadSessionPdf, exportSessionPdf, renderSessionReportHtml } from '@/src/lib/pdf';
+import { takePdfExportJob } from '@/src/lib/pdf-export-request';
+import { pdfFailureMessage } from '@/src/lib/saved-library';
 
 export type SavedPdfMode = 'view' | 'download' | 'print';
+
+/** Long enough to read "PDF saved"; the file is already in Downloads. */
+const CLOSE_AFTER_SAVE_MS = 1_200;
 
 export function parseSavedPdfMode(value: string | null | undefined): SavedPdfMode {
   if (value === 'download' || value === 'print') return value;
   return 'view';
 }
 
-function setStatus(message: string, isError = false) {
+function show(title: string, detail: string, state: 'busy' | 'done' | 'error' = 'busy') {
   const root = document.getElementById('app');
   if (!root) return;
-  root.innerHTML = `<p class="slm-saved-pdf-status${isError ? ' is-error' : ''}">${message}</p>`;
+  const heading = document.createElement('p');
+  heading.className = 'slm-saved-pdf-title';
+  heading.textContent = title;
+  const status = document.createElement('p');
+  status.className = `slm-saved-pdf-status${state === 'error' ? ' is-error' : ''}`;
+  status.textContent = detail;
+  root.dataset.state = state;
+  root.replaceChildren(heading, status);
+}
+
+async function download(session: Session): Promise<boolean> {
+  show('Exporting PDF', 'Preparing the report…');
+  const result = await downloadSessionPdf(session, {
+    onProgress: ({ page, total }) => show('Exporting PDF', `Rendering page ${page} of ${total}…`),
+  });
+  if (!result.ok) {
+    show('PDF not saved', pdfFailureMessage(result.reason ?? 'render'), 'error');
+    return false;
+  }
+  show('PDF saved', 'It is in your Downloads folder. This window closes itself.', 'done');
+  setTimeout(() => window.close(), CLOSE_AFTER_SAVE_MS);
+  return true;
 }
 
 export async function runSavedPdfPage(
   search: string = typeof location === 'undefined' ? '' : location.search,
 ): Promise<{ ok: boolean; mode: SavedPdfMode }> {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const job = params.get('job')?.trim();
   const id = params.get('id')?.trim();
   const mode = parseSavedPdfMode(params.get('mode'));
 
-  if (!id) {
-    setStatus('Missing saved session id.', true);
+  if (!job && !id) {
+    show('PDF not available', 'Missing saved session id.', 'error');
     return { ok: false, mode };
   }
 
-  const snapshot = await getSavedSession(id);
-  if (!snapshot) {
-    setStatus('Saved session not found. It may have been deleted.', true);
+  let session: Session | null = null;
+  try {
+    if (job) session = await takePdfExportJob(job);
+    else if (id) {
+      const snapshot = await getSavedSession(id);
+      session = snapshot ? snapshotToSession(snapshot) : null;
+    }
+  } catch {
+    session = null;
+  }
+  if (!session) {
+    show('PDF not available', job
+      ? 'This export has expired. Export the PDF again from the panel.'
+      : 'Saved session not found. It may have been deleted.', 'error');
     return { ok: false, mode };
   }
 
-  const session = snapshotToSession(snapshot);
+  if (mode === 'download') return { ok: await download(session), mode };
 
-  if (mode === 'print' || mode === 'download') {
-    setStatus('Opening print dialog — choose “Save as PDF”.');
+  if (mode === 'print') {
+    show('Printing', 'Opening the print dialog. Choose “Save as PDF”.');
     const result = await exportSessionPdf(session);
     if (result.ok) {
-      setStatus('Print dialog opened. Choose “Save as PDF”, then you can close this window.');
+      show('Print dialog open', 'Choose “Save as PDF”, then close this window.', 'done');
       return { ok: true, mode };
     }
-    setStatus('Could not prepare the PDF. Try again from the extension.', true);
+    show('PDF not available', 'Could not prepare the PDF. Try again from the extension.', 'error');
     return { ok: false, mode };
   }
 
@@ -54,10 +95,10 @@ export async function runSavedPdfPage(
     document.open();
     document.write(html);
     document.close();
-    document.title = 'stemLM';
+    document.title = 'stemlm';
     return { ok: true, mode };
   } catch {
-    setStatus('Could not open the saved report. Try again from the extension.', true);
+    show('PDF not available', 'Could not open the saved report. Try again from the extension.', 'error');
     return { ok: false, mode };
   }
 }

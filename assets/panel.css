@@ -84,7 +84,6 @@
 .slm-followup-action:focus-visible,
 .slm-tab:focus-visible,
 .slm-inject-btn:focus-visible,
-.slm-rail-dot:focus-visible,
 .slm-session-pill:focus-visible,
 .slm-session-pill-remove:focus-visible {
   outline: 2px solid var(--slm-ring);
@@ -358,6 +357,10 @@
 }
 
 /* ---------- panel shell ---------- */
+/* The panel takes focus when it opens; only its controls show a ring (UI-FOCUS-01). */
+.slm-panel:focus {
+  outline: none;
+}
 .slm-panel {
   --slm-pad-x: 1.2rem;
   --slm-pad-y: 0.75rem;
@@ -472,6 +475,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  /* When brand + tabs and the controls do not fit one row, the controls move to their own row
+     instead of sliding over the tabs (any panel width, not only the narrow band). */
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
   min-height: 3rem;
   padding: 0.45rem var(--slm-pad-x);
 }
@@ -495,6 +502,7 @@
   align-items: center;
   gap: 0.1rem;
   flex-shrink: 0;
+  margin-left: auto;
 }
 /* Announced by assistive technology, never painted. */
 .slm-sr-only {
@@ -807,6 +815,25 @@
   background: var(--slm-bg-subtle);
   color: var(--slm-fg-muted);
 }
+.slm-banner-details {
+  margin-top: 0.3rem;
+  font-size: 12px;
+}
+.slm-banner-details summary {
+  cursor: pointer;
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.slm-banner-details summary:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-banner-details p {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
 
 /* ---------- body ---------- */
 .slm-body {
@@ -959,59 +986,6 @@
   border-style: solid;
 }
 
-/* ---------- progress rail (unused in panel; keep usable) ---------- */
-.slm-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-.slm-rail-dot {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0.25rem 0;
-  color: var(--slm-fg-subtle);
-  max-width: 9rem;
-  text-align: left;
-}
-.slm-rail-dot-mark {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-sm);
-  background: var(--slm-bg-subtle);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  color: var(--slm-fg-muted);
-}
-.slm-rail-dot-label {
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.slm-rail-dot.is-active .slm-rail-dot-mark {
-  background: var(--slm-solid);
-  color: var(--slm-solid-fg);
-}
-.slm-rail-dot.is-active .slm-rail-dot-label {
-  color: var(--slm-fg);
-}
 .slm-steps-main {
   min-width: 0;
 }
@@ -2132,12 +2106,6 @@
   flex-direction: row;
   justify-content: flex-end;
 }
-.slm-panel[data-width='narrow'] .slm-rail-dot {
-  max-width: 2rem;
-}
-.slm-panel[data-width='narrow'] .slm-rail-dot-label {
-  display: none;
-}
 .slm-panel[data-width='narrow'] .slm-empty {
   padding: 1.5rem 0.85rem 2rem;
 }
@@ -2169,9 +2137,6 @@
   padding-top: 1.5rem;
   padding-bottom: 2.5rem;
 }
-.slm-panel[data-width='wide'] .slm-rail-dot-label {
-  display: -webkit-box;
-}
 
 .slm-selpop {
   position: fixed;
@@ -2188,7 +2153,6 @@
   .slm-inject-glyph svg,
   .slm-btn,
   .slm-tab,
-  .slm-rail-dot-mark,
   .slm-step-rail-btn,
   .slm-sk,
   .slm-icon-btn,

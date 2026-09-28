@@ -24,11 +24,6 @@ export function boxFrom(x: number, y: number, w: number, h: number, anchor: 'sta
 export function boxesOverlap(a: Box, b: Box, pad = 0): boolean {
   return a.x1 < b.x2 + pad && a.x2 > b.x1 - pad && a.y1 < b.y2 + pad && a.y2 > b.y1 - pad;
 }
-
-export function boxCenter(b: Box): { x: number; y: number } {
-  return { x: (b.x1 + b.x2) / 2, y: (b.y1 + b.y2) / 2 };
-}
-
 export function distPointSeg(px: number, py: number, s: Segment): number {
   const dx = s.x2 - s.x1;
   const dy = s.y2 - s.y1;

@@ -229,10 +229,13 @@ export function normalizeMathDelimiters(src: string): string {
 
 /**
  * KaTeX parses \\par inside \\parallel as a paragraph break. Use \\mathbin{\\|}
- * instead — equivalent glyph, no fragile brace groups for remark-math.
+ * instead — equivalent glyph, no fragile brace groups for remark-math. As a sub/superscript
+ * (W_\\parallel) it needs braces: KaTeX rejects a bare command that takes an argument there.
  */
 export function protectFragileLatexCommands(src: string): string {
-  return src.replace(/\\parallel\b/g, '\\mathbin{\\|}');
+  return src
+    .replace(/([_^])\s*\\parallel\b/g, '$1{\\mathbin{\\|}}')
+    .replace(/\\parallel\b/g, '\\mathbin{\\|}');
 }
 
 /** Book-style stacked fractions for unicode vulgar fractions. */
@@ -574,8 +577,14 @@ function parseSubSup(src: string, i: number): number {
       const cmd = src.slice(k + 1).match(/^\\[A-Za-z]+/);
       if (!cmd) break;
       k = k + 1 + cmd[0].length;
+    } else if (next === '(') {
+      // Plain text: y^(n+1) raises the whole group.
+      const close = findMatching(src, k + 1, '(', ')');
+      if (close === -1) break;
+      k = close + 1;
     } else if (next && !/\s/.test(next)) {
-      k += 2;
+      // Plain text: 10^-5 and 10^12 raise the whole signed number.
+      k += 1 + (src.slice(k + 1).match(/^[+\-−]?\d+(?:\.\d+)?/)?.[0].length || 1);
     } else {
       break;
     }
@@ -711,7 +720,8 @@ function parseFunctionCall(src: string, i: number): number {
 }
 
 function parseIdentSubSup(src: string, i: number): number {
-  const m = src.slice(i).match(/^\d*[A-Za-z][A-Za-z0-9]*/);
+  // A Unicode Greek letter can carry the script too (μ_k, ω_n); KaTeX typesets it in math mode.
+  const m = src.slice(i).match(/^\d*[A-Za-zΑ-Ωα-ωµ][A-Za-z0-9]*/);
   if (!m) return i;
   const k = i + m[0].length;
   if (src[k] !== '_' && src[k] !== '^') return i;
@@ -921,6 +931,13 @@ function uprightTrailingUnit(math: string): string {
   return math.replace(TRAILING_UNIT, (_match, digit: string, unit: string) => `${digit}\\,\\mathrm{${unit}}`);
 }
 
+/** `10^-5` → `10^{-5}`, `y^(n+1)` → `y^{n+1}`: TeX raises one token, plain text means the whole exponent. */
+function bracePlainExponents(math: string): string {
+  return math
+    .replace(/\^\(([^()]*)\)/g, '^{$1}')
+    .replace(/\^([+\-−]?\d+(?:\.\d+)?)/g, (whole, exponent: string) => (exponent.length > 1 ? `^{${exponent}}` : whole));
+}
+
 /** `V_out` → `V_{out}`: a one-letter symbol takes the whole word as its subscript. */
 function braceWordSubscripts(text: string): string {
   return text.replace(
@@ -944,7 +961,7 @@ function wrapUndelimitedStemTokens(text: string): string {
     const end = isMathBoundary(text, i) ? parseMathExpr(text, i) : i;
     if (end > i) {
       if (out.endsWith('$')) out += ' ';
-      out += wrapAsMath(uprightTrailingUnit(text.slice(i, end)), false);
+      out += wrapAsMath(bracePlainExponents(uprightTrailingUnit(text.slice(i, end))), false);
       i = end;
       continue;
     }

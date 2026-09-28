@@ -26,7 +26,7 @@ export function compileHybridPi(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
   b.label('vin', specGet(spec, 'vin') ?? 'vin', xVin, yB - 16, { protected: true, slot: 'N', anchorId: 'vin-w' });
   b.line('vin-w', xVin, yB, xB, yB, { width: 1.6 });
-  b.circle('B', xB, yB, 3, { fill: 'solid' });
+  b.circle('B', xB, yB, 3, { fill: 'ink' });
   b.label('B', 'B', xB, yB - 14, { protected: true });
 
   // rπ B–E: zigzag starts at B and ends at E (same x, emitter rail).
@@ -55,7 +55,7 @@ export function compileHybridPi(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     slot: 'W', protected: true, anchorId: 'rpi',
   });
 
-  b.circle('E', xE, yE, 3, { fill: 'solid' });
+  b.circle('E', xE, yE, 3, { fill: 'ink' });
   b.label('E', 'E', xE - 12, yE + 12, { protected: true });
   // Emitter rail: E across to RE / gm foot, then down to GND.
   b.line('e-rail', xE, yE, xRe + 40, yE, { width: 1.4 });
@@ -73,7 +73,7 @@ export function compileHybridPi(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   b.line('gm-c', dx, midY - 22, xC, yC, { width: 1.4 });
   b.line('gm-e', dx, midY + 22, xE, yE, { width: 1.4 });
 
-  b.circle('C', xC, yC, 3, { fill: 'solid' });
+  b.circle('C', xC, yC, 3, { fill: 'ink' });
   b.label('C', 'C', xC + 12, yC - 12, { protected: true });
 
   // RC up to VCC
@@ -182,12 +182,12 @@ export function compileOpamp(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   b.polyline('Rf', [tx + 40, ty, tx + 56, ty, tx + 56, 28, 108, 28, 108, ty + 14, tx - 40, ty + 14], {
     width: 1.6, role: 'connector',
   });
-  b.rect('Rfbox', tx - 10, 22, 28, 12, { fill: 'solid', role: 'geometry' });
+  b.rect('Rfbox', tx - 10, 22, 28, 12, { fill: 'paper', role: 'geometry' });
   b.labelPair('rf-label', { id: 'Rf', text: 'Rf' }, { id: 'Rf-val', text: specGet(spec, 'rf')! }, tx + 4, 30, {
     slot: 'N', protected: true, anchorId: 'Rf',
   });
   b.line('Rg', 40, ty + 14, tx - 40, ty + 14, { width: 1.6, role: 'connector' });
-  b.rect('Rgbox', 70, ty + 8, 28, 12, { fill: 'solid', role: 'geometry' });
+  b.rect('Rgbox', 70, ty + 8, 28, 12, { fill: 'paper', role: 'geometry' });
   b.labelPair('rg-label', { id: 'Rg', text: 'Rg' }, { id: 'Rg-val', text: specGet(spec, 'rg')! }, 84, ty + 36, {
     slot: 'S', protected: true, anchorId: 'Rg',
   });

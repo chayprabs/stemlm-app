@@ -11,6 +11,7 @@ import { canonicalizeDiagramType } from '@/src/lib/figure/catalog';
 import type { CompileFailCode, Overlay } from '@/src/lib/figure/types';
 import { useStore } from '@/src/state/store';
 import { CONTENT_SCALE_DIAGRAM_FACTOR } from '@/src/lib/settings';
+import { MAX_DIAGRAM_UPSCALE } from '@/src/lib/diagram-bounds';
 import { FigureLightbox, type LightboxOrigin } from './FigureLightbox';
 import { IconExpand } from './icons';
 
@@ -29,6 +30,29 @@ export interface DiagramRendererProps {
   /** Own the section chrome so a hidden figure leaves no empty parent box. */
   section?: boolean;
   onCompileFailure?: (failure: DiagramCompileFailure | null) => void;
+}
+
+/** Wider than the step's 300 x 165 budget box (FIG-SIZE-02). */
+const WIDE_FIGURE_ASPECT = 1.8;
+
+/**
+ * Frame width for a presented figure: the presenter's size, coupled to the height
+ * budget (an independent max-height would letterbox the SVG and shift
+ * percentage-positioned math labels). A wide figure may use the card's width up
+ * to its own native size, so a many-device circuit is not shrunk to the nominal
+ * width budget; the height budget still binds it (FIG-SIZE-02).
+ */
+export function diagramFrameWidth(svg: string, size: 'step' | 'solution', displayScale: number): string | undefined {
+  const displayWidth = Number(/^<svg\b[^>]*\swidth="([\d.]+)"/.exec(svg)?.[1]);
+  if (!(displayWidth > 0)) return undefined;
+  const bounds = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1]?.trim().split(/[\s,]+/).map(Number);
+  const aspect = bounds && bounds[2]! / bounds[3]!;
+  const wide = Boolean(aspect && aspect > WIDE_FIGURE_ASPECT);
+  const heightBudget = size === 'solution' ? '--slm-content-solution-diagram-height, 270px' : '--slm-content-diagram-height, 241px';
+  const heightLimitedWidth = aspect && (wide || !svg.includes('data-stemlm-tall="true"'))
+    ? `, calc(var(${heightBudget}) * ${aspect})` : '';
+  const widthCap = wide ? Math.max(displayWidth, Math.round(bounds![2]! * MAX_DIAGRAM_UPSCALE[size] * displayScale)) : displayWidth;
+  return `min(100%, ${widthCap}px${heightLimitedWidth})`;
 }
 
 /**
@@ -80,15 +104,10 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
 
   if (!resolved?.ok) return null;
   const { svg, overlays } = resolved;
-  const displayWidth = Number(/^<svg\b[^>]*\swidth="([\d.]+)"/.exec(svg)?.[1]);
   const viewBox = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1];
   const bounds = viewBox?.trim().split(/[\s,]+/).map(Number);
   const aspect = bounds && bounds[2]! / bounds[3]!;
-  const heightBudget = size === 'solution' ? '--slm-content-solution-diagram-height, 270px' : '--slm-content-diagram-height, 241px';
-  // Couple the width to the height budget: independent max-height would
-  // letterbox the SVG and shift percentage-positioned math labels.
-  const heightLimitedWidth = aspect && !svg.includes('data-stemlm-tall="true"')
-    ? `, calc(var(${heightBudget}) * ${aspect})` : '';
+  const frameWidth = diagramFrameWidth(svg, size, displayScale);
   const figure = (
     <figure
       className={`slm-diagram slm-diagram--${size}`}
@@ -99,7 +118,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
         <div
           ref={frameRef}
           className="slm-diagram-frame"
-          style={displayWidth > 0 ? { width: `min(100%, ${displayWidth}px${heightLimitedWidth})` } : undefined}
+          style={frameWidth ? { width: frameWidth } : undefined}
           onClick={section ? openLightbox : undefined}
         >
           <div

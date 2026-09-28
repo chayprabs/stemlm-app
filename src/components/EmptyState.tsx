@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { IconLayers } from './icons';
 import { getController } from '@/src/content/controller';
+import { useStore } from '@/src/state/store';
 
 export function EmptyState() {
   const [status, setStatus] = useState<'idle' | 'none'>('idle');
   const [canLoad, setCanLoad] = useState(false);
+  // The banner above already explains an unreadable answer; do not also offer it as loadable.
+  const failed = useStore((s) => s.status === 'error');
 
   useEffect(() => {
     setCanLoad(getController()?.hasConversationToLoad() ?? false);
@@ -25,17 +28,17 @@ export function EmptyState() {
         <div className="slm-empty-preview-block" />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
-      {canLoad ? (
+      {canLoad && !failed ? (
         <>
           <p className="slm-empty-text">
-            This chat has stemLM answers that aren't loaded yet.
+            This chat has stemlm answers that aren't loaded yet.
           </p>
           <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load}>
             <IconLayers /> Load conversation from this chat
           </button>
         </>
       ) : (
-        <p className="slm-empty-text">Type a question in the chat, then start stemLM.</p>
+        <p className="slm-empty-text">Type a question in the chat, then start stemlm.</p>
       )}
       {status === 'none' && (
         <p className="slm-empty-hint">

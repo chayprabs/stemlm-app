@@ -77,8 +77,3 @@ export function buildStepEntries(session: Session | undefined): StepEntry[] {
 export function findFollowupEntryIndex(entries: StepEntry[], followupId: string): number {
   return entries.findIndex((e) => e.kind === 'followup' && e.followup.id === followupId);
 }
-
-/** Entry index of a step (by capsule step index), or -1. */
-export function findStepEntryIndex(entries: StepEntry[], stepIndex: number): number {
-  return entries.findIndex((e) => e.kind === 'step' && e.stepIndex === stepIndex);
-}

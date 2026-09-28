@@ -2,8 +2,7 @@
  * Host-page split layout — shrinks Gemini's <body> while the panel sits fixed right.
  */
 import { detectAdapter } from '@/src/platforms/detect';
-import { layoutPageWidthVw, layoutPanelWidthVw } from '@/src/lib/split-ratio';
-import { viewportWidth } from '@/src/lib/split-ratio';
+import { isOverlayViewport, layoutPageWidthVw, layoutPanelWidthVw, viewportWidth } from '@/src/lib/split-ratio';
 
 export const SPLIT_STYLE_ID = 'stemlm-split-style';
 /** Matches --slm-panel-inset so Gemini does not cover the rounded panel gap. */
@@ -11,6 +10,8 @@ export const PANEL_INSET_PX = 8;
 
 export function applySplit(ratio: number, dragging = false): void {
   const vw = viewportWidth();
+  // The panel overlays a narrow window; the chat keeps its full width underneath.
+  if (isOverlayViewport(vw)) return removeSplit();
   const panelVw = layoutPanelWidthVw(ratio, vw);
   const pageVw = layoutPageWidthVw(ratio, vw);
   const inset = `${PANEL_INSET_PX}px`;

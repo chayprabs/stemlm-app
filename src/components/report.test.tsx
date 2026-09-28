@@ -39,7 +39,7 @@ describe('Report renderToStaticMarkup', () => {
     };
     const html = renderToStaticMarkup(<Report session={session} diagramSvg={diagramSvg} />);
 
-    expect(html).toContain('stemLM');
+    expect(html).toContain('stemlm');
     expect(html).toContain('slm-report-wordmark');
     expect(html).not.toContain('slm-wordmark-lm');
     expect(html).toContain('<path');
@@ -59,7 +59,7 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('s1'); // step diagram injected (vector svg)
     expect(html).toContain('katex');
     expect(html).toContain('<math');
-    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('PDF made using stemlm');
     expect(html).toContain('https://stemlm.app');
   });
 
@@ -253,7 +253,7 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(doc.startsWith('<!doctype html>')).toBe(true);
     expect(doc).toContain('<style>');
     expect(doc).toContain('KaTeX_Main');
-    expect(doc).toContain('stemLM');
+    expect(doc).toContain('stemlm');
     expect(doc).toContain('What is the current?'); // the question
     expect(doc).toContain('s1'); // vector svg diagram embedded
     expect(doc).not.toContain('.katex .katex-html{display:none');
@@ -385,19 +385,38 @@ describe('buildReportDocument (vector print PDF)', () => {
   });
 
   it('builds a sensible filename for save', () => {
-    const session = buildSession();
-    expect(reportFilename(session)).toBe('stemLM');
+    const session = { ...buildSession(), createdAt: new Date(2026, 8, 26, 15, 30).getTime() };
+    expect(reportFilename(session)).toBe('stemlm - circuit-format-check - 2026-09-26');
     expect(reportFilename(session)).not.toMatch(/gemini|chatgpt|claude|grok/i);
-    expect(reportFilename(session)).not.toMatch(/what-is-the-current|circuit/i);
+    expect(reportFilename(session)).not.toMatch(/what-is-the-current/i);
+  });
+
+  it('keeps the filename ASCII and at most 60 characters with .pdf', () => {
+    const base = buildSession();
+    const createdAt = new Date(2026, 0, 5).getTime();
+    const long = {
+      ...base,
+      createdAt,
+      capsule: {
+        ...base.capsule,
+        meta: { ...base.capsule.meta, topic: 'Électrostatique: champ E d’un anneau chargé — potentiel & énergie' },
+      },
+    };
+    const name = reportFilename(long);
+    expect(name).toMatch(/^stemlm - [a-z0-9]+(?:-[a-z0-9]+)* - 2026-01-05$/);
+    expect(`${name}.pdf`.length).toBeLessThanOrEqual(60);
+    expect(name).toContain('electrostatique-champ-e');
+    const blank = { ...base, createdAt, capsule: { ...base.capsule, meta: { ...base.capsule.meta, topic: ' ?! ' } } };
+    expect(reportFilename(blank)).toBe('stemlm - 2026-01-05');
   });
 
   it('uses a short print title without dates', () => {
     const session = buildSession();
     const doc = buildReportDocument(session, {});
-    expect(reportPrintTitle(session)).toBe('stemLM');
-    expect(doc).toContain('<title>stemLM</title>');
+    expect(reportPrintTitle(session)).toBe('stemlm');
+    expect(doc).toContain('<title>stemlm</title>');
     expect(doc).not.toContain('<title>Circuit format check</title>');
-    expect(doc).not.toContain('stemLM-what-is-the-current');
+    expect(doc).not.toMatch(/stemlm-what-is-the-current/i);
   });
 
   it('writes a Solution-tab print preview for visual QA', async () => {
@@ -473,7 +492,7 @@ describe('buildReportDocument (vector print PDF)', () => {
     mkdirSync(outDir, { recursive: true });
     writeFileSync(resolve(outDir, 'preview.html'), html, 'utf8');
     expect(html).toContain('Angular Acceleration from Position');
-    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('PDF made using stemlm');
     expect(html).toContain('#FF6B2C');
     expect(html).not.toContain('slm-report-label">Answer');
     const plotSvg =

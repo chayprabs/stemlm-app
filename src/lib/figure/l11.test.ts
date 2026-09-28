@@ -122,7 +122,6 @@ describe('L11 semantic collection and relation probes', () => {
     ['pipeline', 'stages: A,B,C\nrelations: A->B teleport; B->C feeds'],
     ['ring', 'nodes: A,B,C\nrelations: A->B teleport; B->C next'],
     ['datapath', 'kind: cpu\nnodes: A,B,C\nrelations: A->B teleport; B->C feeds'],
-    ['topology', 'nodes: A,B,C\nidentifications: A=B\nrelations: A->B teleport; B->C feeds'],
   ] as const)('fails closed for an unsupported declared relation role in %s', async (type, content) => {
     const result = await compileDiagramSpec({ type, content }, 'step');
     expect(result.ok, result.ok ? `${type} unexpectedly compiled` : result.reason).toBe(false);
@@ -137,7 +136,6 @@ describe('L11 semantic collection and relation probes', () => {
     ['pipeline', 'stages: A,B,C\nrelations: A->B next; B->C feeds'],
     ['ring', 'nodes: A,B,C\nrelations: A->B next; B->C feeds'],
     ['datapath', 'kind: cpu\nnodes: A,B,C\nrelations: A->B next; B->C feeds'],
-    ['topology', 'nodes: A,B,C\nidentifications: A=B\nrelations: A->B next; B->C feeds'],
   ] as const)('preserves supported declared relation roles in %s', async (type, content) => {
     const result = await compileDiagramSpec({ type, content }, 'step');
     expect(result.ok, result.ok ? type : result.reason).toBe(true);
@@ -147,6 +145,15 @@ describe('L11 semantic collection and relation probes', () => {
     );
     expect(relationStrokes).toHaveLength(2);
     expect(relationStrokes.every((stroke) => stroke.markerEnd || stroke.markerStart)).toBe(true);
+  });
+
+  // D23: the topology template drew identifications as arrows across a rectangle, not glued edges.
+  it.each([
+    ['an unsupported', 'nodes: A,B,C\nidentifications: A=B\nrelations: A->B teleport; B->C feeds'],
+    ['supported', 'nodes: A,B,C\nidentifications: A=B\nrelations: A->B next; B->C feeds'],
+  ] as const)('refuses topology with %s relation role', async (_role, content) => {
+    const result = await compileDiagramSpec({ type: 'topology', content }, 'step');
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:topology' });
   });
 });
 
@@ -159,11 +166,13 @@ describe('L11 malformed declaration boundaries', () => {
     ['mechanism arrows', 'mechanism', 'from: A\nto: B\narrow: A B malformed'],
   ];
 
+  // D23: topology and mechanism are refused before their records are read.
+  const refused = new Set(['topology', 'mechanism']);
   for (const [name, type, content] of cases) {
     it(`fails closed for a malformed ${name} declaration`, async () => {
       const result = await compileDiagramSpec({ type, content }, 'step');
       expect(result.ok, result.ok ? `${type} unexpectedly compiled` : result.reason).toBe(false);
-      if (!result.ok) expect(result.code).toBe('malformed');
+      if (!result.ok) expect(result.code).toBe(refused.has(type) ? 'refused' : 'malformed');
     });
   }
 });
@@ -175,10 +184,10 @@ describe('L11 duplicate and empty semantic declarations', () => {
     if (!result.ok) expect(result.code).toBe('malformed');
   });
 
-  it('rejects an empty topology identification segment', async () => {
+  it('rejects an empty topology identification segment (refused as a family, D23)', async () => {
     const result = await compileDiagramSpec({ type: 'topology', content: 'nodes: A,B\nidentifications: A=B;;B=A' }, 'step');
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('malformed');
+    if (!result.ok) expect(result.code).toBe('refused');
   });
 
   it('rejects a non-numeric current-time declaration', async () => {
@@ -205,10 +214,10 @@ describe('L11 duplicate and empty semantic declarations', () => {
     if (!result.ok) expect(result.code).toBe('malformed');
   });
 
-  it('rejects a topology identification that names an undeclared side', async () => {
+  it('rejects a topology identification that names an undeclared side (refused as a family, D23)', async () => {
     const result = await compileDiagramSpec({ type: 'topology', content: 'nodes: A,B\nidentifications: A=Z' }, 'step');
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe('malformed');
+    if (!result.ok) expect(result.code).toBe('refused');
   });
 
   it('rejects duplicate pipeline stages', async () => {

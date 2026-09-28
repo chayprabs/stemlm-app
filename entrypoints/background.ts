@@ -10,6 +10,24 @@ import {
 import { handleWhoamiRequest, isWhoamiMessage, removeTabWorkspace, takePendingPanelAction } from '@/src/lib/tab-workspace';
 import { isSupportedChatUrl } from '@/src/platforms/detect';
 import { handleSavedSessionMutation, isSavedSessionMutationMessage } from '@/src/lib/saved-session-storage';
+import { isPdfExportMessage, openPdfExportWindow } from '@/src/lib/pdf-export-request';
+import { extensionAssetUrl } from '@/src/lib/extension-context';
+import { CHAT_CONTENT_MATCHES } from '@/src/platforms/hosts';
+
+/**
+ * UPDATE-01 (D13): MV3 never re-injects declared content scripts into tabs that were
+ * already open, so after install or update the chat tabs would show no stemLM until
+ * reloaded. WXT's started-event stops any orphaned older instance before mounting.
+ */
+async function injectIntoOpenChatTabs(): Promise<void> {
+  try {
+    const tabs = await browser.tabs.query({ url: [...CHAT_CONTENT_MATCHES] });
+    await Promise.allSettled(tabs.filter((tab) => typeof tab.id === 'number' && !tab.discarded).map((tab) =>
+      browser.scripting.executeScript({ target: { tabId: tab.id! }, files: ['content-scripts/content.js'] })));
+  } catch {
+    // No tabs API or the query failed: the next page load injects as usual.
+  }
+}
 
 function isSavedSessionSender(sender: { id?: string; url?: string }): boolean {
   if (!browser.runtime.id || sender.id !== browser.runtime.id || !sender.url) return false;
@@ -41,8 +59,11 @@ export default defineBackground(() => {
   const workspaceReady = Promise.resolve(browser.storage?.session?.setAccessLevel?.({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })).catch(() => {});
   browser.tabs?.onRemoved?.addListener((tabId) => { void removeTabWorkspace(tabId); });
   browser.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install' || details.reason === 'update') void injectIntoOpenChatTabs();
     if (details.reason === 'install') {
       void trackEvent('extension_installed', {});
+      // First run: the bundled guide, once. Updates never open a tab (ONBOARD-01).
+      void browser.tabs.create({ url: extensionAssetUrl('/welcome.html'), active: true }).catch(() => {});
     }
   });
 
@@ -63,6 +84,14 @@ export default defineBackground(() => {
       void handleSavedSessionMutation(msg).then(sendResponse, () => {
         sendResponse({ ok: false, quota: false, message: 'Could not update saved sessions. Try again.' });
       });
+      return true;
+    }
+    if (isPdfExportMessage(msg)) {
+      if (!isSavedSessionSender(sender)) {
+        sendResponse({ ok: false });
+        return;
+      }
+      void openPdfExportWindow(msg.session, sender.tab?.windowId).then((ok) => sendResponse({ ok }), () => sendResponse({ ok: false }));
       return true;
     }
     if (isToolbarIconMessage(msg)) {

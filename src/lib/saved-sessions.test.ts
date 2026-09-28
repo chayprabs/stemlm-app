@@ -63,8 +63,6 @@ import {
   saveSession,
   deleteSavedSession,
   isSessionSaved,
-  downloadSavedSessionPdf,
-  openSavedSessionPdf,
   refreshSavedSession,
   sessionToSnapshot,
   snapshotToSession,
@@ -72,6 +70,7 @@ import {
   estimateSnapshotBytes,
   MAX_SAVED_BYTES,
 } from './saved-sessions';
+import { downloadSavedSessionPdf, openSavedSessionPdf } from './saved-session-pdf';
 
 function makeSession(overrides: Partial<Session> & { id: string }): Session {
   const now = overrides.updatedAt ?? overrides.createdAt ?? 1_000;

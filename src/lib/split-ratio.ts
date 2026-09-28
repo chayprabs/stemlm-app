@@ -1,5 +1,7 @@
 /** Minimum panel width in px — keeps the study panel usable on narrow viewports. */
 export const MIN_PANEL_PX = 280;
+/** The chat keeps at least a phone-width column beside the panel (UI-SMALL-01). */
+export const MIN_HOST_PX = 320;
 export const MAX_SPLIT_RATIO = 0.75;
 export const MIN_SPLIT_RATIO_FLOOR = 0.25;
 /**
@@ -73,13 +75,20 @@ export function pageWidthVw(ratio: number): number {
   return +(100 - panelWidthVw(ratio)).toFixed(3);
 }
 
+/** Too narrow for both: the panel covers the chat instead of crushing it to a sliver. */
+export function isOverlayViewport(vw = viewportWidth()): boolean {
+  return vw < MIN_PANEL_PX + MIN_HOST_PX;
+}
+
 /**
- * Layout-only ratio. Stored/drag ratios retain the 75% product cap, while a
- * narrow host must surrender enough width for the panel's CSS minimum.
+ * Layout-only ratio. Stored/drag ratios retain the 75% product cap; the layout
+ * keeps the panel's minimum and a phone-width chat column, and a window too
+ * narrow for both gets the panel full width over the chat.
  */
 export function layoutSplitRatio(ratio: number, vw = viewportWidth()): number {
+  if (isOverlayViewport(vw)) return 1;
   const value = Number.isFinite(ratio) ? Math.min(MAX_SPLIT_RATIO, Math.max(0, ratio)) : DEFAULT_SPLIT_RATIO;
-  return Math.max(value, minSplitRatio(vw));
+  return Math.max(minSplitRatio(vw), Math.min(value, (vw - MIN_HOST_PX) / vw));
 }
 
 export function layoutPanelWidthVw(ratio: number, vw = viewportWidth()): number {

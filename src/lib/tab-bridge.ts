@@ -71,34 +71,6 @@ export async function createGeminiTab(opt?: { active?: boolean }): Promise<{ id:
   return { id: tab.id, url: tab.url ?? GEMINI_APP_URL };
 }
 
-function urlsMatchChat(a: string, b: string): boolean {
-  const normalize = (value: string) => value.replace(/\/+$/, '');
-  return normalize(a) === normalize(b);
-}
-
-export async function focusOrCreateTab(url: string): Promise<{ id: number; url?: string }> {
-  try {
-    const tabs = await browser.tabs.query({});
-    const match = tabs.find((tab) => typeof tab.url === 'string' && urlsMatchChat(tab.url, url));
-    if (match?.id != null) {
-      await browser.tabs.update(match.id, { active: true });
-      if (match.windowId != null) {
-        try {
-          await browser.windows.update(match.windowId, { focused: true });
-        } catch {
-          /* windows API may be unavailable */
-        }
-      }
-      return { id: match.id, url: match.url };
-    }
-  } catch {
-    /* query failed — create instead */
-  }
-  const created = await browser.tabs.create({ url, active: true });
-  if (created.id == null) throw new Error('no-tab');
-  return { id: created.id, url: created.url ?? url };
-}
-
 function isNoReceiverError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /receiving end does not exist|could not establish connection/i.test(msg);

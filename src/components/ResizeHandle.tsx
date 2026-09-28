@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/src/state/store';
 import { setSettings } from '@/src/lib/settings';
-import { MAX_SPLIT_RATIO, layoutSplitRatio, minSplitRatio, ratioFromPointer, viewportWidth } from '@/src/lib/split-ratio';
+import { MAX_SPLIT_RATIO, layoutSplitRatio, minSplitRatio, ratioFromPointer } from '@/src/lib/split-ratio';
+import { useViewportWidth } from './use-viewport-width';
 
 /**
  * Draggable divider on the panel's left edge. Dragging updates the split ratio
@@ -13,7 +14,7 @@ export function ResizeHandle() {
   const setSplitDragging = useStore((s) => s.setSplitDragging);
   const setStoreSettings = useStore((s) => s.setSettings);
   const splitRatio = useStore((s) => s.splitRatio);
-  const currentViewport = viewportWidth();
+  const currentViewport = useViewportWidth();
   const effectiveRatio = layoutSplitRatio(splitRatio, currentViewport);
   const minimumPercent = Math.round(minSplitRatio(currentViewport) * 100);
   const maximumPercent = Math.max(Math.round(MAX_SPLIT_RATIO * 100), minimumPercent);

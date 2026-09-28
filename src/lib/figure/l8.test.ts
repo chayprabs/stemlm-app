@@ -6,13 +6,13 @@ import type { Diagram } from '@/src/protocol/types';
 import type { Scene } from './types';
 import { renderDiagramRegistry } from '@/src/protocol/registries';
 
-it('SUS-02 documents and enforces the existing central point-load grammar', async () => {
+it('SUS-02 enforces the existing central point-load grammar; beam is not advertised (D2)', async () => {
   for (const load of ['load: udl 5 kN/m', 'w: 5', 'loads: udl@4']) {
     const result = await compileDiagramSpec({ type: 'beam', content: `L: 8\nsupports: pin@0, roller@8\n${load}` });
     expect(result.ok, load).toBe(false);
   }
-  expect(renderDiagramRegistry()).toContain('loads: point LABEL down@x');
-  expect(renderDiagramRegistry()).toContain('x=L/2');
+  expect(renderDiagramRegistry()).not.toMatch(/^beam\t/m);
+  expect(renderDiagramRegistry()).not.toContain('loads: point LABEL down@x');
 });
 
 function diagram(type: string, content: string): Diagram {
@@ -45,7 +45,7 @@ const renderCases: Array<[string, string]> = [
   ['sfd', 'L: 8\nsupports: pin@0, roller@8\nloads: point 10kN@2\nV: 0 8.5; 2 8.5; 2 -1.5; 8 -1.5\nM: 0 0; 2 17; 8 0\nsign: sagging+'],
   ['beam', 'L: 8\nsupports: pin@0, roller@8\nloads: point P down@4\nelastic_curve: reference undeformed; landmark delta_P\nreactions: P/2@0, P/2@8'],
   ['mccabe', 'alpha: 2.5\nzF: 0.4\nxD: 0.95\nxB: 0.05\nR: 1.5\nq: 1'],
-  ['truss', 'members: A-B, B-C, C-D\njoints: A, B, C, D\nsupports: pin@A, roller@D\nloads: P@B'],
+  ['truss', 'members: A-B, B-C, C-D\njoints: A 0 0; B 2 2; C 4 2; D 6 0\nsupports: pin@A, roller@D\nloads: P@B'],
   ['linkage', 'links: ground, coupler, rocker\njoints: fixed, revolute, revolute\ninput: ground rotation\noutput: rocker angle'],
   ['soil', 'layers: phases\nphases: solid 0.5, liquid 0.25, gas 0.25\nvoids: liquid, gas'],
   ['pfd', 'units: feed, reactor, separator, product\nconnections: feed->reactor, reactor->separator, separator->product'],
@@ -98,10 +98,12 @@ describe('L8 permanent probes', () => {
       ['cam', 'profile: rise 2, malformed, fall 2'],
       ['gear', 'z1: nope\nz2: 24'],
     ];
+    // D23: gear drew radii that ignore the tooth ratio, so it is refused before its records are read.
+    const refused = new Set(['gear']);
     for (const [type, content] of cases) {
       const result = await compileDiagramSpec(diagram(type, content), 'step');
       expect(result.ok, type).toBe(false);
-      if (!result.ok) expect(result.code, type).toBe('malformed');
+      if (!result.ok) expect(result.code, type).toBe(refused.has(type) ? 'refused' : 'malformed');
     }
   });
 
@@ -136,16 +138,15 @@ describe('L8 permanent probes', () => {
     if (!result.ok) expect(result.code).toBe('malformed');
   });
 
-  it('truss and column fail closed for unsupported declared semantic keys', async () => {
-    for (const type of ['truss', 'column']) {
+  it('truss fails closed for unsupported declared semantic keys; column is refused outright', async () => {
+    for (const type of ['truss']) {
+      // D24: a truss is drawn from joint coordinates (joints without them are refused), so both neighbours carry them.
       const valid = await compileDiagramSpec(diagram(type, [
-        ...(type === 'column' ? ['L: 1'] : []),
-        'joints: A, B',
+        'joints: A 0 0; B 4 0',
         'members: A-B',
       ].join('\n')), 'step');
       const unsupported = await compileDiagramSpec(diagram(type, [
-        ...(type === 'column' ? ['L: 1'] : []),
-        'joints: A, B',
+        'joints: A 0 0; B 4 0',
         'members: A-B',
         'unsupported_semantic: declared',
       ].join('\n')), 'step');
@@ -156,6 +157,11 @@ describe('L8 permanent probes', () => {
         expect(unsupported.code, `${type}: unsupported key`).toBe('malformed');
         expect(unsupported.reason, `${type}: unsupported key`).toContain('unsupported_semantic');
       }
+    }
+    // D23: column placed its joints on a grid regardless of the structure.
+    for (const extra of [[], ['unsupported_semantic: declared']]) {
+      const column = await compileDiagramSpec(diagram('column', ['L: 1', 'joints: A, B', 'members: A-B', ...extra].join('\n')), 'step');
+      expect(column).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:column' });
     }
   });
 
@@ -232,7 +238,9 @@ describe('L8 permanent probes', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('beam binds a deformed curve, supports, central load, and reactions', async () => {
+  // D32: the beam template printed the raw load record ("point P down") and floated its deflection curve above
+  // the beam, so even a supported central point load is refused (the figure stays hidden; sfd draws loaded beams).
+  it('refuses a beam even with a central load, supports and reactions (D32)', async () => {
     const result = await compileDiagramSpec(diagram('beam', [
       'L: 8',
       'supports: pin@0, roller@8',
@@ -240,25 +248,17 @@ describe('L8 permanent probes', () => {
       'elastic_curve: reference undeformed; landmark delta_P',
       'reactions: P/2@0, P/2@8',
     ].join('\n')), 'step');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const sceneIds = ids(result.scene).join(' ');
-    expect(sceneIds).toMatch(/beam-reference|elastic-curve|load-0|reaction-0|reaction-1/);
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:beam' });
   });
 
-  it('beam derives the declared landmark and midpoint station label', async () => {
+  it('refuses a beam with a declared landmark instead of drawing its template (D32)', async () => {
     const result = await compileDiagramSpec(diagram('beam', [
       'L: 8',
       'supports: pin@0, roller@8',
       'loads: point P down@4',
       'elastic_curve: reference undeformed; landmark delta_P',
     ].join('\n')), 'step');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const labels = result.scene.labels.map((label) => label.text ?? label.katex ?? '');
-    expect(labels).toContain('delta_P');
-    expect(labels).toContain('L/2');
-    expect(labels).not.toContain('reference undeformed');
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:beam' });
   });
 
   it('beam fails closed for an off-centre load that its fixed symmetric curve cannot represent', async () => {
@@ -356,23 +356,25 @@ describe('L8 permanent probes', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('truss and column consume graph members rather than a fixed triangle', async () => {
-    for (const type of ['truss', 'column']) {
-      const result = await compileDiagramSpec(diagram(type, [
-        'L: 1',
-        'members: A-B, B-C, C-D',
-        'joints: A, B, C, D',
-        'supports: pin@A, roller@D',
-        'loads: P@B',
-      ].join('\n')), 'step');
-      expect(result.ok, type).toBe(true);
-      if (!result.ok) continue;
+  it('truss consumes graph members rather than a fixed triangle; column is refused', async () => {
+    // D24: joints carry coordinates (a coordinate-less truss was placed on a grid and is now refused); span = L.
+    const spec = [
+      'L: 1',
+      'members: A-B, B-C, C-D',
+      'joints: A 0 0; B 0.25 0.4; C 0.75 0.4; D 1 0',
+      'supports: pin@A, roller@D',
+      'loads: P@B',
+    ].join('\n');
+    const result = await compileDiagramSpec(diagram('truss', spec), 'step');
+    expect(result.ok, 'truss').toBe(true);
+    if (result.ok) {
       expect(result.scene.strokes.filter((stroke) => stroke.id.startsWith('member-'))).toHaveLength(3);
       expect(result.scene.strokes.some((stroke) => stroke.id.includes('A-B'))).toBe(true);
     }
+    expect(await compileDiagramSpec(diagram('column', spec), 'step')).toMatchObject({ ok: false, code: 'refused' });
   });
 
-  it('linkage infers links from the joint graph and keeps input/output labels', async () => {
+  it('refuses a linkage (D23: a four-bar was drawn as crossed lines)', async () => {
     const result = await compileDiagramSpec(diagram('linkage', [
       'links: ground, coupler, rocker',
       'joints: fixed, revolute, revolute',
@@ -380,10 +382,7 @@ describe('L8 permanent probes', () => {
       'output: rocker angle',
       'motion: one degree of freedom',
     ].join('\n')), 'step');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.scene.strokes.filter((stroke) => stroke.id.startsWith('link-'))).toHaveLength(3);
-    expect(result.scene.labels.map((label) => label.text).join(' ')).toMatch(/ground rotation|rocker angle/);
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:linkage' });
   });
 
   it('soil consumes phase fractions and refuses fractions over total volume', async () => {
@@ -411,7 +410,7 @@ describe('L8 permanent probes', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('ternary validates composition before drawing and open-channel binds free surface', async () => {
+  it('refuses ternary and open-channel templates (D23: invented tie-line and channel bed)', async () => {
     const invalid = await compileDiagramSpec(diagram('ternary', 'points: A\ncomponents: A,B,C\ncomposition: A=0.7, B=0.4, C=0.2'), 'step');
     expect(invalid.ok).toBe(false);
     const channel = await compileDiagramSpec(diagram('openchan', [
@@ -421,24 +420,28 @@ describe('L8 permanent probes', () => {
       'flow: upstream_to_downstream',
       'waterline: free_surface',
     ].join('\n')), 'step');
-    expect(channel.ok).toBe(true);
-    if (channel.ok) expect(ids(channel.scene).join(' ')).toMatch(/free-surface|flow/);
+    expect(channel).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:openchan' });
   });
 
   it('remaining L8 families consume their typed inputs', async () => {
     const cases: Array<[string, string, RegExp]> = [
       ['mohr', 'sigma: 40\nsy: 10\ntau: 8', /mohr-circle/],
       ['cam', 'profile: rise 2, dwell 1, fall 2\nfollower: roller\nmotion: periodic', /profile-curve/],
-      ['gear', 'z1: 16\nz2: 32\ngears: input, output\nmesh: external', /gear-input|gear-output/],
       ['wall', 'h: 4\nwall: retaining\nsoil: backfill\nloads: water pressure', /wall-body|soil-wedge/],
-      ['rc', 'b: 3\nh: 5\nreinforcement: 4\nsection: rectangular', /rc-section|rebar-0/],
       ['hx', 'th: 400\ntc: 300\nstreams: hot, cold\ndirection: countercurrent', /hot-stream|cold-stream/],
-      ['psych', 'dbt: 25\nw: 0.01\naxes: dry-bulb temperature, humidity ratio\nstate_points: inlet, outlet\nprocess: heating', /state-inlet|state-outlet/],
     ];
     for (const [family, content, expected] of cases) {
       const result = await compileDiagramSpec(diagram(family, content), 'step');
       expect(result.ok, family).toBe(true);
       if (result.ok) expect(ids(result.scene).join(' ')).toMatch(expected);
+    }
+    // D23: gear radii ignored the tooth ratio, rc misplaced bars, psych put state points on a grid.
+    for (const [family, content] of [
+      ['gear', 'z1: 16\nz2: 32\ngears: input, output\nmesh: external'],
+      ['rc', 'b: 3\nh: 5\nreinforcement: 4\nsection: rectangular'],
+      ['psych', 'dbt: 25\nw: 0.01\naxes: dry-bulb temperature, humidity ratio\nstate_points: inlet, outlet\nprocess: heating'],
+    ]) {
+      expect(await compileDiagramSpec(diagram(family!, content!), 'step'), family).toMatchObject({ ok: false, code: 'refused', reason: `unfaithful_family:${family}` });
     }
   });
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { printStyles } from './pdf';
-import { FONT_CSS_HREF, FONT_MONO, FONT_SANS, FONT_SANS_SVG } from './fonts';
+import { FONT_MONO, FONT_SANS, FONT_SANS_SVG, fontFaceCss } from './fonts';
 
 const ROOT = process.cwd();
 
@@ -50,8 +50,9 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(FONT_SANS).toContain('IBM Plex Sans');
     expect(FONT_MONO).toContain('IBM Plex Mono');
     expect(FONT_SANS_SVG).toContain('IBM Plex Sans');
-    expect(FONT_CSS_HREF).toContain('IBM+Plex+Sans');
-    expect(FONT_CSS_HREF).toContain('IBM+Plex+Mono');
+    // D4: both families ship with the extension (was: a Google Fonts stylesheet URL).
+    expect(fontFaceCss()).toContain('font-family:"IBM Plex Sans"');
+    expect(fontFaceCss()).toContain('font-family:"IBM Plex Mono"');
 
     for (const text of shipped) {
       expect(text).not.toMatch(/['"]Inter['"]|family=Inter|font-family:\s*Inter\b|font-family="Inter/);
@@ -177,7 +178,8 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     );
     expect(libraryCss).not.toMatch(/--slm-accent/);
     expect(pages).toContain('-webkit-line-clamp: 2');
-    expect(popupHtml).toContain('IBM+Plex+Sans');
+    // D4: the popup registers the bundled faces (was: a Google Fonts <link> in popup.html).
+    expect(read('entrypoints/popup/main.tsx')).toContain('installFontFaces(document, extensionAssetUrl)');
     expect(popupHtml).toContain('stemlm_theme_boot');
     expect(popupHtml).toContain('color-scheme');
     expect(popupHtml).not.toMatch(/<body[^>]*data-stemlm-theme=/);
@@ -187,9 +189,10 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(pages).toMatch(/\.slm-popup-toggle-copy\s*\{[^}]*min-width:\s*0/);
     expect(pages).toMatch(/html\.slm-popup-page[\s\S]*?transition:\s*none/);
     expect(pages).not.toMatch(/html\.slm-popup-page[\s\S]{0,80}background:\s*transparent/);
-    expect(optionsHtml).toContain('IBM+Plex+Sans');
-    expect(savedPdfHtml).toContain('IBM+Plex+Sans');
-    expect(savedLibraryHtml).toContain('IBM+Plex+Sans');
+    // D4: each page registers the bundled faces (was: a Google Fonts <link> in its HTML).
+    for (const main of ['entrypoints/options/main.tsx', 'entrypoints/pdf/main.ts', 'entrypoints/saved-library/main.tsx']) {
+      expect(read(main)).toContain('installFontFaces(document, extensionAssetUrl)');
+    }
     expect(savedLibraryMain).toContain("katex/dist/katex.min.css");
     expect(popupApp).toContain('Open study panel');
     expect(popupApp).toContain('stemlm-enabled');

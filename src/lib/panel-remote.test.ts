@@ -44,8 +44,6 @@ describe('handleStemLmPanelMessage', () => {
     loadConversation.mockClear();
     useStore.setState({
       panelOpen: false,
-      savedLibraryOpen: false,
-      settingsOpen: false,
       buttonInjected: false,
       sessions: [],
       status: 'idle',
@@ -74,39 +72,10 @@ describe('handleStemLmPanelMessage', () => {
     expect(useStore.getState().panelOpen).toBe(true);
   });
 
-  it('opens the saved-library overlay on the tab', async () => {
-    const res = await handleStemLmPanelMessage('stemlm:open-saved-library', 'gemini');
-    expect(res).toEqual({ ok: true });
-    expect(useStore.getState().savedLibraryOpen).toBe(true);
-    expect(useStore.getState().settingsOpen).toBe(false);
-  });
-
-  it('opens the settings overlay on the tab', async () => {
-    useStore.setState({ savedLibraryOpen: true });
-    const res = await handleStemLmPanelMessage('stemlm:open-settings', 'gemini');
-    expect(res).toEqual({ ok: true });
-    expect(useStore.getState().settingsOpen).toBe(true);
-    expect(useStore.getState().savedLibraryOpen).toBe(false);
-  });
-
   it('consumePendingPanelAction runs the armed launch and opens the panel', async () => {
     await setPendingPanelAction({ tabId: 81, type: 'stemlm:open-panel' });
     const res = await consumePendingPanelAction(81, 'gemini');
     expect(res).toEqual({ ok: true });
     expect(useStore.getState().panelOpen).toBe(true);
-  });
-
-  it('consumePendingPanelAction ignores stale saved-library launches after a tab reload', async () => {
-    await setPendingPanelAction({ tabId: 82, type: 'stemlm:open-saved-library' });
-    const res = await consumePendingPanelAction(82, 'gemini');
-    expect(res).toEqual({ ok: true });
-    expect(useStore.getState().savedLibraryOpen).toBe(false);
-  });
-
-  it('consumePendingPanelAction ignores stale settings launches after a tab reload', async () => {
-    await setPendingPanelAction({ tabId: 83, type: 'stemlm:open-settings' });
-    const res = await consumePendingPanelAction(83, 'gemini');
-    expect(res).toEqual({ ok: true });
-    expect(useStore.getState().settingsOpen).toBe(false);
   });
 });

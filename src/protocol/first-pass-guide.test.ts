@@ -15,7 +15,7 @@ describe('attached first-pass figure contract', () => {
 
   it('documents executable forms for the repaired template capabilities', async () => {
     const file = assembleProtocolFile();
-    for (const family of ['gel', 'fischer', 'oneline', 'chem.smiles']) {
+    for (const family of ['gel', 'fischer', 'timing', 'chem.smiles']) {
       const matches = [...file.matchAll(/@diagram id=\S+ type=([^\s]+)\n([\s\S]*?)\n@enddiagram/g)]
         .filter(match => match[1] === family);
       expect(matches.length, `no executable ${family} form in attachment`).toBeGreaterThan(0);

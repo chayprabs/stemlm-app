@@ -42,7 +42,7 @@ export type { ChatHostLaunch };
 
 export function unsupportedHostNotice(labels: string[] = supportedChatLabels()): string {
   const names = labels.length > 0 ? labels.join(', ') : 'Gemini';
-  return `Open a ${names} tab to use the study panel.`;
+  return `Open a chat tab (${names}) to use the study panel.`;
 }
 
 export type LaunchResult =
@@ -64,15 +64,15 @@ function launchErrorMessage(err: unknown): string {
   }
   if (code === 'no-active-tab') return 'No active tab found.';
   if (code === 'no-tab') return 'Could not open a new tab.';
-  if (code === 'stemlm-disabled') return 'Turn stemLM on in the toolbar popup, then try again.';
-  if (code === 'content-chat-changed') return 'The chat changed. Open stemLM again in the chat you want to use.';
+  if (code === 'stemlm-disabled') return 'Turn stemlm on in the toolbar popup, then try again.';
+  if (code === 'content-chat-changed') return 'The chat changed. Open stemlm again in the chat you want to use.';
   if (code === 'content-script-startup-failed' || code === 'content-script-no-acknowledgement') {
-    return 'Could not start stemLM. Keep a copy of your draft, then refresh the chat and try again.';
+    return 'Could not start stemlm. Keep a copy of your draft, then refresh the chat and try again.';
   }
   if (code === 'content-script-timeout' || code === 'content-script-starting') {
-    return 'stemLM is not ready yet. Try again shortly. If it stays unavailable, keep a copy of your draft before refreshing the chat.';
+    return 'stemlm is not ready yet. Try again shortly. If it stays unavailable, keep a copy of your draft before refreshing the chat.';
   }
-  return 'Could not start stemLM. Try refreshing the page.';
+  return 'Could not start stemlm. Try refreshing the page.';
 }
 
 /** Open the study panel without loading the conversation. */
@@ -88,19 +88,24 @@ export async function openStudyPanel(): Promise<LaunchResult> {
   }
 }
 
-export async function openChatHost(id: PlatformId): Promise<LaunchResult> {
-  const host = CHAT_HOST_LAUNCH.find((item) => item.id === id);
-  if (!host) return { ok: false, error: 'Unknown chat host.' };
+async function openTab(url: string): Promise<LaunchResult> {
   try {
-    await browser.tabs.create({ url: host.url, active: true });
+    await browser.tabs.create({ url, active: true });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: launchErrorMessage(err) };
   }
 }
 
+export async function openChatHost(id: PlatformId): Promise<LaunchResult> {
+  const host = CHAT_HOST_LAUNCH.find((item) => item.id === id);
+  if (!host) return { ok: false, error: 'Unknown chat host.' };
+  return openTab(host.url);
+}
+
 const SETTINGS_PAGE = 'options.html';
 const LIBRARY_PAGE = 'saved-library.html';
+const WELCOME_PAGE = 'welcome.html';
 
 function extensionPageUrl(page: string): string {
   return extensionAssetUrl(page.startsWith('/') ? page : `/${page}`);
@@ -161,6 +166,11 @@ async function openExtensionSheet(
   } catch (err) {
     return { ok: false, error: launchErrorMessage(err) };
   }
+}
+
+/** The first-run guide, as a normal tab (ONBOARD-01). */
+export function openWelcomePage(): Promise<LaunchResult> {
+  return openTab(extensionPageUrl(WELCOME_PAGE));
 }
 
 /**

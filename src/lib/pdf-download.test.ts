@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Session } from '@/src/protocol/types';
 import type { RenderedPage } from './pdf-raster';
 
@@ -66,11 +66,14 @@ import {
 } from './pdf';
 import { CONTENT_WIDTH_PT, MARGIN_X_PT, MARGIN_Y_PT } from './pdf-paginate';
 
+/** Saved at local 2026-09-26 14:00; merged exports are dated by the clock (faked to the next day). */
+const SAVED_AT = new Date(2026, 8, 26, 14, 0).getTime();
+
 function session(id = 'pdf-1', question = 'What is 2 + 2?'): Session {
   return {
     id,
-    createdAt: 1,
-    updatedAt: 1,
+    createdAt: SAVED_AT,
+    updatedAt: SAVED_AT,
     platform: 'gemini',
     question,
     raw: '',
@@ -135,7 +138,7 @@ describe('PDF file download', () => {
     expect(print).not.toHaveBeenCalled();
     expect(downloadMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        filename: 'stemLM.pdf',
+        filename: 'stemlm - arithmetic - 2026-09-26.pdf',
         saveAs: false,
       }),
     );
@@ -183,7 +186,13 @@ describe('PDF file download', () => {
 });
 
 describe('merged PDF download', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 27, 9, 0));
     downloadMock.mockClear();
     addImage.mockClear();
     addPage.mockClear();
@@ -193,9 +202,9 @@ describe('merged PDF download', () => {
   });
 
   it('names the file after how many questions it holds', () => {
-    expect(mergedPdfFileName(3)).toBe('stemLM-3-questions.pdf');
-    expect(mergedPdfFileName(12)).toBe('stemLM-12-questions.pdf');
-    expect(mergedPdfFileName(1)).toBe('stemLM.pdf');
+    expect(mergedPdfFileName(3)).toBe('stemlm - 3 questions - 2026-09-27.pdf');
+    expect(mergedPdfFileName(12)).toBe('stemlm - 12 questions - 2026-09-27.pdf');
+    expect(mergedPdfFileName(1)).toBe('stemlm - 2026-09-27.pdf');
   });
 
   it('renders one continuous document for several questions', async () => {
@@ -217,14 +226,14 @@ describe('merged PDF download', () => {
     expect(body).toContain('Solve the quadratic.');
     expect(body).toContain('3 questions');
     // Brand header and sign-off appear exactly once for the whole document.
-    expect(body.match(/PDF made using stemLM/g)).toHaveLength(1);
+    expect(body.match(/PDF made using stemlm/g)).toHaveLength(1);
     expect(body.match(/slm-report-wordmark/g)).toHaveLength(1);
     expect(body.match(/slm-report-foot"/g)).toHaveLength(1);
     // Every question keeps its own answer section.
     expect(body.match(/class="slm-report-entry"/g)).toHaveLength(3);
 
     expect(downloadMock).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: 'stemLM-3-questions.pdf', saveAs: false }),
+      expect.objectContaining({ filename: 'stemlm - 3 questions - 2026-09-27.pdf', saveAs: false }),
     );
   });
 
@@ -238,7 +247,7 @@ describe('merged PDF download', () => {
     expect(body).toContain('Just one.');
     expect(body).toContain('slm-report-label">Q.<');
     expect(downloadMock).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: 'stemLM.pdf' }),
+      expect.objectContaining({ filename: 'stemlm - arithmetic - 2026-09-26.pdf' }),
     );
   });
 

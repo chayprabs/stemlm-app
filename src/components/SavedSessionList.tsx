@@ -7,12 +7,14 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { useReducedMotion } from 'framer-motion';
 import {
   deleteSavedSession,
-  downloadSavedSessionPdf,
-  downloadSavedSessionsPdf,
   getSavedSessions,
-  openSavedSessionPdf,
   type SavedSessionSnapshot,
 } from '@/src/lib/saved-sessions';
+import {
+  downloadSavedSessionPdf,
+  downloadSavedSessionsPdf,
+  openSavedSessionPdf,
+} from '@/src/lib/saved-session-pdf';
 import type { PdfExportResult } from '@/src/lib/pdf';
 import type { RenderProgress } from '@/src/lib/pdf-raster';
 import {
@@ -571,6 +573,7 @@ export function SavedSessionList({
                         type="button"
                         className="slm-library-icon-btn"
                         data-action="download"
+                        data-label="Download"
                         title="Download"
                         aria-label={`Download PDF for ${question}`}
                         disabled={busy}
@@ -582,6 +585,7 @@ export function SavedSessionList({
                         type="button"
                         className="slm-library-icon-btn"
                         data-action="open"
+                        data-label="Open"
                         title="Open"
                         aria-label={`Open PDF for ${question}`}
                         disabled={busy}
@@ -593,6 +597,7 @@ export function SavedSessionList({
                         type="button"
                         className="slm-library-icon-btn slm-library-icon-btn--quiet"
                         data-action="delete"
+                        data-label="Delete"
                         title="Delete saved question"
                         aria-label={`Delete ${question}`}
                         onClick={() => void remove(item.id)}

@@ -29,9 +29,7 @@ export interface PendingPanelAction {
   type:
     | 'stemlm:open-panel'
     | 'stemlm:load-conversation'
-    | 'stemlm:ask-here'
-    | 'stemlm:open-saved-library'
-    | 'stemlm:open-settings';
+    | 'stemlm:ask-here';
 }
 
 type TabWorkspaceMap = Record<string, TabWorkspaceBackup>;

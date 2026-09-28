@@ -14,36 +14,32 @@ describe('L8 mechanical semantic consumption', () => {
     expect(result.scene.panels?.map((panel) => panel.id)).toEqual(['a', 'b']);
   });
 
-  it('models truss and column lengths in the scene', async () => {
-    for (const family of ['truss', 'column']) {
-      const result = await compileDiagramSpec(diagram(family, 'L: 8\njoints: A,B\nmembers: A-B'), 'step');
-      expect(result.ok, family).toBe(true);
-      expect(labels(result), family).toContain('L=8');
-    }
+  it('models the truss length in the scene; column is refused (D23)', async () => {
+    // D24: joints carry coordinates (span 8 = L); the span is a dimension labelled "L = 8".
+    const truss = await compileDiagramSpec(diagram('truss', 'L: 8\njoints: A 0 0; B 8 0\nmembers: A-B'), 'step');
+    expect(truss.ok, 'truss').toBe(true);
+    expect(labels(truss), 'truss').toContain('L = 8');
+    expect(await compileDiagramSpec(diagram('column', 'L: 8\njoints: A,B\nmembers: A-B'), 'step')).toMatchObject({ ok: false, code: 'refused' });
   });
 
-  it('retains linkage motion semantics', async () => {
+  it('refuses a linkage even when its motion is declared (D23)', async () => {
     const result = await compileDiagramSpec(diagram('linkage', 'links: ground,coupler,rocker\njoints: fixed,revolute,revolute\nmotion: one degree of freedom'), 'step');
-    expect(result.ok).toBe(true);
-    expect(labels(result)).toContain('one degree of freedom');
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:linkage' });
   });
 
-  it('retains soil basis semantics and open-channel depth geometry', async () => {
+  it('retains soil basis semantics; open-channel is refused at any depth (D23)', async () => {
     const soil = await compileDiagramSpec(diagram('soil', 'layers: phases\nphases: solid 0.5, liquid 0.25, gas 0.25\nvoids: liquid, gas\nbasis: total'), 'step');
     expect(soil.ok).toBe(true);
     expect(labels(soil)).toContain('basis: total');
 
-    const shallow = await compileDiagramSpec(diagram('openchan', 'y1: 1\nchannel: trapezoidal\nsection: uniform\nflow: upstream_to_downstream\nwaterline: free_surface'), 'step');
-    const deep = await compileDiagramSpec(diagram('openchan', 'y1: 2\nchannel: trapezoidal\nsection: uniform\nflow: upstream_to_downstream\nwaterline: free_surface'), 'step');
-    expect(shallow.ok).toBe(true);
-    expect(deep.ok).toBe(true);
-    if (!shallow.ok || !deep.ok) return;
-    expect(shallow.scene.strokes.find((stroke) => stroke.id === 'free-surface')?.points).not.toEqual(deep.scene.strokes.find((stroke) => stroke.id === 'free-surface')?.points);
+    for (const depth of [1, 2]) {
+      const channel = await compileDiagramSpec(diagram('openchan', `y1: ${depth}\nchannel: trapezoidal\nsection: uniform\nflow: upstream_to_downstream\nwaterline: free_surface`), 'step');
+      expect(channel, `y1=${depth}`).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:openchan' });
+    }
   });
 
-  it('consumes the gear mesh mode in the rendered scene', async () => {
+  it('refuses a gear pair whose radii would ignore the tooth ratio (D23)', async () => {
     const result = await compileDiagramSpec(diagram('gear', 'z1: 16\nz2: 32\ngears: input, output\nmesh: external'), 'step');
-    expect(result.ok).toBe(true);
-    expect(labels(result)).toContain('mesh: external');
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:gear' });
   });
 });

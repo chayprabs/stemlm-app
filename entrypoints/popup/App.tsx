@@ -25,6 +25,7 @@ import {
   openSavedQuestionsLibrary,
   openSettingsOverlay,
   openStudyPanel,
+  openWelcomePage,
   type LaunchResult,
 } from '@/src/lib/popup-launch';
 import { isSupportedChatUrl } from '@/src/platforms/detect';
@@ -201,6 +202,16 @@ export default function App() {
           ))}
         </div>
       </section>
+
+      <button
+        type="button"
+        data-launch="welcome"
+        className="slm-popup-help"
+        disabled={launching}
+        onClick={() => void launchAndClose(openWelcomePage)}
+      >
+        How to use stemlm
+      </button>
     </div>
   );
 }

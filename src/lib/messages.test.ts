@@ -16,8 +16,9 @@ describe('messages', () => {
     expect(isStemLmMessage({ type: 'stemlm:open-panel' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:load-conversation' })).toBe(true);
     expect(isStemLmMessage({ type: 'stemlm:ask-here' })).toBe(true);
-    expect(isStemLmMessage({ type: 'stemlm:open-saved-library' })).toBe(true);
-    expect(isStemLmMessage({ type: 'stemlm:open-settings' })).toBe(true);
+    // Retired (D26): Saved questions and Settings open as windows, never inside a chat tab.
+    expect(isStemLmMessage({ type: 'stemlm:open-saved-library' })).toBe(false);
+    expect(isStemLmMessage({ type: 'stemlm:open-settings' })).toBe(false);
     expect(isStemLmMessage({ type: 'stemlm:evil' })).toBe(false);
     expect(isStemLmMessage(null)).toBe(false);
   });

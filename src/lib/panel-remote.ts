@@ -72,23 +72,8 @@ export async function handleStemLmPanelMessage(
     return { ok: true };
   }
 
-  if (type === 'stemlm:open-saved-library') {
-    useStore.getState().openSavedLibrary();
-    return { ok: true };
-  }
-
-  if (type === 'stemlm:open-settings') {
-    useStore.getState().openSettings();
-    return { ok: true };
-  }
-
   return { ok: false };
 }
-
-const OVERLAY_PENDING = new Set<StemLmMessage['type']>([
-  'stemlm:open-saved-library',
-  'stemlm:open-settings',
-]);
 
 /** Content-script boot: run a toolbar launch that was armed before this tab loaded. */
 export async function consumePendingPanelAction(
@@ -101,13 +86,6 @@ export async function consumePendingPanelAction(
   if (!pending) return null;
   if (!isCurrent()) {
     const result = { ok: false };
-    await setPanelActionResult(tabId, result);
-    return result;
-  }
-  // Stale settings/library launches used to reopen a floating card on the chat
-  // page after a reload. Those sheets now live in the toolbar popup only.
-  if (OVERLAY_PENDING.has(pending)) {
-    const result = { ok: true };
     await setPanelActionResult(tabId, result);
     return result;
   }

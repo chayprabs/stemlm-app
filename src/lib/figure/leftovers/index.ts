@@ -4,20 +4,15 @@ import { compileHybridPi, compileMosPi, compileOpamp } from './hybridpi';
 import {
   compileNewman,
   compileFischer,
-  compileChair,
   compileHaworth,
-  compileLewis,
   compileVsepr,
-  compileComplex,
 } from './organic';
 import { compileLadder, compileCft, compileJablonski } from './ladder';
 import { compileMccabe, compilePonchon } from './mccabe';
-import { compileSfd, compileBeam } from './sfd';
+import { compileSfd } from './sfd';
 import {
   compilePhasor,
   compileSmith,
-  compileFeynman,
-  compileMinkowski,
   compileRay,
   compileField,
   compileBz,
@@ -29,18 +24,11 @@ import {
   compileMohr,
   compileReactor,
   compileHx,
-  compileTernary,
-  compileOpenchan,
   compileWall,
   compileSoil,
-  compileColumn,
-  compileRc,
   compileFrame,
   compilePfd,
-  compileLinkage,
   compileCam,
-  compileGear,
-  compilePsych,
 } from './rest-mech';
 import {
   compileTline,
@@ -48,20 +36,14 @@ import {
   compileTwoport,
   compilePwm,
   compileXfmr,
-  compileConstel,
-  compileEye,
-  compileCmos,
   compileMotor,
   compileDq,
 } from './rest-ee';
 import {
-  compileCellBio,
   compileMembrane,
   compileOperon,
-  compileRestriction,
   compileRama,
   compileCycle,
-  compileEcg,
   compileGel,
   compileNewick,
   compileNeuron,
@@ -81,20 +63,24 @@ import {
   compilePipeline,
   compileDatapath,
   compileRing,
-  compileTopology,
   compileSphere,
-  compileIsometric,
   compileKnot,
-  compileMechanism,
   compileSplitting,
   compileEchem,
 } from './rest-cs';
-import { compileGeneric, compileFrost } from './rest-misc';
+import { compileGeneric } from './rest-misc';
 
 type LeftoverFn = (spec: SpecDoc, ctx: CompileCtx) => CompileResult | Promise<CompileResult>;
 
+// D23: these templates drew what their spec does not say (grid-placed geometry, identical waves, a NAND as an
+// inverter, circles for Lewis structures, invented event positions). A hidden figure beats a wrong one.
+// D32: beam printed its raw load record and floated the deflection curve above the beam; sfd draws loaded beams.
+function refuseUnfaithful(spec: SpecDoc): CompileResult {
+  return { ok: false, code: 'refused', reason: `unfaithful_family:${spec.type}` };
+}
+
 function compileLadderFamily(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  if (specGet(spec, 'n') !== undefined || specGet(spec, 'e') !== undefined) return compileFrost(spec, ctx);
+  if (specGet(spec, 'n') !== undefined || specGet(spec, 'e') !== undefined) return refuseUnfaithful({ ...spec, type: 'frost' });
   if (specGet(spec, 'd') !== undefined || specGet(spec, 'geom') !== undefined) return compileCft(spec, ctx);
   if (specGet(spec, 'left') !== undefined || specGet(spec, 'right') !== undefined || specGet(spec, 'center') !== undefined || specGet(spec, 'molecule') !== undefined) {
     return compileLadder(spec, ctx, 'mo');
@@ -115,30 +101,30 @@ const TABLE: Record<string, LeftoverFn> = {
   opamp: compileOpamp,
   newman: compileNewman,
   fischer: compileFischer,
-  chair: compileChair,
+  chair: refuseUnfaithful,
   haworth: compileHaworth,
-  lewis: compileLewis,
+  lewis: refuseUnfaithful,
   vsepr: compileVsepr,
-  complex: compileComplex,
+  complex: refuseUnfaithful,
   ladder: compileLadderFamily,
   mo: (s, c) => compileLadder(s, c, 'mo'),
   cft: compileCft,
   jablonski: compileJablonski,
-  frost: compileFrost,
+  frost: refuseUnfaithful,
   mccabe: compileMccabe,
   ponchon: compilePonchon,
   sfd: compileSfd,
-  beam: compileBeam,
+  beam: refuseUnfaithful,
   phasor: compilePhasor,
   smith: compileSmith,
-  feynman: compileFeynman,
-  minkowski: compileMinkowski,
+  feynman: refuseUnfaithful,
+  minkowski: refuseUnfaithful,
   ray: compileRay,
   field: compileField,
   bz: compileBz,
   'chem.smiles': compileChemSmiles,
   timing: compileTiming,
-  mechanism: compileMechanism,
+  mechanism: refuseUnfaithful,
   splitting: compileSplitting,
   echem: compileEchem,
   array: compileArray,
@@ -150,7 +136,7 @@ const TABLE: Record<string, LeftoverFn> = {
   cd: compileCd,
   schematic: compileSchematicPlot,
   cycle: compileCycle,
-  ecg: compileEcg,
+  ecg: refuseUnfaithful,
   gel: compileGel,
   kmap: compileKmap,
   truss: compileTruss,
@@ -162,26 +148,26 @@ const TABLE: Record<string, LeftoverFn> = {
   pwm: compilePwm,
   reactor: compileReactor,
   hx: compileHx,
-  cell: compileCellBio,
+  cell: refuseUnfaithful,
   membrane: compileMembrane,
   operon: compileOperon,
-  restriction: compileRestriction,
+  restriction: refuseUnfaithful,
   rama: compileRama,
   pipeline: compilePipeline,
   datapath: compileDatapath,
   ring: compileRing,
   xfmr: compileXfmr,
-  constel: compileConstel,
-  eye: compileEye,
-  cmos: compileCmos,
+  constel: refuseUnfaithful,
+  eye: refuseUnfaithful,
+  cmos: refuseUnfaithful,
   motor: compileMotor,
-  ternary: compileTernary,
-  openchan: compileOpenchan,
+  ternary: refuseUnfaithful,
+  openchan: refuseUnfaithful,
   sphere: compileSphere,
-  isometric: compileIsometric,
-  topology: compileTopology,
+  isometric: refuseUnfaithful,
+  topology: refuseUnfaithful,
   dq: compileDq,
-  psych: compilePsych,
+  psych: refuseUnfaithful,
   newick: compileNewick,
   neuron: compileNeuron,
   pcr: compilePcr,
@@ -189,14 +175,14 @@ const TABLE: Record<string, LeftoverFn> = {
   division: compileDivision,
   wall: compileWall,
   soil: compileSoil,
-  column: compileColumn,
-  rc: compileRc,
+  column: refuseUnfaithful,
+  rc: refuseUnfaithful,
   frame: compileFrame,
   pfd: compilePfd,
   knot: compileKnot,
-  linkage: compileLinkage,
+  linkage: refuseUnfaithful,
   cam: compileCam,
-  gear: compileGear,
+  gear: refuseUnfaithful,
 };
 
 export function leftoverRegistered(type: string): boolean {

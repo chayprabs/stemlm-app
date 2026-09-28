@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   clampSplitRatio,
+  isOverlayViewport,
+  layoutSplitRatio,
+  MIN_HOST_PX,
   minSplitRatio,
   pageWidthVw,
   panelWidthVw,
@@ -62,5 +65,23 @@ describe('split-ratio', () => {
 
   it('preserves an explicitly resized 75% panel', () => {
     expect(hydrateSplitRatio(0.75, undefined, { preserveLegacyValues: true })).toBe(0.75);
+  });
+
+  it('keeps a phone-width chat column beside the panel (UI-SMALL-01)', () => {
+    expect(MIN_HOST_PX).toBe(320);
+    for (const vw of [600, 760, 900, 1000]) {
+      const ratio = layoutSplitRatio(DEFAULT_SPLIT_RATIO, vw);
+      expect((1 - ratio) * vw, `chat at ${vw}px`).toBeGreaterThanOrEqual(MIN_HOST_PX - 1e-9);
+      expect(ratio * vw, `panel at ${vw}px`).toBeGreaterThanOrEqual(MIN_PANEL_PX - 1e-9);
+    }
+    // Wide screens keep the reading-first default.
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1024)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1400)).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('overlays the chat when the window cannot fit both (UI-SMALL-01)', () => {
+    expect(isOverlayViewport(599)).toBe(true);
+    expect(isOverlayViewport(600)).toBe(false);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 480)).toBe(1);
   });
 });

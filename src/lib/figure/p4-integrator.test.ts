@@ -2,14 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { compileDiagramSpec } from './compile';
 
 describe('P4 integrator catalog and leftover hardening', () => {
-  it('renders a Frost diagram from both the ring size and electron count', async () => {
+  it('refuses a Frost diagram even with a valid ring size and electron count (D23: odd rings upside down, no Hund filling)', async () => {
     const result = await compileDiagramSpec({ type: 'frost', content: 'n: 6\ne: 5' }, 'step');
-    expect(result.ok, result.ok ? '' : result.reason).toBe(true);
-    if (!result.ok) return;
-    const labels = result.scene.labels.map((label) => label.text ?? label.katex ?? '');
-    expect(labels).toContain('e=5');
-    expect(result.scene.labels.filter((label) => label.id.startsWith('frost-orbital-'))).toHaveLength(6);
-    expect(result.scene.labels.filter((label) => /^frost-electron-\d+$/.test(label.id)).length).toBe(5);
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:frost' });
   });
 
   it('fails closed for non-numeric or impossible Frost occupancy', async () => {

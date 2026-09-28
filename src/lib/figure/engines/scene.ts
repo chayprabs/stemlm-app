@@ -1,8 +1,12 @@
-import type { CompileCtx, CompileResult } from '../types';
+import type { CompileCtx, CompileResult, Scene } from '../types';
 import { specGet, specGetAll, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
 import { SCENE_VARIANTS } from '../catalog';
+import { type Box, type Segment as LineSegment, boxFrom, boxHitsAny, boxesOverlap, distPointSeg, measureText } from '../geom';
+import { strokeSegments } from '../slk';
+import { FONT_MIN, LABEL_GAP, type LabelPriority, type SlotHint } from '../types';
+import { dropped, formatTicks, niceTicks, raised } from './plot';
 
 type Point = { x: number; y: number };
 type Failure = Extract<CompileResult, { ok: false }>;
@@ -166,7 +170,8 @@ function namedBodies(spec: SpecDoc): string[] {
 function bodyPositions(ids: string[], w: number, h: number): Map<string, Point> {
   const positions = new Map<string, Point>();
   ids.forEach((id, i) => {
-    const x = ids.length === 1 ? w * 0.45 : 48 + (i * (w - 96)) / Math.max(1, ids.length - 1);
+    // Leave a full arrow and its label beside the outermost bodies.
+    const x = ids.length === 1 ? w * 0.45 : 70 + (i * (w - 140)) / Math.max(1, ids.length - 1);
     positions.set(id.toLowerCase(), { x, y: h * 0.56 });
   });
   return positions;
@@ -284,6 +289,7 @@ function segmentRelationMarker(first: Segment, second: Segment, kind: string): n
   return [firstCorner.x, firstCorner.y, secondCorner.x, secondCorner.y, end.x, end.y];
 }
 
+/** Environment anchors sit beside the body they hold: a ceiling above it, a floor below it, a wall on its near side. */
 function lookupFbdPoint(
   points: Map<string, Point>,
   raw: string,
@@ -291,17 +297,76 @@ function lookupFbdPoint(
   w: number,
   h: number,
   used: Set<string>,
+  partner?: Point,
 ): Point | undefined {
   const existing = lookupPoint(points, raw);
   if (existing) return existing;
   const name = raw.trim();
   if (!/^(wall|ceiling|ground|floor|support|anchor)$/i.test(name)) return undefined;
-  const id = idPart(name);
-  const p = /ceiling|wall/i.test(name) ? { x: w * 0.5, y: 22 } : { x: w * 0.5, y: h - 18 };
+  const anchorId = uniqueId(`anchor-${idPart(name)}`, used);
+  const x = partner?.x ?? w * 0.5;
+  let p: Point;
+  if (/wall/i.test(name)) {
+    const left = x < w / 2;
+    p = { x: left ? 14 : w - 14, y: partner?.y ?? h * 0.5 };
+    b.rect(anchorId, left ? 6 : w - 14, p.y - 24, 8, 48, { color: 'neutral', role: 'boundary', pattern: 'hatch' });
+  } else if (/ground|floor/i.test(name)) {
+    p = { x, y: h - 18 };
+    b.rect(anchorId, x - 24, p.y, 48, 8, { color: 'neutral', role: 'boundary', pattern: 'hatch' });
+  } else {
+    p = { x, y: 22 };
+    b.rect(anchorId, x - 24, p.y - 8, 48, 8, { color: 'neutral', role: 'boundary', pattern: 'hatch' });
+  }
   points.set(name.toLowerCase(), p);
-  const anchorId = uniqueId(`anchor-${id}`, used);
-  b.rect(anchorId, p.x - 24, p.y - 4, 48, 8, { color: 'neutral', role: 'boundary', pattern: 'hatch' });
   return p;
+}
+
+const FBD_ARROW = 43;
+
+/** The label continues its arrow: the slot on the side the arrow points to. */
+function slotForDirection(dx: number, dy: number): SlotHint {
+  const octants = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'] as const;
+  return octants[Math.round(((Math.atan2(dy, dx) * 180) / Math.PI + 360) / 45) % 8]!;
+}
+
+/** Body half-size that holds its name inside, even when tilted; bodies whose name cannot fit keep it below. */
+function bodyExtent(name: string, degrees: number): { halfWidth: number; halfHeight: number; inside: boolean } {
+  const text = measureText(name, FONT_MIN);
+  const a = text.w / 2 + 3;
+  const b = text.h / 2 + 1;
+  const c = Math.abs(Math.cos((degrees * Math.PI) / 180));
+  const s = Math.abs(Math.sin((degrees * Math.PI) / 180));
+  const halfWidth = Math.max(18, a * c + b * s);
+  const halfHeight = Math.max(16, a * s + b * c);
+  return halfWidth <= 32 && halfHeight <= 22 ? { halfWidth, halfHeight, inside: true } : { halfWidth: 18, halfHeight: 16, inside: false };
+}
+
+function segmentGap(a1: Point, a2: Point, b1: Point, b2: Point): number {
+  const d1 = cross({ x: a2.x - a1.x, y: a2.y - a1.y }, { x: b1.x - a1.x, y: b1.y - a1.y });
+  const d2 = cross({ x: a2.x - a1.x, y: a2.y - a1.y }, { x: b2.x - a1.x, y: b2.y - a1.y });
+  const d3 = cross({ x: b2.x - b1.x, y: b2.y - b1.y }, { x: a1.x - b1.x, y: a1.y - b1.y });
+  const d4 = cross({ x: b2.x - b1.x, y: b2.y - b1.y }, { x: a2.x - b1.x, y: a2.y - b1.y });
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  const seg = (p: Point, s: Point, e: Point) => distPointSeg(p.x, p.y, { x1: s.x, y1: s.y, x2: e.x, y2: e.y });
+  return Math.min(seg(a1, b1, b2), seg(a2, b1, b2), seg(b1, a1, a2), seg(b2, a1, a2));
+}
+
+type ForcePlan = {
+  force: ParsedForce;
+  vec: { dx: number; dy: number };
+  owner: string;
+  fraction: number;
+  text: string;
+  slot: SlotHint;
+  size: { w: number; h: number };
+};
+
+/** The layout kernel's box for a label placed in `slot` beside `at`. */
+function labelBoxAt(at: Point, slot: SlotHint, size: { w: number; h: number }): Box {
+  const gap = LABEL_GAP(FONT_MIN) + 4;
+  const dx = slot.includes('E') ? size.w / 2 + gap : slot.includes('W') ? -(size.w / 2 + gap) : 0;
+  const dy = slot.includes('N') ? -(size.h / 2 + gap) : slot.includes('S') ? size.h / 2 + gap : 0;
+  return { x1: at.x + dx - size.w / 2, y1: at.y + dy - size.h / 2, x2: at.x + dx + size.w / 2, y2: at.y + dy + size.h / 2 };
 }
 
 function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileResult | null {
@@ -309,14 +374,17 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
   if (invalid) return invalid;
   const panels = drawPanels(b, spec, w, h);
   const bodies = namedBodies(spec);
+  const keys = bodies.map((body) => body.toLowerCase());
   const positions = bodyPositions(bodies, w, h);
   const used = new Set<string>();
   const inclineRaw = specGet(spec, 'incline_deg');
   const incline = inclineRaw === undefined ? 0 : specNumber(spec, 'incline_deg');
   if (incline === undefined) return failure('incline_deg needs a finite numeric degree value');
   const { tangent, normal } = orientedBasis(incline);
-  const bodyHalfWidth = 18;
-  const bodyHalfHeight = 16;
+  const extents = new Map(bodies.map((body) => [body.toLowerCase(), bodyExtent(body, incline)]));
+  const widest = Math.max(...[...extents.values()].map((extent) => extent.halfWidth));
+  const tallest = Math.max(...[...extents.values()].map((extent) => extent.halfHeight));
+  const poseAt = (key: string, center: Point): BodyPose => ({ center, tangent, normal, halfWidth: extents.get(key)!.halfWidth, halfHeight: extents.get(key)!.halfHeight });
   const bodyPanel = new Map<string, string>();
   for (const raw of specGetAll(spec, 'body')) {
     const body = words(raw)[0];
@@ -328,57 +396,24 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
       positions.set(body.toLowerCase(), { x: box.x + box.w / 2, y: box.y + box.h * 0.55 });
     }
   }
+  const halfSpan = Math.min(96, Math.max(44, Math.min(
+    (w - widest * 2 - 20) / Math.max(Math.abs(tangent.x), 1e-6),
+    (h - tallest * 2 - 36) / Math.max(Math.abs(tangent.y), 1e-6),
+  ) / 2));
+  // The wedge stands on the frame bottom so the weight arrow has depth to drop into.
+  const planeCenter = { x: w / 2, y: Math.max(h * 0.58, h - 10 - halfSpan * Math.abs(tangent.y)) };
   if (incline !== 0) {
     const freeBodies = bodies.filter((body) => !bodyPanel.has(body.toLowerCase()));
-    const halfSpan = Math.min(64, Math.max(44, Math.min(
-      (w - bodyHalfWidth * 2 - 20) / Math.max(Math.abs(tangent.x), 1e-6),
-      (h - bodyHalfHeight * 2 - 36) / Math.max(Math.abs(tangent.y), 1e-6),
-    ) / 2));
-    const planeCenter = { x: w / 2, y: h * 0.58 };
     freeBodies.forEach((body, index) => {
-      const offset = freeBodies.length <= 1 ? 0 : -halfSpan + (2 * halfSpan * index) / (freeBodies.length - 1);
+      // A lone body sits a little up-slope, leaving the foot of the wedge to the angle mark.
+      const offset = freeBodies.length <= 1 ? halfSpan * 0.45 * Math.sign(-tangent.y || 1) : -halfSpan + (2 * halfSpan * index) / (freeBodies.length - 1);
       const contact = { x: planeCenter.x + tangent.x * offset, y: planeCenter.y + tangent.y * offset };
-      positions.set(body.toLowerCase(), {
-        x: contact.x + normal.x * bodyHalfHeight,
-        y: contact.y + normal.y * bodyHalfHeight,
-      });
+      const lift = extents.get(body.toLowerCase())!.halfHeight;
+      positions.set(body.toLowerCase(), { x: contact.x + normal.x * lift, y: contact.y + normal.y * lift });
     });
   }
-  const bodyPoses = new Map<string, BodyPose>();
-  bodies.forEach((body) => {
-    const p = positions.get(body.toLowerCase())!;
-    const id = `body-${idPart(body)}`;
-    const pose: BodyPose = {
-      center: p,
-      tangent,
-      normal,
-      halfWidth: bodyHalfWidth,
-      halfHeight: bodyHalfHeight,
-    };
-    bodyPoses.set(body.toLowerCase(), pose);
-    used.add(id);
-    const bbox = bodyBoundingBox(pose);
-    b.node(id, bbox.x, bbox.y, bbox.w, bbox.h, 'body');
-    if (incline === 0) b.rect(id, p.x - bodyHalfWidth, p.y - bodyHalfHeight, bodyHalfWidth * 2, bodyHalfHeight * 2, { fill: 'solid', color: 'neutral', role: 'geometry' });
-    else b.polygon(id, bodyPolygon(pose), { fill: 'solid', color: 'neutral', role: 'geometry' });
-    if (incline !== 0) {
-      const [contactStart, contactEnd] = bodyContactEdge(pose);
-      b.line(`contact-${idPart(body)}`, contactStart.x, contactStart.y, contactEnd.x, contactEnd.y, { color: 'neutral', role: 'boundary', width: 1.2 });
-    }
-    b.label(`body-label-${idPart(body)}`, body, p.x, p.y + 25, { slot: 'S', priority: 'required', anchorId: id, panelId: bodyPanel.get(body.toLowerCase()) });
-  });
-  if (incline !== 0) {
-    const planeCenter = { x: w / 2, y: h * 0.58 };
-    const halfSpan = Math.min(64, Math.max(44, Math.min(
-      (w - bodyHalfWidth * 2 - 20) / Math.max(Math.abs(tangent.x), 1e-6),
-      (h - bodyHalfHeight * 2 - 36) / Math.max(Math.abs(tangent.y), 1e-6),
-    ) / 2));
-    const start = { x: planeCenter.x - tangent.x * halfSpan, y: planeCenter.y - tangent.y * halfSpan };
-    const end = { x: planeCenter.x + tangent.x * halfSpan, y: planeCenter.y + tangent.y * halfSpan };
-    b.line('incline', start.x, start.y, end.x, end.y, { width: 2, role: 'boundary' });
-  }
-  const knownAngles = new Map<string, number>();
-  const forceNames = new Map<string, number>();
+
+  // Forces resolve before anything is drawn: their directions and labels decide how much room each body needs.
   const parsedForces: ParsedForce[] = [];
   for (const raw of specGetAll(spec, 'force')) {
     const parsed = parseForce(raw);
@@ -395,64 +430,227 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
     ? Math.min(...declaredUnits.map((force) => force.magnitude!))
     : 0;
   const rangeRequiresSchematic = comparableUnit && maxMagnitude / minMagnitude > 2;
+  const knownAngles = new Map<string, number>();
+  const plans: ForcePlan[] = [];
   for (const force of parsedForces) {
     const vec = vectorForForce(force.direction, incline, knownAngles);
     if (!vec) return failure(`force ${force.name} has an unsupported or ambiguous direction`);
     const owner = force.owner ?? bodies[0]!;
-    const start = lookupPoint(positions, owner);
-    if (!start) return failure(`force ${force.name} references unknown body ${owner}`);
-    const anchor = bodyPoses.get(owner.toLowerCase());
-    const forceStart = anchor ? bodyBoundaryPoint(anchor, { x: vec.dx, y: vec.dy }) : start;
-    const baseName = idPart(force.name);
+    if (!lookupPoint(positions, owner)) return failure(`force ${force.name} references unknown body ${owner}`);
+    const text = `${force.name}${force.magnitudeText ? ` ${force.magnitudeText}` : ''}`;
+    plans.push({
+      force,
+      vec,
+      owner: owner.toLowerCase(),
+      fraction: comparableUnit && !rangeRequiresSchematic && force.magnitude !== undefined ? force.magnitude / maxMagnitude : 1,
+      text,
+      // A horizontal force is labelled above its arrowhead; any other continues past its tip.
+      slot: Math.abs(vec.dx) >= 0.92 ? 'N' : slotForDirection(vec.dx, vec.dy),
+      size: measureText(text, FONT_MIN),
+    });
+    knownAngles.set(idPart(force.name), Math.atan2(vec.dy, vec.dx) * 180 / Math.PI);
+  }
+
+  // Arrow length: the longest (up to 43) at which every arrow and its label stay in the frame,
+  // clear of the ceiling or floor band a member anchors to. Free bodies are packed side by side.
+  const anchorNames = specGetAll(spec, 'member').flatMap((raw) => words(raw).slice(1, 3));
+  const limits = {
+    x1: 4, x2: w - 4,
+    y1: anchorNames.some((name) => /^(ceiling|support|anchor)$/i.test(name)) ? 30 : 4,
+    y2: anchorNames.some((name) => /^(ground|floor)$/i.test(name)) ? h - 30 : h - 4,
+  };
+  // An incline's wedge (slope, base, rise) is fixed before the arrows; labels must clear it too.
+  const wedgeEnds = [
+    { x: planeCenter.x - tangent.x * halfSpan, y: planeCenter.y - tangent.y * halfSpan },
+    { x: planeCenter.x + tangent.x * halfSpan, y: planeCenter.y + tangent.y * halfSpan },
+  ].sort((a, c) => c.y - a.y);
+  const wedge = incline === 0 ? [] : [
+    { x1: wedgeEnds[0]!.x, y1: wedgeEnds[0]!.y, x2: wedgeEnds[1]!.x, y2: wedgeEnds[1]!.y },
+    { x1: wedgeEnds[0]!.x, y1: wedgeEnds[0]!.y, x2: wedgeEnds[1]!.x, y2: wedgeEnds[0]!.y },
+    { x1: wedgeEnds[1]!.x, y1: wedgeEnds[0]!.y, x2: wedgeEnds[1]!.x, y2: wedgeEnds[1]!.y },
+  ];
+  /** Everything one body draws at this arrow length (body, arrows, labels), and whether its labels clear the wedge. */
+  const reach = (key: string, center: Point, length: number) => {
+    const pose = poseAt(key, center);
+    const bbox = bodyBoundingBox(pose);
+    const box = { x1: bbox.x, y1: bbox.y, x2: bbox.x + bbox.w, y2: bbox.y + bbox.h, clearOfWedge: true };
+    for (const plan of plans.filter((candidate) => candidate.owner === key)) {
+      const start = bodyBoundaryPoint(pose, { x: plan.vec.dx, y: plan.vec.dy });
+      const tip = { x: start.x + plan.vec.dx * length * plan.fraction, y: start.y + plan.vec.dy * length * plan.fraction };
+      const label = labelBoxAt(tip, plan.slot, plan.size);
+      box.x1 = Math.min(box.x1, tip.x, label.x1);
+      box.y1 = Math.min(box.y1, tip.y, label.y1);
+      box.x2 = Math.max(box.x2, tip.x, label.x2);
+      box.y2 = Math.max(box.y2, tip.y, label.y2);
+      box.clearOfWedge &&= !boxHitsAny(label, wedge, LABEL_GAP(FONT_MIN));
+    }
+    return box;
+  };
+  const packed = incline === 0 && bodyPanel.size === 0;
+  let arrow = FBD_ARROW;
+  for (const length of [FBD_ARROW, 38, 33, 28, 24, 20]) {
+    arrow = length;
+    if (packed) {
+      const boxes = keys.map((key) => reach(key, { x: 0, y: 0 }, length));
+      const width = boxes.reduce((sum, box) => sum + box.x2 - box.x1, 0) + 12 * (boxes.length - 1);
+      const top = Math.min(...boxes.map((box) => box.y1));
+      const height = Math.max(...boxes.map((box) => box.y2)) - top;
+      let x = limits.x1 + (limits.x2 - limits.x1 - width) / 2;
+      const y = limits.y1 + (limits.y2 - limits.y1 - height) / 2 - top;
+      boxes.forEach((box, index) => {
+        positions.set(keys[index]!, { x: x - box.x1, y });
+        x += box.x2 - box.x1 + 12;
+      });
+      if (width <= limits.x2 - limits.x1 && height <= limits.y2 - limits.y1) break;
+    } else if (keys.every((key) => {
+      const box = reach(key, positions.get(key)!, length);
+      return box.x1 >= limits.x1 && box.y1 >= limits.y1 && box.x2 <= limits.x2 && box.y2 <= limits.y2 && box.clearOfWedge;
+    })) break;
+  }
+
+  const bodyPoses = new Map<string, BodyPose>();
+  bodies.forEach((body) => {
+    const key = body.toLowerCase();
+    const p = positions.get(key)!;
+    const extent = extents.get(key)!;
+    const id = `body-${idPart(body)}`;
+    const pose = poseAt(key, p);
+    bodyPoses.set(key, pose);
+    used.add(id);
+    const bbox = bodyBoundingBox(pose);
+    b.node(id, bbox.x, bbox.y, bbox.w, bbox.h, 'body');
+    if (incline === 0) b.rect(id, p.x - extent.halfWidth, p.y - extent.halfHeight, extent.halfWidth * 2, extent.halfHeight * 2, { fill: 'paper', color: 'neutral', role: 'geometry' });
+    else b.polygon(id, bodyPolygon(pose), { fill: 'paper', color: 'neutral', role: 'geometry' });
+    if (incline !== 0) {
+      const [contactStart, contactEnd] = bodyContactEdge(pose);
+      b.line(`contact-${idPart(body)}`, contactStart.x, contactStart.y, contactEnd.x, contactEnd.y, { color: 'neutral', role: 'boundary', width: 1.2 });
+    }
+    const panelId = bodyPanel.get(key);
+    if (extent.inside) b.label(`body-label-${idPart(body)}`, body, p.x, p.y, { protected: true, priority: 'required', anchorId: id, panelId });
+    else b.label(`body-label-${idPart(body)}`, body, p.x, p.y + 25, { slot: 'S', priority: 'required', anchorId: id, panelId });
+  });
+  let angleMark: { text: string; size: { w: number; h: number }; corner: Point; spots: Point[] } | undefined;
+  if (incline !== 0) {
+    const start = { x: planeCenter.x - tangent.x * halfSpan, y: planeCenter.y - tangent.y * halfSpan };
+    const end = { x: planeCenter.x + tangent.x * halfSpan, y: planeCenter.y + tangent.y * halfSpan };
+    b.line('incline', start.x, start.y, end.x, end.y, { width: 2, role: 'boundary' });
+    // The incline is a wedge: horizontal base, vertical rise, and its angle marked at the foot.
+    const [low, high] = start.y >= end.y ? [start, end] : [end, start];
+    b.line('incline-base', low.x, low.y, high.x, low.y, { width: 1.4, role: 'boundary' });
+    b.line('incline-rise', high.x, low.y, high.x, high.y, { width: 1.4, role: 'boundary' });
+    const baseDeg = high.x >= low.x ? 0 : 180;
+    const slopeDeg = (Math.atan2(high.y - low.y, high.x - low.x) * 180) / Math.PI;
+    const sweep = ((slopeDeg - baseDeg + 540) % 360) - 180;
+    b.arc('incline-angle', low.x, low.y, 18, 18, baseDeg, baseDeg + sweep, { color: 'muted', role: 'annotation', width: 1.2 });
+    const text = `${Number(Math.abs(incline).toFixed(2))}°`;
+    const size = measureText(text, FONT_MIN);
+    const bisector = ((baseDeg + sweep / 2) * Math.PI) / 180;
+    // Placed once the arrows exist: the first spot along the angle's bisector that clears every stroke.
+    const outward = high.x >= low.x ? -1 : 1;
+    angleMark = {
+      text,
+      size,
+      corner: low,
+      // Along the bisector first; when a label already fills the foot of the wedge, just outside the corner.
+      spots: [
+        ...Array.from({ length: 19 }, (_, i) => 24 + i * 2).map((r) => ({ x: low.x + r * Math.cos(bisector), y: low.y + r * Math.sin(bisector) })),
+        { x: low.x + outward * (size.w / 2 + 6), y: low.y - size.h / 2 - 3 },
+      ],
+    };
+  }
+  const forceNames = new Map<string, number>();
+  const forceLines: Array<{ owner: string; from: Point; to: Point; plan: ForcePlan; strokeId: string }> = [];
+  for (const plan of plans) {
+    const anchor = bodyPoses.get(plan.owner);
+    const forceStart = anchor ? bodyBoundaryPoint(anchor, { x: plan.vec.dx, y: plan.vec.dy }) : lookupPoint(positions, plan.force.owner ?? bodies[0]!)!;
+    const baseName = idPart(plan.force.name);
     const count = forceNames.get(baseName) ?? 0;
     forceNames.set(baseName, count + 1);
     const strokeId = `force-${baseName}${count ? `-${count + 1}` : ''}`;
-    const arrowLength = comparableUnit && !rangeRequiresSchematic && force.magnitude !== undefined
-      ? 43 * (force.magnitude / maxMagnitude)
-      : 43;
-    const end = { x: forceStart.x + vec.dx * arrowLength, y: forceStart.y + vec.dy * arrowLength };
+    const length = arrow * plan.fraction;
+    const end = { x: forceStart.x + plan.vec.dx * length, y: forceStart.y + plan.vec.dy * length };
     b.line(strokeId, forceStart.x, forceStart.y, end.x, end.y, { markerEnd: true, color: 'accent', role: 'connector', width: 1.8 });
-    const quantity = force.magnitudeText ? ` ${force.magnitudeText}` : '';
-    const schematic = force.magnitudeText && (!comparableUnit || rangeRequiresSchematic) ? ' (schematic)' : '';
-    b.label(`force-label-${strokeId.slice('force-'.length)}`, `${force.name}${quantity}${schematic}`, end.x, end.y, { slot: 'NE', priority: force.magnitudeText ? 'required' : 'preferred', anchorId: strokeId });
-    knownAngles.set(baseName, Math.atan2(vec.dy, vec.dx) * 180 / Math.PI);
+    forceLines.push({ owner: plan.owner, from: forceStart, to: end, plan, strokeId });
+  }
+  // Each label takes the first free slot at its own tip: past the tip, else beside it.
+  const drawn = strokeSegments({ strokes: b.strokes } as Scene);
+  const taken: Array<Box> = [];
+  const clear = (box: Box) => box.x1 >= 4 && box.y1 >= 4 && box.x2 <= w - 4 && box.y2 <= h - 4
+    && !boxHitsAny(box, drawn, LABEL_GAP(FONT_MIN)) && !taken.some((other) => boxesOverlap(box, other, 2));
+  // Each force label takes the first free slot at its own tip: past the tip, else beside it.
+  for (const { plan, to: end, strokeId } of forceLines) {
+    const sides = plan.slot === 'N' ? ['S' as const, slotForDirection(plan.vec.dx, 0)] : [slotForDirection(-plan.vec.dy, plan.vec.dx), slotForDirection(plan.vec.dy, -plan.vec.dx)];
+    const slot = [plan.slot, ...sides].find((candidate) => clear(labelBoxAt(end, candidate, plan.size))) ?? plan.slot;
+    taken.push(labelBoxAt(end, slot, plan.size));
+    b.label(`force-label-${strokeId.slice('force-'.length)}`, plan.text, end.x, end.y, { slot, priority: plan.force.magnitudeText ? 'required' : 'preferred', anchorId: strokeId });
+  }
+  if (angleMark) {
+    // The angle mark sits inside its angle, just beyond the arc: the first bisector spot clear of every
+    // stroke (a tight 2 px gap — it belongs to those lines) and every force label.
+    const mark = angleMark;
+    const at = mark.spots.find((spot) => {
+      const box = { x1: spot.x - mark.size.w / 2, y1: spot.y - mark.size.h / 2, x2: spot.x + mark.size.w / 2, y2: spot.y + mark.size.h / 2 };
+      const nearest = Math.hypot(Math.max(box.x1 - mark.corner.x, 0, mark.corner.x - box.x2), Math.max(box.y1 - mark.corner.y, 0, mark.corner.y - box.y2));
+      return (nearest > 21 || spot === mark.spots.at(-1)) && box.y1 >= 4 && box.y2 <= h - 4 && !boxHitsAny(box, drawn, 3.5) && !taken.some((other) => boxesOverlap(box, other, 2));
+    }) ?? mark.spots.at(-1)!;
+    b.label('incline-angle-label', mark.text, at.x, at.y, { protected: true, priority: 'required', anchorId: 'incline-angle' });
   }
   if (specGet(spec, 'axes')) {
-    const p = positions.get(bodies[0]!.toLowerCase())!;
-    const pose = bodyPoses.get(bodies[0]!.toLowerCase());
-    const origin = pose
-      ? { x: p.x + pose.tangent.x * 42, y: p.y + pose.tangent.y * 42 }
-      : { x: p.x + 42, y: p.y + 5 };
-    const xEnd = pose
-      ? { x: origin.x + pose.tangent.x * 33, y: origin.y + pose.tangent.y * 33 }
-      : { x: p.x + 75, y: p.y + 5 };
-    const yEnd = pose
-      ? { x: origin.x + pose.normal.x * 33, y: origin.y + pose.normal.y * 33 }
-      : { x: p.x + 42, y: p.y - 28 };
+    const pose = bodyPoses.get(bodies[0]!.toLowerCase())!;
+    const bodyOutlines = [...bodyPoses.values()].map((candidate) => bodyPolygon(candidate));
+    const keepsClear = (origin: Point): boolean => {
+      const ends = [
+        { x: origin.x + pose.tangent.x * 33, y: origin.y + pose.tangent.y * 33 },
+        { x: origin.x + pose.normal.x * 33, y: origin.y + pose.normal.y * 33 },
+      ];
+      if (![origin, ...ends].every((p) => p.x >= 16 && p.x <= w - 16 && p.y >= 16 && p.y <= h - 16)) return false;
+      return ends.every((axisEnd) => forceLines.every((line) => segmentGap(origin, axisEnd, line.from, line.to) > 8)
+        && bodyOutlines.every((outline) => outline.every((_, index) => index % 2 === 1 || segmentGap(origin, axisEnd,
+          { x: outline[index]!, y: outline[index + 1]! },
+          { x: outline[(index + 2) % outline.length]!, y: outline[(index + 3) % outline.length]! }) > 8)));
+    };
+    // The nearest clear spot to the body, preferring its right-hand side.
+    const preferred = { x: pose.center.x + pose.tangent.x * 42, y: pose.center.y + pose.tangent.y * 42 };
+    const origins: Point[] = [preferred];
+    for (let gx = 16; gx <= w - 16; gx += 8) for (let gy = 16; gy <= h - 16; gy += 8) origins.push({ x: gx, y: gy });
+    const origin = origins.filter(keepsClear).sort((a, c) => Math.hypot(a.x - preferred.x, a.y - preferred.y) - Math.hypot(c.x - preferred.x, c.y - preferred.y))[0] ?? preferred;
+    const xEnd = { x: origin.x + pose.tangent.x * 33, y: origin.y + pose.tangent.y * 33 };
+    const yEnd = { x: origin.x + pose.normal.x * 33, y: origin.y + pose.normal.y * 33 };
     b.line('axis-x', origin.x, origin.y, xEnd.x, xEnd.y, { markerEnd: true, color: 'muted', role: 'axis' });
     b.line('axis-y', origin.x, origin.y, yEnd.x, yEnd.y, { markerEnd: true, color: 'muted', role: 'axis' });
-    b.label('axis-x-label', 'x', xEnd.x, xEnd.y, { slot: 'E', priority: 'required', anchorId: 'axis-x' });
-    b.label('axis-y-label', 'y', yEnd.x, yEnd.y, { slot: 'N', priority: 'required', anchorId: 'axis-y' });
+    b.label('axis-x-label', 'x', xEnd.x, xEnd.y, { slot: slotForDirection(pose.tangent.x, pose.tangent.y), priority: 'required', anchorId: 'axis-x' });
+    b.label('axis-y-label', 'y', yEnd.x, yEnd.y, { slot: slotForDirection(pose.normal.x, pose.normal.y), priority: 'required', anchorId: 'axis-y' });
   }
   for (const [i, raw] of specGetAll(spec, 'member').entries()) {
     const parts = words(raw);
     const type = parts[0];
-    const from = lookupFbdPoint(positions, parts[1] ?? '', b, w, h, used);
-    const to = lookupFbdPoint(positions, parts[2] ?? '', b, w, h, used);
-    if (!type || !from || !to) return failure(`member ${type ?? i} needs two known body endpoints`);
     const fromPose = bodyPoses.get((parts[1] ?? '').toLowerCase());
     const toPose = bodyPoses.get((parts[2] ?? '').toLowerCase());
-    const memberFrom = fromPose && toPose
-      ? bodyBoundaryPoint(fromPose, { x: toPose.center.x - fromPose.center.x, y: toPose.center.y - fromPose.center.y })
-      : from;
-    const memberTo = fromPose && toPose
-      ? bodyBoundaryPoint(toPose, { x: fromPose.center.x - toPose.center.x, y: fromPose.center.y - toPose.center.y })
-      : to;
+    const from = lookupFbdPoint(positions, parts[1] ?? '', b, w, h, used, toPose?.center);
+    const to = lookupFbdPoint(positions, parts[2] ?? '', b, w, h, used, fromPose?.center);
+    if (!type || !from || !to) return failure(`member ${type ?? i} needs two known body endpoints`);
+    // Members end at body outlines.
+    let memberFrom = fromPose ? bodyBoundaryPoint(fromPose, { x: to.x - from.x, y: to.y - from.y }) : from;
+    let memberTo = toPose ? bodyBoundaryPoint(toPose, { x: from.x - to.x, y: from.y - to.y }) : to;
+    // A member along a force on the same body (a rope and its tension) runs beside the arrow, not on it.
+    const length = Math.hypot(memberTo.x - memberFrom.x, memberTo.y - memberFrom.y) || 1;
+    const along = { x: (memberTo.x - memberFrom.x) / length, y: (memberTo.y - memberFrom.y) / length };
+    const owners = new Set([(parts[1] ?? '').toLowerCase(), (parts[2] ?? '').toLowerCase()]);
+    const collinear = forceLines.some((line) => {
+      if (!owners.has(line.owner)) return false;
+      const forceLength = Math.hypot(line.to.x - line.from.x, line.to.y - line.from.y) || 1;
+      const direction = { x: (line.to.x - line.from.x) / forceLength, y: (line.to.y - line.from.y) / forceLength };
+      return Math.abs(cross(along, direction)) < 0.2 && Math.abs(cross(along, { x: line.from.x - memberFrom.x, y: line.from.y - memberFrom.y })) < 3;
+    });
+    if (collinear) {
+      const shift = { x: -along.y * 9, y: along.x * 9 };
+      memberFrom = { x: memberFrom.x + shift.x, y: memberFrom.y + shift.y };
+      memberTo = { x: memberTo.x + shift.x, y: memberTo.y + shift.y };
+    }
     const id = uniqueId(`member-${type}`, used);
     if (/^spring$/i.test(type)) {
       const dx = memberTo.x - memberFrom.x;
       const dy = memberTo.y - memberFrom.y;
-      const length = Math.hypot(dx, dy) || 1;
       const nx = -dy / length;
       const ny = dx / length;
       const points = [memberFrom.x, memberFrom.y];
@@ -500,7 +698,7 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
       b.label(`${id}-label`, type, base.x, base.y + below.y * 17, { priority: 'optional', anchorId: id });
       continue;
     }
-    const baseY = target.y + 28;
+    const baseY = target.y + (targetPose?.halfHeight ?? 16) + 12;
     if (/^pin$/i.test(type)) {
       b.polygon(id, [target.x - 12, baseY, target.x + 12, baseY, target.x, baseY - 14], { color: 'neutral', role: 'geometry' });
     } else if (/^roller$/i.test(type)) {
@@ -530,12 +728,60 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
       b.label(`${id}-label`, parts[0] ?? 'surface', p.x, p.y + 18, { priority: 'optional', anchorId: id });
     }
   }
+  // Arrow lengths are proportional only for same-unit magnitudes within 2:1; say so once, not per force.
+  if (declaredUnits.length && (!comparableUnit || rangeRequiresSchematic)) {
+    b.label('scale-note', 'arrows not to scale', 4, h - 4, { slot: 'NE', priority: 'required' });
+  }
   const extras = drawDimensionsAndAngles(b, spec, positions, w, h, used);
   if (extras) return extras;
   return null;
 }
 
-function drawDimensionsAndAngles(b: SceneBuilder, spec: SpecDoc, points: Map<string, Point>, w: number, h: number, used: Set<string>): Failure | null {
+/** Centre offset along `dir` that leaves a label box `margin` clear of the point it names. */
+function clearance(dir: Point, size: { w: number; h: number }, margin: number): number {
+  return Math.min(Math.abs(dir.x) > 1e-6 ? (size.w / 2 + margin) / Math.abs(dir.x) : Infinity, Math.abs(dir.y) > 1e-6 ? (size.h / 2 + margin) / Math.abs(dir.y) : Infinity);
+}
+
+/** Centre offset along a line's normal `dir` that keeps a label box `margin` clear of the line itself. */
+function lineClearance(dir: Point, size: { w: number; h: number }, margin: number): number {
+  return (size.w / 2) * Math.abs(dir.x) + (size.h / 2) * Math.abs(dir.y) + margin;
+}
+
+/** The first candidate centre whose label box stays in the frame, off every stroke and off earlier labels. */
+function freeSpot(candidates: Point[], size: { w: number; h: number }, strokes: ReturnType<typeof strokeSegments>, taken: Box[], gap: number, w: number, h: number, accept: (box: Box) => boolean = () => true): Point | undefined {
+  return candidates.find((c) => {
+    const box = { x1: c.x - size.w / 2, y1: c.y - size.h / 2, x2: c.x + size.w / 2, y2: c.y + size.h / 2 };
+    return box.x1 >= 4 && box.y1 >= 4 && box.x2 <= w - 4 && box.y2 <= h - 4 && !boxHitsAny(box, strokes, gap)
+      && !taken.some((other) => boxesOverlap(box, other, 2)) && accept(box);
+  });
+}
+
+const screenAngle = (from: Point, to: Point) => (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
+const signedTurn = (from: number, to: number) => ((to - from + 540) % 360) - 180;
+
+/**
+ * Dimensions sit outside the figure (away from its centroid) with extension lines; an angle is drawn
+ * between its two rays — a three-point name X-V-Y, else the only two segments meeting at the vertex —
+ * as an arc labelled with its value, or a square for a right angle. `explicit` names points whose
+ * coordinates were given: an angle among them must match its declared value, or the figure is refused.
+ */
+function drawDimensionsAndAngles(
+  b: SceneBuilder,
+  spec: SpecDoc,
+  points: Map<string, Point>,
+  w: number,
+  h: number,
+  used: Set<string>,
+  segments: ReadonlyMap<string, Segment> = new Map(),
+  explicit: ReadonlySet<string> = new Set(),
+  taken: Box[] = [],
+): Failure | null {
+  // Labels are placed after every stroke here exists, each at the nearest free spot it prefers.
+  const pending: Array<{ id: string; text: string; anchorId: string; spots: Point[]; slot: SlotHint; accept?: (box: Box) => boolean }> = [];
+  const all = [...points.values()];
+  const centroid = all.length
+    ? { x: all.reduce((sum, p) => sum + p.x, 0) / all.length, y: all.reduce((sum, p) => sum + p.y, 0) / all.length }
+    : { x: w / 2, y: h / 2 };
   for (const [i, raw] of specGetAll(spec, 'dimension').entries()) {
     const parts = words(raw);
     const [idToken, fromToken, toToken] = parts;
@@ -546,34 +792,95 @@ function drawDimensionsAndAngles(b: SceneBuilder, spec: SpecDoc, points: Map<str
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len;
-    const ny = dx / len;
-    const a = { x: from.x + nx * 13, y: from.y + ny * 13 };
-    const c = { x: to.x + nx * 13, y: to.y + ny * 13 };
-    b.line(id, a.x, a.y, c.x, c.y, { color: 'guide', role: 'dimension', markerStart: true, markerEnd: true });
+    let nx = -dy / len;
+    let ny = dx / len;
+    if (((from.x + to.x) / 2 - centroid.x) * nx + ((from.y + to.y) / 2 - centroid.y) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const offset = 14;
+    const a = { x: from.x + nx * offset, y: from.y + ny * offset };
+    const c = { x: to.x + nx * offset, y: to.y + ny * offset };
+    // A textbook dimension: thin solid line, heads pointing out to the extension lines.
+    b.line(id, a.x, a.y, c.x, c.y, { color: 'muted', role: 'dimension', width: 1, markerStart: true, markerEnd: true });
+    b.line(`${id}-ext1`, from.x + nx * 3, from.y + ny * 3, from.x + nx * (offset + 3), from.y + ny * (offset + 3), { color: 'muted', role: 'dimension', width: 0.8 });
+    b.line(`${id}-ext2`, to.x + nx * 3, to.y + ny * 3, to.x + nx * (offset + 3), to.y + ny * (offset + 3), { color: 'muted', role: 'dimension', width: 0.8 });
     const label = parts.slice(3).join(' ') || idToken;
-    b.label(`${id}-label`, label, (a.x + c.x) / 2, (a.y + c.y) / 2, { priority: 'preferred', anchorId: id });
+    const size = measureText(label, FONT_MIN);
+    const mid = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 };
+    const reach = lineClearance({ x: nx, y: ny }, size, 4);
+    pending.push({ id: `${id}-label`, text: label, anchorId: id, slot: slotForDirection(nx, ny), spots: [0, 4, 8].map((extra) => ({ x: mid.x + nx * (reach + extra), y: mid.y + ny * (reach + extra) })) });
     b.dimension(id, fromToken!, toToken!, `${id}-label`, 'aligned');
   }
   for (const [i, raw] of specGetAll(spec, 'angle').entries()) {
     const parts = words(raw);
     const idToken = parts[0];
-    const at = lookupPoint(points, parts[1] ?? '') ?? { x: w / 2, y: h / 2 };
+    const vertexName = parts[1] ?? '';
+    const at = lookupPoint(points, vertexName) ?? { x: w / 2, y: h / 2 };
     const amount = /(-?\d+(?:\.\d+)?)\s*(?:deg|°)/i.exec(raw)?.[1];
     if (!idToken || amount === undefined) return failure(`angle ${idToken ?? i} needs a degree value`);
     const id = uniqueId(`angle-${idToken}`, used);
-    const anglePoints = [...idToken];
-    const vertex = parts[1]?.toLowerCase();
-    const firstRay = anglePoints.length === 3 && anglePoints[1]?.toLowerCase() === vertex
-      ? lookupPoint(points, anglePoints[0] ?? '')
-      : undefined;
-    const startDeg = firstRay
-      ? (Math.atan2(firstRay.y - at.y, firstRay.x - at.x) * 180) / Math.PI
-      : 0;
-    const endDeg = startDeg + Number(amount);
-    b.arc(id, at.x, at.y, 22, 22, startDeg, endDeg, { color: 'guide', role: 'annotation' });
-    const labelAngle = ((startDeg + endDeg) * Math.PI) / 360;
-    b.label(`${id}-label`, idToken, at.x + 27 * Math.cos(labelAngle), at.y + 27 * Math.sin(labelAngle), { priority: 'preferred', anchorId: id });
+    const degrees = Math.abs(Number(amount));
+    const letters = [...idToken];
+    const named = letters.length === 3 && letters[1]!.toLowerCase() === vertexName.toLowerCase();
+    let rayNames = named ? [letters[0]!, letters[2]!] : [];
+    if (!named) {
+      // The two segments that meet at the vertex, when there are exactly two.
+      const vertexKey = vertexName.toLowerCase();
+      const ends = [...segments.values()].flatMap((segment) => {
+        const other = segment.from === at ? segment.to : segment.to === at ? segment.from : undefined;
+        return other ? [other] : [];
+      });
+      if (ends.length === 2) rayNames = ends.map((end) => [...points.entries()].find(([, p]) => p === end)?.[0] ?? '').filter((name) => name !== vertexKey);
+    }
+    const rays = rayNames.map((name) => lookupPoint(points, name)).filter((p): p is Point => Boolean(p));
+    const startDeg = rays[0] ? screenAngle(at, rays[0]) : 0;
+    let sweep = degrees;
+    if (rays.length === 2) {
+      const turn = signedTurn(startDeg, screenAngle(at, rays[1]!));
+      sweep = (degrees > 180 ? -1 : 1) * Math.sign(turn || 1) * degrees;
+      const actual = degrees > 180 ? 360 - Math.abs(turn) : Math.abs(turn);
+      const allExplicit = [vertexName, ...rayNames].every((name) => explicit.has(name.toLowerCase()));
+      if (allExplicit && Math.abs(actual - degrees) > 2) {
+        return failure(`angle ${idToken} is declared ${degrees}° but its points make ${Number(actual.toFixed(1))}°`);
+      }
+    }
+    if (rays.length === 2 && Math.abs(degrees - 90) < 0.5) {
+      // A right angle is a square in the corner, sized to the shorter ray; its value needs no label.
+      const size = Math.min(10, 0.3 * Math.min(...rays.map((ray) => Math.hypot(ray.x - at.x, ray.y - at.y))));
+      const first = { x: Math.cos((startDeg * Math.PI) / 180), y: Math.sin((startDeg * Math.PI) / 180) };
+      const second = { x: Math.cos(((startDeg + sweep) * Math.PI) / 180), y: Math.sin(((startDeg + sweep) * Math.PI) / 180) };
+      b.polyline(id, [
+        at.x + first.x * size, at.y + first.y * size,
+        at.x + (first.x + second.x) * size, at.y + (first.y + second.y) * size,
+        at.x + second.x * size, at.y + second.y * size,
+      ], { color: 'muted', role: 'annotation', width: 1.2 });
+      continue;
+    }
+    b.arc(id, at.x, at.y, 22, 22, startDeg, startDeg + sweep, { color: 'muted', role: 'annotation', width: 1.2 });
+    const middle = ((startDeg + sweep / 2) * Math.PI) / 180;
+    const dir = { x: Math.cos(middle), y: Math.sin(middle) };
+    const vertex = at;
+    // Inside the angle, just beyond its arc.
+    pending.push({
+      id: `${id}-label`,
+      text: `${Number(amount.replace(/^-/, ''))}°`,
+      anchorId: id,
+      slot: slotForDirection(dir.x, dir.y),
+      spots: Array.from({ length: 14 }, (_, k) => 26 + k * 3).map((r) => ({ x: vertex.x + dir.x * r, y: vertex.y + dir.y * r })),
+      accept: (box) => Math.hypot(Math.max(box.x1 - vertex.x, 0, vertex.x - box.x2), Math.max(box.y1 - vertex.y, 0, vertex.y - box.y2)) > 24,
+    });
+  }
+  const drawn = strokeSegments({ strokes: b.strokes } as Scene);
+  for (const item of pending) {
+    const size = measureText(item.text, FONT_MIN);
+    const spot = freeSpot(item.spots, size, drawn, taken, 3, w, h, item.accept);
+    if (spot) {
+      taken.push(boxFrom(spot.x, spot.y, size.w, size.h));
+      b.label(item.id, item.text, spot.x, spot.y, { protected: true, priority: 'required', anchorId: item.anchorId });
+    } else {
+      b.label(item.id, item.text, item.spots[0]!.x, item.spots[0]!.y, { slot: item.slot, priority: 'required', anchorId: item.anchorId });
+    }
   }
   return null;
 }
@@ -593,29 +900,33 @@ function drawGeom(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Compile
   });
   const declared = parsedPoints.filter((entry) => entry.explicit).map((entry) => entry.point);
   if (declared.length) {
-    const inset = 18;
-    const xMin = Math.min(...declared.map((point) => point.x));
-    const xMax = Math.max(...declared.map((point) => point.x));
-    const yMin = Math.min(...declared.map((point) => point.y));
-    const yMax = Math.max(...declared.map((point) => point.y));
-    const fit = (value: number, min: number, max: number, size: number): number => {
-      if (max === min) return size / 2;
-      const scale = Math.max(Math.abs(min), Math.abs(max), Number.MIN_VALUE);
-      const ratio = (value / scale - min / scale) / (max / scale - min / scale);
-      return inset + ratio * (size - inset * 2);
-    };
+    // Math convention (D19): one uniform scale, larger y drawn higher, the figure centred in the frame.
+    // Coordinates are normalised by their largest magnitude first so huge values cannot overflow.
+    const inset = specGetAll(spec, 'dimension').length ? 38 : 26;
+    const norm = Math.max(...declared.flatMap((point) => [Math.abs(point.x), Math.abs(point.y)]), Number.MIN_VALUE);
+    const xs = declared.map((point) => point.x / norm);
+    const ys = declared.map((point) => point.y / norm);
+    const spanX = Math.max(...xs) - Math.min(...xs);
+    const spanY = Math.max(...ys) - Math.min(...ys);
+    const scale = Math.min(spanX > 0 ? (w - inset * 2) / spanX : Infinity, spanY > 0 ? (h - inset * 2) / spanY : Infinity);
+    const k = Number.isFinite(scale) ? scale : 1;
+    const midX = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const midY = (Math.max(...ys) + Math.min(...ys)) / 2;
     parsedPoints.forEach((entry) => {
       if (entry.explicit) {
-        entry.point = { x: fit(entry.point.x, xMin, xMax, w), y: fit(entry.point.y, yMin, yMax, h) };
+        entry.point = { x: w / 2 + (entry.point.x / norm - midX) * k, y: h / 2 - (entry.point.y / norm - midY) * k };
       }
     });
   }
   const points = new Map<string, Point>();
+  const centroid = {
+    x: parsedPoints.reduce((sum, entry) => sum + entry.point.x, 0) / Math.max(1, parsedPoints.length),
+    y: parsedPoints.reduce((sum, entry) => sum + entry.point.y, 0) / Math.max(1, parsedPoints.length),
+  };
   parsedPoints.forEach(({ name, point: p }) => {
     points.set(name.toLowerCase(), p);
     const id = `point-${idPart(name)}`;
-    b.circle(id, p.x, p.y, 3, { color: 'accent', fill: 'solid', role: 'geometry' });
-    b.label(`${id}-label`, name, p.x, p.y, { priority: 'required', anchorId: id });
+    b.circle(id, p.x, p.y, 3, { color: 'accent', fill: 'ink', role: 'geometry' });
   });
   const used = new Set<string>();
   const segments = new Map<string, Segment>();
@@ -660,8 +971,29 @@ function drawGeom(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Compile
       b.line(id, a.from.x, a.from.y, target.x, target.y, { color: 'guide', role: 'annotation' });
     } else return failure(`unsupported geometry relation ${kind}`);
   }
-  const extras = drawDimensionsAndAngles(b, spec, points, w, h, used);
+  const explicit = new Set(parsedPoints.filter((entry) => entry.explicit).map((entry) => entry.name.toLowerCase()));
+  const taken: Box[] = [];
+  const extras = drawDimensionsAndAngles(b, spec, points, w, h, used, segments, explicit, taken);
   if (extras) return extras;
+  // Vertex names sit just outside the figure, away from its centre, turning aside only to dodge a line.
+  const drawn = strokeSegments({ strokes: b.strokes } as Scene);
+  for (const { name, point: p } of parsedPoints) {
+    const id = `point-${idPart(name)}`;
+    const size = measureText(name, FONT_MIN);
+    const away = Math.atan2(p.y - centroid.y, p.x - centroid.x);
+    const spots = [0, 25, -25, 50, -50, 75, -75, 100, -100, 140, -140, 180].map((turn) => {
+      const dir = { x: Math.cos(away + (turn * Math.PI) / 180), y: Math.sin(away + (turn * Math.PI) / 180) };
+      const reach = Math.max(8, clearance(dir, size, 6));
+      return { x: p.x + dir.x * reach, y: p.y + dir.y * reach };
+    });
+    const spot = freeSpot(spots, size, drawn, taken, 1.5, w, h);
+    if (spot) {
+      taken.push(boxFrom(spot.x, spot.y, size.w, size.h));
+      b.label(`${id}-label`, name, spot.x, spot.y, { protected: true, priority: 'required', anchorId: id });
+    } else {
+      b.label(`${id}-label`, name, p.x, p.y, { slot: slotForDirection(Math.cos(away), Math.sin(away)), priority: 'required', anchorId: id });
+    }
+  }
   return null;
 }
 
@@ -717,7 +1049,7 @@ function vesselProfile(name: string, role: string): VesselProfile {
 
 function drawPhysicalPartGlyph(b: SceneBuilder, id: string, kind: PhysicalPartKind, name: string, role: string, x: number, y: number): void {
   if (kind === 'magnet') {
-    b.rect(id, x - 30, y - 14, 60, 28, { color: 'danger', fill: 'solid', role: 'geometry', width: 1.5 });
+    b.rect(id, x - 30, y - 14, 60, 28, { color: 'danger', fill: 'ink', role: 'geometry', width: 1.5 });
     b.line(`${id}-pole-seam`, x, y - 14, x, y + 14, { color: 'neutral', role: 'geometry', width: 1.2 });
     return;
   }
@@ -750,7 +1082,7 @@ function drawPhysicalPartGlyph(b: SceneBuilder, id: string, kind: PhysicalPartKi
     return;
   }
   if (kind === 'load') {
-    b.circle(`${id}-load-head`, x, y + 5, 5, { color: 'danger', fill: 'solid', role: 'geometry' });
+    b.circle(`${id}-load-head`, x, y + 5, 5, { color: 'danger', fill: 'ink', role: 'geometry' });
     b.line(id, x, y - 14, x, y + 1, { color: 'danger', role: 'connector', markerEnd: true, width: 1.7 });
     return;
   }
@@ -822,11 +1154,18 @@ function relationAwarePartOrder(names: readonly string[], relations: readonly Na
   return ordered.length === names.length ? ordered : [...names];
 }
 
-function boundaryPoint(from: Point, to: Point): Point {
+/** Half-extent of each part glyph as drawn, so a relation line ends on the glyph itself. */
+const PART_HALF: Record<PhysicalPartKind, Point> = {
+  magnet: { x: 30, y: 14 }, coil: { x: 25, y: 15 }, vessel: { x: 30, y: 15 }, support: { x: 22, y: 15 },
+  member: { x: 30, y: 6 }, load: { x: 6, y: 14 }, region: { x: 30, y: 12 }, component: { x: 30, y: 14 },
+};
+const PANEL_HALF: Point = { x: 30, y: 18 };
+
+function boundaryPoint(from: Point, to: Point, half: Point = PANEL_HALF): Point {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  if (Math.abs(dx) >= Math.abs(dy)) return { x: from.x + (dx >= 0 ? 30 : -30), y: from.y };
-  return { x: from.x, y: from.y + (dy >= 0 ? 18 : -18) };
+  if (Math.abs(dx) >= Math.abs(dy)) return { x: from.x + (dx >= 0 ? half.x : -half.x), y: from.y };
+  return { x: from.x, y: from.y + (dy >= 0 ? half.y : -half.y) };
 }
 
 function routedRelation(
@@ -837,10 +1176,13 @@ function routedRelation(
   feedbackIndex: number,
   w: number,
   h: number,
+  fromHalf: Point = PANEL_HALF,
+  toHalf: Point = PANEL_HALF,
+  exit: 'vertical' | 'toward' | 'away' = 'vertical',
 ): number[] {
   if (!directed || !feedback) {
-    const start = boundaryPoint(from, to);
-    const end = boundaryPoint(to, from);
+    const start = boundaryPoint(from, to, fromHalf);
+    const end = boundaryPoint(to, from, toHalf);
     if (Math.abs(start.y - end.y) < 0.5 || Math.abs(start.x - end.x) < 0.5) {
       return [start.x, start.y, end.x, end.y];
     }
@@ -848,21 +1190,25 @@ function routedRelation(
     return [start.x, start.y, midX, start.y, midX, end.y, end.x, end.y];
   }
 
-  // Back-edges use alternating outer channels. They never cut through the node grid, and
-  // the side corridor keeps a feedback loop legible when its endpoints are far apart.
+  // Back-edges use alternating outer lanes, so they never cut through the node grid: out of the glyph
+  // (straight down/up, or from a side 6 units into the column gap when a part is in the way), along the
+  // lane, and into the target from outside the grid.
   const useBottom = feedbackIndex % 2 === 0;
   const laneIndex = Math.floor(feedbackIndex / 2);
   const laneY = useBottom
     ? Math.max(8, h - 7 - laneIndex * 9)
     : Math.min(h - 8, 31 + laneIndex * 9);
-  const targetSide = to.x <= w / 2 ? -1 : 1;
-  const source = { x: from.x + targetSide * 30, y: from.y };
-  const corridorX = targetSide < 0 ? 6 : w - 6;
-  const target = { x: to.x, y: to.y + (useBottom ? 18 : -18) };
+  const target = { x: to.x, y: to.y + (useBottom ? toHalf.y : -toHalf.y) };
+  if (exit === 'vertical') {
+    return [from.x, from.y + (useBottom ? fromHalf.y : -fromHalf.y), from.x, laneY, target.x, laneY, target.x, target.y];
+  }
+  const side = (Math.sign(to.x - from.x) || 1) * (exit === 'toward' ? 1 : -1);
+  const exitX = from.x + side * fromHalf.x;
+  const gapX = exitX + side * 6;
   return [
-    source.x, source.y,
-    source.x, laneY,
-    corridorX, laneY,
+    exitX, from.y,
+    gapX, from.y,
+    gapX, laneY,
     target.x, laneY,
     target.x, target.y,
   ];
@@ -948,12 +1294,83 @@ function drawParts(b: SceneBuilder, spec: SpecDoc, w: number, h: number, kind: s
       : cols === 1 ? 48 : 48 + row * ((h - 54) / Math.max(1, rowCount));
     centers.set(name.toLowerCase(), { x, y });
     centers.set(idPart(name), { x, y });
-    b.node(declaration.id, x - 30, y - 18, 60, 36, declaration.partKind);
+    const half = PART_HALF[declaration.partKind];
+    b.node(declaration.id, x - half.x, y - half.y, half.x * 2, half.y * 2, declaration.partKind);
     drawPhysicalPartGlyph(b, declaration.id, declaration.partKind, declaration.name, declaration.role, x, y);
     const slot = directedLayout ? row % 2 === 0 ? 'N' : 'S' : 'auto';
     const labelY = fixedDirectedLabels ? slot === 'S' ? y + 28 : y - 28 : y;
     b.label(`${declaration.id}-label`, declaration.name, x, labelY, { slot, protected: fixedDirectedLabels, priority: 'preferred', anchorId: declaration.id });
   });
+  // Every relation must read unambiguously: its line may not pass through a part it does not join or run
+  // along another relation's line. The planned route is tried first, then a vertical-first elbow, then a
+  // lane below or above the parts; a relation with no such route refuses the figure.
+  // Obstacles: each glyph with a 6-unit margin, so no line grazes a part it does not join.
+  const partBoxes = [...declarationByName.entries()].map(([name, declaration]) => {
+    const c = centers.get(name)!;
+    const half = PART_HALF[declaration.partKind];
+    return { name, box: { x1: c.x - half.x - 6, y1: c.y - half.y - 6, x2: c.x + half.x + 6, y2: c.y + half.y + 6 } };
+  });
+  const halfOf = (name: string | undefined) => (name && declarationByName.get(name.toLowerCase()) ? PART_HALF[declarationByName.get(name.toLowerCase())!.partKind] : PANEL_HALF);
+  const routeSegments = (route: number[]) => {
+    const out: LineSegment[] = [];
+    for (let k = 0; k + 3 < route.length; k += 2) out.push({ x1: route[k]!, y1: route[k + 1]!, x2: route[k + 2]!, y2: route[k + 3]! });
+    return out;
+  };
+  const enters = (seg: LineSegment, box: Box) => [0.1, 0.3, 0.5, 0.7, 0.9].some((t) => {
+    const x = seg.x1 + (seg.x2 - seg.x1) * t;
+    const y = seg.y1 + (seg.y2 - seg.y1) * t;
+    return x > box.x1 + 1 && x < box.x2 - 1 && y > box.y1 + 1 && y < box.y2 - 1;
+  });
+  const runsAlong = (a: LineSegment, c: LineSegment) => {
+    const flat = (seg: LineSegment) => Math.abs(seg.y1 - seg.y2) < 0.5;
+    const upright = (seg: LineSegment) => Math.abs(seg.x1 - seg.x2) < 0.5;
+    const overlap = (a1: number, a2: number, c1: number, c2: number) => Math.min(Math.max(a1, a2), Math.max(c1, c2)) - Math.max(Math.min(a1, a2), Math.min(c1, c2)) > 2;
+    if (flat(a) && flat(c) && Math.abs(a.y1 - c.y1) < 2) return overlap(a.x1, a.x2, c.x1, c.x2);
+    if (upright(a) && upright(c) && Math.abs(a.x1 - c.x1) < 2) return overlap(a.y1, a.y2, c.y1, c.y2);
+    return false;
+  };
+  const drawnRoutes: LineSegment[] = [];
+  // Part names pinned above/below their parts are obstacles too: no relation line runs through a name.
+  const pinnedNames = b.labels.filter((label) => label.protected).map((label) => {
+    const size = measureText(label.text ?? '', FONT_MIN);
+    return { x1: label.x - size.w / 2 - 1, y1: label.y - size.h / 2 - 1, x2: label.x + size.w / 2 + 1, y2: label.y + size.h / 2 + 1 };
+  });
+  const clearRoute = (route: number[], joins: readonly string[]) => route.every((v, k) => (k % 2 === 0 ? v >= 4 && v <= w - 4 : v >= 4 && v <= h - 4)) &&
+    routeSegments(route).every((seg) => !partBoxes.some((part) => !joins.includes(part.name) && enters(seg, part.box)) &&
+      !pinnedNames.some((box) => enters(seg, box)) && !drawnRoutes.some((other) => runsAlong(seg, other)));
+  const alternatives = (from: Point, to: Point, fromHalf: Point, toHalf: Point): number[][] => {
+    const out: number[][] = [];
+    // The planned elbow moved beside an earlier relation: its vertical run into a parallel channel, and
+    // its ends a few units along the parts' sides, so two relations cross once instead of sharing a run.
+    const start = boundaryPoint(from, to, fromHalf);
+    const end = boundaryPoint(to, from, toHalf);
+    if (Math.abs(start.x - end.x) > 0.5 && Math.abs(start.y - end.y) > 0.5 && Math.abs(start.x - from.x) > 1) {
+      const midX = (start.x + end.x) / 2;
+      for (const side of [0, -6, 6]) {
+        for (const offset of [0, 7, -7, 14, -14]) {
+          if (side || offset) out.push([start.x, start.y + side, midX + offset, start.y + side, midX + offset, end.y + side, end.x, end.y + side]);
+        }
+      }
+    }
+    const dx = Math.sign(to.x - from.x) || 1;
+    const dy = Math.sign(to.y - from.y);
+    if (dy && Math.abs(to.y - from.y) > fromHalf.y + toHalf.y) {
+      out.push(Math.abs(to.x - from.x) < 0.5
+        ? [from.x, from.y + dy * fromHalf.y, to.x, to.y - dy * toHalf.y]
+        : [from.x, from.y + dy * fromHalf.y, from.x, to.y, to.x - dx * toHalf.x, to.y]);
+    }
+    for (const lane of [0, 1, 2]) {
+      for (const side of [1, -1]) {
+        const laneY = side > 0 ? Math.max(from.y, to.y) + 28 + lane * 9 : Math.min(from.y, to.y) - 28 - lane * 9;
+        out.push([from.x, from.y + side * fromHalf.y, from.x, laneY, to.x, laneY, to.x, to.y + side * toHalf.y]);
+      }
+    }
+    return out;
+  };
+  // Flow and regulation kinds read from the arrow itself; any other kind is written on its line.
+  const selfEvident = new Set(['sends-to', 'flows-to', 'flow-right', 'flow-left', 'current-to', 'transfers-to', 'feeds', 'circulates', 'moves-toward', 'moves-away',
+    'activates', 'stimulates', 'promotes', 'increases', 'inhibits', 'suppresses', 'represses', 'decreases']);
+  const toLabel: Array<{ id: string; text: string; route: number[] }> = [];
   let feedbackIndex = 0;
   for (const [i, raw] of relationValues.entries()) {
     const relation = relationEndpoints(raw, centers);
@@ -963,22 +1380,53 @@ function drawParts(b: SceneBuilder, spec: SpecDoc, w: number, h: number, kind: s
     const tokens = relationTokens(relation.kind);
     const directed = isDirectedRelation(tokens);
     const namedRelation = relationEndpointNames(raw, names);
+    const joins = namedRelation ? [namedRelation.from.toLowerCase(), namedRelation.to.toLowerCase()] : [];
+    const fromHalf = halfOf(namedRelation?.from);
+    const toHalf = halfOf(namedRelation?.to);
     const feedback = directed && namedRelation !== null &&
       (orderIndex.get(namedRelation.from.toLowerCase()) ?? 0) > (orderIndex.get(namedRelation.to.toLowerCase()) ?? 0);
     const normalizedKind = relation.kind.toLowerCase().replace(/_/g, '-');
     const knownKind = RELATION_KINDS.has(normalizedKind) || tokens.some((token) => RELATION_KINDS.has(token));
-    const route = routedRelation(relation.from, relation.to, directedLayout && directed, feedback, feedbackIndex, w, h);
-    if (feedback) feedbackIndex += 1;
     const feedbackStroke = isFeedbackRelation(tokens);
+    let route: number[] | undefined;
     if (tokens.some((token) => /^deform|^deflect/.test(token))) {
       const mid = { x: (relation.from.x + relation.to.x) / 2, y: (relation.from.y + relation.to.y) / 2 - 8 };
-      b.polyline(id, [relation.from.x, relation.from.y, mid.x, mid.y, relation.to.x, relation.to.y], { color: directed ? 'accent' : 'muted', role: knownKind ? 'connector' : 'annotation', markerEnd: directed, width: 1.4 });
+      route = [relation.from.x, relation.from.y, mid.x, mid.y, relation.to.x, relation.to.y];
+      if (!clearRoute(route, joins)) return failure(`relation ${raw} would cross another part or relation`);
+      b.polyline(id, route, { color: directed ? 'accent' : 'muted', role: knownKind ? 'connector' : 'annotation', markerEnd: directed, width: 1.4 });
     } else {
+      const planned = feedback
+        ? [0, 2, 4, 1, 3, 5].flatMap((step) => (['vertical', 'toward', 'away'] as const).map((exit) => routedRelation(relation.from, relation.to, true, true, feedbackIndex + step, w, h, fromHalf, toHalf, exit)))
+        : [routedRelation(relation.from, relation.to, directedLayout && directed, false, 0, w, h, fromHalf, toHalf), ...alternatives(relation.from, relation.to, fromHalf, toHalf)];
+      route = planned.find((candidate) => clearRoute(candidate, joins));
+      if (!route) return failure(`relation ${raw} has no route clear of the other parts and relations`);
       b.polyline(id, route, { color: feedbackStroke ? 'danger' : directed ? 'accent' : 'muted', role: knownKind ? 'connector' : 'annotation', markerEnd: directed, dash: feedbackStroke || /^part-of$/i.test(normalizedKind) });
     }
-    if (!directed && /^(transitions|contributes-to|indicates|acquires-before)$/i.test(normalizedKind)) {
-      b.label(`${id}-label`, relation.kind, (relation.from.x + relation.to.x) / 2, (relation.from.y + relation.to.y) / 2, { priority: 'optional', anchorId: id });
-    }
+    if (feedback) feedbackIndex += 1;
+    drawnRoutes.push(...routeSegments(route));
+    if (!tokens.some((token) => selfEvident.has(token))) toLabel.push({ id, text: relation.kind.replace(/[-_]/g, ' '), route });
+  }
+  // Relation words go beside their own line, at the first spot clear of every stroke and label.
+  const strokes = strokeSegments(b.scene());
+  const taken: Box[] = b.labels.filter((label) => label.protected).map((label) => {
+    const size = measureText(label.text ?? '', FONT_MIN);
+    return boxFrom(label.x, label.y, size.w, size.h);
+  });
+  for (const { id, text, route } of toLabel) {
+    const size = measureText(text, FONT_MIN);
+    const candidates = routeSegments(route)
+      .sort((a, c) => Math.hypot(c.x2 - c.x1, c.y2 - c.y1) - Math.hypot(a.x2 - a.x1, a.y2 - a.y1))
+      .flatMap((seg) => [0.5, 0.3, 0.7].flatMap((t) => {
+        const x = seg.x1 + (seg.x2 - seg.x1) * t;
+        const y = seg.y1 + (seg.y2 - seg.y1) * t;
+        return Math.abs(seg.y2 - seg.y1) < Math.abs(seg.x2 - seg.x1)
+          ? [{ x, y: y - size.h / 2 - 4 }, { x, y: y + size.h / 2 + 4 }]
+          : [{ x: x + size.w / 2 + 5, y }, { x: x - size.w / 2 - 5, y }];
+      }));
+    const spot = freeSpot(candidates, size, strokes, taken, 1.5, w, h);
+    if (!spot) return failure(`relation "${text}" has no clear place beside its line`);
+    b.label(`${id}-label`, text, spot.x, spot.y, { protected: true, priority: 'required', anchorId: id });
+    taken.push(boxFrom(spot.x, spot.y, size.w, size.h));
   }
   return null;
 }
@@ -1198,7 +1646,8 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
   const strandStart = 30;
   const strandEnd = w - 30;
   const strandGap = Math.min(31, (h - 72) / Math.max(1, strands.length));
-  strands.forEach((strand, index) => strandY.set(strand.id, 42 + index * strandGap));
+  const firstStrandY = Math.max(42, h * 0.38);
+  strands.forEach((strand, index) => strandY.set(strand.id, firstStrandY + index * strandGap));
   const pair = forks[0]?.strands ?? bubbles[0]?.strands ?? (strands.length >= 2 ? [strands[0]!.id, strands[1]!.id] as [string, string] : undefined);
   const pairedIds = pair ? new Set(pair) : new Set<string>();
   const strandStroke = (strand: MolecularStrand) => {
@@ -1284,11 +1733,13 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
     }
     return 10;
   };
+  // The 3' end where each product/fragment grows (the arrowhead), and which way it grows.
+  const growingEnd = new Map<string, { x: number; y: number; dx: number }>();
   primersResult.forEach((primer) => {
     const point = pointForStrand(primer.strand);
     if (!point) return;
     const id = `primer-${primer.id}`;
-    b.rect(id, point.x - 18, point.y - 4, 36, 8, { color: 'accent', fill: 'solid', role: 'connector' });
+    b.rect(id, point.x - 18, point.y - 4, 36, 8, { color: 'accent', fill: 'ink', role: 'connector' });
     b.label(`${id}-label`, primer.id, point.x, point.y - 12, { priority: 'preferred', anchorId: id });
     centers.set(primer.id, point);
     const dx = primer.orientation === '5to3' ? 25 : -25;
@@ -1302,10 +1753,26 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
     const x2 = fragment.orientation === '5to3' ? xCenter + 34 : xCenter - 34;
     const id = `fragment-${fragment.id}`;
     b.line(id, x1, y, x2, y, { color: 'accent', role: 'connector', width: 2, markerEnd: fragment.orientation === '5to3', markerStart: fragment.orientation === '3to5' });
+    growingEnd.set(fragment.id, { x: fragment.orientation === '5to3' ? x2 : x1, y, dx: Math.sign((fragment.orientation === '5to3' ? x2 - x1 : x1 - x2)) });
     b.label(`${id}-label`, fragment.id, (x1 + x2) / 2, y - 7, { priority: 'preferred', anchorId: id });
     centers.set(fragment.id, { x: (x1 + x2) / 2, y });
   });
   products.forEach((product, index) => {
+    const template = bubbles.length && pair?.includes(product.source) ? strands.find((strand) => strand.id === product.source) : undefined;
+    if (template && pair) {
+      // A transcript leaves the bubble behind the polymerase, which moves toward the template's 5' end;
+      // its 3' end stays at the polymerase.
+      const moves = template.orientation === '3to5' ? 1 : -1;
+      const bubbleY = (strandY.get(pair[0])! + strandY.get(pair[1])!) / 2;
+      const tail = { x: centerX - moves * 80, y: Math.min(strandY.get(pair[0])!, strandY.get(pair[1])!) - 26 };
+      const head = { x: centerX - moves * 12, y: bubbleY - 3 };
+      const id = `product-${product.id}`;
+      b.line(id, tail.x, tail.y, head.x, head.y, { color: 'accent', role: 'connector', width: 2.2, markerEnd: product.orientation === '5to3', markerStart: product.orientation === '3to5' });
+      growingEnd.set(product.id, { x: head.x, y: head.y, dx: 0 });
+      b.label(`${id}-label`, product.id, tail.x, tail.y - 8, { priority: 'preferred', anchorId: id });
+      centers.set(product.id, { x: (tail.x + head.x) / 2, y: (tail.y + head.y) / 2 });
+      return;
+    }
     const source = strandIds.has(product.source) ? product.source : undefined;
     const xCenter = forks.length ? Math.min(strandEnd - 48, centerX + 42 + index * 34) : source ? Math.min(strandEnd - 45, 150 + index * 34) : w / 2;
     const y = Math.max(20, Math.min(h - 18, (sourceYAt(product.source, xCenter) ?? h * 0.64) + (source ? sourceOffset(product.source) : 0)));
@@ -1313,6 +1780,7 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
     const x2 = product.orientation === '5to3' ? xCenter + 42 : xCenter - 42;
     const id = `product-${product.id}`;
     b.line(id, x1, y, x2, y, { color: 'accent', role: 'connector', width: 2.2, markerEnd: product.orientation === '5to3', markerStart: product.orientation === '3to5' });
+    growingEnd.set(product.id, { x: product.orientation === '5to3' ? x2 : x1, y, dx: Math.sign(product.orientation === '5to3' ? x2 - x1 : x1 - x2) });
     b.label(`${id}-label`, product.id, (x1 + x2) / 2, y - 8, { priority: 'preferred', anchorId: id });
     centers.set(product.id, { x: (x1 + x2) / 2, y });
   });
@@ -1320,15 +1788,18 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
     const bubble = bubbles.find((item) => item.actor === actor.id);
     const fork = forks[0];
     const linkedStrand = primersResult.find((item) => item.id === actor.id)?.strand;
-    const base = bubble ? centers.get(bubble.id) : fork && /helicase/i.test(actor.type) ? centers.get(fork.id) : linkedStrand ? pointForStrand(linkedStrand) : undefined;
+    // An enzyme that synthesizes, extends or copies a drawn product sits on its growing 3' end.
+    const grows = relations.find((relation) => relation.from === actor.id && /^(synthesizes|extends|copies)$/i.test(relation.kind) && growingEnd.has(relation.to));
+    const end = !bubble && !(fork && /helicase/i.test(actor.type)) && grows ? growingEnd.get(grows.to) : undefined;
+    const base = bubble ? centers.get(bubble.id) : fork && /helicase/i.test(actor.type) ? centers.get(fork.id) : end ? { x: Math.max(22, Math.min(w - 22, end.x + end.dx * 14)), y: end.y } : linkedStrand ? pointForStrand(linkedStrand) : undefined;
     const x = base?.x ?? (50 + (index * (w - 100)) / Math.max(1, actors.length - 1));
-    const y = bubble ? base!.y + 2 : fork && /helicase/i.test(actor.type) ? base!.y : 28 + (index % 2) * 18;
+    const y = bubble ? base!.y + 2 : (fork && /helicase/i.test(actor.type)) || end ? base!.y : 28 + (index % 2) * 18;
     const id = `actor-${actor.id}`;
     b.node(id, x - 18, y - 11, 36, 22, actor.type);
-    if (/polymerase|enzyme|primase|ligase|factor/i.test(actor.type)) b.ellipse(`${id}-glyph`, x, y, 18, 11, { color: 'accent', fill: 'solid', role: 'geometry' });
-    else if (/helicase/i.test(actor.type)) b.circle(`${id}-glyph`, x, y, 12, { color: 'accent', fill: 'solid', role: 'geometry' });
-    else if (/ribosome/i.test(actor.type)) b.ellipse(`${id}-glyph`, x, y, 23, 14, { color: 'neutral', fill: 'solid', role: 'geometry' });
-    else b.rect(`${id}-glyph`, x - 18, y - 11, 36, 22, { color: 'neutral', fill: 'solid', role: 'geometry' });
+    if (/polymerase|enzyme|primase|ligase|factor/i.test(actor.type)) b.ellipse(`${id}-glyph`, x, y, 18, 11, { color: 'accent', fill: 'ink', role: 'geometry' });
+    else if (/helicase/i.test(actor.type)) b.circle(`${id}-glyph`, x, y, 12, { color: 'accent', fill: 'ink', role: 'geometry' });
+    else if (/ribosome/i.test(actor.type)) b.ellipse(`${id}-glyph`, x, y, 23, 14, { color: 'neutral', fill: 'ink', role: 'geometry' });
+    else b.rect(`${id}-glyph`, x - 18, y - 11, 36, 22, { color: 'neutral', fill: 'ink', role: 'geometry' });
     b.label(`${id}-label`, actor.id, x, y - 17, { priority: 'preferred', anchorId: id });
     centers.set(actor.id, { x, y });
   });
@@ -1341,6 +1812,45 @@ function drawMolecular(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Co
     if (from.x === to.x && from.y === to.y) return;
     b.line(`relation-${index + 1}`, from.x, from.y, to.x, to.y, { color: 'muted', role: 'annotation', markerEnd: true, dash: /binds|supports/i.test(relation.kind) });
   });
+  // Object labels go beside their own glyph: the first free spot around it from which that glyph is the
+  // nearest labelled object, so no name sits closer to a neighbour. Without such a spot the layout
+  // kernel places the label as before.
+  const objectLabels = b.labels.filter((label) => /^(strand|primer|fragment|product|actor|fork|bubble)-.+-label$/.test(label.id) && label.anchorId);
+  const glyphOf = (anchor: string) => strokeSegments({ ...b.scene(), strokes: b.strokes.filter((stroke) => stroke.id === anchor || stroke.id === `${anchor}-glyph`) });
+  const glyphs = new Map(objectLabels.map((label) => [label.anchorId!, glyphOf(label.anchorId!)]));
+  const reach = (segments: ReturnType<typeof glyphOf>, x: number, y: number) => Math.min(Infinity, ...segments.map((seg) => distPointSeg(x, y, seg)));
+  const allStrokes = strokeSegments(b.scene());
+  const claimed: Box[] = [];
+  for (const label of objectLabels) {
+    const own = glyphs.get(label.anchorId!)!;
+    if (!own.length) continue;
+    const size = measureText(label.text ?? '', FONT_MIN);
+    const xs = own.flatMap((seg) => [seg.x1, seg.x2]);
+    const ys = own.flatMap((seg) => [seg.y1, seg.y2]);
+    const [x1, x2, y1, y2] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const candidates: Point[] = [];
+    for (const d of [4, 9, 15]) {
+      for (const t of x2 - x1 > 40 ? [0.5, 0.3, 0.7, 0.15, 0.85] : [0.5]) {
+        const x = x1 + (x2 - x1) * t;
+        candidates.push({ x, y: y1 - d - size.h / 2 }, { x, y: y2 + d + size.h / 2 });
+      }
+      candidates.push({ x: x2 + d + size.w / 2, y: (y1 + y2) / 2 }, { x: x1 - d - size.w / 2, y: (y1 + y2) / 2 });
+    }
+    const owns = (box: Box) => {
+      const cx = (box.x1 + box.x2) / 2;
+      const cy = (box.y1 + box.y2) / 2;
+      const mine = reach(own, cx, cy);
+      // Names keep a word space between them, so two adjacent names never read as one.
+      return mine < 22 && !claimed.some((other) => boxesOverlap(box, other, 6)) &&
+        [...glyphs].every(([anchor, segments]) => anchor === label.anchorId || mine + 1 <= reach(segments, cx, cy));
+    };
+    const spot = freeSpot(candidates, size, allStrokes, claimed, 2, w, h, owns);
+    if (!spot) continue;
+    label.x = spot.x;
+    label.y = spot.y;
+    label.protected = true;
+    claimed.push(boxFrom(spot.x, spot.y, size.w, size.h));
+  }
   return null;
 }
 
@@ -1482,7 +1992,7 @@ function drawGasState(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Com
     const y = box.y + 8 + particle.y * Math.max(1, box.h - 16);
     const id = `particle-${particle.id}`;
     b.node(id, x - 3, y - 3, 6, 6, 'particle');
-    b.circle(id, x, y, 3, { color: 'accent', fill: 'solid', role: 'geometry' });
+    b.circle(id, x, y, 3, { color: 'accent', fill: 'ink', role: 'geometry' });
     if (particle.direction) {
       const length = Math.hypot(particle.direction.x, particle.direction.y) || 1;
       const dx = (particle.direction.x / length) * 13;
@@ -1500,7 +2010,7 @@ function drawGasState(b: SceneBuilder, spec: SpecDoc, w: number, h: number): Com
     const y = box.y + position * box.h;
     const id = `piston-${container}`;
     b.node(id, box.x + 2, y - 4, box.w - 4, 8, 'piston');
-    b.rect(id, box.x + 2, y - 4, box.w - 4, 8, { color: 'neutral', fill: 'solid', role: 'geometry', width: 1.2 });
+    b.rect(id, box.x + 2, y - 4, box.w - 4, 8, { color: 'neutral', fill: 'ink', role: 'geometry', width: 1.2 });
     b.line(`${id}-rod`, box.x + box.w / 2, y - 4, box.x + box.w / 2, Math.max(14, y - 25), { color: 'neutral', role: 'connector', width: 2 });
     b.label(`${id}-label`, parts.slice(2).join(' ') || 'piston', box.x + box.w / 2, Math.max(12, y - 29), { slot: 'N', priority: 'preferred', anchorId: id });
   }
@@ -1566,7 +2076,7 @@ function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: nu
     if (!id || x === null || y === null) return failure(`state ${parts[0] ?? index} needs id and finite x y values`);
     if (stateIds.has(id)) return failure(`duplicate thermodynamic state id: ${id}`);
     stateIds.add(id);
-    states.push({ id, x, y, label: parts.slice(3).join(' ') || id });
+    states.push({ id, x, y, label: parts.slice(3).join(' ') || parts[0]! });
   }
   if (!states.length) return failure('thermodynamic graph needs at least one state or point declaration');
 
@@ -1586,46 +2096,131 @@ function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: nu
     if (paths[paths.length - 1]!.to !== paths[0]!.from) return failure('cycle path segments must close at the initial state');
   }
 
-  const plot = { left: 34, right: w - 18, top: 17, bottom: h - 30 };
-  const xValues = states.map((state) => state.x);
-  const yValues = states.map((state) => state.y);
-  const range = (values: number[]): [number, number] => {
-    let min = Math.min(...values);
-    let max = Math.max(...values);
-    if (Math.abs(max - min) < 1e-9) {
-      const pad = Math.max(1, Math.abs(min) * 0.1);
-      min -= pad;
-      max += pad;
-    }
-    return [min, max];
+  // A drawn cycle must run the way its declaration says (y up: negative shoelace area = clockwise).
+  if (cycle !== undefined) {
+    const loop = paths.map((path) => states.find((state) => state.id === path.from)!);
+    const area = loop.reduce((sum, p, i) => { const q = loop[(i + 1) % loop.length]!; return sum + p.x * q.y - q.x * p.y; }, 0);
+    const clockwise = /^(clockwise|cw)$/.test(cycle.trim().toLowerCase().replace(/[-_]/g, ' '));
+    if (Math.abs(area) < 1e-12) return failure('cycle encloses no area');
+    if ((area < 0) !== clockwise) return failure(`cycle is declared ${clockwise ? 'clockwise' : 'counterclockwise'} but its paths run ${area < 0 ? 'clockwise' : 'counterclockwise'}`);
+  }
+
+  // A real graph: axes from the origin (state variables are rarely negative) with nice ticks, the y title
+  // above the top tick, the x title under the tick row — the plot engine's layout.
+  const xTitle = axes.find((axis) => axis.direction === 'x')!.label;
+  const yTitle = axes.find((axis) => axis.direction === 'y')!.label;
+  const tickH = measureText('0', FONT_MIN).h;
+  const xTitleSize = measureText(xTitle, FONT_MIN);
+  const yTitleSize = measureText(yTitle, FONT_MIN);
+  // Headroom past the outermost states leaves space for labels outside the loop.
+  const span = (values: number[]): [number, number] => {
+    const lo = Math.min(0, ...values);
+    const hi = Math.max(0, ...values);
+    if (!(hi > lo)) return [lo, lo + 1];
+    const room = (hi - lo) * 0.12;
+    return [lo < 0 ? lo - room : lo, hi > 0 ? hi + room : hi];
   };
-  const [xMin, xMax] = range(xValues);
-  const [yMin, yMax] = range(yValues);
+  const [yLo, yHi] = span(states.map((state) => state.y));
+  const [xLo, xHi] = span(states.map((state) => state.x));
+  // Superscripted ticks (2.5×10^5) and titles (m^3) reserve the height their raised glyphs need.
+  const yTicksFor = (plotHeight: number) => niceTicks(yLo, yHi, true, (ticks) => plotHeight / (ticks.length - 1) >= tickH + 2.5);
+  const raiseTop = Math.max(...formatTicks(yTicksFor(h - 60).ticks).map(raised));
+  const raiseBottom = Math.max(...formatTicks(niceTicks(xLo, xHi, true, () => true).ticks).map(raised));
+  const padT = Math.ceil(yTitleSize.h + tickH / 2 + 5 + raiseTop + dropped(yTitle));
+  const plotH = h - padT - (tickH + 4 + raiseBottom + xTitleSize.h + 7 + raised(xTitle));
+  const yScale = yTicksFor(plotH);
+  const yTickText = formatTicks(yScale.ticks);
+  const padL = Math.max(30, ...yTickText.map((text) => measureText(text, FONT_MIN).w + 10), yTitleSize.w + 10);
+  const plotW = w - padL - 16;
+  const xScale = niceTicks(xLo, xHi, true, (ticks, range) => plotW * (ticks[1]! - ticks[0]!) / range >= Math.max(...formatTicks(ticks).map((text) => measureText(text, FONT_MIN).w)) + 10);
+  const xTickText = formatTicks(xScale.ticks);
+  const x0 = padL;
+  const y0 = padT + plotH;
+  const mapX = (value: number) => x0 + ((value - xScale.lo) / (xScale.hi - xScale.lo)) * plotW;
+  const mapY = (value: number) => y0 - ((value - yScale.lo) / (yScale.hi - yScale.lo)) * plotH;
   const at = new Map<string, Point>();
-  for (const state of states) at.set(state.id, {
-    x: plot.left + ((state.x - xMin) / (xMax - xMin)) * (plot.right - plot.left),
-    y: plot.bottom - ((state.y - yMin) / (yMax - yMin)) * (plot.bottom - plot.top),
+  for (const state of states) at.set(state.id, { x: mapX(state.x), y: mapY(state.y) });
+  b.line('axis-x', x0, y0, x0 + plotW + 8, y0, { color: 'neutral', role: 'axis', markerEnd: true, width: 1.2 });
+  b.line('axis-y', x0, y0, x0, padT - 8, { color: 'neutral', role: 'axis', markerEnd: true, width: 1.2 });
+  const sharedOrigin = xScale.lo === 0 && yScale.lo === 0;
+  xScale.ticks.forEach((tick, index) => {
+    const x = mapX(tick);
+    b.line(`axis-x-tick-mark-${index}`, x, y0 - 3, x, y0 + 3, { protected: true, width: 1, role: 'axis' });
+    if (!(sharedOrigin && tick === 0)) b.label(`axis-x-tick-${index}`, xTickText[index]!, x, y0 + 4 + tickH / 2 + raised(xTickText[index]!), { protected: true, priority: 'required' });
   });
-  b.line('axis-x', plot.left - 8, plot.bottom, plot.right + 6, plot.bottom, { color: 'neutral', role: 'axis', markerEnd: true, width: 1.2 });
-  b.line('axis-y', plot.left, plot.bottom + 6, plot.left, plot.top - 4, { color: 'neutral', role: 'axis', markerEnd: true, width: 1.2 });
-  b.label('axis-x-label', axes.find((axis) => axis.direction === 'x')!.label, plot.right - 4, plot.bottom - 10, { slot: 'E', priority: 'required', anchorId: 'axis-x' });
-  b.label('axis-y-label', axes.find((axis) => axis.direction === 'y')!.label, plot.left + 8, plot.top + 2, { slot: 'N', priority: 'required', anchorId: 'axis-y' });
+  yScale.ticks.forEach((tick, index) => {
+    const y = mapY(tick);
+    b.line(`axis-y-tick-mark-${index}`, x0 - 3, y, x0 + 3, y, { protected: true, width: 1, role: 'axis' });
+    b.label(`axis-y-tick-${index}`, yTickText[index]!, x0 - 6 - measureText(yTickText[index]!, FONT_MIN).w / 2, y, { protected: true, priority: 'required' });
+  });
+  b.label('axis-x-label', xTitle, x0 + plotW / 2, y0 + 4 + tickH + raiseBottom + 2 + raised(xTitle) + xTitleSize.h / 2, { protected: true, priority: 'required', anchorId: 'axis-x' });
+  b.label('axis-y-label', yTitle, x0 - 6 - yTitleSize.w / 2, padT - tickH / 2 - raiseTop - 1 - dropped(yTitle) - yTitleSize.h / 2, { protected: true, priority: 'required', anchorId: 'axis-y' });
+
   for (const state of states) {
     const point = at.get(state.id)!;
     const id = `state-${state.id}`;
     b.node(id, point.x - 4, point.y - 4, 8, 8, 'state');
-    b.circle(id, point.x, point.y, 3.5, { color: 'accent', fill: 'solid', role: 'geometry', width: 1.2 });
-    b.label(`${id}-label`, state.label, point.x, point.y, { slot: point.y < h / 2 ? 'S' : 'N', priority: 'preferred', anchorId: id });
+    b.circle(id, point.x, point.y, 3.5, { color: 'accent', fill: 'ink', role: 'geometry', width: 1.2 });
   }
   const used = new Set<string>();
-  for (const [index, path] of paths.entries()) {
+  const pathIds: string[] = [];
+  for (const path of paths) {
     const from = at.get(path.from)!;
     const to = at.get(path.to)!;
     const id = uniqueId(`path-${path.from}-${path.to}`, used);
-    b.line(id, from.x, from.y, to.x, to.y, { color: 'accent', role: 'connector', markerEnd: true, width: 1.6 });
-    b.label(`${id}-label`, path.kind, (from.x + to.x) / 2, (from.y + to.y) / 2, { priority: 'optional', anchorId: id });
-    if (index === paths.length - 1 && cycle !== undefined) b.label(`${id}-cycle-label`, cycle.trim(), (from.x + to.x) / 2, (from.y + to.y) / 2 + 12, { priority: 'optional', anchorId: id });
+    pathIds.push(id);
+    // Arrows stop short of the state dots so every state stays visible.
+    const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    const u = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
+    b.line(id, from.x + u.x * 5, from.y + u.y * 5, to.x - u.x * 5.5, to.y - u.y * 5.5, { color: 'accent', role: 'connector', markerEnd: true, width: 1.6 });
   }
+
+  // Labels go last, each at the nearest spot clear of every stroke: process names (long, so first) beside
+  // their own path on its outer side, state names away from the centre of the states, the cycle sense inside.
+  const centre = { x: [...at.values()].reduce((sum, p) => sum + p.x, 0) / at.size, y: [...at.values()].reduce((sum, p) => sum + p.y, 0) / at.size };
+  const drawn = strokeSegments({ strokes: b.strokes } as Scene);
+  // Tick labels and axis titles are already fixed in place; nothing may land on them.
+  const taken: Box[] = b.labels.filter((label) => label.protected && label.text).map((label) => { const size = measureText(label.text!, FONT_MIN); return boxFrom(label.x, label.y, size.w, size.h); });
+  // A process name with no room beside its own path is left out: next to another path it would mislabel it.
+  const place = (id: string, text: string, spots: Point[], anchorId: string, fallback?: { at: Point; slot: SlotHint; priority: LabelPriority }) => {
+    const size = measureText(text, FONT_MIN);
+    const spot = freeSpot(spots, size, drawn, taken, 3, w, h);
+    if (spot) {
+      taken.push(boxFrom(spot.x, spot.y, size.w, size.h));
+      b.label(id, text, spot.x, spot.y, { protected: true, priority: fallback?.priority ?? 'optional', anchorId });
+    } else if (fallback) b.label(id, text, fallback.at.x, fallback.at.y, { slot: fallback.slot, priority: fallback.priority, anchorId });
+  };
+  paths.forEach((path, index) => {
+    const id = pathIds[index]!;
+    const from = at.get(path.from)!;
+    const to = at.get(path.to)!;
+    const size = measureText(path.kind, FONT_MIN);
+    const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+    let n = { x: -(to.y - from.y) / length, y: (to.x - from.x) / length };
+    const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    if ((mid.x - centre.x) * n.x + (mid.y - centre.y) * n.y < 0 || (Math.abs((mid.x - centre.x) * n.x + (mid.y - centre.y) * n.y) < 1e-6 && n.y > 0)) n = { x: -n.x, y: -n.y };
+    // Outside the loop first; on the inner side of its own path only when the outside has no room.
+    const spots = [n, { x: -n.x, y: -n.y }].flatMap((side) => {
+      const reach = lineClearance(side, size, 5);
+      return [0, -0.2, 0.2, -0.35, 0.35].flatMap((along) => [0, 4, 8].map((extra) => ({
+        x: mid.x + (to.x - from.x) * along + side.x * (reach + extra),
+        y: mid.y + (to.y - from.y) * along + side.y * (reach + extra),
+      })));
+    });
+    place(`${id}-label`, path.kind, spots, id);
+  });
+  for (const state of states) {
+    const point = at.get(state.id)!;
+    const size = measureText(state.label, FONT_MIN);
+    const away = Math.atan2(point.y - centre.y, point.x - centre.x);
+    const spots = [0, 25, -25, 50, -50, 75, -75, 100, -100, 140, -140, 180].map((turn) => {
+      const dir = { x: Math.cos(away + (turn * Math.PI) / 180), y: Math.sin(away + (turn * Math.PI) / 180) };
+      const reach = Math.max(8, clearance(dir, size, 6.5));
+      return { x: point.x + dir.x * reach, y: point.y + dir.y * reach };
+    });
+    place(`state-${state.id}-label`, state.label, spots, `state-${state.id}`, { at: point, slot: slotForDirection(Math.cos(away), Math.sin(away)), priority: 'preferred' });
+  }
+  if (cycle !== undefined) place('cycle-sense-label', cycle.trim(), [centre], pathIds.at(-1)!);
   return null;
 }
 
@@ -1640,10 +2235,26 @@ export function compileScene(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   let extra: CompileResult | null = null;
   if (kind === 'fbd') extra = drawFbd(b, spec, w, h);
   else if (kind === 'geom' || kind === 'geometry') extra = drawGeom(b, spec, w, h);
-  else if (kind === 'molecular') extra = drawMolecular(b, spec, w, h);
+  else if (kind === 'molecular') {
+    // Several named objects share two strands: a roomier frame keeps each name beside its own glyph
+    // (presentation scales it back to the figure box).
+    const roomy = new SceneBuilder('scene', Math.max(w, 360), Math.max(h, 200));
+    roomy.hl(spec.highlight);
+    return drawMolecular(roomy, spec, roomy.width, roomy.height) ?? layoutAndCompile(roomy.scene());
+  }
   else if (gasKind(kind) === 'gas') extra = drawGasState(b, spec, w, h);
   else if (gasKind(kind) === 'thermodynamic') extra = drawThermodynamicGraph(b, spec, w, h);
-  else if (kind === 'apparatus' || kind === 'cycle' || kind === 'map' || kind === 'network' || kind === 'structure') extra = drawParts(b, spec, w, h, kind);
+  else if (kind === 'apparatus' || kind === 'cycle' || kind === 'map' || kind === 'network' || kind === 'structure') {
+    // A crowded part scene gets more room (wider columns, lanes for detours, space for relation words)
+    // before it is refused; presentation scales the larger frame back to the figure box.
+    for (const [sw, sh] of [[1, 1], [1.4, 1], [1.4, 1.5], [1.8, 1.7]] as const) {
+      const attempt = new SceneBuilder('scene', Math.round(w * sw), Math.round(h * sh));
+      attempt.hl(spec.highlight);
+      extra = drawParts(attempt, spec, attempt.width, attempt.height, kind) ?? layoutAndCompile(attempt.scene());
+      if (extra.ok || !/no route clear|no clear place|unsatisfiable/.test(`${extra.code} ${extra.reason}`)) return extra;
+    }
+    return extra!;
+  }
   else if (kind === 'ray' || kind === 'optics') extra = drawRay(b, spec, w, h);
   else if (kind === 'field') extra = drawField(b, spec, w, h);
   else return failure(`unsupported scene kind ${kind}`);
@@ -1672,14 +2283,12 @@ function drawRay(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
   const objX = lensX - do_ * scale;
   const objectY = axisY - ho * scale;
   b.line('axis', 16, axisY, w - 16, axisY, { color: 'guide', role: 'axis', dash: true });
-  b.line('lens', lensX, 24, lensX, h - 24, { color: 'neutral', role: 'geometry', width: 2 });
+  // A converging thin lens: the lens line with outward arrowheads at both ends.
+  b.line('lens', lensX, 24, lensX, h - 24, { color: 'neutral', role: 'geometry', width: 2, markerStart: true, markerEnd: true });
   // Match the text emitter's tenth-unit coordinates so focal ticks and labels align.
-  b.circle('focus-right', Number((lensX + f * scale).toFixed(1)), axisY, 2, { fill: 'solid', role: 'annotation' });
-  b.circle('focus-left', Number((lensX - f * scale).toFixed(1)), axisY, 2, { fill: 'solid', role: 'annotation' });
-  b.label('F-right', 'F', lensX + f * scale, axisY + 14, { protected: true, priority: 'required', anchorId: 'focus-right' });
-  b.label('F-left', 'F', lensX - f * scale, axisY + 14, { protected: true, priority: 'required', anchorId: 'focus-left' });
+  b.circle('focus-right', Number((lensX + f * scale).toFixed(1)), axisY, 2, { fill: 'ink', role: 'annotation' });
+  b.circle('focus-left', Number((lensX - f * scale).toFixed(1)), axisY, 2, { fill: 'ink', role: 'annotation' });
   b.line('object', objX, axisY, objX, objectY, { markerEnd: true, color: 'accent', role: 'connector' });
-  b.label('object-label', 'object', objX, di < 0 ? axisY + 30 : objectY - 12, { protected: true, priority: 'required', anchorId: 'object' });
   b.line('ray-parallel', objX, objectY, lensX, objectY, { color: 'accent', role: 'connector' });
   b.line('ray-through-focus', lensX, objectY, lensX + rayEnd * scale, objectY + rayEnd * ho / f * scale, { color: 'accent', role: 'connector', markerEnd: true });
   b.line('ray-center-in', objX, objectY, lensX, axisY, { color: 'muted', role: 'connector' });
@@ -1688,12 +2297,33 @@ function drawRay(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
     const imgX = lensX + di * scale;
     const imageY = axisY - hi * scale;
     b.line('image', imgX, axisY, imgX, imageY, { markerEnd: true, color: 'muted', role: 'connector', dash: di < 0 });
-    b.label('image-label', 'image', imgX, imageY + (hi < 0 ? 12 : -12), { protected: true, priority: 'preferred', anchorId: 'image' });
     if (di < 0) {
       b.line('ray-virtual-extension', lensX, objectY, imgX, imageY, { color: 'guide', role: 'guide', dash: true });
       b.line('ray-center-extension', lensX, axisY, imgX, imageY, { color: 'guide', role: 'guide', dash: true });
     }
   }
+  // Labels go last, each at the first spot beside its own mark that clears every ray and earlier label:
+  // F over its focal point (below the axis, else above), object/image over their arrow (past the tip,
+  // else beyond the base).
+  const strokes = strokeSegments(b.scene());
+  const taken: Box[] = [];
+  const place = (id: string, text: string, anchorId: string, candidates: Point[]): boolean => {
+    const size = measureText(text, 12);
+    const spot = freeSpot(candidates, size, strokes, taken, 1.5, w, h);
+    if (!spot) return false;
+    b.label(id, text, spot.x, spot.y, { protected: true, priority: 'required', anchorId });
+    taken.push(boxFrom(spot.x, spot.y, size.w, size.h));
+    return true;
+  };
+  const alongArrow = (x: number, base: number, tip: number) => {
+    const up = tip < base ? -1 : 1;
+    return [tip + up * 12, tip + up * 24, base - up * 14, base - up * 26, base - up * 38].map((y) => ({ x, y }));
+  };
+  for (const [id, x] of [['F-right', Number((lensX + f * scale).toFixed(1))], ['F-left', Number((lensX - f * scale).toFixed(1))]] as const) {
+    if (!place(id, 'F', id === 'F-right' ? 'focus-right' : 'focus-left', [14, -14, 26, -26].map((dy) => ({ x, y: axisY + dy })))) return failure(`ray label ${id} has no clear place`);
+  }
+  if (!place('object-label', 'object', 'object', alongArrow(objX, axisY, objectY))) return failure('ray label object has no clear place');
+  if (finiteImage && !place('image-label', 'image', 'image', alongArrow(lensX + di * scale, axisY, axisY - hi * scale))) return failure('ray label image has no clear place');
   return null;
 }
 

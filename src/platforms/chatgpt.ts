@@ -105,4 +105,3 @@ const config: AdapterConfig = {
 };
 
 export const chatgptAdapter = createAdapter(config);
-export const chatgptConfig = config;

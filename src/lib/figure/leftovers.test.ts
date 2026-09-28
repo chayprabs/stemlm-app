@@ -15,9 +15,7 @@ const WORKED: Record<string, string> = {
   opamp: 'Rf: 10k\nRg: 1k',
   newman: 'axis: C2-C3\ndeg: 60\nfront: H, CH3, H\nback: H, H, Br\nhighlight: Br',
   fischer: 'backbone: CHO,H,OH,CH2OH',
-  chair: 'subst: OH,CH3,H',
   haworth: 'sugar: Glc\nanomer: α',
-  lewis: 'atoms: C,O',
   vsepr: 'ax: AX4\ncenter: C\ngeom: tetrahedral',
   mo: 'molecule: O2\nmix: true\nleft: 2s -32 2; 2p -15.8 4\nright: 2s -32 2; 2p -15.8 4\ncenter: s2s -36 2; p2p -16 4',
   cft: 'geom: Oh\nd: 6\nlevels: t2g -1 6; eg 1 0',
@@ -26,15 +24,12 @@ const WORKED: Record<string, string> = {
   sfd: 'L: 8\nsign: sagging+\nV: 0 8.5; 2 8.5; 2 -1.5; 8 -9.5\nM: 0 0; 2 17; 8 0',
   phasor: 'vec: I1 18∠-20\nvec: V 12∠0',
   smith: 'z0: 50\nzL: 100+j25',
-  feynman: 'kind: s\nincoming: e,e',
-  minkowski: 'v: 0.6\nevents: A,B',
   'chem.smiles': 'smiles: CC(=O)Oc1ccccc1C(=O)O',
   timing: 'signal: clk p.....\nsignal: data 0.1.0.',
 };
 
 const SECTION_EXTRAS: Record<string, string> = {
   ray: 'f: 20\ndo: 40\nelement: lens',
-  beam: 'L: 8\nsupports: pin@0, roller@8',
   array: 'cells: 1,2,3,4',
   cd: 'cells: A,B;C,D',
   schematic: 'kind: pourbaix\nvertices: 0,0; 2,1; 4,3',
@@ -42,8 +37,18 @@ const SECTION_EXTRAS: Record<string, string> = {
   gel: 'lanes: 1,2,3',
   field: 'catalog: dipole',
   xfmr: 'kind: isolation',
-  mechanism: 'from: lp:O@2\nto: atom:C@1',
   kmap: 'vars: AB,CD\nminterms: 0,1,3',
+};
+
+// D23: these templates drew what the spec does not say, so dispatch refuses them (the figure stays hidden).
+const UNFAITHFUL: Record<string, string> = {
+  chair: 'subst: OH,CH3,H',
+  lewis: 'atoms: C,O',
+  feynman: 'kind: s\nincoming: e,e',
+  minkowski: 'v: 0.6\nevents: A,B',
+  mechanism: 'from: lp:O@2\nto: atom:C@1',
+  // D32: beam printed its raw load record and floated its deflection curve above the beam.
+  beam: 'L: 8\nsupports: pin@0, roller@8',
 };
 
 describe('leftover catalog completeness', () => {
@@ -70,6 +75,13 @@ describe('leftover compilers through compileDiagramSpec', () => {
       if (result.ok) {
         expect(svgMarkupHasGraphicShapes(result.svg)).toBe(true);
       }
+    });
+  }
+
+  for (const [type, content] of Object.entries(UNFAITHFUL)) {
+    it(`refuses ${type} instead of drawing an unfaithful template`, async () => {
+      const result = await compileDiagramSpec(d(type, content), 'step');
+      expect(result).toMatchObject({ ok: false, code: 'refused', reason: `unfaithful_family:${type}` });
     });
   }
 
@@ -113,28 +125,10 @@ describe('leftover compilers through compileDiagramSpec', () => {
     expect(svgPts[svgPts.length - 1]).toBeCloseTo(nodeE!.points[1]!, 6);
   });
 
-  it('Minkowski compiler forces 45° null lines (|Δx|≈|Δy|)', async () => {
-    const result = await compileDiagramSpec(d('minkowski', WORKED.minkowski!), 'step');
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const n1 = result.scene.strokes.find((s) => s.id === 'n1');
-    const n2 = result.scene.strokes.find((s) => s.id === 'n2');
-    expect(n1, 'n1').toBeTruthy();
-    expect(n2, 'n2').toBeTruthy();
-    expect(n1!.kind).toBe('line');
-    expect(n2!.kind).toBe('line');
-    const dx1 = Math.abs(n1!.points[2]! - n1!.points[0]!);
-    const dy1 = Math.abs(n1!.points[3]! - n1!.points[1]!);
-    const dx2 = Math.abs(n2!.points[2]! - n2!.points[0]!);
-    const dy2 = Math.abs(n2!.points[3]! - n2!.points[1]!);
-    expect(dx1).toBeGreaterThan(20);
-    expect(dx2).toBeGreaterThan(20);
-    expect(dx1).toBeCloseTo(dy1, 6);
-    expect(dx2).toBeCloseTo(dy2, 6);
-    expect(n1!.points[3]! - n1!.points[1]!).toBeLessThan(0);
-    expect(n2!.points[3]! - n2!.points[1]!).toBeGreaterThan(0);
-    expect(n1!.points[0]).toBeCloseTo(n2!.points[0]!, 6);
-    expect(n1!.points[1]).toBeCloseTo(n2!.points[1]!, 6);
+  it('refuses a Minkowski diagram with a valid velocity (events were placed regardless of coordinates)', async () => {
+    const result = await compileDiagramSpec(d('minkowski', UNFAITHFUL.minkowski!), 'step');
+    expect(result).toMatchObject({ ok: false, code: 'refused' });
+    expect(result.ok ? '' : result.reason).toContain('minkowski');
   });
 
   it('hybrid-π missing RC: rejects with no success SVG', async () => {

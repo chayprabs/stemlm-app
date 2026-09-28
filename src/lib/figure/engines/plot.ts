@@ -4,8 +4,8 @@ import { specGet, specGetAll, specHas, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { emitSvg } from '../emit';
 import { layoutScene, overlaysFromLayout, strokeSegments, type LayoutResult } from '../slk';
-import { measureText } from '../geom';
-import { FONT_MIN, LABEL_GAP } from '../types';
+import { boxFrom, boxHitsAny, boxesOverlap, measureText } from '../geom';
+import { FONT_MIN } from '../types';
 
 type Scale = 'linear' | 'log';
 type Point = { x: number; y: number };
@@ -95,11 +95,12 @@ function parseData(raw: string): Point[] {
   return pairs as Point[];
 }
 
-function sampleFn(fn: (vars: Record<string, number>) => number, variable: string, min: number, max: number, splitAt: number[] = [], n = 160): Segment[] {
+function sampleFn(fn: (vars: Record<string, number>) => number, variable: string, min: number, max: number, splitAt: number[] = [], log = false, n = 160): Segment[] {
   const values: Array<{ x: number; y: number }> = [];
   let previousX: number | undefined;
   for (let i = 0; i <= n; i++) {
-    const x = min + ((max - min) * i) / n;
+    // A logarithmic axis needs samples evenly spaced on screen, i.e. in log10(x).
+    const x = log ? 10 ** (Math.log10(min) + ((Math.log10(max) - Math.log10(min)) * i) / n) : min + ((max - min) * i) / n;
     if (splitAt.some((pole) => Math.abs(x - pole) < (max - min) / n / 3 || (previousX !== undefined && previousX < pole && pole < x))) {
       values.push({ x, y: Number.NaN });
       previousX = x;
@@ -126,23 +127,88 @@ function sampleFn(fn: (vars: Record<string, number>) => number, variable: string
   return segments;
 }
 
+/** Tick text; very large or small magnitudes are written as powers of ten (label notation superscripts them). */
 function formatTick(n: number): string {
   if (!Number.isFinite(n)) return '';
   if (Math.abs(n) < 1e-12) return '0';
   const abs = Math.abs(n);
+  const exponent = Math.floor(Math.log10(abs) + 1e-9);
+  if (exponent >= 5 || exponent <= -4) {
+    const mantissa = Number((n / 10 ** exponent).toPrecision(3));
+    return Math.abs(mantissa) === 1 ? `${mantissa < 0 ? '-' : ''}10^${exponent}` : `${mantissa}×10^${exponent}`;
+  }
   const rounded = abs >= 100 ? Math.round(n) : abs >= 10 ? Number(n.toPrecision(4)) : Number(n.toPrecision(3));
   return Math.abs(rounded) < 1e-12 ? '0' : String(rounded);
 }
 
-function niceTicks(min: number, max: number, count = 4): number[] {
-  if (!(max > min)) return [min];
-  const raw = (max - min) / Math.max(1, count - 1);
-  const mag = 10 ** Math.floor(Math.log10(Math.max(raw, 1e-12)));
-  const nice = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((k) => k >= raw) ?? raw;
-  const start = Math.ceil(min / nice) * nice;
+/** How far a label's superscript rises above, or its subscript drops below, its line (label notation offsets). */
+const raised = (text: string) => (/\^/.test(text) ? 0.4 * FONT_MIN : 0);
+const dropped = (text: string) => (/_/.test(text) ? 0.3 * FONT_MIN : 0);
+
+/** One notation per axis: once any tick needs a power of ten, every non-zero tick is written m×10^k. */
+function formatTicks(ticks: number[]): string[] {
+  const scientific = ticks.some((tick) => /\^/.test(formatTick(tick)));
+  if (!scientific) return ticks.map(formatTick);
+  return ticks.map((tick) => {
+    if (Math.abs(tick) < 1e-12) return '0';
+    const exponent = Math.floor(Math.log10(Math.abs(tick)) + 1e-9);
+    return `${Number((tick / 10 ** exponent).toPrecision(3))}×10^${exponent}`;
+  });
+}
+
+type TickSet = { ticks: number[]; lo: number; hi: number };
+
+const tickRange = (lo: number, hi: number, step: number): number[] => {
   const ticks: number[] = [];
-  for (let t = start; t <= max + nice * 1e-9; t += nice) ticks.push(Number(t.toPrecision(8)));
-  return ticks.length >= 2 ? ticks.slice(0, 6) : [min, max];
+  for (let i = Math.ceil(lo / step - 1e-9); i * step <= hi + step * 1e-9; i++) ticks.push(Number((i * step).toPrecision(12)));
+  return ticks;
+};
+
+/**
+ * Nice linear ticks (1, 2, 2.5 or 5 x 10^k). Four to seven labelled ticks read best; a 2.5 step wins
+ * only when it is clearly better. `expand` snaps the range outward to whole steps, so the first and
+ * last tick bound every plotted value; `fits` rejects steps whose labels would not fit.
+ */
+function niceTicks(lo: number, hi: number, expand: boolean, fits: (ticks: number[], span: number) => boolean): TickSet {
+  const top = Math.floor(Math.log10(hi - lo));
+  let best: (TickSet & { score: number; step: number }) | undefined;
+  for (let e = top - 2; e <= top + 1; e++) {
+    for (const mantissa of [1, 2, 2.5, 5]) {
+      const step = mantissa * 10 ** e;
+      const from = expand ? Math.floor(lo / step + 1e-9) * step : lo;
+      const to = expand ? Math.ceil(hi / step - 1e-9) * step : hi;
+      const ticks = tickRange(from, to, step);
+      if (ticks.length < 2 || ticks.length > 12 || !fits(ticks, to - from)) continue;
+      const count = ticks.length;
+      const score = (count < 4 ? (4 - count) * 1.5 : Math.max(0, count - 7)) + (mantissa === 2.5 ? 1 : 0) + (expand ? ((to - from) / (hi - lo) - 1) * 3 : 0);
+      if (!best || score < best.score - 1e-9 || (Math.abs(score - best.score) <= 1e-9 && step > best.step)) best = { ticks, lo: from, hi: to, score, step };
+    }
+  }
+  return best ? { ticks: best.ticks, lo: best.lo, hi: best.hi } : { ticks: [lo, hi], lo, hi };
+}
+
+/** Decade ticks (with 2 and 5 between them when the range spans fewer than two decades). */
+function logTicks(lo: number, hi: number, expand: boolean): TickSet {
+  const kLo = expand ? Math.floor(Math.log10(lo) + 1e-9) : Math.ceil(Math.log10(lo) - 1e-9);
+  const kHi = expand ? Math.ceil(Math.log10(hi) - 1e-9) : Math.floor(Math.log10(hi) + 1e-9);
+  const from = expand ? 10 ** kLo : lo;
+  const to = expand ? 10 ** kHi : hi;
+  const ticks: number[] = [];
+  for (let k = kLo; k <= kHi; k++) {
+    for (const mantissa of kHi - kLo < 2 ? [1, 2, 5] : [1]) {
+      const value = Number((mantissa * 10 ** k).toPrecision(12));
+      if (value >= from * (1 - 1e-9) && value <= to * (1 + 1e-9)) ticks.push(value);
+    }
+  }
+  return { ticks: ticks.length >= 2 ? ticks : [from, to], lo: from, hi: to };
+}
+
+function formatLogTick(value: number, ticks: number[]): string {
+  // One notation per axis: plain numbers while every decade is short, otherwise 10^k throughout.
+  const plain = ticks.every((tick) => tick >= 0.01 && tick < 1e4);
+  if (plain) return formatTick(value);
+  const exponent = Math.log10(value);
+  return Number.isInteger(Number(exponent.toFixed(9))) ? (Math.round(exponent) === 0 ? '1' : `10^${Math.round(exponent)}`) : formatTick(value);
 }
 
 function assignments(raw: string): { kind?: string; target?: string; value?: string } {
@@ -185,6 +251,9 @@ function validateLabelAssignments(spec: SpecDoc, allSeries: Series[]): void {
       if (!assignment.target || !/^(x|y)$/i.test(assignment.target)) fail('malformed', `plot axis label target ${assignment.target ?? ''} is unsupported`);
     } else if (assignment.target) {
       fail('malformed', `plot region label target ${assignment.target} is unsupported`);
+    } else if (!specGetAll(spec, 'region').length && !specGet(spec, 'shade')) {
+      // Without a region the label has nowhere faithful to go; never drop it silently.
+      fail('malformed', 'plot region label needs a region declaration');
     }
   }
 }
@@ -193,6 +262,28 @@ function seriesPoint(series: Series, fraction: number): Point {
   const segment = series.segments[0] ?? { xs: series.xs, ys: series.ys };
   const index = Math.max(0, Math.min(segment.xs.length - 1, Math.floor(segment.xs.length * fraction)));
   return { x: segment.xs[index]!, y: segment.ys[index]! };
+}
+
+/**
+ * Slot beside a marked point on the side away from the curve through it (screen y grows downward):
+ * up-left of a rising curve, up-right of a falling one, above a maximum, below a minimum.
+ */
+function pointLabelSlot(series: Series[], at: Point, mapX: (v: number) => number, mapY: (v: number) => number): 'N' | 'S' | 'NE' | 'NW' {
+  let best: { gap: number; slope: number; bend: number } | null = null;
+  for (const segment of series.flatMap((entry) => entry.segments)) {
+    if (segment.xs.length < 2) continue;
+    let i = 0;
+    for (let k = 1; k < segment.xs.length; k++) if (Math.abs(segment.xs[k]! - at.x) < Math.abs(segment.xs[i]! - at.x)) i = k;
+    const a = Math.max(0, i - 1);
+    const b = Math.min(segment.xs.length - 1, i + 1);
+    const dx = mapX(segment.xs[b]!) - mapX(segment.xs[a]!);
+    const [ya, yi, yb] = [mapY(segment.ys[a]!), mapY(segment.ys[i]!), mapY(segment.ys[b]!)];
+    const gap = Math.abs(yi - mapY(at.y));
+    if (dx && (!best || gap < best.gap)) best = { gap, slope: (yb - ya) / dx, bend: ya + yb - 2 * yi };
+  }
+  if (!best) return 'N';
+  if (Math.abs(best.slope) < 0.35) return best.bend < 0 ? 'S' : 'N';
+  return best.slope < 0 ? 'NW' : 'NE';
 }
 
 function stepPoints(series: Series): number[] {
@@ -268,50 +359,85 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
   const ylabel = !panel.prefix ? specGet(spec, 'ylabel') ?? labels.find((entry) => entry.kind === 'axis' && entry.target?.toLowerCase() === 'y')?.value : undefined;
   const xlabelSize = xlabel ? measureText(xlabel, FONT_MIN) : { w: 0, h: 0 };
   const ylabelSize = ylabel ? measureText(ylabel, FONT_MIN) : { w: 0, h: 0 };
-  const padL = Math.max(38, ylabel ? ylabelSize.w + LABEL_GAP(FONT_MIN) + 4 : 38);
-  const padB = Math.max(panelTitle ? 25 : 23, xlabel ? xlabelSize.h + LABEL_GAP(FONT_MIN) + 4 : 0);
-  const padT = panelTitle ? 18 : 14;
-  const padR = 11;
-  const plotW = panel.w - padL - padR;
-  const plotH = panel.h - padT - padB;
-  if (!(plotW > 35 && plotH > 28)) fail('malformed', 'unsupported: plot panel cannot retain a readable plotting area');
-  if (xlabel && xlabelSize.w > plotW - 8) fail('malformed', 'unsupported: plot x-axis label cannot remain in frame');
-  const x0 = panel.x + padL;
-  const y0 = panel.y + padT + plotH;
+  const tickH = measureText('0', FONT_MIN).h;
   const assertedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^(?:open|closed|point)\s*=/i.test(raw)).map((raw) => raw.replace(/^(?:open|closed|point)\s*=\s*/i, ''))].map((raw) => strictPair(raw));
   if (assertedPoints.some((point) => !point)) fail('malformed', 'point marker needs x,y');
   const yValues = [...series.flatMap((entry) => entry.ys), ...(assertedPoints as Point[]).map((point) => point.y)].filter((value) => scale.y === 'linear' || value > 0);
   if (scale.y === 'log' && series.some((entry) => entry.ys.some((value) => !(value > 0)))) fail('malformed', 'log y scale needs positive samples');
   let dataYMin = yValues.length ? Math.min(...yValues) : scale.y === 'log' ? 1 : 0;
   let dataYMax = yValues.length ? Math.max(...yValues) : scale.y === 'log' ? 10 : 1;
-  const crossesZero = scale.y === 'linear' && dataYMin < 0 && dataYMax > 0;
+  // The x axis is y = 0 whenever the plot reaches negative values; otherwise it is the frame bottom.
+  const axisAtZero = scale.y === 'linear' && dataYMin < 0;
   if (scale.y === 'linear') { dataYMin = Math.min(dataYMin, 0); dataYMax = Math.max(dataYMax, 0); }
   if (dataYMax === dataYMin) dataYMax = dataYMin + 1;
-  const yPad = scale.y === 'log' ? 0 : (dataYMax - dataYMin) * 0.08;
-  const yMin = scale.y === 'log' ? Math.max(dataYMin / 1.08, 1e-12) : dataYMin - yPad;
-  const yMax = scale.y === 'log' ? dataYMax * 1.08 : dataYMax + yPad;
   if (scale.x === 'log' && !(domain.min > 0)) fail('malformed', 'log x scale needs a positive domain');
+  // Vertical budget: the y title sits above the top tick label, the x title under the plot area
+  // (below the tick row when the axis is the frame bottom).
+  const captionRow = spec.caption && !panel.prefix ? tickH + 2 : 0;
+  // Axis budget. A superscript (10^5, m^3) sits above its line and a subscript (V_NaOH) below it, so
+  // their labels reserve that extra height; the plan runs again once the tick texts are known.
+  const planAxes = (raiseTop: number, raiseBottom: number) => {
+    const padT = captionRow + (panelTitle ? 18 : ylabel ? Math.ceil(ylabelSize.h + tickH / 2 + 5 + raiseTop + dropped(ylabel)) : 14 + raiseTop);
+    const titleRow = xlabel ? xlabelSize.h + 7 + raised(xlabel) : 6;
+    let padB = axisAtZero ? titleRow : tickH + 4 + raiseBottom + titleRow;
+    let plotH = panel.h - padT - padB;
+    const yScale = scale.y === 'log'
+      ? logTicks(dataYMin, dataYMax, true)
+      : niceTicks(dataYMin, dataYMax, true, (ticks) => plotH / (ticks.length - 1) >= tickH + 2.5);
+    // A zero axis close to the frame bottom needs room for its tick row below the plot area.
+    const zeroDepth = ((0 - yScale.lo) / (yScale.hi - yScale.lo)) * plotH;
+    if (axisAtZero && zeroDepth < tickH + 5 + raiseBottom) { padB += tickH + 5 + raiseBottom - zeroDepth; plotH = panel.h - padT - padB; }
+    const yTickText = scale.y === 'log' ? yScale.ticks.map((tick) => formatLogTick(tick, yScale.ticks)) : formatTicks(yScale.ticks);
+    const padL = Math.max(38, ...yTickText.map((text) => measureText(text, FONT_MIN).w + 10), ylabel ? ylabelSize.w + 10 : 0);
+    let plotW = panel.w - padL - 11;
+    const xTexts = (ticks: number[]) => (scale.x === 'log' ? ticks.map((tick) => formatLogTick(tick, ticks)) : formatTicks(ticks));
+    const xFits = (ticks: number[], span: number) => plotW * (scale.x === 'log' ? 1 / Math.max(1, ticks.length - 1) : (ticks[1]! - ticks[0]!) / span)
+      >= Math.max(...xTexts(ticks).map((text) => measureText(text, FONT_MIN).w)) + 10;
+    let xTicks = scale.x === 'log' ? logTicks(domain.min, domain.max, false).ticks : niceTicks(domain.min, domain.max, false, xFits).ticks;
+    // Thin decades that would crowd their labels.
+    while (xTicks.length > 2 && !xFits(xTicks, domain.max - domain.min)) xTicks = xTicks.filter((_, index) => index % 2 === 0);
+    const xTickText = xTexts(xTicks);
+    plotW = panel.w - padL - Math.max(11, measureText(xTickText.at(-1)!, FONT_MIN).w / 2 + 4);
+    return { padT, padB, plotH, yScale, yTickText, padL, plotW, xTicks, xTickText, raiseTop };
+  };
+  let plan = planAxes(0, 0);
+  const raiseTop = Math.max(...plan.yTickText.map(raised));
+  const raiseBottom = Math.max(...plan.xTickText.map(raised));
+  if (raiseTop || raiseBottom) plan = planAxes(raiseTop, raiseBottom);
+  const { padT, plotH, yScale, yTickText, padL, plotW, xTicks, xTickText } = plan;
+  const { lo: yMin, hi: yMax } = yScale;
+  if (!(plotW > 35 && plotH > 28)) fail('malformed', 'unsupported: plot panel cannot retain a readable plotting area');
+  if (xlabel && xlabelSize.w > plotW - 8) fail('malformed', 'unsupported: plot x-axis label cannot remain in frame');
+  const x0 = panel.x + padL;
+  const plotTop = panel.y + padT;
+  const y0 = plotTop + plotH;
   const mapX = (value: number) => x0 + (scale.x === 'log' ? (Math.log10(value) - Math.log10(domain.min)) / (Math.log10(domain.max) - Math.log10(domain.min) || 1) : (value - domain.min) / (domain.max - domain.min)) * plotW;
   const mapY = (value: number) => y0 - (scale.y === 'log' ? (Math.log10(value) - Math.log10(yMin)) / (Math.log10(yMax) - Math.log10(yMin) || 1) : (value - yMin) / (yMax - yMin || 1)) * plotH;
-  const xAxisY = crossesZero ? mapY(0) : y0;
+  const xAxisY = axisAtZero ? mapY(0) : y0;
   const id = (name: string) => `${panel.prefix}${name}`;
   b.line(id('xaxis'), x0, xAxisY, x0 + plotW, xAxisY, { markerEnd: true, color: 'neutral', role: 'axis', protected: true });
-  b.line(id('yaxis'), x0, y0, x0, panel.y + padT, { markerEnd: true, color: 'neutral', role: 'axis', protected: true });
-  const xTicks = scale.x === 'log' ? [1, 10, 100].filter((value) => value >= domain.min && value <= domain.max) : niceTicks(domain.min, domain.max, 3);
-  xTicks.forEach((tick, tickIndex) => { const x = mapX(tick); b.line(id(`xtick${tickIndex}`), x, xAxisY - 3, x, xAxisY + 3, { protected: true, width: 1, role: 'axis' }); b.label(id(`xtickl${tickIndex}`), formatTick(tick), x, xAxisY + 11, { protected: true, priority: 'required' }); });
-  const yTicks = scale.y === 'log' ? [1, 2, 5, 10, 20, 50, 100].filter((value) => value >= yMin && value <= yMax) : niceTicks(dataYMin, dataYMax, 3);
-  yTicks.forEach((tick, tickIndex) => { const y = mapY(tick); b.line(id(`ytick${tickIndex}`), x0 - 3, y, x0 + 3, y, { protected: true, width: 1, role: 'axis' }); b.label(id(`ytickl${tickIndex}`), formatTick(tick), x0 - 16, y, { protected: true, priority: 'required', slot: 'W' }); });
+  // The y axis runs a little past the top tick so its arrowhead never sits on a tick.
+  b.line(id('yaxis'), x0, y0, x0, plotTop - 8, { markerEnd: true, color: 'neutral', role: 'axis', protected: true });
+  xTicks.forEach((tick, tickIndex) => { const x = mapX(tick); if (x0 + plotW - x > 2) b.line(id(`xtick${tickIndex}`), x, xAxisY - 3, x, xAxisY + 3, { protected: true, width: 1, role: 'axis' }); });
+  const yTickBoxes = yScale.ticks.map((tick, tickIndex) => {
+    const y = mapY(tick);
+    const text = yTickText[tickIndex]!;
+    const size = measureText(text, FONT_MIN);
+    b.line(id(`ytick${tickIndex}`), x0 - 3, y, x0 + 3, y, { protected: true, width: 1, role: 'axis' });
+    b.label(id(`ytickl${tickIndex}`), text, x0 - 6 - size.w / 2, y, { protected: true, priority: 'required', slot: 'W' });
+    return boxFrom(x0 - 6 - size.w / 2, y, size.w, size.h);
+  });
+  // One "0" labels the origin when both axes pass through it.
+  const sharedOrigin = scale.x === 'linear' && domain.min === 0 && yScale.ticks.includes(0) && Math.abs(mapY(0) - xAxisY) < 0.5;
   if (panelTitle) b.label(id('panel-title'), panel.role, panel.x + panel.w / 2, panel.y + 8, { protected: true, priority: 'required' });
-  if (!panel.prefix) {
-    if (xlabel) b.label('xlabel', xlabel, x0 + plotW * (scale.x === 'log' ? 0.68 : 0.5), xAxisY + LABEL_GAP(FONT_MIN) + xlabelSize.h / 2, { protected: true, priority: 'required' });
-    if (ylabel) b.label('ylabel', ylabel, x0 - LABEL_GAP(FONT_MIN) - ylabelSize.w / 2, panel.y + padT + plotH / 2, { protected: true, priority: 'required' });
-  }
+  if (ylabel) b.label('ylabel', ylabel, x0 - 6 - ylabelSize.w / 2, plotTop - tickH / 2 - plan.raiseTop - 1 - dropped(ylabel) - ylabelSize.h / 2, { protected: true, priority: 'required' });
+  const seriesStart = b.strokes.length;
   const colors: Array<'accent' | 'muted' | 'danger'> = ['accent', 'muted', 'danger'];
   const panelKind = /step/.test(panel.role.toLowerCase()) ? 'step' : /discrete|sample/.test(panel.role.toLowerCase()) ? 'discrete' : kind;
   series.forEach((entry, seriesIndex) => {
     const dash = referenceIds.has(entry.id.toLowerCase());
     if (entry.kind === 'data' && (panelKind === 'discrete' || panelKind === 'comparison')) {
-      entry.xs.forEach((value, pointIndex) => b.circle(id(`${entry.id}-point${pointIndex}`), mapX(value), mapY(entry.ys[pointIndex]!), 2.8, { color: colors[seriesIndex % colors.length], fill: 'solid', role: 'geometry' }));
+      entry.xs.forEach((value, pointIndex) => b.circle(id(`${entry.id}-point${pointIndex}`), mapX(value), mapY(entry.ys[pointIndex]!), 2.8, { color: colors[seriesIndex % colors.length], fill: 'ink', role: 'geometry' }));
     } else if (entry.kind === 'data' && panelKind === 'step') {
       const points = stepPoints(entry).flatMap((value, pointIndex) => pointIndex % 2 ? [mapY(value)] : [mapX(value)]);
       b.polyline(id(entry.id), points, { color: colors[seriesIndex % colors.length], width: 2, role: 'geometry', fill: 'none' });
@@ -319,15 +445,15 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
       entry.segments.forEach((segment, segmentIndex) => { const points: number[] = []; for (let i = 0; i < segment.xs.length; i++) points.push(mapX(segment.xs[i]!), mapY(segment.ys[i]!)); b.polyline(id(segmentIndex ? `${entry.id}-segment${segmentIndex}` : entry.id), points, { color: colors[seriesIndex % colors.length], width: 2, dash, role: 'geometry', fill: 'none' }); });
     }
     const label = specGetAll(spec, 'label').map(assignments).find((entryLabel) => entryLabel.kind === 'curve' && entryLabel.target?.toLowerCase() === entry.id.toLowerCase());
-    if (label?.value) { const point = seriesPoint(entry, 0.72); const labelY = Math.max(panel.y + padT + 30, Math.min(y0 - 30, mapY(point.y))); b.label(id(`label-${entry.id}`), label.value, mapX(point.x), labelY, { slot: 'N', priority: 'required', anchorId: id(entry.id) }); }
+    if (label?.value) { const point = seriesPoint(entry, 0.72); const labelY = mapY(point.y); b.label(id(`label-${entry.id}`), label.value, mapX(point.x), labelY, { slot: 'N', priority: 'required', anchorId: id(entry.id) }); }
     const equation = specGetAll(spec, 'eq')[seriesIndex];
     if (equation) { const point = seriesPoint(entry, 0.28); b.label(id(`eq${seriesIndex || ''}`), equation, mapX(point.x), mapY(point.y), { katex: true, slot: eqSlot, anchorId: id(entry.id), priority: 'required' }); }
   });
-  const addPointMarker = (markerKind: 'open' | 'closed' | 'point', raw: string, markerIndex: number) => { const point = strictPair(raw); if (!point) fail('malformed', `${markerKind} marker needs x,y`); if (point.x < domain.min || point.x > domain.max) fail('malformed', 'marker lies outside plot domain'); b.circle(id(`marker-${markerKind}${markerIndex}`), mapX(point.x), mapY(point.y), 3.5, { color: markerKind === 'open' ? 'muted' : 'accent', fill: markerKind === 'open' ? 'none' : markerKind === 'closed' ? 'accent' : 'solid', role: 'annotation' }); };
+  const addPointMarker = (markerKind: 'open' | 'closed' | 'point', raw: string, markerIndex: number) => { const point = strictPair(raw); if (!point) fail('malformed', `${markerKind} marker needs x,y`); if (point.x < domain.min || point.x > domain.max) fail('malformed', 'marker lies outside plot domain'); b.circle(id(`marker-${markerKind}${markerIndex}`), mapX(point.x), mapY(point.y), 3.5, { color: markerKind === 'open' ? 'muted' : 'accent', fill: markerKind === 'open' ? 'none' : markerKind === 'closed' ? 'accent' : 'ink', role: 'annotation' }); };
   const markerCounts = { open: 0, closed: 0, point: 0 };
   for (const raw of specGetAll(spec, 'marker')) { const match = /^(open|closed|point)\s*=\s*(.*)$/i.exec(raw); if (match) { const markerKind = match[1]!.toLowerCase() as 'open' | 'closed' | 'point'; addPointMarker(markerKind, match[2]!, markerCounts[markerKind]++); } }
   for (const raw of specGetAll(spec, 'point')) addPointMarker('point', raw, markerCounts.point++);
-  specGetAll(spec, 'point').forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const pointLabel = specGetAll(spec, 'point_label')[pointIndex] ?? specGet(spec, 'point_label'); if (pointLabel) b.label(id(`pointl${pointIndex}`), pointLabel, mapX(point.x) - 12, mapY(point.y) - 12, { slot: 'NW', protected: true, priority: 'required' }); });
+  specGetAll(spec, 'point').forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const pointLabel = specGetAll(spec, 'point_label')[pointIndex] ?? specGet(spec, 'point_label'); if (pointLabel) b.label(id(`pointl${pointIndex}`), pointLabel, mapX(point.x), mapY(point.y), { slot: pointLabelSlot(series, point, mapX, mapY), priority: 'required' }); });
   const drop = parseDropMode(spec);
   const markedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^point\s*=/i.test(raw)).map((raw) => raw.replace(/^point\s*=\s*/i, ''))];
   markedPoints.forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const px = mapX(point.x); const py = mapY(point.y); if (drop === 'both' || drop === 'x') b.line(id(`dropx${pointIndex}`), px, py, px, xAxisY, { dash: true, color: 'guide', role: 'guide' }); if (drop === 'both' || drop === 'y') b.line(id(`dropy${pointIndex}`), px, py, x0, py, { dash: true, color: 'guide', role: 'guide' }); });
@@ -357,7 +483,35 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
   specGetAll(spec, 'marker').forEach((raw, markerSpecialIndex) => { const pole = /^pole\s*=\s*(.*)$/i.exec(raw); const zero = /^zero\s*=\s*(.*)$/i.exec(raw); if (pole) addSpecial(pole[1]!, 'pole', markerSpecialIndex); if (zero) addSpecial(zero[1]!, 'zero', markerSpecialIndex); });
   specGetAll(spec, 'peaks').forEach((raw, peakIndex) => { const value = parseNumber(raw.split(/[,\s]+/)[0]!); if (value === null || value < domain.min || value > domain.max) fail('malformed', 'peak lies outside domain'); const x = mapX(value); b.line(id(`peak${peakIndex}`), x, xAxisY, x, panel.y + padT + 6, { color: 'accent', width: 1.2, role: 'annotation' }); b.label(id(`peakn${peakIndex}`), String(peakIndex + 1), x, panel.y + padT + 5, { slot: 'N', priority: 'optional' }); });
   const regions = [...specGetAll(spec, 'region')]; const legacyShade = specGet(spec, 'shade'); if (legacyShade) regions.push(`between=fn from=${legacyShade.split(/\s+/)[0]} to=${legacyShade.split(/\s+/)[1]}`);
-  regions.forEach((raw, regionIndex) => { const between = /^\s*between\s*=\s*([A-Za-z][A-Za-z0-9_.-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_.-]*)?)\s+from\s*=\s*([^\s]+)\s+to\s*=\s*([^\s]+)\s*$/i.exec(raw); if (!between) fail('malformed', 'region needs between, from, and to'); const from = parseNumber(between[2]!); const to = parseNumber(between[3]!); if (from === null || to === null || !(to > from) || from < domain.min || to > domain.max) fail('malformed', 'region bounds are invalid'); const first = targetSeries(allSeries, between[1]!.split(',')[0]!); if (!first) fail('malformed', `region target ${between[1]} is missing`); const secondName = between[1]!.split(',')[1]; const second = secondName ? targetSeries(allSeries, secondName) : undefined; if (secondName && !second) fail('malformed', 'region target ' + secondName + ' is missing'); const upper = first.xs.map((value, pointIndex) => ({ x: value, y: first.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to); if (upper.length < 2) fail('malformed', 'region has too few samples'); const points = upper.map((point) => [mapX(point.x), mapY(point.y)]).flat(); if (second) points.push(...second.xs.map((value, pointIndex) => ({ x: value, y: second.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to).reverse().map((point) => [mapX(point.x), mapY(point.y)]).flat()); else points.push(mapX(to), mapY(0), mapX(from), mapY(0)); const regionId = id('region' + regionIndex); b.polygon(regionId, points, { color: 'accent', fill: 'accent', role: 'geometry' }); const regionLabel = specGetAll(spec, 'label').map(assignments).find((label) => label.kind === 'region'); if (regionLabel?.value) { const center = upper[Math.floor(upper.length / 2)]!; b.label(id('region-label' + regionIndex), regionLabel.value, mapX(center.x), mapY(center.y), { slot: 'N', priority: 'required', anchorId: regionId }); } });
+  regions.forEach((raw, regionIndex) => { const between = /^\s*between\s*=\s*([A-Za-z][A-Za-z0-9_.-]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_.-]*)?)\s+from\s*=\s*([^\s]+)\s+to\s*=\s*([^\s]+)\s*$/i.exec(raw); if (!between) fail('malformed', 'region needs between, from, and to'); const from = parseNumber(between[2]!); const to = parseNumber(between[3]!); if (from === null || to === null || !(to > from) || from < domain.min || to > domain.max) fail('malformed', 'region bounds are invalid'); const first = targetSeries(allSeries, between[1]!.split(',')[0]!); if (!first) fail('malformed', `region target ${between[1]} is missing`); const secondName = between[1]!.split(',')[1]; const second = secondName ? targetSeries(allSeries, secondName) : undefined; if (secondName && !second) fail('malformed', 'region target ' + secondName + ' is missing'); const upper = first.xs.map((value, pointIndex) => ({ x: value, y: first.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to); if (upper.length < 2) fail('malformed', 'region has too few samples'); const points = upper.map((point) => [mapX(point.x), mapY(point.y)]).flat(); if (second) points.push(...second.xs.map((value, pointIndex) => ({ x: value, y: second.ys[pointIndex]! })).filter((point) => point.x >= from && point.x <= to).reverse().map((point) => [mapX(point.x), mapY(point.y)]).flat()); else points.push(mapX(to), mapY(0), mapX(from), mapY(0)); const regionId = id('region' + regionIndex); b.polygon(regionId, points, { color: 'accent', fill: 'tint', role: 'geometry' }); const regionLabel = specGetAll(spec, 'label').map(assignments).find((label) => label.kind === 'region'); if (regionLabel?.value) { const center = upper[Math.floor(upper.length / 2)]!; b.label(id('region-label' + regionIndex), regionLabel.value, mapX(center.x), mapY(center.y), { slot: 'N', priority: 'required', anchorId: regionId }); } });
+  // Tick labels on a zero axis inside the plot go on whichever side of the axis misses every curve.
+  const obstacles = strokeSegments({ strokes: [...b.strokes.slice(seriesStart), ...b.strokes.filter((stroke) => stroke.id === id('yaxis'))] } as Scene);
+  const xLabels = xTicks.flatMap((tick, tickIndex) => {
+    if (sharedOrigin && tick === 0) return [];
+    const text = xTickText[tickIndex]!;
+    const x = mapX(tick);
+    const size = measureText(text, FONT_MIN);
+    const below = xAxisY + 4 + size.h / 2 + raised(text);
+    // Centred under (or over) the tick first; beside it when a curve crosses the axis right there.
+    const shift = size.w / 2 + 3;
+    const spot = (axisAtZero ? [below, xAxisY - 4 - size.h / 2] : [below]).flatMap((cy) => [0, shift, -shift].map((dx) => ({ x: x + dx, y: cy })))
+      .sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x))
+      .find((candidate) => {
+        // A superscript rises above the measured box.
+        const box = boxFrom(candidate.x, candidate.y - raised(text) / 2, size.w, size.h + raised(text));
+        return !boxHitsAny(box, obstacles, 1) && !yTickBoxes.some((other) => boxesOverlap(box, other, 1));
+      });
+    return [{ tickIndex, text, spot, below: { x, y: below }, h: size.h }];
+  });
+  const readable = xLabels.filter((entry) => entry.spot).length >= 2;
+  let tickRowBottom = xAxisY;
+  for (const entry of xLabels) {
+    const at = readable ? entry.spot : entry.below;
+    if (!at) continue;
+    b.label(id(`xtickl${entry.tickIndex}`), entry.text, at.x, at.y, { protected: true, priority: 'required' });
+    tickRowBottom = Math.max(tickRowBottom, at.y + entry.h / 2);
+  }
+  if (xlabel) b.label('xlabel', xlabel, x0 + plotW / 2, Math.max(y0, tickRowBottom) + 2 + raised(xlabel) + xlabelSize.h / 2, { protected: true, priority: 'required' });
 }
 
 export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
@@ -375,7 +529,7 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
   }
   const poles = parsePoleValues(spec);
   const functions: Series[] = [];
-  for (const [index, source] of [...specGetAll(spec, 'fn'), ...specGetAll(spec, 'fn2')].entries()) { const compiled = compileExpr(source); const segments = sampleFn(compiled, variable, domain.min, domain.max, poles); if (!segments.length) fail('malformed', `function ${index + 1} has no finite samples`); functions.push({ id: index ? `fn${index + 1}` : 'fn', kind: 'function', xs: segments.flatMap((segment) => segment.xs), ys: segments.flatMap((segment) => segment.ys), segments, source }); }
+  for (const [index, source] of [...specGetAll(spec, 'fn'), ...specGetAll(spec, 'fn2')].entries()) { const compiled = compileExpr(source); const segments = sampleFn(compiled, variable, domain.min, domain.max, poles, scale.x === 'log' && domain.min > 0); if (!segments.length) fail('malformed', `function ${index + 1} has no finite samples`); functions.push({ id: index ? `fn${index + 1}` : 'fn', kind: 'function', xs: segments.flatMap((segment) => segment.xs), ys: segments.flatMap((segment) => segment.ys), segments, source }); }
   const data: Series[] = [];
   for (const [index, raw] of specGetAll(spec, 'data').entries()) { const points = parseData(raw); if (points.some((point) => point.x < domain.min || point.x > domain.max)) fail('malformed', 'data sample lies outside domain'); if (scale.x === 'log' && points.some((point) => !(point.x > 0))) fail('malformed', 'log x scale needs positive samples'); const id = index ? `data${index + 1}` : 'data'; const segment = { xs: points.map((point) => point.x), ys: points.map((point) => point.y) }; data.push({ id, kind: 'data', xs: segment.xs, ys: segment.ys, segments: [segment] }); }
   if (specGetAll(spec, 'eq').length > functions.length + data.length) fail('malformed', 'plot has more equations than plotted series');
@@ -401,4 +555,4 @@ export function compilePlot(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
 export function evaluatePlotFn(source: string, variable: string, value: number): number { return compileExpr(source)({ [variable]: value }); }
 
-export { parseNumber as specNumber };
+export { parseNumber as specNumber, dropped, formatTicks, niceTicks, raised };

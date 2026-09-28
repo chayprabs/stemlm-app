@@ -26,8 +26,6 @@ export const PROTOCOL_VERSION = 2;
 /** Hard parser bounds — simple problems may have 3 meaningful steps. */
 export const STEP_COUNT_MIN = 3;
 export const STEP_COUNT_MAX = 20;
-export const STEP_COUNT_TARGET = 'typically 5-7';
-
 export function renderProtocol(template: string): string {
   return template
     .replace(/\r\n/g, '\n')

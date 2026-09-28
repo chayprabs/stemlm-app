@@ -13,7 +13,15 @@ describe('L7 chemistry fidelity boundaries', () => {
     const result = await compileDiagramSpec({ type: 'chem.smiles', content: 'smiles: c1ccccc1' }, 'step');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.scene.strokes.filter((stroke) => /^bond-/.test(stroke.id))).toHaveLength(12);
+    // D22: benzene is drawn Kekulé — six ring bonds, three of them double and never adjacent: nine lines.
+    const strokes = result.scene.strokes.filter((stroke) => /^bond-/.test(stroke.id));
+    expect(strokes).toHaveLength(9);
+    const orders = [0, 1, 2, 3, 4, 5].map((a) => {
+      const [x, y] = [Math.min(a, (a + 1) % 6), Math.max(a, (a + 1) % 6)];
+      return strokes.filter((stroke) => stroke.id.startsWith(`bond-${x}-${y}-`)).length;
+    });
+    expect(orders.filter((order) => order === 2)).toHaveLength(3);
+    orders.forEach((order, i) => expect(order + orders[(i + 1) % 6]!).toBe(3));
   });
 
   it('keeps Fischer horizontal substituents instead of dropping them', async () => {

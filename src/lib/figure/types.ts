@@ -39,7 +39,11 @@ export interface SceneStroke {
   role?: StrokeRole;
   width?: number;
   dash?: boolean;
-  fill?: 'none' | SemanticColor | 'solid';
+  /**
+   * `ink` fills with the outline colour (dots, bars, blobs); `paper` with the figure surface (interiors
+   * behind wires or text); `tint` with a translucent wash of the outline colour (shaded regions).
+   */
+  fill?: 'none' | SemanticColor | 'ink' | 'paper' | 'tint';
   pattern?: 'hatch' | 'dots';
   markerEnd?: boolean;
   markerStart?: boolean;
@@ -78,6 +82,11 @@ export interface SceneLabel {
   anchorId?: string;
   groupId?: string;
   panelId?: string;
+  /**
+   * `chem`: the text is a chemical species, printed with subscript counts and a superscript charge.
+   * `orbital`: an orbital or level name, printed with its shell/symmetry subscript (σ*2p → σ*₂ₚ, t2g → t₂g).
+   */
+  notation?: 'chem' | 'orbital';
 }
 
 export interface Overlay {

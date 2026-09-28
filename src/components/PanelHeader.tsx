@@ -148,9 +148,9 @@ export function PanelHeader({
             className="slm-icon-btn slm-icon-btn--save"
             aria-label={saved ? 'Remove from saved sessions' : 'Save session'}
             aria-pressed={saved}
-            title={saved ? 'Remove from saved' : 'Save session'}
+            title={saved ? 'Remove from saved' : session?.cutOff ? 'Save when the full answer arrives' : 'Save session'}
             onClick={onToggleSave}
-            disabled={!session}
+            disabled={!session || session.cutOff}
             data-active={saved ? 'true' : undefined}
           >
             <span className="slm-save-glyph">

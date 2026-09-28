@@ -92,7 +92,7 @@ export function compileMccabe(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     y = Math.max(y2, x2);
   }
   b.polyline('stairs', stairs, { color: 'danger', role: 'geometry', width: 1.6, fill: 'none' });
-  b.circle('feed', mapX(zF), mapY(zF), 3, { color: 'accent', role: 'annotation', fill: 'solid' });
+  b.circle('feed', mapX(zF), mapY(zF), 3, { color: 'accent', role: 'annotation', fill: 'ink' });
   b.label('zf', 'zF', mapX(zF), mapY(zF) + 12, { slot: 'S', priority: 'required' });
   b.label('xd', 'xD', mapX(xD), mapY(xD) - 10, { slot: 'NW', priority: 'optional' });
   b.label('xb', 'xB', mapX(xB), mapY(xB) + 10, { slot: 'SE', priority: 'optional' });

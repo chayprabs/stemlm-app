@@ -7,7 +7,8 @@ import type { Scene } from './types';
 type Case = {
   id: string;
   family: string;
-  kind: 'positive' | 'negative' | 'positive-proposed' | 'negative-proposed';
+  // refused: D23 — the template drew what the spec does not say, so a valid spec is refused.
+  kind: 'positive' | 'negative' | 'positive-proposed' | 'negative-proposed' | 'refused';
   spec: string;
 };
 
@@ -16,15 +17,15 @@ const CASES: Case[] = [
   { id: 'newman-negative-view', family: 'newman', kind: 'negative', spec: 'view: perspective\nfront: H,H,H\nback: H,H,H' },
   { id: 'fischer-positive-chain', family: 'fischer', kind: 'positive', spec: 'backbone: CHO,OH,H,CH2OH' },
   { id: 'fischer-negative-short-chain', family: 'fischer', kind: 'negative', spec: 'backbone: CHO' },
-  { id: 'chair-positive-substituents', family: 'chair', kind: 'positive', spec: 'subst: CH3,OH,Cl' },
+  { id: 'chair-positive-substituents', family: 'chair', kind: 'refused', spec: 'subst: CH3,OH,Cl' },
   { id: 'chair-negative-overloaded', family: 'chair', kind: 'negative', spec: 'subst: A,B,C,D,E,F,G,H,I' },
   { id: 'haworth-positive-beta', family: 'haworth', kind: 'positive', spec: 'sugar: Gal\nanomer: β' },
   { id: 'haworth-negative-anomer', family: 'haworth', kind: 'negative', spec: 'sugar: Glc\nanomer: gamma' },
-  { id: 'lewis-positive-atoms', family: 'lewis', kind: 'positive', spec: 'atoms: N,O,O' },
+  { id: 'lewis-positive-atoms', family: 'lewis', kind: 'refused', spec: 'atoms: N,O,O' },
   { id: 'lewis-negative-empty', family: 'lewis', kind: 'negative', spec: 'atoms:' },
   { id: 'vsepr-positive', family: 'vsepr', kind: 'positive', spec: 'geom: AX3\ncenter: B\nligands: F,F,F' },
   { id: 'vsepr-negative-unsupported', family: 'vsepr', kind: 'negative', spec: 'geom: AX7\ncenter: A\nligands: X,X,X,X,X,X,X' },
-  { id: 'complex-positive', family: 'complex', kind: 'positive', spec: 'metal: Co\ngeom: octahedral\nligands: NH3,NH3,Cl,Cl,NH3,NH3' },
+  { id: 'complex-positive', family: 'complex', kind: 'refused', spec:'metal: Co\ngeom: octahedral\nligands: NH3,NH3,Cl,Cl,NH3,NH3' },
   { id: 'complex-negative-missing-ligands', family: 'complex', kind: 'negative', spec: 'metal: Pt\ngeom: square-planar' },
   { id: 'chem-smiles-positive', family: 'chem.smiles', kind: 'positive', spec: 'smiles: CCO\nannotate: alcohol' },
   { id: 'chem-smiles-negative-missing', family: 'chem.smiles', kind: 'negative', spec: 'annotate: missing molecule' },
@@ -40,8 +41,12 @@ const CASES: Case[] = [
 
 describe('L7 P3 semantic probes', () => {
   for (const probe of CASES) {
-    it(`${probe.id} ${probe.kind === 'negative' || probe.kind === 'negative-proposed' ? 'fails closed' : 'renders asserted semantics'}`, async () => {
+    it(`${probe.id} ${probe.kind === 'refused' ? 'is refused as an unfaithful template' : probe.kind === 'negative' || probe.kind === 'negative-proposed' ? 'fails closed' : 'renders asserted semantics'}`, async () => {
       const result = await compileDiagramSpec({ type: probe.family, content: probe.spec }, 'step');
+      if (probe.kind === 'refused') {
+        expect(result).toMatchObject({ ok: false, code: 'refused', reason: `unfaithful_family:${probe.family}` });
+        return;
+      }
       if (probe.kind === 'negative' || probe.kind === 'negative-proposed') {
         expect(result.ok, result.ok ? `${probe.id} silently succeeded` : result.reason).toBe(false);
         return;
@@ -51,11 +56,8 @@ describe('L7 P3 semantic probes', () => {
       const text = result.scene.labels.map((label) => label.text ?? label.katex ?? '').join('|');
       if (probe.family === 'newman') expect(text).toContain('CH3');
       if (probe.family === 'fischer') expect(text).toContain('CH2OH');
-      if (probe.family === 'chair') expect(text).toContain('Cl');
       if (probe.family === 'haworth') expect(text).toContain('β');
-      if (probe.family === 'lewis') expect(text).toContain('N');
       if (probe.family === 'vsepr') expect(text).toContain('B');
-      if (probe.family === 'complex') expect(text).toContain('Co');
       if (probe.family === 'chem.smiles') expect(text).toContain('alcohol');
       if (probe.family === 'mo') expect(text).toContain('σ2s');
       if (probe.family === 'cft') expect(text).toContain('t2g');
@@ -66,12 +68,14 @@ describe('L7 P3 semantic probes', () => {
 
 type MoleculeCertificate = { atoms: string[]; bonds: number };
 
+// D22: a skeletal formula writes no carbon letters, so atom identities come from the scene's atom
+// nodes (kind `atom:<element>`, in SMILES order) and bonds are counted per atom pair, not per line.
 function extractMoleculeCertificate(scene: Scene): MoleculeCertificate {
-  const atoms = scene.labels
-    .filter((label) => /^atom-label-\d+$/.test(label.id))
-    .sort((a, b) => Number(a.id.slice(11)) - Number(b.id.slice(11)))
-    .map((label) => label.text ?? label.katex ?? '');
-  const bonds = scene.strokes.filter((stroke) => /^bond-\d+-\d+-/.test(stroke.id)).length;
+  const atoms = scene.nodes
+    .filter((node) => /^atom-\d+$/.test(node.id))
+    .sort((a, b) => Number(a.id.slice(5)) - Number(b.id.slice(5)))
+    .map((node) => node.kind.replace(/^atom:/, ''));
+  const bonds = new Set(scene.strokes.map((stroke) => /^bond-(\d+-\d+)-/.exec(stroke.id)?.[1]).filter(Boolean)).size;
   return { atoms, bonds };
 }
 
@@ -88,15 +92,19 @@ describe('L7 molecular round-trip certificate', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(moleculeCertificateMatches(result.scene, { atoms: ['C', 'C', 'O'], bonds: 2 })).toBe(true);
+    const written = result.scene.labels.filter((label) => /^atom-label-/.test(label.id)).map((label) => label.text);
+    expect(written).toHaveLength(1);
+    expect(['OH', 'HO']).toContain(written[0]);
   });
 
   it('rejects a deliberately wrong scene/spec certificate', () => {
     const b = new SceneBuilder('chem.smiles', 300, 165);
-    b.label('atom-label-0', 'C', 60, 80, { protected: true });
-    b.label('atom-label-1', 'C', 140, 80, { protected: true });
-    b.label('atom-label-2', 'N', 220, 80, { protected: true });
-    b.line('bond-0-1-single', 70, 80, 130, 80);
-    b.line('bond-1-2-single', 150, 80, 210, 80);
+    b.node('atom-0', 59, 79, 2, 2, 'atom:C');
+    b.node('atom-1', 139, 79, 2, 2, 'atom:C');
+    b.node('atom-2', 219, 79, 2, 2, 'atom:N');
+    b.label('atom-label-2', 'NH_{2}', 220, 80, { protected: true });
+    b.line('bond-0-1-0', 60, 80, 140, 80);
+    b.line('bond-1-2-0', 140, 80, 210, 80);
     expect(moleculeCertificateMatches(b.scene(), { atoms: ['C', 'C', 'O'], bonds: 2 })).toBe(false);
   });
 
@@ -116,9 +124,13 @@ describe('L7 molecular round-trip certificate', () => {
 });
 
 describe('L7 center-label and stereochemistry boundaries', () => {
+  it('refuses a coordination complex instead of drawing its template around the metal label', async () => {
+    const result = await compileDiagramSpec({ type: 'complex', content: 'metal: Co\ngeom: octahedral\nligands: NH3,NH3,Cl,Cl,NH3,NH3' }, 'step');
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:complex' });
+  });
+
   for (const probe of [
     { family: 'vsepr', content: 'geom: AX3\ncenter: B\nligands: F,F,F', centerId: 'center' },
-    { family: 'complex', content: 'metal: Co\ngeom: octahedral\nligands: NH3,NH3,Cl,Cl,NH3,NH3', centerId: 'metal' },
   ]) {
     it(`${probe.family} keeps the center label clear of a fake node and connector starts`, async () => {
       const result = await compileDiagramSpec({ type: probe.family, content: probe.content }, 'step');

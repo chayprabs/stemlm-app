@@ -31,5 +31,5 @@ it('does not direct error recovery to the retired solve action', async () => {
   mocks.deliver.mockRejectedValue(new Error('stemlm-disabled'));
   const result = await launch.openStudyPanel();
   expect(result.ok).toBe(false);
-  expect(JSON.stringify(result)).not.toContain('Solve with stemLM');
+  expect(JSON.stringify(result)).not.toMatch(/Solve with stemlm/i);
 });

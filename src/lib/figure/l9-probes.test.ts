@@ -20,9 +20,6 @@ const RENDER_CASES: Array<[string, string, string]> = [
   ['twoport', 'params: Z\ninput: p1\noutput: p2\nelement: series resistor\nelement: shunt capacitor', 'twoport'],
   ['pwm', 'kind: pwm\ncarrier: triangle\nduty: 0.35\nfrequency: 10kHz\nsignal: gate', 'pwm'],
   ['xfmr', 'kind: isolation\nprimary: input\nsecondary: output\nturns: 2:1\npolarity: dot', 'xfmr'],
-  ['constel', 'm: 4\nsymbols: 00,01,11,10\nmapping: gray\nmodulation: QPSK\naxis: I,Q', 'constel'],
-  ['eye', 'kind: eye\nsignal: data\nunit: UI\nmask: 0.2UI\nthreshold: 0V', 'eye'],
-  ['cmos', 'kind: inverter\npmos: P1\nnmos: N1\ninput: A\noutput: Y\nsupply: VDD\ngnd: 0', 'cmos'],
   ['motor', 'kind: schematic\nstator: 3-phase\nrotor: squirrel-cage\nphases: A,B,C\ntorque: output\nfeedback: speed', 'motor'],
   ['dq', 'kind: transform\nreference: synchronous\naxes: d,q\nvector: current\ntransform: Park\nangle: electrical', 'dq'],
   ['seqnet', 'kind: state\nstate: idle\nstate: run\ntransition: idle -> run\ninitial: idle\nterminal: stop', 'seqnet'],
@@ -134,9 +131,6 @@ describe('L9 permanent semantic probes', () => {
       ['twoport', 'params: Z\ninput: p1\noutput: p2\nelement: series resistor\nelement: shunt capacitor', ['series resistor', 'shunt capacitor']],
       ['pwm', 'kind: pwm\ncarrier: triangle\nduty: 0.35\nfrequency: 10kHz\nsignal: gate', ['D=0.35', '10kHz']],
       ['xfmr', 'kind: isolation\nprimary: input\nsecondary: output\nturns: 2:1\npolarity: dot', ['input', 'output', '2:1', 'dot']],
-      ['constel', 'm: 4\nsymbols: 00,01,11,10\nmapping: gray\nmodulation: QPSK\naxis: I,Q', ['00', '01', '11', '10', 'gray']],
-      ['eye', 'kind: eye\nsignal: data\nunit: UI\nmask: 0.2UI\nthreshold: 0V', ['data', '0.2UI', '0V']],
-      ['cmos', 'kind: inverter\npmos: P1\nnmos: N1\ninput: A\noutput: Y\nsupply: VDD\ngnd: 0', ['P1', 'N1', 'A', 'Y']],
       ['motor', 'kind: schematic\nstator: 3-phase\nrotor: squirrel-cage\nphases: A,B,C\ntorque: output\nfeedback: speed', ['3-phase', 'squirrel-cage', 'speed']],
       ['dq', 'kind: transform\nreference: synchronous\naxes: d,q\nvector: current\ntransform: Park\nangle: electrical', ['synchronous', 'current', 'Park', 'electrical']],
       ['seqnet', 'kind: state\nstate: idle\nstate: run\ntransition: idle -> run\ninitial: idle\nterminal: stop', ['idle', 'run', 'stop']],
@@ -147,6 +141,14 @@ describe('L9 permanent semantic probes', () => {
       if (!result.ok) continue;
       const labels = result.scene.labels.map((l) => l.text ?? l.katex ?? '').join('|');
       for (const value of expected) expect(labels, `${type} missing ${value}`).toContain(value);
+    }
+    // D23: symbols on a grid instead of I/Q positions, an invented eye shape, a NAND drawn as an inverter.
+    for (const [type, content] of [
+      ['constel', 'm: 4\nsymbols: 00,01,11,10\nmapping: gray\nmodulation: QPSK\naxis: I,Q'],
+      ['eye', 'kind: eye\nsignal: data\nunit: UI\nmask: 0.2UI\nthreshold: 0V'],
+      ['cmos', 'kind: inverter\npmos: P1\nnmos: N1\ninput: A\noutput: Y\nsupply: VDD\ngnd: 0'],
+    ]) {
+      expect(await compileDiagramSpec(d(type!, content!), 'step'), type).toMatchObject({ ok: false, code: 'refused', reason: `unfaithful_family:${type}` });
     }
   });
 
@@ -210,14 +212,12 @@ describe('L9 permanent semantic probes', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('CMOS complementary pair exposes a shared output junction', async () => {
+  it('refuses the CMOS template (boxes, one topology) — circuit M…nmos|pmos draws CMOS stages', async () => {
     const result = await compileDiagramSpec(
       d('cmos', 'kind: inverter\npmos: P1\nnmos: N1\ninput: A\noutput: Y\nsupply: VDD\ngnd: 0'),
       'step',
     );
-    expect(result.ok, result.ok ? '' : result.reason).toBe(true);
-    if (!result.ok) return;
-    expect(result.scene.strokes.some((stroke) => stroke.id === 'output-junction')).toBe(true);
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:cmos' });
   });
 
   it('writes the positive DEV probe render set when explicitly requested', async () => {

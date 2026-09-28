@@ -87,7 +87,6 @@ describe('SettingsOverlay', () => {
     useStore.setState({
       settings: { ...DEFAULT_SETTINGS, theme: 'light' },
       theme: 'light',
-      settingsOpen: true,
       sessions: [],
     });
   });

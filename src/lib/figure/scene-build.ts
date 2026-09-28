@@ -197,7 +197,7 @@ export class SceneBuilder {
     text: string,
     x: number,
     y: number,
-    opts: { slot?: SlotHint; protected?: boolean; priority?: LabelPriority; katex?: boolean; anchorId?: string; groupId?: string; panelId?: string } = {},
+    opts: { slot?: SlotHint; protected?: boolean; priority?: LabelPriority; katex?: boolean; anchorId?: string; groupId?: string; panelId?: string; notation?: 'chem' | 'orbital' } = {},
   ): this {
     const lab: SceneLabel = {
       id,
@@ -210,6 +210,7 @@ export class SceneBuilder {
       groupId: opts.groupId,
       panelId: opts.panelId,
     };
+    if (opts.notation) lab.notation = opts.notation;
     if (opts.katex) lab.katex = text;
     else lab.text = text;
     lab.kind = opts.katex ? 'katex' : 'text';

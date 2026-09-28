@@ -1,8 +1,11 @@
 import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
+import { readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { panelSplit } from './scripts/panel-split';
 
 type OutputChunk = { type: 'chunk'; code: string };
-type OutputAsset = { type: 'asset' };
+type OutputAsset = { type: 'asset'; fileName: string; source: string | Uint8Array };
 type OutputBundle = Record<string, OutputChunk | OutputAsset>;
 type BundlePlugin = {
   name: string;
@@ -51,6 +54,32 @@ function asciiSafeOutput(): BundlePlugin {
   };
 }
 
+// PERF-03: the study panel is its own script, loaded on first open (scripts/panel-split.ts).
+const split = panelSplit(resolve('.'));
+
+const KATEX_FONT_DIR = resolve('node_modules/katex/dist/fonts');
+const PLEX_FONT_DIR = resolve('assets/fonts/ibm-plex');
+
+// KaTeX's CSS inlines every face three times (woff2 + woff + ttf, ~1.5 MB of
+// base64 in the content CSS) and chat hosts such as grok.com forbid `data:`
+// fonts. Its @font-face rules go; src/lib/fonts.ts registers the woff2 files
+// the extension ships under fonts/katex instead (PERF-02).
+function bundledFontsOnly(): BundlePlugin {
+  return {
+    name: 'stemlm:bundled-fonts-only',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      for (const [key, file] of Object.entries(bundle)) {
+        if (file.type !== 'asset') continue;
+        if (/KaTeX_[\w-]+\.(woff2?|ttf)$/.test(file.fileName)) delete bundle[key];
+        else if (file.fileName.endsWith('.css')) {
+          file.source = String(file.source).replace(/@font-face\s*\{[^}]*font-family:\s*["']?KaTeX_[^}]*\}/g, '');
+        }
+      }
+    },
+  };
+}
+
 // stemLM WXT configuration.
 // Analytics is disabled in the distributed client; no telemetry secret is
 // injected into extension JavaScript. Provider permissions are HTTPS-only.
@@ -74,17 +103,40 @@ export default defineConfig({
     ],
   },
   vite: () => ({
-    plugins: [tailwindcss(), asciiSafeOutput()],
+    plugins: [tailwindcss(), asciiSafeOutput(), bundledFontsOnly()],
     define: {},
+    // Chrome ignores <link rel="modulepreload"> on extension pages and warns
+    // "cross-world extension resource mismatch" for each one (CONSOLE-01).
+    build: { modulePreload: false },
   }),
+  hooks: {
+    // Bundled faces (src/lib/fonts.ts): KaTeX woff2 + IBM Plex with its OFL licence.
+    'build:publicAssets': (_wxt, files) => {
+      for (const [dir, dest, keep] of [[KATEX_FONT_DIR, 'katex', /\.woff2$/], [PLEX_FONT_DIR, 'ibm-plex', /\.woff2$|^OFL\.txt$/]] as const) {
+        for (const name of readdirSync(dir)) {
+          if (keep.test(name)) files.push({ absoluteSrc: resolve(dir, name), relativeDest: `fonts/${dest}/${name}` });
+        }
+      }
+    },
+    'vite:build:extendConfig': (entrypoints, config) => {
+      const names = new Set(entrypoints.map((entry) => entry.name));
+      if (names.has('content')) config.plugins = [...(config.plugins ?? []), split.boot as never];
+      if (names.has('study-panel')) {
+        config.plugins = [...(config.plugins ?? []), split.chunk as never];
+        const output = config.build?.rollupOptions?.output;
+        if (output && !Array.isArray(output)) output.globals = split.globals;
+      }
+    },
+  },
   manifest: {
-    name: 'stemLM',
-    short_name: 'stemLM',
+    name: 'stemlm',
+    short_name: 'stemlm',
     description: 'Clear STEM solutions with useful steps and diagrams.',
     homepage_url: 'https://github.com/chayprabs/stemlm-app',
     minimum_chrome_version: '116',
     // unlimitedStorage: saved answers are never evicted to fit a quota (D12). No install warning.
-    permissions: ['storage', 'unlimitedStorage', 'tabs', 'downloads'],
+    // scripting: after install/update, stemLM reaches chat tabs that were already open (D13).
+    permissions: ['storage', 'unlimitedStorage', 'tabs', 'downloads', 'scripting'],
     host_permissions: [
       'https://claude.ai/*',
       'https://www.claude.ai/*',
@@ -94,14 +146,13 @@ export default defineConfig({
       'https://www.grok.com/*',
     ],
     action: {
-      default_title: 'stemLM',
-    },
-    options_ui: {
-      open_in_tab: true,
+      default_title: 'stemlm',
     },
     web_accessible_resources: [
       {
-        resources: ['icon/*.png'],
+        // Fonts load in the chat page's <head> for the panel's shadow root (D4); the
+        // content script imports the study panel on first open (PERF-03).
+        resources: ['fonts/katex/*.woff2', 'fonts/ibm-plex/*.woff2', 'study-panel.js'],
         matches: [
           'https://claude.ai/*',
           'https://www.claude.ai/*',

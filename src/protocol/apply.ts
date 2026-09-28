@@ -129,6 +129,19 @@ export function stitchResume(parts: string[]): string {
   return [head, ...rest].join('\n').trim();
 }
 
+/** Closing lines of the top-level blocks (both spellings the parser accepts). */
+const BLOCK_CLOSE_RE = /^@(?:end(?:step|verify|uncertainty|solution|q)|(?:step|verify|uncertainty|solution|q)end)$/i;
+
+/**
+ * A capsule the chat stopped writing, cut after its last closed top-level block (D38), or null
+ * when no block closed. The cut-off block is dropped whole, never shown half-written.
+ */
+export function closedPrefix(text: string): string | null {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const last = lines.findLastIndex((line) => BLOCK_CLOSE_RE.test(line.trim()));
+  return last < 0 ? null : lines.slice(0, last + 1).join('\n');
+}
+
 function reindex(steps: Step[]): Step[] {
   return steps.map((s, i) => ({ ...s, index: i + 1 }));
 }
@@ -252,9 +265,4 @@ export function groupResumeParts(parts: string[]): string[] {
   }
   if (pending) out.push(pending.raw);
   return out;
-}
-
-export function questionsOf(capsule: Capsule | undefined, extras?: Capsule[]): Capsule[] {
-  if (extras && extras.length > 0) return extras;
-  return capsule ? [capsule] : [];
 }

@@ -67,7 +67,7 @@ describe('EmptyState', () => {
   it('does not show the load CTA when this chat has nothing to load', () => {
     hasConversationToLoad.mockReturnValue(false);
     const { container, unmount } = mount();
-    expect(container.textContent).toContain('Type a question in the chat, then start stemLM.');
+    expect(container.textContent).toContain('Type a question in the chat, then start stemlm.');
     expect(container.textContent).not.toContain(LOAD_FROM_CHAT_LABEL);
     unmount();
   });

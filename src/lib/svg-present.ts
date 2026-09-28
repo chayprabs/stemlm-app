@@ -378,7 +378,12 @@ function ensureShapeStrokes(root: Element, theme: ResolvedTheme): void {
   }
 }
 
-function themeSvgTree(root: Element, theme: ResolvedTheme): void {
+/** Compiler paper (interiors behind wires or text): a surface just above the figure card. */
+function themePaperFill(theme: ResolvedTheme): string {
+  return theme === 'dark' ? '#232323' : '#ffffff';
+}
+
+function themeSvgTree(root: Element, theme: ResolvedTheme, compiled: boolean): void {
   const textTags = new Set(['text', 'tspan']);
 
   for (const el of root.querySelectorAll('*')) {
@@ -386,10 +391,14 @@ function themeSvgTree(root: Element, theme: ResolvedTheme): void {
     const tag = el.tagName.toLowerCase();
     const isText = textTags.has(tag);
 
+    const rawStroke = normColor(el.getAttribute('stroke'));
     for (const attr of ['stroke', 'fill'] as const) {
       const raw = normColor(el.getAttribute(attr));
       if (!raw) continue;
-      const mapped = mapColor(raw, theme, attr);
+      // Ink (a shape filled with its own outline colour) stays one colour in every theme.
+      const mapped = attr === 'fill' && compiled && raw === '#ffffff'
+        ? themePaperFill(theme)
+        : mapColor(raw, theme, attr === 'fill' && raw === rawStroke ? 'stroke' : attr);
       if (mapped !== raw) el.setAttribute(attr, mapped);
     }
 
@@ -773,7 +782,7 @@ export function presentSvg(
 
   prefixSvgIds(root);
   normalizeAllMarkers(root);
-  themeSvgTree(root, theme);
+  themeSvgTree(root, theme, compiled);
   syncMarkerFills(root);
   normalizeLabelTypography(root);
   if (!compiled) {

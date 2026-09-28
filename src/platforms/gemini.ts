@@ -92,4 +92,3 @@ const config: AdapterConfig = {
 };
 
 export const geminiAdapter = createAdapter(config);
-export const geminiConfig = config;

@@ -188,7 +188,10 @@ export function hasConfirmedAttachment(filename: string, root: ParentNode = docu
       let preview = el;
       let blocked = Boolean(el.closest('[aria-busy="true"]'));
       while (!blocked) {
-        blocked = Boolean(preview.querySelector('[aria-busy="true"], [role="progressbar"]')) ||
+        // A composer box can itself look like a preview (Gemini: "with-file-preview"); the stemlm +
+        // docked in it is busy while attaching and is no host upload.
+        blocked = [...preview.querySelectorAll('[aria-busy="true"], [role="progressbar"]')]
+          .some((busy) => !busy.closest('[data-stemlm-composer-slot]')) ||
           /upload failed|failed to upload|file not supported|unsupported file|upload error|couldn.t upload/i.test(preview.textContent ?? '');
         const parent = preview.parentElement?.closest(previewSelector);
         if (!parent || parent === root || !root.contains(parent)) break;
@@ -380,6 +383,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Gemini has taken ~18 s to name an uploaded text file. */
+const STARTED_UPLOAD_MS = 30_000;
+
+/**
+ * Wait for `filename` after one attempt. When that attempt visibly started an upload (a preview
+ * appeared where there was none), wait for it instead of answering it with a second upload.
+ */
+async function waitForUpload(
+  opt: WaitAttachmentOptions,
+  filename: string,
+  timeoutMs: number,
+  hadPreview: boolean,
+): Promise<'confirmed' | 'started' | 'none'> {
+  if (await waitForAttachment({ ...opt, filename, timeoutMs })) return 'confirmed';
+  if (hadPreview || !hasAnyAttachment(opt.root ?? document)) return 'none';
+  return (await waitForAttachment({ ...opt, filename, timeoutMs: STARTED_UPLOAD_MS })) ? 'confirmed' : 'started';
+}
+
 export interface AttachTextFileOptions extends FindFileInputOptions, WaitAttachmentOptions {
   filename?: string;
   dropTargets?: string[];
@@ -400,7 +421,7 @@ async function tryAdditiveAttach(
   targets: string[],
   timeoutMs: number,
   opt: WaitAttachmentOptions,
-): Promise<'drop' | 'paste' | null> {
+): Promise<'drop' | 'paste' | 'started' | null> {
   const seen = new Set<HTMLElement>();
   const els: HTMLElement[] = [];
   for (const sel of targets) {
@@ -418,11 +439,12 @@ async function tryAdditiveAttach(
   }
 
   for (const el of els) {
-    if (tryDropFile(el, file) && (await waitForAttachment({ ...opt, filename, timeoutMs }))) {
-      return 'drop';
-    }
-    if (tryPasteFile(el, file) && (await waitForAttachment({ ...opt, filename, timeoutMs }))) {
-      return 'paste';
+    for (const [method, send] of [['drop', tryDropFile], ['paste', tryPasteFile]] as const) {
+      const hadPreview = hasAnyAttachment(opt.root ?? document);
+      if (!send(el, file)) continue;
+      const outcome = await waitForUpload(opt, filename, timeoutMs, hadPreview);
+      if (outcome === 'confirmed') return method;
+      if (outcome === 'started') return 'started';
     }
   }
   return null;
@@ -456,6 +478,7 @@ export async function attachTextFile(
   if (opt.inputIsAdditive && !directInput) return { ok: false, method: 'none' };
   if (!directInput) {
     const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs, opt);
+    if (additive === 'started') return { ok: false, method: 'none' };
     if (additive) return { ok: true, method: additive };
   }
 
@@ -469,11 +492,12 @@ export async function attachTextFile(
     return { ok: false, method: 'none' };
   }
 
+  const hadPreview = hasAnyAttachment(root);
   if (!assignFileToInput(input, file, { keepExisting: true })) return { ok: false, method: 'none' };
 
   if (opt.requireConfirmation) {
-    const confirmed = await waitForAttachment({ ...opt, filename });
-    return confirmed ? { ok: true, method: 'input' } : { ok: false, method: 'none' };
+    const outcome = await waitForUpload(opt, filename, opt.timeoutMs ?? 4000, hadPreview);
+    return outcome === 'confirmed' ? { ok: true, method: 'input' } : { ok: false, method: 'none' };
   }
 
   const files = input.files ? Array.from(input.files) : [];

@@ -105,7 +105,6 @@ describe('background launch + pending recovery', () => {
     });
     useStore.setState({
       panelOpen: false,
-      savedLibraryOpen: false,
       buttonInjected: false,
       sessions: [],
       status: 'idle',

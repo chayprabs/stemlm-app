@@ -848,6 +848,23 @@ describe('library chrome CSS', () => {
     unmount();
   });
 
+  it('shows row actions at full contrast with a visible label on keyboard focus (LIB-ICONS-01)', () => {
+    const css = pagesCss();
+    const actions = css.slice(css.indexOf('.slm-library-row-actions {'));
+    expect(actions.slice(0, actions.indexOf('}'))).not.toMatch(/opacity:\s*0?\.\d/);
+    expect(css).toMatch(/\.slm-library-icon-btn:focus-visible::after\s*\{[^}]*content:\s*attr\(data-label\)/);
+
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    for (const action of ['download', 'open', 'delete']) {
+      const button = container.querySelector(`[data-action="${action}"]`);
+      expect(button?.getAttribute('data-label'), action).toBeTruthy();
+    }
+    expect(container.querySelector('[data-action="delete"]')?.getAttribute('data-label')).toBe('Delete');
+    unmount();
+  });
+
   it('keeps the subject as a kicker rather than a box inside the row', () => {
     const css = pagesCss();
     const meta = css.slice(css.indexOf('.slm-library-row-meta {'));

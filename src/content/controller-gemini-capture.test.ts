@@ -47,6 +47,6 @@ describe('Gemini closing fence capture', () => {
     expect(await controller.loadConversation({ maxWaitMs: 0 })).toBe(0);
     expect(useStore.getState().sessions).toHaveLength(0);
     expect(useStore.getState().errorMessage).toMatch(/incomplete|couldn't read/i);
-    expect(useStore.getState().errorMessage).not.toMatch(/No stemLM answers/);
+    expect(useStore.getState().errorMessage).not.toMatch(/No stemlm answers/i);
   });
 });

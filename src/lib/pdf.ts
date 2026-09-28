@@ -29,13 +29,14 @@ import {
   type RenderedPage,
 } from './pdf-raster';
 import { trackEvent } from './analytics';
-import { FONT_CSS_HREF, FONT_MONO, FONT_SANS } from './fonts';
+import { FONT_MONO, FONT_SANS, fontFaceCss } from './fonts';
 import { BRAND_SIGNAL } from '@/src/components/brand';
-/** Reuse the installed panel font/CSS build; report documents carry their fonts offline. */
+/** KaTeX layout rules; the report embeds the bundled faces of fonts.ts (no CDN, works offline). */
 import katexCssRaw from './katex.min.css.txt?raw';
-const katexFonts = import.meta.glob<string>('/node_modules/katex/dist/fonts/*.woff2', {
-  eager: true, query: '?inline', import: 'default',
-});
+const embeddedFonts = {
+  ...import.meta.glob<string>('/node_modules/katex/dist/fonts/*.woff2', { eager: true, query: '?inline', import: 'default' }),
+  ...import.meta.glob<string>('/assets/fonts/ibm-plex/*.woff2', { eager: true, query: '?inline', import: 'default' }),
+};
 
 export type PdfExportMethod = 'print' | 'download' | 'view' | 'failed';
 
@@ -97,22 +98,55 @@ const T = {
   radiusMd: '10px',
 } as const;
 
-function katexPrintCss(): string {
-  return katexCssRaw.replace(/src:url\(fonts\/([^)]*\.woff2)\)[^;}]+/g, (_match, name: string) => {
-    const font = katexFonts[`/node_modules/katex/dist/fonts/${name}`];
-    if (!font) throw new Error(`Missing bundled math font: ${name}`);
-    return `src:url(${font}) format("woff2")`;
-  });
+function embeddedFont(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const font = Object.entries(embeddedFonts).find(([file]) => file.endsWith(`/${name}`))?.[1];
+  if (!font) throw new Error(`Missing bundled font: ${name}`);
+  return font;
 }
 
-/** Basename Chrome uses for Save as PDF — not the question, topic, or chat host. */
-export function reportFilename(_session?: Session): string {
-  return 'stemLM';
+function reportFontCss(): string {
+  return fontFaceCss(embeddedFont) + katexCssRaw.replace(/@font-face\{[^}]*\}/g, '');
 }
 
-/** Tab / print-job title. Keep it off the question so Save as PDF is stemLM.pdf. */
+const PDF_NAME_MAX = 60;
+
+/** Local calendar date, so a PDF saved in the evening is not dated tomorrow (UTC). */
+function localDate(ms: number): string {
+  return new Date(ms).toLocaleDateString('sv-SE'); // yyyy-mm-dd
+}
+
+/** ASCII lowercase-hyphen words, cut at a word boundary to fit `max`. */
+function slug(text: string, max: number): string {
+  const words = text
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7f]/g, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  let out = '';
+  for (const word of words) {
+    const next = out ? `${out}-${word}` : word;
+    if (next.length > max) break;
+    out = next;
+  }
+  return out;
+}
+
+/**
+ * Download basename: `stemlm - <topic> - <yyyy-mm-dd>`, at most 60 characters with `.pdf`.
+ * The topic comes from the answer, never the question text or the chat host.
+ */
+export function reportFilename(session?: Session): string {
+  const date = localDate(session && session.createdAt > 0 ? session.createdAt : Date.now());
+  const room = PDF_NAME_MAX - `stemlm -  - ${date}.pdf`.length;
+  const topic = slug(session?.capsule.meta.topic ?? '', room);
+  return topic ? `stemlm - ${topic} - ${date}` : `stemlm - ${date}`;
+}
+
+/** Tab / print-job title. Short and off the question. */
 export function reportPrintTitle(_session?: Session): string {
-  return 'stemLM';
+  return 'stemlm';
 }
 
 interface ResolvedDiagrams {
@@ -255,7 +289,7 @@ function tryRender(where: string, build: () => ReactElement): string | null {
 }
 
 function reportShell(body: string, title: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><link rel="stylesheet" href="${FONT_CSS_HREF}"><style>${katexPrintCss()}${printStyles()}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${reportFontCss()}${printStyles()}</style></head><body>${body}</body></html>`;
 }
 
 export function buildReportDocument(
@@ -412,10 +446,10 @@ function pdfFileName(session?: Session): string {
   return `${reportFilename(session)}.pdf`;
 }
 
-/** Basename for a merged export. Says what it is and how much is in it. */
+/** Basename for a merged export. Says what it is, how much is in it, and when. */
 export function mergedPdfFileName(count: number): string {
   if (count <= 1) return pdfFileName();
-  return `stemLM-${count}-questions.pdf`;
+  return `stemlm - ${count} questions - ${localDate(Date.now())}.pdf`;
 }
 
 /** Put a PDF blob in the default Downloads folder. Never opens a save/print picker. */

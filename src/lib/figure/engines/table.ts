@@ -382,8 +382,10 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     }
     const headerLine = headerValues[0] ?? headerAliasValues[0];
     headers = headerLine === undefined ? [] : parseTableCsv(headerLine);
+    // A consistently semicolon-delimited table keeps the commas inside its cells.
+    const semicolonTable = Boolean(headerLine?.includes(';') && !headerLine.includes(','));
     const rowLines = [...specGetAll(spec, 'row'), ...specList(spec, 'rows')];
-    rows = rowLines.map(parseTableCsv);
+    rows = rowLines.map((line) => (semicolonTable ? line.split(';').map((cell) => cell.trim()) : parseTableCsv(line)));
   } else {
     return failure('refused', `table_unsupported_kind:${kind}`);
   }
@@ -411,6 +413,21 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const globalHeaderWidths = headers.length ? columnWidths(headers, [], headers.length, gridW, FONT_MIN) : null;
   const wrappingMinimumWidths = minimumWidths;
   const headerOffset = hasLeadingRowKeyColumn(headers, rows, cols) ? 1 : 0;
+  const unwrappedWidths = Array.from({ length: cols }, () => TABLE_MIN_COLUMN_WIDTH);
+  const measureUnwrapped = (value: string, column: number) => {
+    if (column >= 0 && column < cols) {
+      unwrappedWidths[column] = Math.max(unwrappedWidths[column]!, cellMeasure(value, FONT_MIN).w + TABLE_CELL_INSET * 2);
+    }
+  };
+  headers.forEach((header, column) => measureUnwrapped(header, column + headerOffset));
+  rows.forEach((row) => row.forEach((value, cell) => measureUnwrapped(value, rowCellColumn(row.length, cell, cols))));
+  const unwrappedTotal = unwrappedWidths.reduce((sum, width) => sum + width, 0);
+  const fitsUnwrapped = unwrappedTotal <= gridW;
+  // A table of short cells that is merely too wide for the nominal frame stays one coherent grid at its
+  // natural width (presentation scales it); splitting its columns into panels only fragments it.
+  const shortCellMatrix = headers.length === cols && rows.length > 0 && rows.every((row) => row.length === cols)
+    && [...headers, ...rows.flat()].every((cell) => cellMeasure(cell, FONT_MIN).w <= 130)
+    && !fitsUnwrapped && unwrappedTotal <= gridW * 1.75;
   for (let columnTileCount = 1; columnTileCount <= cols; columnTileCount++) {
     const candidateW = (gridW - panelGap * (columnTileCount - 1)) / columnTileCount;
     if (candidateW <= 0) continue;
@@ -444,10 +461,11 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     }
     if (rowGroups && columnGroups && rowHeights) break;
   }
-  const wideMatrixRequired = (!rowGroups || !columnGroups || columnGroups.length > 1)
-    && needsWideCoherentMatrix(headers, rows, cols, gridW, FONT_MIN);
+  const columnsSplit = !rowGroups || !columnGroups || columnGroups.length > 1;
+  const shortWide = columnsSplit && shortCellMatrix;
+  const wideMatrixRequired = shortWide || (columnsSplit && needsWideCoherentMatrix(headers, rows, cols, gridW, FONT_MIN));
   if (wideMatrixRequired) {
-    const wideWidths = minimumColumnWidths(headers, rows, cols, FONT_MIN, gridW)
+    const wideWidths = shortWide ? unwrappedWidths.map((width) => width + 2) : minimumColumnWidths(headers, rows, cols, FONT_MIN, gridW)
       .map((width) => width + TABLE_CELL_INSET * 4);
     const wideGridW = wideWidths.reduce((sum, width) => sum + width, 0);
     const coherentRows = [Array.from({ length: rows.length }, (_, row) => row)];
@@ -475,7 +493,7 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
       rowsAcross = false;
       legacyTiling = false;
       b.width = Math.max(w, wideGridW + 24);
-      b.height = Math.max(h, 24 + captionBand + requiredHeight, b.width + 1);
+      b.height = shortWide ? Math.max(h, 24 + captionBand + requiredHeight) : Math.max(h, 24 + captionBand + requiredHeight, b.width + 1);
     }
     if (!rowGroups || !columnGroups || !rowHeights || rowGroups.length !== 1 || columnGroups.length !== 1 || columnGroups[0]!.length !== cols) {
       return failure('unsatisfiable', 'table_content_exceeds_frame');
@@ -541,21 +559,13 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   }
   // If only height is constrained, grow a coherent table before splitting its
   // columns. Keep the existing wrapping/tiling choice for width-heavy prose.
-  const unwrappedWidths = Array.from({ length: cols }, () => TABLE_MIN_COLUMN_WIDTH);
-  const measureUnwrapped = (value: string, column: number) => {
-    if (column >= 0 && column < cols) {
-      unwrappedWidths[column] = Math.max(unwrappedWidths[column]!, cellMeasure(value, FONT_MIN).w + TABLE_CELL_INSET * 2);
-    }
-  };
-  headers.forEach((header, column) => measureUnwrapped(header, column + headerOffset));
-  rows.forEach((row) => row.forEach((value, cell) => measureUnwrapped(value, rowCellColumn(row.length, cell, cols))));
-  const fitsUnwrapped = unwrappedWidths.reduce((sum, width) => sum + width, 0) <= gridW;
   if ((!rowGroups || !columnGroups || !rowHeights) && !fitsUnwrapped) {
     // When several columns cannot share a readable fixed-width tile, stack
     // single-column panels vertically so phrases can wrap at word boundaries.
     if (cols > 1) {
       const stackedRows = [Array.from({ length: rows.length }, (_, row) => row)];
-      const stackedColumns = preserveRowIdentity(Array.from({ length: cols }, (_, column) => [column]), cols);
+      // Each panel pairs the row keys with one data column; the keys never get a panel of their own.
+      const stackedColumns = Array.from({ length: cols - 1 }, (_, column) => [0, column + 1]);
       const stackedHeights = rowHeightsFor(
         headers,
         rows,
@@ -568,7 +578,7 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
         Boolean(headers.length),
       );
       const panelHeight = stackedHeights?.[0]?.reduce((sum, height) => sum + height, 0);
-      const stackedHeight = panelHeight === undefined ? undefined : panelHeight * cols + panelGap * (cols - 1);
+      const stackedHeight = panelHeight === undefined ? undefined : panelHeight * stackedColumns.length + panelGap * (stackedColumns.length - 1);
       if (stackedHeights && panelHeight !== undefined && stackedHeight !== undefined && Number.isFinite(stackedHeight)) {
         rowGroups = stackedRows;
         columnGroups = stackedColumns;
@@ -629,14 +639,22 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
         highlightIds.push(highlightId);
         b.rect(highlightId, headerBounds[column]! + 1, 13, globalHeaderWidths[column]! - 2, 18, { color: 'accent', role: 'annotation', width: 1.4 });
       }
-      b.label(id, cell, (headerBounds[column]! + headerBounds[column + 1]!) / 2, headerY, { protected: true, priority: 'required', katex: isMath(cell) });
+      b.label(id, cell, (headerBounds[column]! + headerBounds[column + 1]!) / 2, headerY, { protected: true, priority: 'required', katex: isMath(cell), notation: kind === 'ice' && column > 0 ? 'chem' : undefined });
     }
     b.line('table-header-rule', 12, 32, 12 + gridW, 32, { color: 'muted', width: 1, role: 'axis' });
   }
 
   if (caption) {
-    if (cellMeasure(caption, FONT_FLOOR).w > b.width - 24) return failure('unsatisfiable', 'table_caption_exceeds_frame');
-    b.label('table-caption', caption, b.width / 2, b.height - 10, { protected: true, priority: 'preferred', katex: isMath(caption) });
+    // A long caption wraps under the grid at the size it renders, and the frame grows for the extra
+    // lines; a word that cannot fit, or more than three lines, still fails.
+    const lines = wrapCell(caption, b.width - 24, FONT_MIN);
+    if (!lines || lines.length > 3) return failure('unsatisfiable', 'table_caption_exceeds_frame');
+    const step = cellMeasure('', FONT_MIN).h + TABLE_LABEL_LINE_GAP;
+    b.height += (lines.length - 1) * step;
+    lines.forEach((line, index) => {
+      const y = b.height - 10 - (lines.length - 1 - index) * step;
+      b.label(index ? `table-caption-${index}` : 'table-caption', line, b.width / 2, y, { protected: true, priority: 'required', katex: isMath(line) });
+    });
   }
 
   const split = rowGroups.length > 1 || columnGroups.length > 1;
@@ -664,7 +682,7 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
       }
       for (let r = 1; r < heights.length; r++) b.line(split ? `${frameId}-hr${r}` : `hr${r}`, x0, y0 + rowTops[r]!, x0 + tileW, y0 + rowTops[r]!, { color: 'muted', width: 1, role: 'axis' });
 
-      const paint = (text: string, c: number, rowTop: number, rowHeight: number, id: string, hl = false, spanEnd = c + 1): boolean => {
+      const paint = (text: string, c: number, rowTop: number, rowHeight: number, id: string, hl = false, spanEnd = c + 1, notation?: 'chem'): boolean => {
         const cellLeft = xBounds[c]!;
         const cellRight = xBounds[spanEnd]!;
         const cellTop = y0 + rowTop;
@@ -692,7 +710,7 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
           if (maxLineX + 1e-6 < minLineX) return false;
           const lineX = Math.max(minLineX, Math.min(cellCenterX, Math.max(minLineX, maxLineX)));
           const lineY = lineTop + lineHeights[lineIndex]! / 2;
-          b.label(lineId, line, lineX, lineY, { protected: true, priority: 'required', katex: isMath(line) });
+          b.label(lineId, line, lineX, lineY, { protected: true, priority: 'required', katex: isMath(line), notation });
           lineTop += lineHeights[lineIndex]! + TABLE_LABEL_LINE_GAP;
         }
         return true;
@@ -716,7 +734,9 @@ export function compileTable(spec: SpecDoc, ctx: CompileCtx): CompileResult {
           const spanEnd = isGroupedTail || (headerOffset === 0 && headerColumn === headers.length - 1 && headers.length < cols)
             ? columnGroup.length
             : localColumn + 1;
-          if (!paint(cell, localColumn, rowTops[0]!, heights[0]!, id, matchingHighlight(cell, [id], spec.highlight, exactHighlightValues), spanEnd)) {
+          // ICE column headers are chemical species.
+          const notation = kind === 'ice' && headerColumn > 0 ? 'chem' as const : undefined;
+          if (!paint(cell, localColumn, rowTops[0]!, heights[0]!, id, matchingHighlight(cell, [id], spec.highlight, exactHighlightValues), spanEnd, notation)) {
             return failure('unsatisfiable', 'table_content_exceeds_frame');
           }
         }

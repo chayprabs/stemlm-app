@@ -20,8 +20,6 @@ export type PanelView = 'steps' | 'solution';
 export interface StoreState {
   // UI
   panelOpen: boolean;
-  savedLibraryOpen: boolean;
-  settingsOpen: boolean;
   status: PanelStatus;
   errorMessage?: string;
   view: PanelView;
@@ -47,10 +45,6 @@ export interface StoreState {
   openPanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
-  openSavedLibrary: () => void;
-  closeSavedLibrary: () => void;
-  openSettings: () => void;
-  closeSettings: () => void;
   setStatus: (status: PanelStatus, errorMessage?: string) => void;
   setView: (view: PanelView) => void;
   setTheme: (theme: ResolvedTheme) => void;
@@ -75,8 +69,6 @@ export interface StoreState {
 
 export const useStore = create<StoreState>((set, get) => ({
   panelOpen: false,
-  savedLibraryOpen: false,
-  settingsOpen: false,
   status: 'idle',
   view: 'steps',
   theme: 'light',
@@ -90,10 +82,6 @@ export const useStore = create<StoreState>((set, get) => ({
   openPanel: () => set({ panelOpen: true }),
   closePanel: () => set({ panelOpen: false }),
   togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
-  openSavedLibrary: () => set({ savedLibraryOpen: true, settingsOpen: false }),
-  closeSavedLibrary: () => set({ savedLibraryOpen: false }),
-  openSettings: () => set({ settingsOpen: true, savedLibraryOpen: false }),
-  closeSettings: () => set({ settingsOpen: false }),
   setStatus: (status, errorMessage) => set({ status, errorMessage }),
   setView: (view) => set({ view }),
   setTheme: (theme) => set({ theme }),

@@ -287,18 +287,6 @@ export function stepQualityMessage(code: ParseWarningCode, step: Step): string {
       return `Step ${step.index} ("${title}") is missing worked explanation.`;
   }
 }
-
-export function stepHasQualityIssues(step: Step, opt?: StepQualityContext): boolean {
-  return auditStepQuality(step, opt).length > 0;
-}
-
-export function primaryStepQualityIssue(
-  step: Step,
-  opt?: StepQualityContext,
-): ParseWarningCode | null {
-  return auditStepQuality(step, opt)[0] ?? null;
-}
-
 const HARD_STEP_QUALITY_CODES = new Set<ParseWarningCode>([
   'missing_step_body',
   'formula_without_body',

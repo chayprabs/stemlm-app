@@ -9,7 +9,7 @@ import { applyTheme } from '@/src/lib/theme';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import type { Session } from '@/src/protocol/types';
 
-const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSavedSessionMock, setSettingsMock, exportSessionPdfMock } =
+const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSavedSessionMock, setSettingsMock, requestSessionPdfMock } =
   vi.hoisted(() => ({
     saveSessionMock: vi.fn(async () => ({ prunedCount: 0 })),
     deleteSavedSessionMock: vi.fn(async () => undefined),
@@ -25,7 +25,7 @@ const { saveSessionMock, deleteSavedSessionMock, isSessionSavedMock, refreshSave
       contentScale: 2,
       ...patch,
     })),
-    exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
+    requestSessionPdfMock: vi.fn(async () => true),
   }));
 
 vi.mock('@/src/lib/saved-sessions', () => ({
@@ -40,8 +40,9 @@ vi.mock('@/src/lib/settings', async (importOriginal) => {
   return { ...actual, setSettings: setSettingsMock };
 });
 
-vi.mock('@/src/lib/pdf', () => ({
-  exportSessionPdf: exportSessionPdfMock,
+// D7: the panel hands the session to pdf.html; it never builds a PDF in the chat tab.
+vi.mock('@/src/lib/pdf-export-request', () => ({
+  requestSessionPdf: requestSessionPdfMock,
 }));
 
 vi.mock('wxt/browser', () => ({
@@ -160,7 +161,7 @@ beforeEach(() => {
   refreshSavedSessionMock.mockReset();
   refreshSavedSessionMock.mockResolvedValue(false);
   setSettingsMock.mockClear();
-  exportSessionPdfMock.mockClear();
+  requestSessionPdfMock.mockClear();
   useStore.setState({
     panelOpen: false,
     status: 'idle',
@@ -531,9 +532,9 @@ describe('Panel empty / loading / banner states', () => {
     const { container, unmount } = mountPanel();
 
     const panel = container.querySelector('[role="complementary"]');
-    expect(panel?.getAttribute('aria-label')).toBe('stemLM study panel');
+    expect(panel?.getAttribute('aria-label')).toBe('stemlm study panel');
     expect(container.textContent).toContain('Study workspace');
-    expect(container.textContent).toContain('Type a question in the chat, then start stemLM.');
+    expect(container.textContent).toContain('Type a question in the chat, then start stemlm.');
     expect(container.textContent).not.toContain('beside send');
     expect(container.textContent).not.toContain('Open Gemini');
     expect(container.textContent).not.toContain('Load conversation from this chat');
@@ -737,7 +738,7 @@ describe('Panel ready session', () => {
     await flush();
 
     const panel = container.querySelector('[role="complementary"]') as HTMLElement;
-    expect(panel.getAttribute('aria-label')).toBe('stemLM study panel');
+    expect(panel.getAttribute('aria-label')).toBe('stemlm study panel');
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Show progressive diagrams');
     expect(container.querySelector('.slm-question-icon')?.textContent).toMatch(/Q\./);
     expect(container.querySelector('.slm-question-icon')?.innerHTML).not.toContain('<svg');
@@ -844,7 +845,8 @@ describe('Panel ready session', () => {
       pdfBtn.click();
       await Promise.resolve();
     });
-    expect(exportSessionPdfMock).toHaveBeenCalledOnce();
+    expect(requestSessionPdfMock).toHaveBeenCalledOnce();
+    expect((requestSessionPdfMock.mock.calls[0] as unknown[])[0]).toMatchObject({ id: session.id });
 
     const themeBtn = container.querySelector(
       'button[aria-label="Switch to dark theme"]',

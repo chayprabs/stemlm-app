@@ -41,14 +41,26 @@ describe('split-screen', () => {
     expect(document.documentElement.classList.contains('stemlm-split-dragging')).toBe(true);
   });
 
-  it('shrinks the host far enough for the minimum panel on a narrow viewport', () => {
+  it('overlays instead of crushing the chat on a narrow viewport (UI-SMALL-01, D29)', () => {
     const previous = window.innerWidth;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
     try {
       applySplit(0.75, false);
+      expect(document.documentElement.classList.contains('stemlm-split')).toBe(false);
+      expect(document.getElementById(SPLIT_STYLE_ID)).toBeNull();
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous });
+    }
+  });
+
+  it('shrinks the host only down to a phone-width column at medium widths (UI-SMALL-01)', () => {
+    const previous = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+    try {
+      applySplit(0.75, false);
       const style = document.getElementById(SPLIT_STYLE_ID)?.textContent ?? '';
-      expect(style).toContain('calc(12.5vw - 8px)');
-      expect(style).toContain('max-width:calc(100vw - 87.5vw - 8px)');
+      expect(style).toContain('calc(40vw - 8px)');
+      expect(style).toContain('max-width:calc(100vw - 60vw - 8px)');
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: previous });
     }

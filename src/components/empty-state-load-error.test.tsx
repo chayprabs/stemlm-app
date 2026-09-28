@@ -17,7 +17,7 @@ it('does not describe a detected but unreadable answer as absent', async () => {
   try {
     await act(async () => { root.render(<EmptyState />); });
     await act(async () => { container.querySelector('button')!.click(); });
-    expect(container.textContent).not.toContain('No stemLM answers found');
+    expect(container.textContent).not.toMatch(/No stemlm answers found/i);
     expect(container.textContent).toContain('could not be loaded');
   } finally { act(() => root.unmount()); }
 });

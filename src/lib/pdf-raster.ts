@@ -404,6 +404,61 @@ function sliceToDataUrl(
   return page.toDataURL('image/png');
 }
 
+/** User units kept around a trimmed figure: covers stroke width and arrowheads. */
+const FIGURE_TRIM_PAD = 8;
+
+/**
+ * Print figures are laid out in the 480 x 275 print frame and a short drawing
+ * leaves most of it empty. Crop each report figure's viewBox to what it draws
+ * (shapes plus its HTML math labels), at the same scale, so the DIAGRAM box fits
+ * the figure (PDF-DIAG-01). Needs real layout; an unmeasurable figure is left as is.
+ */
+export function trimReportFigures(root: ParentNode): void {
+  for (const svg of root.querySelectorAll<SVGSVGElement>('.slm-report-diagram .slm-diagram-svg > svg')) {
+    const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number) as [number, number, number, number];
+    const rect = svg.getBoundingClientRect();
+    const width = Number(svg.getAttribute('width'));
+    if (!(vw > 0 && vh > 0 && rect.width > 0 && width > 0)) continue;
+    let box: { x: number; y: number; width: number; height: number };
+    try {
+      box = svg.getBBox();
+    } catch {
+      continue;
+    }
+    if (!(box.width > 0 && box.height > 0)) continue;
+    const px = rect.width / vw;
+    const overlays = [...(svg.closest('.slm-diagram-frame')?.querySelectorAll<HTMLElement>('.slm-diagram-overlay') ?? [])];
+    let [x0, y0, x1, y1] = [box.x, box.y, box.x + box.width, box.y + box.height];
+    for (const overlay of overlays) {
+      const r = overlay.getBoundingClientRect();
+      x0 = Math.min(x0, vx + (r.left - rect.left) / px);
+      y0 = Math.min(y0, vy + (r.top - rect.top) / px);
+      x1 = Math.max(x1, vx + (r.right - rect.left) / px);
+      y1 = Math.max(y1, vy + (r.bottom - rect.top) / px);
+    }
+    const nx = Math.max(vx, x0 - FIGURE_TRIM_PAD);
+    const ny = Math.max(vy, y0 - FIGURE_TRIM_PAD);
+    const nw = Math.min(vx + vw, x1 + FIGURE_TRIM_PAD) - nx;
+    const nh = Math.min(vy + vh, y1 + FIGURE_TRIM_PAD) - ny;
+    if (nw >= vw - 1 && nh >= vh - 1) continue;
+    const scale = width / vw;
+    const w = Math.round(nw * scale);
+    const h = Math.round(nh * scale);
+    svg.setAttribute('viewBox', `${nx} ${ny} ${nw} ${nh}`);
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.style.width = `${w}px`;
+    svg.style.height = `${h}px`;
+    // Labels are positioned in percent of the old viewBox; keep their user-space point.
+    for (const overlay of overlays) {
+      const ux = vx + (parseFloat(overlay.style.left) / 100) * vw;
+      const uy = vy + (parseFloat(overlay.style.top) / 100) * vh;
+      overlay.style.left = `${((ux - nx) / nw) * 100}%`;
+      overlay.style.top = `${((uy - ny) / nh) * 100}%`;
+    }
+  }
+}
+
 /**
  * Lay the report out once, then rasterise it a few pages at a time. Chunking
  * caps peak canvas memory, so merging twenty questions costs the same working
@@ -421,6 +476,7 @@ export async function renderHtmlToPageImages(
 
   try {
     await settle(frame.doc, frame.win);
+    trimReportFigures(frame.root);
     // KaTeX positions stretchy SVGs against inline layout. Freeze the measured
     // local geometry before html2canvas clones it into a different document.
     for (const svg of frame.root.querySelectorAll<SVGSVGElement>('.katex svg')) {

@@ -170,10 +170,7 @@ When the caller supplies a fixed queue family, use it only when it can represent
 For broad topics, match the named source class before choosing a related special case. Expose its defining construction, not a nearby special case. Topic-only: structure over peripheral question; causal curves show balance; other routes preserve axes/curves/data; no apparatus fallback.
 Use recurring reference constructions, not one experiment.
 When no fixed queue family is supplied, choose the first subject-row engine family that can express the defining construction.
-Typed specs: schema, never a prose paragraph. field=dipole|parallel-plate|wire|solenoid|TE10; hybridpi=rpi,gm,re,rc; opamp=rf,rg; McCabe=α,zF,xD,R,q; SFD=V/M. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec.
-For `mo`/`ladder`, each `levels:`, `left:`, or `right:` entry is `id energy occupancy`, semicolon-separated; energy is numeric, occupancy integer, and `molecule:` is the title. Ladders do not depict orbital lobes or molecular geometry.
-For `sphere`, `radius:` is positive finite within bounds; `center:` labels center and `nodes:` labels surface points; `caption:` carries symbolic relationships; never emit `radius:` as a symbol.
-Legacy `ray` uses numeric `f:`/`do:` plus `element:` (`ho:` alone is insufficient). Generic rays use `source:`, `target:`, and `ray:` relations limited to `incident|reflected|refracted|transmitted|normal|construction`.
+Typed specs: schema, never a prose paragraph. field=dipole|parallel-plate|wire|solenoid|TE10; SFD=V/M. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec. Optics is type=scene kind: ray with f, do, ho.
 For fbd: body: id; support: pin|roller|fixed target (type first, target second); member: kind from to (body ids); force: id [magnitude units] D on body. Bare D is up|down|left|right|up_left|up_right|down_left|down_right|up_incline|down_incline|normal+|weight (horizontal|vertical are angle references only), or at n deg from x|y|horizontal|vertical|incline|surface|force; incline_deg: slopes. Include every known force magnitude with its unit; normalize comparable forces to the same unit. Force arrows primarily show directions and bodies of application. Labels marked schematic must not be measured for magnitude; retain the stated values. Use a quantitative plot when exact vector-length ratios are required.
 Every type=scene block begins with exactly one kind: line.
 Geometry: relation kind from to; cycle needs one; exactly one from, kind, and to. IDs use letters, digits, or underscores. Allowed kinds: tangent|projects|joins|lies-on|perpendicular|perpendicular-to|normal|normal-to. point: id x y; segment: id from to; relation: kind from to (one token); forbid: from kind to; angle: id vertex value; dimension: id from to label (known endpoints); angles require deg|°; never emit scaffold:. Physical: part id role; relation from action to.
@@ -188,7 +185,7 @@ Molecular: strand id dna|rna 5to3|3to5; primer/fragment on strand+orientation; f
 ENGINE KEY SCHEMAS — authoritative grammar for the five engines and their named variants. Template grammar follows under TEMPLATE FORMS; registry need/any fields are admission hints, not syntax. Never borrow keys between families. Repeated keys are allowed only where the grammar says repeat.
 Before emitting a circuit spec, reconstruct its connectivity as a node graph. Emit one device line per visible component. Terminals joined by uninterrupted conductor MUST use the same node token; terminals separated by a component MUST use different tokens. Count-check source components against device lines and verify every device's terminal nodes. Never invent input/output labels, merge distinct nodes, or add a ground rail absent from the source.
 SCHEMA circuit key=std :: ieee|iec; copy @meta locale circuit convention.
-SCHEMA circuit key=probe :: <label>=<declared-node>; one probe.
+SCHEMA circuit key=probe :: <label>=<declared-node>; repeat for each labelled node.
 SCHEMA circuit key=highlight :: <declared-device-or-scene-id>[,<id>...].
 SCHEMA circuit key=wire :: <declared-node> <declared-node>; repeat for explicit connections.
 SCHEMA circuit key=port :: <declared-node> input|output|return; repeat.
@@ -197,16 +194,16 @@ SCHEMA circuit key=caption :: accepted compatibility metadata, not rendered; nev
 SCHEMA circuit key=kind :: accepted compatibility metadata, not rendered; never place required content here.
 SCHEMA circuit key=title :: accepted compatibility metadata, not rendered; never place required content here.
 SCHEMA plot key=kind :: function|waveform|discrete|step|comparison|bode.
-SCHEMA plot key=domain :: <finite-min> <finite-max>, with max greater than min.
+SCHEMA plot key=domain :: <finite-min> <finite-max>, max > min.
 SCHEMA plot key=var :: <identifier used by every function expression>; default x.
 SCHEMA plot key=fn :: <Pratt expression in var>; repeat for multiple function series.
-SCHEMA plot key=fn2 :: <Pratt expression in var>; repeat as additional function series.
-SCHEMA plot key=data :: <x>,<y>; <x>,<y>; repeat for multiple sampled series.
-SCHEMA plot key=logx :: any non-empty value selects logarithmic x; all x/domain values positive.
-SCHEMA plot key=logy :: any non-empty value selects logarithmic y; all y values positive.
+SCHEMA plot key=fn2 :: <Pratt expression in var>; repeat as extra function series.
+SCHEMA plot key=data :: <x>,<y>; <x>,<y>; repeat per series; one line under function, dots under discrete|comparison.
+SCHEMA plot key=logx :: any non-empty value selects log x; all x/domain values > 0.
+SCHEMA plot key=logy :: any non-empty value selects log y; all y values > 0.
 SCHEMA plot key=scale :: x=linear|log y=linear|log.
 SCHEMA plot key=panel :: <id> role=<function|waveform|continuous|step|discrete|sample|observation>; repeat.
-SCHEMA plot key=label :: curve=<series-id> value=<text> | axis=x|y value=<text> | region value=<text>; repeat.
+SCHEMA plot key=label :: curve=<series-id> value=<text> | axis=x|y value=<text> | region value=<text> (needs region:); repeat.
 SCHEMA plot key=xlabel :: <x-axis label text>.
 SCHEMA plot key=ylabel :: <y-axis label text>.
 SCHEMA plot key=eq :: <KaTeX equation label>; repeat in series order.
@@ -221,7 +218,7 @@ SCHEMA plot key=guide :: vertical=<x> | horizontal=<y> | reference=<series-id> |
 SCHEMA plot key=drop :: x|y|both; applies to every point marker.
 SCHEMA plot key=asymptote :: x=<finite-x> | y=<finite-y>; repeat.
 SCHEMA plot key=region :: between=<series-id>[,<series-id>] from=<x-min> to=<x-max>; repeat.
-SCHEMA plot key=shade :: <x-min> <x-max>; legacy shade between the first function and zero.
+SCHEMA plot key=shade :: <x-min> <x-max>; legacy fill from the first fn to zero.
 SCHEMA plot key=caption :: <caption text>.
 SCHEMA plot key=highlight :: <rendered series-or-marker id>[,<id>...].
 SCHEMA scene key=kind :: exactly one fbd|geom|geometry|molecular|gas|gas-state|gas-scene|thermo|thermodynamic|thermodynamic-graph|state-graph|apparatus|cycle|map|network|structure|ray|optics|field.
@@ -295,7 +292,7 @@ SCHEMA table.punnett key=rows :: <row gamete>,<row gamete>... .
 SCHEMA table.punnett key=cells :: list form; one indented `- <cell>,<cell>...` per row gamete, with cardinality equal to cols.
 
 FORMAT SPECIMENS — each compiles; values are format-only placeholders. Copy the keys, then replace every value with question content.
-SCHEMA circuit device-key=<designator> :: uppercase R|C|L|V|I|D|M|S<id>: <n1> <n2> [value], or A<id>: <n1> <n2> <n3> [value]; SPECIMEN follows.
+SCHEMA circuit device-key=<designator> :: uppercase R|C|L|V|I|D|M|S<id>: <n1> <n2> [value] (M = meter), or A<id>: <n1> <n2> <n3> [value]; transistors Q<id>: <collector> <base> <emitter> npn|pnp [value] and M<id>: <drain> <gate> <source> nmos|pmos [value], with ground 0 and the supply as a DC source to 0; SPECIMEN follows.
 @diagram id=f1 type=circuit
 std: ieee
 V_source: node_input 0 DC 1
@@ -347,14 +344,22 @@ H: ?
 @enddiagram
 
 TEMPLATE FORMS — family-specific grammar; no cross-family keys. The examples are syntax illustrations, never answers to the student's problem. Replace identifiers and values from the source. Scalar keys occur once; repeat only the named records. Unsupported details MUST NOT be silently simplified.
-CHEMISTRY: chem.smiles uses smiles: <one connected molecule>; annotate: <short note> repeats up to three. The supported organic/bracket subset includes explicit bond orders, aromatic rings, isotope, charge and bracket hydrogen counts. Isomeric stereo markers, disconnected/reaction SMILES and arbitrary bracket attributes are not implemented. Never remove them to force a render. Highlight only existing atom-<zero-based-index> or bond identifiers. Lewis atoms:/formula: is only an atom-chain schematic; lone pairs, formal charges or molecular bond orders needing an exact Lewis structure cannot be represented by this template. Use a faithful alternative only if it preserves all required chemistry.
-FISCHER: backbone: <top group>,<internal center>,...,<bottom group>; left: and right: paired comma lists with exactly one substituent per internal center, in top-to-bottom order. Both horizontal lists are required when stereochemistry matters; do not leave substituents implicit. NEWMAN: front: and back: exactly three comma-separated substituents in angular order; axis: <bond label>; deg: finite relative rotation. VSEPR: ax: AXnEm; center: atom; geom: matching geometry. Do not confuse electron-domain geometry with molecular shape or assert impossible coordination.
-MO/LADDER: levels:, left:, right:, center: contain semicolon-separated id energy occupancy tuples; ids unique per column, energy finite, occupancy integer. molecule: title; electrons: non-negative integer annotation; mix: true|false. Explicit level occupancy still determines the drawing; do not use electrons: to imply unlisted occupancy. JABLONSKI: levels: id energy occupancy; ground below excited states. Do not use a level ladder to depict orbital lobes.
+CHEMISTRY: chem.smiles uses smiles: <one connected molecule>; annotate: <short note> repeats up to three. The supported organic/bracket subset includes explicit bond orders, aromatic rings, isotope, charge and bracket hydrogen counts; write pyrrole-type aromatic nitrogen as [nH]; at most 30 heavy atoms; a lone atom or ion belongs in the text. Isomeric stereo markers, disconnected/reaction SMILES and arbitrary bracket attributes are not implemented. Never remove them to force a render. Highlight only existing atom-<zero-based-index> or bond identifiers. Lewis structures have no family: explain them in @body.
+FISCHER: backbone: <top group>,<internal center>,...,<bottom group>; left: and right: paired comma lists with exactly one substituent per internal center, in top-to-bottom order. Both horizontal lists are required when stereochemistry matters; do not leave substituents implicit.
 GEL: lanes: comma-separated unique ids; bands: lane:size,lane:size,...; alternatively repeat band: lane size [bp|kb|kDa]. Fragment sizes are positive; DNA and protein units cannot be mixed. Equal sizes align and smaller fragments migrate farther. This is an ordered schematic, not a calibrated migration-distance measurement. Include every lane and band from the source.
-ONELINE: bus: comma-separated ids; node: id description repeats; connection: from to [description] repeats; -> marks an explicit directed connection. A declared bus is a bus object even when it also has a node description. No invented buses or connections.
 TIMING: repeat signal: id waveform; waveform symbols 0,1,x,z,.,p,n use equal time cells; . extends a level (or continues a clock period), p/n are clocks. Every signal uses the same cell count. Bus data values, sub-cycle offsets and phase attributes are not supported; do not invent keys or discard those requirements.
-SFD: L: positive numeric span; supports: pin@x, roller@x; loads: point LABEL down@x for downward point loads only. V: and M: are semicolon-separated x value samples covering 0 through L in nondecreasing x order. Use consistent force/length/moment units. Repeat a V station for a shear jump; M is continuous without a couple. Between moment samples, the change in M must equal the area under V. Pin/roller beam ends have zero moment. Explicit fixed supports, upward/distributed load glyphs and applied couples are not supported in this family; use a supported quantitative plot for the solved curves if it preserves the question's required information. The source specifies sampled polylines, so include sufficient samples for smooth curves; never imply an exact curved function from two endpoints.
-ARRAY: cells: comma-separated cells with semicolons between rows; layout: centered; order: row-major. Preserve ragged rows; never truncate to a rectangle. CYCLE: nodes: comma-separated ids expresses a schematic state sequence; for an explicit closed directed cycle use kind: directed-cycle, repeated node: id role and edge: from to relation, and order: id -> id -> ... -> first-id. Include every directed edge; do not encode branches as a simple cycle.
+SFD: L: span; supports: pin@x, roller@x; loads: point <value> down@x (downward point loads only). V: and M: are `x value` samples joined by semicolons from 0 to L in nondecreasing x; repeat an x for a shear jump. Use consistent units; the change in M between samples equals the area under V; M is continuous and zero at pin/roller ends. Fixed supports, distributed or upward loads and couples are not drawn here (use plot). Sample curves densely; never two endpoints for a curve.
+ARRAY: cells: comma-separated cells with semicolons between rows (≤8 rows, ≤12 cells a row). Preserve ragged rows; never truncate to a rectangle. LIST: nodes: comma-separated values in link order, head first (≤10, unique); each node points to the next. STACK: layers: comma-separated, top first (≤8). HASH: m: bucket count 1..10; buckets: <index>: <value>, <value>; <index>: <value> — values in chain order, only for occupied buckets.
+CYCLE: a closed directed cycle only: kind: directed-cycle; node: <id> <role> repeats (the id is the drawn name, ≤8 characters); edge: <from> <to> <relation> for every consecutive pair; order: <id> -> <id> -> ... -> <first id>. Branches or an open sequence are type=graph.
+PHASOR: vec: <label> <magnitude>∠<degrees> repeats; all vectors share one scale, so draw quantities of one kind (all voltages, or all currents) per figure.
+KMAP: vars: AB,CD (row,column variables; or A,B,C; 2–4, first = MSB); minterms: 0,2,…; dontcares: optional; Gray order is automatic.
+VSEPR: geom: AXnEm (AX4, AX3E, AX2E2 … AX6); center: <atom>; ligands: one per bond.
+NEWMAN: front:, back: three groups each, clockwise from the top; deg: dihedral (0 eclipsed, 60 gauche, 180 anti); view: sawhorse optional.
+MO: left:/right: atomic, center: molecular levels, each `<name> <energy> <electrons>` joined by ; (2p -15.8 4; π*2p -10 2); the name sets degeneracy, Hund filling is automatic. CFT: geom: octahedral|tetrahedral; d: <n>; spin: high|low for octahedral d4–d7.
+SPLITTING: mult: t, q, septet, dd, dt …; j: one J per coupling (10, 4 Hz).
+TRUSS: joints: A 0 0; B 4 0 (name x y, y up); members: A-B, …; supports: pin@A, roller@B; loads: <value> down|up|left|right@<joint>.
+GANTT: jobs: <name> <start> <duration>; … (non-overlapping jobs form one CPU lane; names may repeat); tnow: optional.
+MOHR: sx:, sy:, txy: plane stresses in one unit.
 SCHEMA sfd key=V/M :: complete numeric ordinate series in consistent units. SPECIMEN follows: span 6 m, downward point load 12 kN at 2 m; reactions 8 kN and 4 kN; shear in kN, moment in kN m.
 @diagram id=fshear type=sfd
 L: 6
@@ -375,18 +380,101 @@ backbone: CHO,C,CH2OH
 left: H
 right: OH
 @enddiagram
-SCHEMA oneline key=bus :: comma-separated ids; connection: from to description. SPECIMEN follows.
-@diagram id=fbus type=oneline
-bus: input,output
-node: input source
-node: output load
-connection: input output feeder
-@enddiagram
 SCHEMA chem.smiles key=smiles :: one connected supported molecule. SPECIMEN follows; preserve charge and hydrogen count.
 @diagram id=fmolecule type=chem.smiles
 smiles: C[NH3+]
 @enddiagram
+SCHEMA timing key=signal :: <id> <waveform>; repeat with equal cell counts. SPECIMEN follows with format-only names.
+@diagram id=ftiming type=timing
+signal: clock p.......
+signal: input 0.1..0..
+signal: output 0..1...0
+@enddiagram
+SCHEMA array key=cells :: comma-separated cells, semicolons between rows. SPECIMEN follows with placeholders.
+@diagram id=farray type=array
+cells: a0,a1,a2;b0,b1
+@enddiagram
+SCHEMA list key=nodes :: values in link order, head first. SPECIMEN follows with placeholders.
+@diagram id=flist type=list
+nodes: v0,v1,v2
+@enddiagram
+SCHEMA stack key=layers :: values, top first. SPECIMEN follows with placeholders.
+@diagram id=fstack type=stack
+layers: top,middle,bottom
+@enddiagram
+SCHEMA hash key=buckets :: <index>: <values in chain order>; one entry per occupied bucket. SPECIMEN follows with placeholders.
+@diagram id=fhash type=hash
+m: 4
+buckets: 0: k0; 2: k1, k2
+@enddiagram
+SCHEMA cycle key=order :: <id> -> ... -> <first id>, with a node and an edge record for every step. SPECIMEN follows with placeholders.
+@diagram id=fcycle type=cycle
+kind: directed-cycle
+node: s1 state
+node: s2 state
+node: s3 state
+edge: s1 s2 step
+edge: s2 s3 step
+edge: s3 s1 step
+order: s1 -> s2 -> s3 -> s1
+@enddiagram
+SCHEMA phasor key=vec :: <label> <magnitude>∠<degrees>; one quantity kind per figure. SPECIMEN follows with placeholders.
+@diagram id=fphasor type=phasor
+vec: V_ref 1∠0
+vec: V_lag 0.5∠-30
+@enddiagram
 
+SCHEMA kmap key=minterms :: see KMAP. SPECIMEN follows.
+@diagram id=fkmap type=kmap
+vars: AB,CD
+minterms: 0,2,8,10
+@enddiagram
+SCHEMA vsepr key=geom :: see VSEPR. SPECIMEN follows.
+@diagram id=fvsepr type=vsepr
+geom: AX3E
+center: A
+ligands: X,X,X
+@enddiagram
+SCHEMA newman key=deg :: see NEWMAN. SPECIMEN follows.
+@diagram id=fnewman type=newman
+front: G,H,H
+back: G,H,H
+deg: 180
+@enddiagram
+SCHEMA mo key=center :: see MO. SPECIMEN follows.
+@diagram id=fmo type=mo
+left: 1s -13.6 1
+right: 1s -13.6 1
+center: σ1s -18 2; σ*1s -5 0
+@enddiagram
+SCHEMA cft key=spin :: see CFT. SPECIMEN follows.
+@diagram id=fcft1 type=cft
+geom: octahedral
+d: 6
+spin: low
+@enddiagram
+SCHEMA splitting key=j :: see SPLITTING. SPECIMEN follows.
+@diagram id=fsplitting type=splitting
+mult: t
+j: 7 Hz
+@enddiagram
+SCHEMA truss key=joints :: see TRUSS. SPECIMEN follows.
+@diagram id=ftruss type=truss
+joints: A 0 0; B 4 0; C 2 3
+members: A-B, B-C, C-A
+supports: pin@A, roller@B
+loads: F down@C
+@enddiagram
+SCHEMA gantt key=jobs :: see GANTT. SPECIMEN follows.
+@diagram id=fgantt type=gantt
+jobs: J1 0 3; J2 3 2; J1 5 1
+@enddiagram
+SCHEMA mohr key=sx :: see MOHR. SPECIMEN follows.
+@diagram id=fmohr type=mohr
+sx: 40
+sy: 10
+txy: 8
+@enddiagram
 FIRST PASS: self-check one fence ending `__END__` (or closed @resume); every step has id/worked body; every needed diagram is closed and names body objects; question is verbatim; verify/uncertainty are present; last step verifies.
 
 Apply every registry below.

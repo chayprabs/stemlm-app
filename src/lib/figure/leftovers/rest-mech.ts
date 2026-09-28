@@ -1,4 +1,5 @@
-import type { CompileCtx, CompileResult } from '../types';
+import { FONT_MIN, type CompileCtx, type CompileResult } from '../types';
+import { boxesOverlap, distPointSeg, measureText, type Box as Rect, type Segment as Seg } from '../geom';
 import { specGet, specHasEmptyDelimitedValue, specList, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
@@ -26,7 +27,6 @@ function rejectUnsupportedKey(spec: SpecDoc, family: string, allowed: readonly s
 }
 
 const TRUSS_KEYS = ['caption', 'highlight', 'joints', 'l', 'loads', 'members', 'supports'] as const;
-const COLUMN_KEYS = ['caption', 'ends', 'highlight', 'joints', 'l', 'loads', 'members', 'supports'] as const;
 
 function hasEmptyItems(spec: SpecDoc, ...keys: string[]): boolean {
   return keys.some((key) => specHasEmptyDelimitedValue(spec, key));
@@ -112,183 +112,281 @@ function parseEdges(spec: SpecDoc, key: string): ParsedEdges {
 
 function labelValue(raw: string): string { return raw.replace(/\s*@\s*[^\s]+\s*$/, '').trim(); }
 
-function positions(names: string[], width: number, height: number): Map<string, Point> {
-  const result = new Map<string, Point>();
-  const columns = Math.ceil(Math.sqrt(Math.max(names.length, 1)));
-  const rows = Math.ceil(Math.max(names.length, 1) / columns);
-  names.forEach((name, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    result.set(name, {
-      x: columns === 1 ? width / 2 : 30 + (column * (width - 60)) / (columns - 1),
-      y: rows === 1 ? height / 2 : 28 + (row * (height - 56)) / (rows - 1),
-    });
-  });
-  return result;
-}
 
-function graphData(spec: SpecDoc): { names: string[]; edges: Edge[]; malformed: string[]; duplicates: string[] } {
-  const parsed = parseEdges(spec, 'members');
-  const names = unique([
-    ...items(spec, 'joints').map((item) => item.split(/[|\s]/)[0] ?? item),
-    ...parsed.edges.flatMap((edge) => [edge.a, edge.b]),
-  ]);
-  return { names, edges: parsed.edges, malformed: parsed.malformed, duplicates: parsed.duplicates };
-}
+const LOAD_DIRECTION: Record<string, Point> = { down: { x: 0, y: 1 }, up: { x: 0, y: -1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 
-function drawGraph(b: SceneBuilder, data: { names: string[]; edges: Edge[] }, width: number, height: number): Map<string, Point> {
-  const { names, edges } = data;
-  if (!names.length || !edges.length) return new Map();
-  const at = positions(names, width, height);
-  edges.forEach((edge) => {
-    const a = at.get(edge.a);
-    const z = at.get(edge.b);
-    if (a && z) b.line(`member-${edge.a}-${edge.b}`, a.x, a.y, z.x, z.y, { role: 'geometry', width: 1.8 });
-  });
-  names.forEach((name) => {
-    const point = at.get(name)!;
-    b.circle(`joint-${name}`, point.x, point.y, 3.5, { role: 'geometry', color: 'accent', fill: 'solid' });
-    b.label(`joint-${name}-label`, name, point.x, point.y, { priority: 'optional' });
-  });
-  return at;
-}
-
-function drawSupportAt(b: SceneBuilder, id: string, kind: string, point: Point): void {
-  if (kind.toLowerCase().includes('roller')) {
-    b.circle(`${id}-roller`, point.x, point.y + 8, 4, { role: 'geometry' });
-    b.line(`${id}-ground`, point.x - 9, point.y + 14, point.x + 9, point.y + 14, { role: 'boundary', color: 'muted' });
-  } else {
-    b.polygon(`${id}-pin`, [point.x - 8, point.y + 12, point.x + 8, point.y + 12, point.x, point.y], { role: 'geometry', fill: 'none' });
-    b.line(`${id}-ground`, point.x - 10, point.y + 14, point.x + 10, point.y + 14, { role: 'boundary', color: 'muted' });
+/** `A 0 0; B 4 0` → named joints in drawing units (y up). Names without coordinates → null. */
+function trussJoints(spec: SpecDoc): Map<string, Point> | null | 'malformed' {
+  const joints = new Map<string, Point>();
+  for (const item of items(spec, 'joints')) {
+    const parts = item.trim().split(/\s+/);
+    if (parts.length === 1) return null;
+    const [name, x, y] = parts;
+    if (parts.length !== 3 || !/^[A-Za-z][A-Za-z0-9_']*$/.test(name!) || !Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return 'malformed';
+    if ([...joints.keys()].some((known) => known.toLowerCase() === name!.toLowerCase())) return 'malformed';
+    joints.set(name!, { x: Number(x), y: Number(y) });
   }
+  return joints;
 }
 
-function pointForTarget(at: Map<string, Point>, target: string | undefined): Point | undefined {
-  if (!target) return undefined;
-  const key = [...at.keys()].find((name) => name.toLowerCase() === target.toLowerCase());
-  return key ? at.get(key) : undefined;
+function rectAround(cx: number, cy: number, text: string): Rect {
+  const { w, h } = measureText(text, FONT_MIN);
+  return { x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2 };
 }
 
-function drawGraphAnnotations(b: SceneBuilder, spec: SpecDoc, at: Map<string, Point>): string | null {
-  items(spec, 'supports').forEach((item, index) => {
-    const match = /^(.*?)@\s*([^\s]+)$/.exec(item);
-    const kind = match?.[1]?.trim() ?? item;
-    const target = match?.[2]?.trim();
-    if (!/^(?:pin|roller)$/i.test(kind)) return;
-    if (target && !pointForTarget(at, target)) return;
-    const point = pointForTarget(at, target) ?? [...at.values()][index];
-    if (point) drawSupportAt(b, `support-${index}`, kind, point);
-  });
-  items(spec, 'loads').forEach((item, index) => {
-    const point = at.get(/@\s*([^\s]+)$/.exec(item)?.[1] ?? '') ?? [...at.values()][index % Math.max(at.size, 1)];
-    if (!point) return;
-    b.line(`load-${index}`, point.x, point.y - 24, point.x, point.y - 4, { color: 'danger', role: 'annotation', markerEnd: true });
-    b.label(`load-${index}-label`, labelValue(item), point.x, point.y - 29, { priority: 'optional' });
-  });
-  const unknownSupport = items(spec, 'supports').map((item) => /^(.*?)@\s*([^\s]+)$/.exec(item)?.[2]?.trim()).find((target) => target && !pointForTarget(at, target));
-  if (unknownSupport) return `support references unknown joint ${unknownSupport}`;
-  const unsupportedSupport = items(spec, 'supports').map((item) => {
-    const kind = /^(.*?)@\s*([^\s]+)$/.exec(item)?.[1]?.trim() ?? item.trim();
-    return /^(?:pin|roller)$/i.test(kind) ? undefined : kind;
-  }).find(Boolean);
-  if (unsupportedSupport) return `unsupported support kind ${unsupportedSupport}`;
-  const unknownLoad = items(spec, 'loads').map((item) => /@\s*([^\s]+)$/.exec(item)?.[1]?.trim()).find((target) => target && !pointForTarget(at, target));
-  if (unknownLoad) return `load references unknown joint ${unknownLoad}`;
-  return null;
+/** The box for `text` whose nearest side is `gap` from (x, y) along the unit direction u. */
+function rectBeyond(x: number, y: number, u: Point, gap: number, text: string): Rect {
+  const { w, h } = measureText(text, FONT_MIN);
+  const reach = gap + Math.abs(u.x) * w / 2 + Math.abs(u.y) * h / 2;
+  return rectAround(x + u.x * reach, y + u.y * reach, text);
 }
 
+const segMeetsRect = (s: Seg, r: Rect, pad = 2) => Array.from({ length: 41 }, (_, k) => k / 40).some((t) => {
+  const x = s.x1 + (s.x2 - s.x1) * t;
+  const y = s.y1 + (s.y2 - s.y1) * t;
+  return x > r.x1 - pad && x < r.x2 + pad && y > r.y1 - pad && y < r.y2 + pad;
+});
+
+/**
+ * FIG-TRUSS-01: a truss drawn from its joint coordinates (y up, one uniform scale). Supports sit under their joints,
+ * each load arrow ends at its joint pointing the stated way (down unless up/left/right) with its value at the tail,
+ * and each joint name takes the first direction around the joint that clears every member, glyph and other name.
+ */
 export function compileTruss(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('truss', ctx, spec);
   const unsupported = rejectUnsupportedKey(spec, 'truss', TRUSS_KEYS);
   if (unsupported) return unsupported;
-  if (hasEmptyItems(spec, 'joints', 'members')) return fail('truss contains an empty joint or member declaration');
-  const graph = graphData(spec);
-  if (graph.malformed.length) return fail('truss contains a malformed member declaration');
-  if (graph.duplicates.length) return fail('truss contains a duplicate member declaration');
-  const at = drawGraph(b, graph, b.width, b.height - 8);
-  if (!at.size || !graph.edges.length) return fail('truss requires named joints and members');
+  if (hasEmptyItems(spec, 'joints', 'members', 'supports', 'loads')) return fail('truss contains an empty joint or member declaration');
+  const members = parseEdges(spec, 'members');
+  if (members.malformed.length) return fail('truss contains a malformed member declaration');
+  if (members.duplicates.length) return fail('truss contains a duplicate member declaration');
+  if (!members.edges.length) return fail('truss requires named joints and members');
+  const supports: Array<{ kind: string; joint: string }> = [];
+  for (const item of items(spec, 'supports')) {
+    const match = /^(.*?)@\s*([^\s]+)$/.exec(item);
+    if (!match) return fail(`truss support needs a joint: ${item}`);
+    if (!/^(?:pin|roller)$/i.test(match[1]!.trim())) return fail(`unsupported support kind ${match[1]!.trim()}`);
+    supports.push({ kind: match[1]!.trim().toLowerCase(), joint: match[2]! });
+  }
+  const loads: Array<{ text: string; joint: string; u: Point }> = [];
+  for (const item of items(spec, 'loads')) {
+    const match = /^(.*?)@\s*([^\s]+)$/.exec(item);
+    if (!match || !match[1]!.trim()) return fail(`truss load needs a value and a joint: ${item}`);
+    const words = match[1]!.trim().split(/\s+/);
+    const direction = LOAD_DIRECTION[words.at(-1)!.toLowerCase()] ? words.pop()!.toLowerCase() : 'down';
+    const text = words.join(' ').replace(/^([+-]?\d+(?:\.\d+)?)\s*([A-Za-z]+)$/, '$1 $2');
+    if (!text) return fail(`truss load needs a value: ${item}`);
+    loads.push({ text, joint: match[2]!, u: LOAD_DIRECTION[direction]! });
+  }
+  const declared = trussJoints(spec);
+  if (declared === 'malformed') return fail('truss joints are written name x y; name x y');
+  const names = declared ? [...declared.keys()] : unique(items(spec, 'joints'));
+  const find = (name: string) => names.find((known) => known.toLowerCase() === name.toLowerCase());
+  const unknown = [...members.edges.flatMap((edge) => [edge.a, edge.b]), ...supports.map((s) => s.joint), ...loads.map((l) => l.joint)].find((name) => !find(name));
+  if (unknown) return fail(`truss references undeclared joint ${unknown}`);
+  if (!declared) return fail('truss joints need coordinates (name x y); a layout would invent the geometry');
+  const pts = [...declared.values()];
+  if (pts.some((p, i) => pts.slice(i + 1).some((q) => p.x === q.x && p.y === q.y))) return fail('truss has two joints at one point');
+  const minX = Math.min(...pts.map((p) => p.x));
+  const maxX = Math.max(...pts.map((p) => p.x));
+  const minY = Math.min(...pts.map((p) => p.y));
+  const maxY = Math.max(...pts.map((p) => p.y));
   const length = numericValue(spec, 'l');
   if (length === null || (typeof length === 'number' && length <= 0)) return fail('truss length must be numeric and positive');
-  if (typeof length === 'number') b.label('length-label', `L=${length}`, b.width / 2, 15, { priority: 'preferred' });
-  const annotationError = drawGraphAnnotations(b, spec, at);
-  if (annotationError) return fail(annotationError);
-  return layoutAndCompile(b.scene());
-}
+  if (typeof length === 'number' && Math.abs(length - (maxX - minX)) > 1e-6 * Math.max(1, length)) return fail('truss L contradicts the joint coordinates');
 
-export function compileColumn(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('column', ctx, spec);
-  const unsupported = rejectUnsupportedKey(spec, 'column', COLUMN_KEYS);
-  if (unsupported) return unsupported;
-  if (hasEmptyItems(spec, 'joints', 'members')) return fail('column contains an empty joint or member declaration');
-  const graph = graphData(spec);
-  if (graph.malformed.length) return fail('column contains a malformed member declaration');
-  if (graph.duplicates.length) return fail('column contains a duplicate member declaration');
-  const length = numericValue(spec, 'l');
-  if (length === null || (typeof length === 'number' && length <= 0)) return fail('column length must be numeric and positive');
-  const at = drawGraph(b, graph, b.width, b.height - 8);
-  if (!at.size || !graph.edges.length) {
-    if (specGet(spec, 'ends')) {
-      b.line('member-column', b.width / 2, 20, b.width / 2, b.height - 25, { role: 'geometry', width: 2 });
-      b.label('ends-label', specGet(spec, 'ends')!, b.width / 2, b.height / 2, { priority: 'preferred' });
-      if (typeof length === 'number') b.label('length-label', `L=${length}`, b.width / 2, 15, { priority: 'preferred' });
-      return layoutAndCompile(b.scene());
-    }
-    return fail('column requires named joints and members');
+  const nominal = frameSize(ctx.profile);
+  const margin = 50;
+  const scale = Math.min(
+    maxX > minX ? (nominal.w - 2 * margin) / (maxX - minX) : Infinity,
+    maxY > minY ? (2.2 * nominal.h - 2 * margin) / (maxY - minY) : Infinity,
+  );
+  if (!Number.isFinite(scale)) return fail('truss joints need extent');
+  const shortest = Math.min(...members.edges.map((edge) => Math.hypot(declared.get(find(edge.a)!)!.x - declared.get(find(edge.b)!)!.x, declared.get(find(edge.a)!)!.y - declared.get(find(edge.b)!)!.y)));
+  if (shortest * scale < 24) return { ok: false, code: 'refused', reason: 'truss members are too short to draw legibly at this size' };
+  const at = new Map(names.map((name) => [name, { x: (declared.get(name)!.x - minX) * scale, y: -(declared.get(name)!.y - minY) * scale }]));
+
+  // Fixed items first: members, supports, load arrows and their values; then each joint name.
+  const segs: Seg[] = members.edges.map((edge) => ({ x1: at.get(find(edge.a)!)!.x, y1: at.get(find(edge.a)!)!.y, x2: at.get(find(edge.b)!)!.x, y2: at.get(find(edge.b)!)!.y }));
+  const taken: Rect[] = supports.map((s) => ({ x1: at.get(find(s.joint)!)!.x - 10, y1: at.get(find(s.joint)!)!.y, x2: at.get(find(s.joint)!)!.x + 10, y2: at.get(find(s.joint)!)!.y + 15 }));
+  // A load arrow ends at its joint, or — when that side is taken by a member — starts there; its value sits at the far end.
+  const loadDrawn: Array<{ arrow: Seg; label: Rect }> = [];
+  for (const load of loads) {
+    const p = at.get(find(load.joint)!)!;
+    const options = [-1, 1].map((side) => {
+      const far = { x: p.x + side * load.u.x * 30, y: p.y + side * load.u.y * 30 };
+      const near = { x: p.x + side * load.u.x * 4, y: p.y + side * load.u.y * 4 };
+      const arrow = side < 0 ? { x1: far.x, y1: far.y, x2: near.x, y2: near.y } : { x1: near.x, y1: near.y, x2: far.x, y2: far.y };
+      return { arrow, label: rectBeyond(far.x, far.y, { x: side * load.u.x, y: side * load.u.y }, 3, load.text), far };
+    });
+    const clean = options.find((option) => {
+      const alongMember = Array.from({ length: 9 }, (_, k) => 0.1 + k * 0.1).some((t) => segs.some((s) => distPointSeg(
+        option.arrow.x1 + (option.arrow.x2 - option.arrow.x1) * t, option.arrow.y1 + (option.arrow.y2 - option.arrow.y1) * t, s) < 3));
+      return !alongMember &&
+        ![...segs, ...loadDrawn.map((l) => l.arrow)].some((s) => segMeetsRect(s, option.label)) &&
+        !loadDrawn.some((l) => segMeetsRect(option.arrow, l.label) || boxesOverlap(l.label, option.label, 2)) &&
+        !taken.some((r) => boxesOverlap(r, option.label, 2));
+    });
+    if (!clean) return { ok: false, code: 'refused', reason: `truss load ${load.text} cannot be drawn clear of the members` };
+    loadDrawn.push({ arrow: clean.arrow, label: clean.label });
   }
-  if (typeof length === 'number') b.label('length-label', `L=${length}`, b.width / 2, 15, { priority: 'preferred' });
-  const first = [...at.values()][0]!;
-  const last = [...at.values()].at(-1)!;
-  b.path('buckled-axis', `M ${first.x} ${first.y} Q ${Math.max(first.x, last.x) + 20} ${b.height / 2} ${last.x} ${last.y}`, { color: 'accent', role: 'guide', dash: true });
-  const annotationError = drawGraphAnnotations(b, spec, at);
-  if (annotationError) return fail(annotationError);
+  const lines = [...segs, ...loadDrawn.map((load) => load.arrow)];
+  taken.push(...loadDrawn.map((load) => load.label));
+  const nameBoxes = new Map<string, Rect>();
+  for (const name of names) {
+    const p = at.get(name)!;
+    const busy = [
+      ...segs.filter((s) => (s.x1 === p.x && s.y1 === p.y) || (s.x2 === p.x && s.y2 === p.y)).map((s) => Math.atan2((s.x1 === p.x && s.y1 === p.y ? s.y2 : s.y1) - p.y, (s.x1 === p.x && s.y1 === p.y ? s.x2 : s.x1) - p.x)),
+      ...loads.filter((l) => find(l.joint) === name).map((l) => Math.atan2(-l.u.y, -l.u.x)),
+      ...(supports.some((s) => find(s.joint) === name) ? [Math.PI / 2] : []),
+    ].sort((a, b) => a - b);
+    const gaps = busy.length
+      ? busy.map((angle, i) => {
+        const next = i + 1 < busy.length ? busy[i + 1]! : busy[0]! + 2 * Math.PI;
+        return { mid: (angle + next) / 2, size: next - angle };
+      }).sort((a, b) => b.size - a.size).map((gap) => gap.mid)
+      : [-Math.PI / 4];
+    const candidates = [...gaps, ...Array.from({ length: 16 }, (_, k) => (k * Math.PI) / 8)];
+    const box = candidates.map((angle) => rectBeyond(p.x, p.y, { x: Math.cos(angle), y: Math.sin(angle) }, 5, name))
+      .find((r) => !lines.some((s) => segMeetsRect(s, r)) && ![...taken, ...nameBoxes.values()].some((t) => boxesOverlap(t, r, 2)));
+    if (!box) return { ok: false, code: 'refused', reason: `truss joint ${name} cannot be named clear of its members` };
+    nameBoxes.set(name, box);
+  }
+
+  const textH = measureText('0', FONT_MIN).h;
+  const boxes = [...taken, ...nameBoxes.values(), ...lines.map((s) => ({ x1: Math.min(s.x1, s.x2), y1: Math.min(s.y1, s.y2), x2: Math.max(s.x1, s.x2), y2: Math.max(s.y1, s.y2) }))];
+  const spanY = Math.max(...boxes.map((r) => r.y2)) + 12;
+  const bounds = {
+    x1: Math.min(...boxes.map((r) => r.x1)),
+    y1: Math.min(...boxes.map((r) => r.y1)),
+    x2: Math.max(...boxes.map((r) => r.x2)),
+    y2: typeof length === 'number' ? spanY + 6 + textH : Math.max(...boxes.map((r) => r.y2)),
+  };
+  const b = new SceneBuilder('truss', Math.max(nominal.w, bounds.x2 - bounds.x1 + 16), Math.max(nominal.h, bounds.y2 - bounds.y1 + 16));
+  b.hl(spec.highlight);
+  const ox = (b.width - (bounds.x2 - bounds.x1)) / 2 - bounds.x1;
+  const oy = (b.height - (bounds.y2 - bounds.y1)) / 2 - bounds.y1;
+  members.edges.forEach((edge, i) => b.line(`member-${edge.a}-${edge.b}`, ox + segs[i]!.x1, oy + segs[i]!.y1, ox + segs[i]!.x2, oy + segs[i]!.y2, { role: 'geometry', width: 1.8 }));
+  supports.forEach((support) => {
+    const p = at.get(find(support.joint)!)!;
+    const [x, y] = [ox + p.x, oy + p.y];
+    const id = `support-${find(support.joint)!}`;
+    if (support.kind === 'roller') {
+      b.circle(`${id}-roller`, x, y + 7, 4, { role: 'geometry' });
+      b.line(`${id}-ground`, x - 10, y + 13, x + 10, y + 13, { role: 'boundary', color: 'muted' });
+    } else {
+      b.polygon(`${id}-pin`, [x - 8, y + 12, x + 8, y + 12, x, y], { role: 'geometry', fill: 'none' });
+      b.line(`${id}-ground`, x - 10, y + 14, x + 10, y + 14, { role: 'boundary', color: 'muted' });
+    }
+  });
+  loadDrawn.forEach((load, index) => {
+    b.line(`load-${index}`, ox + load.arrow.x1, oy + load.arrow.y1, ox + load.arrow.x2, oy + load.arrow.y2, { color: 'danger', role: 'annotation', markerEnd: true });
+    b.label(`load-${index}-label`, loads[index]!.text, ox + (load.label.x1 + load.label.x2) / 2, oy + (load.label.y1 + load.label.y2) / 2, { protected: true, anchorId: `load-${index}` });
+  });
+  for (const name of names) {
+    const p = at.get(name)!;
+    const box = nameBoxes.get(name)!;
+    b.circle(`joint-${name}`, ox + p.x, oy + p.y, 3, { role: 'geometry', fill: 'ink' });
+    b.label(`joint-${name}-label`, name, ox + (box.x1 + box.x2) / 2, oy + (box.y1 + box.y2) / 2, { protected: true, anchorId: `joint-${name}` });
+  }
+  if (typeof length === 'number') {
+    const [x1, x2, y] = [ox, ox + (maxX - minX) * scale, oy + spanY];
+    b.line('span-line', x1, y, x2, y, { color: 'muted', role: 'guide', width: 1, markerStart: true, markerEnd: true });
+    b.label('length-label', `L = ${length}`, (x1 + x2) / 2, y + 4 + textH / 2, { protected: true, anchorId: 'span-line' });
+  }
   return layoutAndCompile(b.scene());
 }
 
+/** Three significant figures, no trailing zeros. */
+function sig3(value: number): string {
+  return Math.abs(value) < 1e-9 ? '0' : String(Number(value.toPrecision(3)));
+}
+
+/**
+ * Mohr's circle for plane stress with the τ axis positive downward: A = (σx, τxy), B = (σy, −τxy), centre C on the
+ * σ axis, principal stresses σ1, σ2 where the circle meets it, τmax at its lowest point. Labels sit outside the circle.
+ */
 export function compileMohr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('mohr', ctx, spec);
   if (hasEmptyItems(spec, 'sigma', 'sx', 'sy', 'tau', 'txy')) return fail('mohr contains an empty stress value');
   const sx = specGet(spec, 'sigma') === undefined ? numericValue(spec, 'sx', 40) : numericValue(spec, 'sigma');
   const sy = numericValue(spec, 'sy', 0);
   const tau = specGet(spec, 'tau') === undefined ? numericValue(spec, 'txy', 0) : numericValue(spec, 'tau');
   if (sx == null || sy == null || tau == null) return fail('mohr stress values must be numeric');
   const center = (sx + sy) / 2;
-  const radius = Math.max(Math.hypot((sx - sy) / 2, tau), 1);
-  const scale = Math.min((b.width - 70) / 2, (b.height - 50) / 2) / Math.max(Math.abs(center) + radius, 1);
-  const cx = b.width / 2 + center * scale;
-  const cy = b.height / 2;
-  b.line('sigma-axis', 25, cy, b.width - 18, cy, { role: 'axis', markerEnd: true });
-  b.line('tau-axis', b.width / 2, b.height - 18, b.width / 2, 18, { role: 'axis', markerEnd: true });
-  b.circle('mohr-circle', cx, cy, radius * scale, { color: 'accent', role: 'geometry' });
-  b.circle('state-a', cx + ((sx - center) * scale), cy - tau * scale, 3, { color: 'danger', role: 'annotation', fill: 'solid' });
-  b.circle('state-b', cx - ((sx - center) * scale), cy + tau * scale, 3, { color: 'danger', role: 'annotation', fill: 'solid' });
-  b.label('sigma-label', 'σ', b.width - 18, cy + 10, { protected: true });
-  b.label('tau-label', 'τ', b.width / 2 + 10, 20, { protected: true });
-  return layoutAndCompile(b.scene());
-}
+  const radius = Math.hypot((sx - sy) / 2, tau);
+  if (radius < 1e-9 * Math.max(1, Math.abs(center))) return { ok: false, code: 'refused', reason: 'a hydrostatic stress state has no Mohr circle (it is a point)' };
+  const unit = /[A-Za-zµμ][A-Za-z0-9µμ/^._-]*\s*$/.exec(specGet(spec, 'sigma') ?? specGet(spec, 'sx') ?? '')?.[0].trim();
+  const textH = measureText('0', FONT_MIN).h;
+  const textW = (text: string) => measureText(text, FONT_MIN).w;
+  const nominal = frameSize(ctx.profile);
+  const lo = Math.min(0, center - radius);
+  const hi = Math.max(0, center + radius);
+  // The σ range spans the nominal drawing width; the margins hold the widest label, so the frame grows with them.
+  const widest = Math.max(...[`A (${sig3(sx)}, ${sig3(tau)})`, `B (${sig3(sy)}, ${sig3(-tau)})`, `σ1 = ${sig3(center + radius)}`, `σ2 = ${sig3(center - radius)}`].map(textW));
+  const side = widest + 20;
+  const scale = (nominal.w - 116) / (hi - lo);
+  const width = Math.max(nominal.w, (hi - lo) * scale + 2 * side);
+  const height = Math.max(nominal.h, 2 * radius * scale + 2 * (2 * textH + 24));
+  const b = new SceneBuilder('mohr', width, height);
+  b.hl(spec.highlight);
+  const x0 = (width - (hi - lo) * scale) / 2 - lo * scale;
+  const cy = height / 2;
+  const at = (s: number, t: number) => ({ x: x0 + s * scale, y: cy + t * scale });
+  const c = at(center, 0);
+  const r = radius * scale;
+  b.line('sigma-axis', 12, cy, width - 12, cy, { role: 'axis', markerEnd: true });
+  b.line('tau-axis', x0, 10, x0, height - 10, { role: 'axis', markerEnd: true });
+  const sigmaText = unit ? `σ (${unit})` : 'σ';
+  const taken: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  const fixed = (id: string, text: string, x: number, y: number) => {
+    b.label(id, text, x, y, { protected: true });
+    taken.push({ x1: x - textW(text) / 2, y1: y - textH / 2, x2: x + textW(text) / 2, y2: y + textH / 2 });
+  };
+  fixed('sigma-label', sigmaText, width - 12 - textW(sigmaText) / 2, cy - 5 - textH / 2);
+  fixed('tau-label', 'τ', x0 + 6 + textW('τ') / 2, height - 12 - textH / 2);
+  b.circle('mohr-circle', c.x, c.y, r, { color: 'accent', role: 'geometry' });
+  const pa = at(sx, tau);
+  const pb = at(sy, -tau);
+  const s1 = at(center + radius, 0);
+  const s2 = at(center - radius, 0);
+  const low = at(center, radius);
+  b.line('mohr-diameter', pa.x, pa.y, pb.x, pb.y, { color: 'muted', role: 'guide', width: 1 });
+  b.circle('state-a', pa.x, pa.y, 3, { color: 'danger', role: 'annotation', fill: 'ink' });
+  b.circle('state-b', pb.x, pb.y, 3, { color: 'danger', role: 'annotation', fill: 'ink' });
+  for (const [id, p] of [['centre', c], ['sigma-1', s1], ['sigma-2', s2], ['tau-max', low]] as const) b.circle(id, p.x, p.y, 2.5, { role: 'annotation', fill: 'ink' });
 
-export function compileLinkage(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('linkage', ctx, spec);
-  const links = unique(items(spec, 'links').length ? items(spec, 'links') : items(spec, 'joints').map((item) => item.split(/[|\s]/)[0] ?? item));
-  if (links.length < 2 || items(spec, 'joints').length < 2) return fail('linkage requires at least two links and joints');
-  const at = positions(links, b.width, b.height - 30);
-  links.forEach((link, index) => {
-    const a = at.get(link)!;
-    const next = links[(index + 1) % links.length];
-    if (!next) return;
-    const z = at.get(next)!;
-    b.line(`link-${link}`, a.x, a.y, z.x, z.y, { role: 'geometry', width: 2 });
-    b.label(`link-${link}-label`, link, (a.x + z.x) / 2, (a.y + z.y) / 2, { priority: 'optional' });
-  });
-  links.forEach((_, index) => {
-    const link = links[index];
-    if (!link) return;
-    const point = at.get(link)!;
-    b.circle(`joint-${index}`, point.x, point.y, 4, { color: 'accent', role: 'geometry', fill: 'solid' });
-  });
-  if (specGet(spec, 'input')) b.label('input', specGet(spec, 'input')!, 18, b.height - 15, { priority: 'preferred', slot: 'W' });
-  if (specGet(spec, 'output')) b.label('output', specGet(spec, 'output')!, b.width - 18, 15, { priority: 'preferred', slot: 'E' });
-  if (hasEmptyItems(spec, 'motion')) return fail('linkage motion cannot be empty');
-  if (specGet(spec, 'motion')) b.label('motion-label', specGet(spec, 'motion')!, b.width / 2, b.height - 15, { priority: 'preferred' });
+  // Each label takes the first of its preferred directions whose box clears both axes, the circle's ring and the
+  // labels already placed.
+  const clear = (box: { x1: number; y1: number; x2: number; y2: number }) => {
+    const nearest = Math.hypot(Math.min(Math.max(c.x, box.x1), box.x2) - c.x, Math.min(Math.max(c.y, box.y1), box.y2) - c.y);
+    const farthest = Math.max(...[[box.x1, box.y1], [box.x2, box.y1], [box.x1, box.y2], [box.x2, box.y2]].map(([x, y]) => Math.hypot(x! - c.x, y! - c.y)));
+    return !segMeetsRect({ x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y }, box) && !(box.y1 < cy + 2 && box.y2 > cy - 2) && !(box.x1 < x0 + 2 && box.x2 > x0 - 2) && !(nearest < r + 2 && farthest > r - 2) &&
+      box.x1 >= 4 && box.x2 <= width - 4 && box.y1 >= 4 && box.y2 <= height - 4 &&
+      !taken.some((t) => boxesOverlap(t, box, 2));
+  };
+  const place = (id: string, text: string, p: { x: number; y: number }, angles: number[], anchorId: string): boolean => {
+    for (const [angle, gap] of [6, 18, 30, 42, 54].flatMap((g) => angles.map((a) => [a, g] as const))) {
+      const box = rectBeyond(p.x, p.y, { x: Math.cos((angle * Math.PI) / 180), y: Math.sin((angle * Math.PI) / 180) }, gap, text);
+      if (!clear(box)) continue;
+      taken.push(box);
+      b.label(id, text, (box.x1 + box.x2) / 2, (box.y1 + box.y2) / 2, { protected: true, anchorId });
+      return true;
+    }
+    return false;
+  };
+  const around = (p: { x: number; y: number }, spread: number) => {
+    const out = (Math.atan2(p.y - c.y, p.x - c.x) * 180) / Math.PI;
+    return [0, 20, -20, 40, -40, 60, -60, 80, -80].filter((d) => Math.abs(d) <= spread).map((d) => out + d);
+  };
+  const labels: Array<[string, string, { x: number; y: number }, number[], string]> = [
+    ['state-a-label', `A (${sig3(sx)}, ${sig3(tau)})`, pa, around(pa, 80), 'state-a'],
+    ['state-b-label', `B (${sig3(sy)}, ${sig3(-tau)})`, pb, around(pb, 80), 'state-b'],
+    ['sigma-1-label', `σ1 = ${sig3(center + radius)}`, s1, [-45, 45, -60, 60, -135, 135], 'sigma-1'],
+    ['sigma-2-label', `σ2 = ${sig3(center - radius)}`, s2, [-135, 135, -120, 120, -45, 45], 'sigma-2'],
+    ['tau-max-label', `τmax = ${sig3(radius)}`, low, [90, 60, 120, 30, 150, 0, 180], 'tau-max'],
+    ['centre-label', 'C', c, [45, 135, -45, -135, 90, -90], 'centre'],
+  ];
+  const stuck = labels.find(([id, text, p, angles, anchor]) => !place(id, text, p, angles, anchor));
+  if (stuck) return { ok: false, code: 'refused', reason: `mohr label ${stuck[1]} cannot be placed clear of the circle and axes` };
   return layoutAndCompile(b.scene());
 }
 
@@ -315,41 +413,6 @@ export function compileCam(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   b.polyline('profile-curve', curve, { color: 'accent', role: 'geometry', fill: 'none', width: 1.8 });
   if (specGet(spec, 'follower')) b.label('follower-label', specGet(spec, 'follower')!, 105, b.height / 2 - 38, { priority: 'preferred' });
   if (specGet(spec, 'motion')) b.label('motion-label', specGet(spec, 'motion')!, b.width - 30, b.height - 12, { priority: 'optional' });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileGear(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('gear', ctx, spec);
-  if (hasEmptyItems(spec, 'gears')) return fail('gear contains an empty gear declaration');
-  const names = unique(items(spec, 'gears').map((value) => value.split(/[|\s]/)[0] ?? value));
-  const readToothCount = (key: string, fallback: number): number | null => {
-    const value = numericValue(spec, key, fallback);
-    if (value == null || !Number.isSafeInteger(value) || value <= 0) return null;
-    return value;
-  };
-  const z1 = readToothCount('z1', 12);
-  const z2 = readToothCount('z2', 24);
-  if (z1 === null || z2 === null) return fail('gear tooth counts must be numeric');
-  if (hasEmptyItems(spec, 'mesh')) return fail('gear mesh mode cannot be empty');
-  const mesh = specGet(spec, 'mesh')?.trim().toLowerCase() ?? 'external';
-  if (mesh !== 'external') return fail('gear currently renders external mesh only');
-  const teeth = [z1, z2];
-  const gearNames = names.length >= 2 ? names.slice(0, 2) : ['gear-1', 'gear-2'];
-  const centers = [b.width * 0.36, b.width * 0.66];
-  const radii = teeth.map((value) => 15 + Math.min(28, Math.max(8, value)) * 0.55);
-  gearNames.forEach((name, index) => {
-    const cx = centers[index]!;
-    const cy = b.height / 2;
-    b.circle(`gear-${name}`, cx, cy, radii[index]!, { role: 'geometry' });
-    const toothCount = Math.min(12, Math.max(4, Math.round(teeth[index]! / 2)));
-    for (let t = 0; t < toothCount; t++) {
-      const angle = (t / toothCount) * Math.PI * 2;
-      b.line(`tooth-${index}-${t}`, cx + Math.cos(angle) * radii[index]!, cy + Math.sin(angle) * radii[index]!, cx + Math.cos(angle) * (radii[index]! + 4), cy + Math.sin(angle) * (radii[index]! + 4), { role: 'geometry' });
-    }
-    b.label(`gear-${name}-label`, `${name} z=${teeth[index]}`, cx, cy + radii[index]! + 14, { priority: 'preferred', slot: 'S' });
-  });
-  b.line('mesh', centers[0]! + radii[0]!, b.height / 2, centers[1]! - radii[1]!, b.height / 2, { color: 'accent', role: 'connector', dash: true });
-  b.label('mesh-label', `mesh: ${mesh}`, b.width / 2, 15, { priority: 'preferred' });
   return layoutAndCompile(b.scene());
 }
 
@@ -409,28 +472,6 @@ export function compileSoil(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const voids = items(spec, 'voids');
   if (voids.length) b.label('voids-label', `voids: ${voids.join(' + ')}`, b.width / 2, b.height - 14, { priority: 'optional' });
   b.label('basis-label', `basis: ${basis}`, b.width / 2, 15, { priority: 'preferred' });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileRc(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('rc', ctx, spec);
-  if (hasEmptyItems(spec, 'b', 'h', 'reinforcement')) return fail('rc contains an empty dimension or reinforcement value');
-  const widthValue = numericValue(spec, 'b', 3);
-  const heightValue = numericValue(spec, 'h', 5);
-  const reinforcement = numericValue(spec, 'reinforcement', 4);
-  if (widthValue == null || heightValue == null || reinforcement == null || widthValue <= 0 || heightValue <= 0 || reinforcement <= 0) return fail('rc dimensions and reinforcement must be numeric and positive');
-  const width = Math.min(b.width - 100, Math.max(45, widthValue * 20));
-  const height = Math.min(b.height - 35, Math.max(60, heightValue * 18));
-  const x = (b.width - width) / 2;
-  const y = (b.height - height) / 2;
-  b.rect('rc-section', x, y, width, height, { role: 'geometry', fill: 'none', width: 1.8 });
-  const count = Math.max(2, Math.min(12, Math.round(reinforcement)));
-  for (let i = 0; i < count; i++) {
-    const px = x + 9 + (i % 4) * Math.max(10, (width - 18) / 3);
-    const py = i < 4 ? y + height - 9 : y + 9;
-    b.circle(`rebar-${i}`, Math.min(x + width - 6, px), py, 3, { color: 'accent', role: 'geometry', fill: 'solid' });
-  }
-  b.label('section-label', specGet(spec, 'section') ?? 'RC section', b.width / 2, 15, { priority: 'preferred' });
   return layoutAndCompile(b.scene());
 }
 
@@ -566,66 +607,6 @@ export function compileHx(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   return layoutAndCompile(b.scene());
 }
 
-export function compileTernary(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('ternary', ctx, spec);
-  const components = unique(items(spec, 'components').length ? items(spec, 'components') : items(spec, 'points').slice(0, 3));
-  const composition = specGet(spec, 'composition');
-  if (components.length !== 3) return fail('ternary requires three components');
-  if (!composition) {
-    const top = { x: b.width / 2, y: 20 };
-    const left = { x: 30, y: b.height - 22 };
-    const right = { x: b.width - 30, y: b.height - 22 };
-    b.polygon('ternary-boundary', [top.x, top.y, left.x, left.y, right.x, right.y], { role: 'boundary', fill: 'none' });
-    b.line('tie-line', left.x + 35, left.y - 24, right.x - 35, right.y - 24, { role: 'guide', color: 'accent', dash: true });
-    b.label('component-a', components[0]!, top.x, top.y - 7, { priority: 'required', slot: 'N' });
-    b.label('component-b', components[1]!, left.x + 7, left.y + 2, { priority: 'required', slot: 'SW' });
-    b.label('component-c', components[2]!, right.x - 7, right.y + 2, { priority: 'required', slot: 'SE' });
-    return layoutAndCompile(b.scene());
-  }
-  const values = new Map<string, number>();
-  composition.split(/[,;]+/).forEach((part) => {
-    const match = /^\s*([^=\s]+)\s*=\s*(-?\d+(?:\.\d+)?)\s*$/.exec(part);
-    if (match) values.set(match[1]!, Number(match[2]));
-  });
-  const total = components.reduce((sum, component) => sum + (values.get(component) ?? NaN), 0);
-  if (!Number.isFinite(total) || Math.abs(total - 1) > 0.02 || components.some((component) => (values.get(component) ?? -1) < 0)) return fail('ternary composition must sum to one');
-  const top = { x: b.width / 2, y: 20 };
-  const left = { x: 30, y: b.height - 22 };
-  const right = { x: b.width - 30, y: b.height - 22 };
-  b.polygon('ternary-boundary', [top.x, top.y, left.x, left.y, right.x, right.y], { role: 'boundary', fill: 'none' });
-  const a = values.get(components[0]!)!;
-  const c = values.get(components[2]!)!;
-  const point = { x: a * top.x + c * right.x + (1 - a - c) * left.x, y: a * top.y + c * right.y + (1 - a - c) * left.y };
-  b.circle('composition-point', point.x, point.y, 4, { color: 'accent', role: 'annotation', fill: 'solid' });
-  b.label('component-a', components[0]!, top.x, top.y - 7, { priority: 'required', slot: 'N' });
-  b.label('component-b', components[1]!, left.x + 7, left.y + 2, { priority: 'required', slot: 'SW' });
-  b.label('component-c', components[2]!, right.x - 7, right.y + 2, { priority: 'required', slot: 'SE' });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileOpenchan(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('openchan', ctx, spec);
-  const channel = specGet(spec, 'channel');
-  const section = specGet(spec, 'section');
-  const flow = specGet(spec, 'flow');
-  if (hasEmptyItems(spec, 'y1')) return fail('open-channel depth cannot be empty');
-  const depth = numericValue(spec, 'y1', 1);
-  if (depth == null || depth <= 0) return fail('open-channel y1 must be numeric and positive');
-  if (channel && !/trapezoid/i.test(channel)) return fail('open-channel currently renders a trapezoidal channel only');
-  if (section && !/uniform/i.test(section)) return fail('open-channel currently renders a uniform section only');
-  if (flow && !/upstream\s*_?to\s*_?downstream/i.test(flow)) return fail('open-channel currently renders upstream-to-downstream flow only');
-  const bottomY = b.height - 25;
-  const surfaceY = Math.max(42, bottomY - Math.min(82, Math.max(18, depth * 30)));
-  b.path('channel-bed', `M 28 ${bottomY} L 105 ${bottomY} L 135 ${surfaceY} L ${b.width - 28} ${surfaceY}`, { role: 'boundary', width: 1.8 });
-  b.line('free-surface', 35, surfaceY, b.width - 28, surfaceY, { color: 'accent', role: 'boundary', dash: true });
-  b.line('flow-arrow', 80, surfaceY - 16, b.width - 45, surfaceY - 16, { color: 'accent', role: 'annotation', markerEnd: true });
-  b.label('channel-label', specGet(spec, 'channel') ?? 'channel', 35, 15, { priority: 'preferred', slot: 'N' });
-  b.label('waterline-label', specGet(spec, 'waterline') ?? 'free surface', b.width - 35, surfaceY - 9, { priority: 'preferred', slot: 'E' });
-  b.label('flow-label', specGet(spec, 'flow') ?? 'flow', b.width / 2, surfaceY - 27, { priority: 'optional' });
-  b.label('depth-label', `y1=${depth}`, 35, surfaceY + 15, { priority: 'optional', slot: 'W' });
-  return layoutAndCompile(b.scene());
-}
-
 export function compilePfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const b = frame('pfd', ctx, spec);
   const process = processUnits(spec);
@@ -642,31 +623,5 @@ export function compilePfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     if (!recycle) return fail('declared recycle has no bound connection');
     b.path('recycle-loop', `M ${b.width - 45} ${b.height / 2 + 18} Q ${b.width - 10} ${b.height - 15} ${b.width / 2} ${b.height - 15} Q 20 ${b.height - 15} 30 ${b.height / 2}`, { color: 'accent', role: 'connector', markerEnd: true });
   }
-  return layoutAndCompile(b.scene());
-}
-
-export function compilePsych(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const b = frame('psych', ctx, spec);
-  if (hasEmptyItems(spec, 'dbt', 'w')) return fail('psychrometric state values cannot be empty');
-  const dbt = numericValue(spec, 'dbt');
-  const humidityRatio = numericValue(spec, 'w');
-  if (dbt === null || humidityRatio === null || (typeof humidityRatio === 'number' && humidityRatio < 0)) return fail('psychrometric state values must be numeric');
-  b.line('dry-bulb-axis', 35, b.height - 25, b.width - 20, b.height - 25, { role: 'axis', markerEnd: true });
-  b.line('humidity-axis', 35, b.height - 25, 35, 18, { role: 'axis', markerEnd: true });
-  b.label('dry-bulb-label', items(spec, 'axes')[0] ?? 'dry-bulb temperature', b.width - 25, b.height - 12, { protected: true });
-  b.label('humidity-label', items(spec, 'axes')[1] ?? 'humidity ratio', 45, 18, { protected: true, slot: 'E' });
-  if (typeof dbt === 'number') b.label('dbt-value', `dbt=${dbt}`, 50, b.height - 40, { priority: 'optional' });
-  if (typeof humidityRatio === 'number') b.label('humidity-ratio-value', `w=${humidityRatio}`, 50, 30, { priority: 'optional', slot: 'E' });
-  const states = unique(items(spec, 'state_points'));
-  const at = positions(states, b.width - 70, b.height - 55);
-  states.forEach((state, index) => {
-    const point = at.get(state)!;
-    const x = point.x + 35;
-    const y = point.y + 25;
-    b.circle(`state-${state}`, x, y, 4, { color: 'accent', role: 'annotation', fill: 'solid' });
-    b.label(`state-${state}-label`, state, x, y - 9, { priority: 'preferred' });
-    if (index) b.line(`process-${index}`, x - 45, y, x, y, { color: 'accent', role: 'connector', markerEnd: true });
-  });
-  if (specGet(spec, 'process')) b.label('process-label', specGet(spec, 'process')!, b.width / 2, 15, { priority: 'optional' });
   return layoutAndCompile(b.scene());
 }

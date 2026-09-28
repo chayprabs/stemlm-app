@@ -18,8 +18,12 @@ function deepActiveElement(root: FocusRoot = document): HTMLElement | null {
   return active instanceof HTMLElement ? active : null;
 }
 
-/** Focuses a modal on entry, wraps Tab, and returns focus to its opener. */
-export function useDialogFocus<T extends HTMLElement>(): React.RefObject<T | null> {
+/**
+ * Focuses a modal on entry, wraps Tab, and returns focus to its opener.
+ * `container` focuses the dialog itself: a page-sized dialog then shows no focus
+ * ring until the user presses Tab (UI-FOCUS-01).
+ */
+export function useDialogFocus<T extends HTMLElement>(initial?: 'container'): React.RefObject<T | null> {
   const dialogRef = useRef<T>(null);
 
   useEffect(() => {
@@ -34,7 +38,7 @@ export function useDialogFocus<T extends HTMLElement>(): React.RefObject<T | nul
         (element) => element.offsetParent !== null || element === active,
       );
     };
-    const first = focusables()[0] ?? dialog;
+    const first = initial === 'container' ? dialog : focusables()[0] ?? dialog;
     first.focus({ preventScroll: true });
 
     function onKeyDown(event: KeyboardEvent) {

@@ -118,8 +118,12 @@ function useInjectMount(
       if (slot?.isConnected) {
         lastDockedAt.current = now;
         syncComposerSlotGeometry(platform);
+        // The shared slot is re-inserted when the host rebuilds its composer (SPA navigation). If the
+        // control left it meanwhile (a render saw it detached), the same slot needs a fresh render.
         setMount((prev) =>
-          prev.mode === 'docked' && prev.slot === slot ? prev : { mode: 'docked', slot },
+          prev.mode === 'docked' && prev.slot === slot && slot.childElementCount > 0
+            ? prev
+            : { mode: 'docked', slot },
         );
         return;
       }
@@ -132,9 +136,14 @@ function useInjectMount(
       );
     };
 
+    // A throttle, not a debounce: a host that mutates without pause (streaming, loading) must not
+    // postpone the dock check indefinitely.
     const schedule = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(sync, DOCK_RETRY_MS);
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        sync();
+      }, DOCK_RETRY_MS);
     };
 
     const onResize = () => {
@@ -225,7 +234,9 @@ export function InjectGlyph({ attached }: { attached: boolean }) {
   );
 }
 
-export function OverlayButton() {
+const PANEL_UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
+
+export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?: boolean }) {
   const stemlmEnabled = useStore((s) => s.settings.stemlmEnabled !== false);
   const mount = useInjectMount(stemlmEnabled);
   const [pasting, setPasting] = useState(false);
@@ -295,7 +306,7 @@ export function OverlayButton() {
         await ctrl.inject();
       } catch {
         const store = useStore.getState();
-        store.setStatus('error', 'Could not finish attaching the stemLM instruction file. Please try the + button again.');
+        store.setStatus('error', 'Could not finish attaching the stemlm guide. Try the + button again.');
         store.openPanel();
       } finally {
         pastingRef.current = false;
@@ -334,12 +345,14 @@ export function OverlayButton() {
     .join(' ');
 
   const title = pasting
-    ? 'Injecting stemLM protocol'
-    : injected
+    ? 'Attaching the stemlm guide'
+    : panelUnavailable
+      ? PANEL_UNAVAILABLE
+      : injected
       ? panelOpen
-        ? 'stemLM panel open'
-        : 'stemLM attached — open panel'
-      : 'Add stemLM instructions';
+        ? 'stemlm panel open'
+        : 'stemlm guide attached. Open the panel'
+      : 'Attach the stemlm guide';
 
   const content = (
     <>
@@ -364,7 +377,7 @@ export function OverlayButton() {
         {pasting ? <InjectSpinner /> : <InjectGlyph attached={injected} />}
       </button>
       <span className="slm-inject-live" role="status" aria-live="polite">
-        {pasting ? 'Attaching stemLM instructions' : injected ? 'stemLM instructions attached' : ''}
+        {pasting ? 'Attaching the stemlm guide' : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemlm guide attached' : ''}
       </span>
     </>
   );

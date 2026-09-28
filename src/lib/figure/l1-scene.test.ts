@@ -123,7 +123,8 @@ describe('L1 scene semantic binding', () => {
     expect(points).toHaveLength(3);
     expect(points.every(({ x, y }) => x >= 10 && x <= 290 && y >= 10 && y <= 155)).toBe(true);
     expect(points[0]!.x).toBeLessThan(points[1]!.x);
-    expect(points[0]!.y).toBeLessThan(points[2]!.y);
+    // D19 (2026-09-25): math convention — C (y = 999.5) is drawn above A (y = -2.25).
+    expect(points[0]!.y).toBeGreaterThan(points[2]!.y);
     expect(result.scene.strokes.find((stroke) => stroke.id === 'segment-ab')?.points).toEqual([
       points[0]!.x, points[0]!.y, points[1]!.x, points[1]!.y,
     ]);

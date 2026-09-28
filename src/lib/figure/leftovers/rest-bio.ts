@@ -1,4 +1,5 @@
-import type { CompileCtx, CompileResult } from '../types';
+import { FONT_MIN, type CompileCtx, type CompileResult } from '../types';
+import { boxesOverlap, measureText, type Box } from '../geom';
 import { parseCsv, specGet, specGetAll, specHasEmptyDeclaration, specHasEmptyDelimitedValue, specList, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
@@ -98,63 +99,116 @@ function validateClosedOrder(order: string[], known: Set<string>, reason = 'cycl
   return null;
 }
 
-function addGraphNode(b: SceneBuilder, id: string, x: number, y: number, text = id, role = 'node'): void {
-  b.node(id, x - 12, y - 12, 24, 24, `semantic-${safeId(role)}`);
-  b.circle(`node-${safeId(id)}`, x, y, 12, { fill: 'none', color: 'accent' });
-  b.label(`node-${safeId(id)}-label`, text, x, y, { protected: true, anchorId: id });
+type Pt = { x: number; y: number };
+type Radii = { rx: number; ry: number };
+
+/** An ellipse (a circle for short names) that holds its name at the minimum font. */
+function nodeRadii(text: string): Radii {
+  const { w, h } = measureText(text, FONT_MIN);
+  const ry = h / 2 + 5;
+  return { rx: Math.max(ry, w / 2 / Math.sqrt(1 - (h / 2 / ry) ** 2) + 2), ry };
 }
 
-function graphPositions(ids: string[], width: number, height: number): Map<string, { x: number; y: number }> {
-  const positions = new Map<string, { x: number; y: number }>();
-  const cx = width / 2;
-  const cy = height / 2 + 4;
-  const radiusX = Math.min(width * 0.36, 108);
-  const radiusY = Math.min(height * 0.32, 50);
-  ids.forEach((id, index) => {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / Math.max(1, ids.length);
-    positions.set(idKey(id), { x: cx + radiusX * Math.cos(angle), y: cy + radiusY * Math.sin(angle) });
-  });
-  return positions;
+/** Distance from an ellipse's centre to its boundary along the unit direction u. */
+function reach(r: Radii, u: Pt): number {
+  return 1 / Math.hypot(u.x / r.rx, u.y / r.ry);
 }
 
-function insetEndpoint(point: { x: number; y: number }, toward: { x: number; y: number }, distance = 14): { x: number; y: number } {
-  const dx = toward.x - point.x;
-  const dy = toward.y - point.y;
-  const length = Math.hypot(dx, dy);
-  if (!length) return point;
-  const inset = Math.min(distance, length / 3);
-  return { x: point.x + (dx / length) * inset, y: point.y + (dy / length) * inset };
+function unit(from: Pt, to: Pt): Pt {
+  const d = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  return { x: (to.x - from.x) / d, y: (to.y - from.y) / d };
 }
 
-function drawDirectedEdge(
-  b: SceneBuilder,
-  edge: EdgeDecl,
-  index: number,
-  positions: Map<string, { x: number; y: number }>,
-  labelText?: string | false,
-): string | null {
-  const from = positions.get(idKey(edge.from));
-  const to = positions.get(idKey(edge.to));
-  if (!from || !to) return null;
-  const edgeId = `edge-${safeId(edge.from)}-${safeId(edge.to)}-${index + 1}`;
-  const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2;
-  const bend = (index % 2) ? 10 : -10;
-  const control = { x: mx + bend, y: my - bend };
-  const start = insetEndpoint(from, control);
-  const end = insetEndpoint(to, control);
-  b.path(edgeId, `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`, {
-    markerEnd: true,
-    color: 'accent',
-    role: 'connector',
-  });
-  if (labelText !== false) {
-    b.label(`${edgeId}-label`, labelText ?? edge.relation, mx + bend, my - bend, {
-      anchorId: edgeId,
-      priority: labelText?.startsWith('weight=') ? 'required' : 'preferred',
+interface Step { from: string; to: string; id: string; text: string | false }
+interface Arrow { step: Step; start: Pt; control: Pt; end: Pt; label?: Box }
+interface RingDrawing { centres: Map<string, Pt>; arrows: Arrow[]; bounds: Box }
+
+function curveAt(a: Arrow, t: number): Pt {
+  const u = 1 - t;
+  return { x: u * u * a.start.x + 2 * u * t * a.control.x + t * t * a.end.x, y: u * u * a.start.y + 2 * u * t * a.control.y + t * t * a.end.y };
+}
+
+/**
+ * States on an ellipse in cycle order (first at the top; two states side by side), extra states just outside the
+ * state they branch from. Each step is a quadratic arrow bowed to its left — outward on the clockwise ring, so A→B
+ * and B→A separate — with its name just beyond the bow. The ring grows until no state, name or arrow crowds another.
+ */
+function ringDrawing(ring: string[], extras: Map<string, string>, radii: Map<string, Radii>, steps: Step[]): RingDrawing | null {
+  const r = (id: string) => radii.get(idKey(id))!;
+  for (let scale = 1; scale < 8; scale *= 1.08) {
+    const ry = 40 * scale;
+    const rx = ry * 1.7;
+    const first = ring.length === 2 ? Math.PI : -Math.PI / 2;
+    const centres = new Map<string, Pt>(ring.map((id, i) => {
+      const angle = first + (i * 2 * Math.PI) / ring.length;
+      return [idKey(id), { x: rx * Math.cos(angle), y: ry * Math.sin(angle) }];
+    }));
+    for (const [extra, partner] of extras) {
+      const at = centres.get(idKey(partner))!;
+      const u = unit({ x: 0, y: 0 }, at);
+      const distance = reach(r(partner), u) + 36 + reach(r(extra), u);
+      centres.set(idKey(extra), { x: at.x + u.x * distance, y: at.y + u.y * distance });
+    }
+    const arrows: Arrow[] = steps.map((step) => {
+      const a = centres.get(idKey(step.from))!;
+      const b = centres.get(idKey(step.to))!;
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      const left = { x: (b.y - a.y) / d, y: -(b.x - a.x) / d };
+      const control = { x: (a.x + b.x) / 2 + left.x * d * 0.25, y: (a.y + b.y) / 2 + left.y * d * 0.25 };
+      const out = unit(a, control);
+      const into = unit(b, control);
+      const arrow: Arrow = {
+        step,
+        control,
+        start: { x: a.x + out.x * (reach(r(step.from), out) + 3), y: a.y + out.y * (reach(r(step.from), out) + 3) },
+        end: { x: b.x + into.x * (reach(r(step.to), into) + 3), y: b.y + into.y * (reach(r(step.to), into) + 3) },
+      };
+      if (step.text !== false) {
+        const { w, h } = measureText(step.text, FONT_MIN);
+        const mid = curveAt(arrow, 0.5);
+        const offset = 4 + Math.abs(left.x) * w / 2 + Math.abs(left.y) * h / 2;
+        const cx = mid.x + left.x * offset;
+        const cy = mid.y + left.y * offset;
+        arrow.label = { x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2 };
+      }
+      return arrow;
     });
+    const ids = [...centres.keys()];
+    const nodeBox = (id: string): Box => {
+      const c = centres.get(id)!;
+      const { rx: nx, ry: ny } = radii.get(id)!;
+      return { x1: c.x - nx, y1: c.y - ny, x2: c.x + nx, y2: c.y + ny };
+    };
+    const inside = (p: Pt, id: string, margin: number) => {
+      const c = centres.get(id)!;
+      const { rx: nx, ry: ny } = radii.get(id)!;
+      return ((p.x - c.x) / (nx + margin)) ** 2 + ((p.y - c.y) / (ny + margin)) ** 2 < 1;
+    };
+    const labels = arrows.flatMap((arrow) => (arrow.label ? [arrow.label] : []));
+    const crowded =
+      ids.some((a, i) => ids.slice(i + 1).some((b) => {
+        const u = unit(centres.get(a)!, centres.get(b)!);
+        const gap = Math.hypot(centres.get(b)!.x - centres.get(a)!.x, centres.get(b)!.y - centres.get(a)!.y) - reach(radii.get(a)!, u) - reach(radii.get(b)!, u);
+        return gap < 16;
+      })) ||
+      arrows.some((arrow) => Math.hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y) < 24) ||
+      arrows.some((arrow) => ids.some((id) => id !== idKey(arrow.step.from) && id !== idKey(arrow.step.to) &&
+        Array.from({ length: 19 }, (_, k) => curveAt(arrow, (k + 1) / 20)).some((p) => inside(p, id, 3)))) ||
+      labels.some((label, i) => ids.some((id) => boxesOverlap(label, nodeBox(id), 2)) || labels.slice(i + 1).some((other) => boxesOverlap(label, other, 2))) ||
+      arrows.some((arrow) => arrow.label && arrows.some((other) => other !== arrow &&
+        Array.from({ length: 21 }, (_, k) => curveAt(other, k / 20)).some((p) => p.x > arrow.label!.x1 - 2 && p.x < arrow.label!.x2 + 2 && p.y > arrow.label!.y1 - 2 && p.y < arrow.label!.y2 + 2)));
+    if (crowded) continue;
+    const boxes = [...ids.map(nodeBox), ...labels];
+    const curves = arrows.flatMap((arrow) => [curveAt(arrow, 0.5), arrow.start, arrow.end]);
+    const bounds = {
+      x1: Math.min(...boxes.map((b) => b.x1), ...curves.map((p) => p.x)),
+      y1: Math.min(...boxes.map((b) => b.y1), ...curves.map((p) => p.y)),
+      x2: Math.max(...boxes.map((b) => b.x2), ...curves.map((p) => p.x)),
+      y2: Math.max(...boxes.map((b) => b.y2), ...curves.map((p) => p.y)),
+    };
+    return { centres, arrows, bounds };
   }
-  return edgeId;
+  return null;
 }
 
 function parseGroups(spec: SpecDoc): Map<string, string[]> | null {
@@ -305,6 +359,14 @@ export function compileCycle(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     if (listed.invalid) return fail('malformed-cycle-order');
     order = listed.ids.length ? listed.ids : (kind ? [] : parseCsv(specGet(spec, 'nodes') ?? ''));
     if (!order.length && ids.length) order = ids;
+    if (!kind) {
+      // A list of states is a cycle: close it. An explicit order must already be closed.
+      if (!listed.ids.length && order.length > 1 && idKey(order[0]!) !== idKey(order.at(-1)!)) order = [...order, order[0]!];
+      const error = validateClosedOrder(order, new Set(ids.map(idKey)));
+      if (error) return fail(error);
+      const steps = new Set(order.slice(0, -1).map((from, index) => idKey(from) + '->' + idKey(order[index + 1]!)));
+      if (edges.some((edge) => !steps.has(idKey(edge.from) + '->' + idKey(edge.to)))) return fail('unrepresented-cycle-edge');
+    }
     if (kind === 'directed-cycle' || kind === 'phase-cycle') {
       const error = validateClosedOrder(order, new Set(ids.map(idKey)));
       if (error) return fail(error);
@@ -330,73 +392,116 @@ export function compileCycle(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   }
   const labels = labelDecls(spec);
   if (!labels) return fail('malformed-label-attachment');
-  const b = frame('cycle', ctx, spec);
-  const name = specGet(spec, 'name');
-  if (name) b.label('cycle-title', name, b.width / 2, 14, { protected: true, priority: 'required' });
   const allIds = new Set([...ids.map(idKey), ...edges.flatMap((edge) => [idKey(edge.from), idKey(edge.to)])]);
-  const graphWidth = kind === 'phase-cycle' ? Math.min(b.width * 0.56, b.width - 132) : b.width;
   const graphIds = kind === 'phase-cycle' ? ids.filter((id) => !groupedMembers.has(idKey(id))) : ids;
-  const positions = graphPositions(graphIds, graphWidth, b.height);
-  for (const id of graphIds) {
-    const point = positions.get(idKey(id));
-    if (!point) return fail(`missing-node-position:${id}`);
-    addGraphNode(b, id, point.x, point.y, id, declared.get(idKey(id))?.role ?? 'node');
+  const ring = kind === 'directed-weighted' ? graphIds : order.slice(0, -1);
+  const ringKeys = new Set(ring.map(idKey));
+  const extras = new Map<string, string>();
+  for (const id of graphIds.filter((candidate) => !ringKeys.has(idKey(candidate)))) {
+    const edge = edges.find((e) => (idKey(e.to) === idKey(id) && ringKeys.has(idKey(e.from))) || (idKey(e.from) === idKey(id) && ringKeys.has(idKey(e.to))));
+    if (!edge) return fail(`unplaced-cycle-node:${id}`);
+    extras.set(id, idKey(edge.from) === idKey(id) ? edge.to : edge.from);
   }
-  const anchors = new Set<string>([...allIds, ...groups.keys()]);
-  if (kind === 'phase-cycle') {
-    for (const [groupId, members] of groups) {
-      if (!declared.has(groupId)) return fail(`unknown-group:${groupId}`);
-      const point = positions.get(groupId);
-      if (!point) return fail(`missing-group-position:${groupId}`);
-      const panelId = `${safeId(declared.get(groupId)?.id ?? groupId)}-panel`;
-      const panelW = 120;
-      const panelH = Math.min(b.height - 24, 28 + members.length * 16);
-      const panelX = b.width - panelW - 8;
-      const panelY = Math.max(12, (b.height - panelH) / 2);
-      b.panel(panelId, declared.get(groupId)?.role ?? 'grouped-states', panelX, panelY, panelW, panelH);
-      b.rect(`${panelId}-boundary`, panelX + 4, panelY + 4, panelW - 8, panelH - 8, { fill: 'none', color: 'muted', role: 'boundary' });
-      for (const [index, member] of members.entries()) {
-        const x = panelX + panelW / 2;
-        const y = panelY + 18 + index * 16;
-        b.label(`${safeId(groupId)}-member-${index + 1}`, member, x, y, { panelId, priority: 'required', protected: true });
-        positions.set(idKey(member), { x, y });
-      }
-      for (const member of members) anchors.add(idKey(member));
-    }
-  }
-  if (kind !== 'directed-weighted' && order.length > 1) {
+  const steps: Step[] = [];
+  if (kind === 'directed-weighted') {
+    edges.forEach((edge, index) => steps.push({
+      from: edge.from,
+      to: edge.to,
+      id: `edge-${safeId(edge.from)}-${safeId(edge.to)}-${index + 1}`,
+      text: edge.attrs.get('weight') ? `weight=${edge.attrs.get('weight')}` : edge.relation,
+    }));
+  } else {
     for (let index = 0; index < order.length - 1; index++) {
       const from = order[index]!;
       const to = order[index + 1]!;
       const match = edges.find((edge) => idKey(edge.from) === idKey(from) && idKey(edge.to) === idKey(to));
       if (kind === 'directed-cycle' && !match && edges.length) return fail(`missing-cycle-edge:${from}->${to}`);
-      const edge = match ?? { from, to, relation: 'cycle-transition', rest: [], attrs: new Map<string, string>() };
-      const edgeLabel = match ? (match.attrs.get('label') ?? match.attrs.get('weight') ?? match.relation) : false;
-      if (!drawDirectedEdge(b, edge, index, positions, edgeLabel)) return fail(`missing-edge-endpoint:${from}->${to}`);
+      steps.push({ from, to, id: `edge-${safeId(from)}-${safeId(to)}-${index + 1}`, text: match ? (match.attrs.get('label') ?? match.attrs.get('weight') ?? match.relation) : false });
     }
   }
-  if (kind === 'directed-weighted') {
-    for (const [index, edge] of edges.entries()) if (!drawDirectedEdge(b, edge, index, positions, edge.attrs.get('weight') ? `weight=${edge.attrs.get('weight')}` : edge.relation)) return fail(`missing-edge-endpoint:${edge.from}->${edge.to}`);
-    if (labels.some((label) => idKey(label.target) === 'negative-cycle')) {
-      b.ellipse('negative-cycle', b.width / 2, b.height / 2 + 4, 38, 28, { color: 'danger', role: 'annotation' });
-      anchors.add('negative-cycle');
+
+  // Names are measured at the minimum font; the frame grows to the ring (presentation scales it), and a cycle too
+  // large to read at that scale is refused rather than shrunk.
+  const radii = new Map(graphIds.map((id) => [idKey(id), nodeRadii(id)]));
+  const drawing = ringDrawing(ring, extras, radii, steps);
+  if (!drawing) return fail('cycle is too crowded to draw legibly', 'refused');
+  const textH = measureText('0', FONT_MIN).h;
+  const name = specGet(spec, 'name');
+  const margin = 8;
+  const titleH = name ? textH + 8 : 0;
+  const panelW = kind === 'phase-cycle' && groups.size ? 132 : 0;
+  const panelsH = kind === 'phase-cycle' ? [...groups.values()].reduce((sum, members) => sum + 36 + members.length * 16, 0) : 0;
+  const ringW = drawing.bounds.x2 - drawing.bounds.x1;
+  const ringH = drawing.bounds.y2 - drawing.bounds.y1;
+  const contentW = ringW + 2 * margin + panelW;
+  const contentH = Math.max(ringH, panelsH) + 2 * margin + titleH;
+  const nominal = frameSize(ctx.profile);
+  if (contentW > 2 * nominal.w || contentH > 2.5 * nominal.h) return fail('cycle is too large to draw legibly', 'refused');
+  const b = new SceneBuilder('cycle', Math.max(nominal.w, contentW), Math.max(nominal.h, contentH));
+  b.hl(spec.highlight);
+  const ox = (b.width - contentW) / 2 + margin - drawing.bounds.x1;
+  const oy = (b.height - contentH) / 2 + margin + titleH - drawing.bounds.y1;
+  const at = (p: Pt): Pt => ({ x: p.x + ox, y: p.y + oy });
+  if (name) b.label('cycle-title', name, ox + (drawing.bounds.x1 + drawing.bounds.x2) / 2, oy + drawing.bounds.y1 - 4 - textH / 2, { protected: true });
+  const positions = new Map<string, Pt>();
+  for (const id of graphIds) {
+    const c = at(drawing.centres.get(idKey(id))!);
+    const { rx, ry } = radii.get(idKey(id))!;
+    positions.set(idKey(id), c);
+    b.node(id, c.x - rx, c.y - ry, 2 * rx, 2 * ry, `semantic-${safeId(declared.get(idKey(id))?.role ?? 'node')}`);
+    if (rx === ry) b.circle(`node-${safeId(id)}`, c.x, c.y, rx, { fill: 'none', color: 'accent' });
+    else b.ellipse(`node-${safeId(id)}`, c.x, c.y, rx, ry, { fill: 'none', color: 'accent' });
+    b.label(`node-${safeId(id)}-label`, id, c.x, c.y, { protected: true, anchorId: id });
+  }
+  for (const arrow of drawing.arrows) {
+    const [s, c, e] = [at(arrow.start), at(arrow.control), at(arrow.end)];
+    b.path(arrow.step.id, `M ${s.x} ${s.y} Q ${c.x} ${c.y} ${e.x} ${e.y}`, { markerEnd: true, color: 'accent', role: 'connector' });
+    if (arrow.label && arrow.step.text !== false) {
+      b.label(`${arrow.step.id}-label`, arrow.step.text, ox + (arrow.label.x1 + arrow.label.x2) / 2, oy + (arrow.label.y1 + arrow.label.y2) / 2, { protected: true, anchorId: arrow.step.id });
     }
   }
+  const anchors = new Set<string>([...allIds, ...groups.keys()]);
   if (kind === 'phase-cycle') {
+    let panelY = (b.height - contentH) / 2 + margin + titleH;
+    for (const [groupId, members] of groups) {
+      if (!declared.has(groupId)) return fail(`unknown-group:${groupId}`);
+      if (!positions.get(groupId)) return fail(`missing-group-position:${groupId}`);
+      const panelId = `${safeId(declared.get(groupId)?.id ?? groupId)}-panel`;
+      const panelH = 28 + members.length * 16;
+      const panelX = ox + drawing.bounds.x2 + 12;
+      b.panel(panelId, declared.get(groupId)?.role ?? 'grouped-states', panelX, panelY, 120, panelH);
+      b.rect(`${panelId}-boundary`, panelX + 4, panelY + 4, 112, panelH - 8, { fill: 'none', color: 'muted', role: 'boundary' });
+      for (const [index, member] of members.entries()) {
+        const x = panelX + 60;
+        const y = panelY + 18 + index * 16;
+        b.label(`${safeId(groupId)}-member-${index + 1}`, member, x, y, { panelId, priority: 'required', protected: true });
+        positions.set(idKey(member), { x, y });
+      }
+      for (const member of members) anchors.add(idKey(member));
+      panelY += panelH + 8;
+    }
     for (const edge of edges) {
       if (idKey(edge.relation) !== 'branch') return fail(`unsupported-phase-relation:${edge.relation}`);
       const from = positions.get(idKey(edge.from));
       const to = positions.get(idKey(edge.to));
-      if (!from || !to) return fail(`missing-branch-endpoint:${edge.from}->${edge.to}`);
-      const start = insetEndpoint(from, to);
-      const end = insetEndpoint(to, from);
-      b.line(`branch-${safeId(edge.from)}-${safeId(edge.to)}`, start.x, start.y, end.x, end.y, { markerEnd: true, color: 'muted', role: 'connector', dash: true });
+      const fromR = radii.get(idKey(edge.from));
+      const toR = radii.get(idKey(edge.to));
+      if (!from || !to || !fromR || !toR) return fail(`missing-branch-endpoint:${edge.from}->${edge.to}`);
+      const u = unit(from, to);
+      const start = reach(fromR, u) + 3;
+      const end = reach(toR, u) + 3;
+      b.line(`branch-${safeId(edge.from)}-${safeId(edge.to)}`, from.x + u.x * start, from.y + u.y * start, to.x - u.x * end, to.y - u.y * end, { markerEnd: true, color: 'muted', role: 'connector', dash: true });
     }
+  }
+  if (kind === 'directed-weighted' && labels.some((label) => idKey(label.target) === 'negative-cycle')) {
+    const centre = at({ x: 0, y: 0 });
+    b.ellipse('negative-cycle', centre.x, centre.y, 38, 28, { color: 'danger', role: 'annotation' });
+    anchors.add('negative-cycle');
   }
   for (const [index, label] of labels.entries()) {
     const target = idKey(label.target);
     if (!anchors.has(target)) return fail(`unknown-label-attachment:${label.target}`);
-    const point = positions.get(target) ?? { x: b.width / 2, y: b.height / 2 };
+    const point = positions.get(target) ?? at({ x: 0, y: 0 });
     b.label(`attached-${index + 1}`, label.text, point.x, point.y, { anchorId: label.target, priority: 'preferred', slot: 'N' });
   }
   return layoutAndCompile(b.scene());
@@ -510,8 +615,8 @@ export function compileAnatomy(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     b.path(locus.id, `M ${axisX + arm} 28 Q ${axisX} ${axisY - 46} ${axisX} ${axisY} Q ${axisX} ${axisY + 46} ${axisX + arm} ${b.height - 28}`, { color: 'accent', role: 'geometry', width: 2 });
     b.line(axis.id, 20, axisY, b.width - 18, axisY, { color: 'muted', role: 'axis', markerEnd: true });
     b.line(directrix.id, axisX - 28, 18, axisX - 28, b.height - 18, { color: 'neutral', role: 'geometry' });
-    b.circle(vertex.id, vertexPoint.x, vertexPoint.y, 4, { fill: 'solid', color: 'accent' });
-    b.circle(focus.id, focusPoint.x, focusPoint.y, 4, { fill: 'solid', color: 'accent' });
+    b.circle(vertex.id, vertexPoint.x, vertexPoint.y, 4, { fill: 'ink', color: 'accent' });
+    b.circle(focus.id, focusPoint.x, focusPoint.y, 4, { fill: 'ink', color: 'accent' });
     b.node(vertex.id, vertexPoint.x - 4, vertexPoint.y - 4, 8, 8, 'point');
     b.node(focus.id, focusPoint.x - 4, focusPoint.y - 4, 8, 8, 'point');
     const points = new Map<string, { x: number; y: number }>([
@@ -629,7 +734,7 @@ export function compileGel(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 export function compileOperon(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const promoter = specGet(spec, 'promoter');
   const operator = specGet(spec, 'operator');
-  const genes = specList(spec, 'gene');
+  const genes = specList(spec, 'gene').flatMap((value) => parseCsv(value));
   if (specHasEmptyDeclaration(spec, 'gene') || specHasEmptyDelimitedValue(spec, 'gene')) return fail('operon contains an empty gene declaration');
   if (!promoter || !operator) return fail('operon-requires-promoter-and-operator');
   const items = [{ id: 'promoter', text: promoter }, { id: 'operator', text: operator }, ...genes.map((text, index) => ({ id: `gene-${index + 1}`, text }))];
@@ -639,24 +744,8 @@ export function compileOperon(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   b.line('dna', left, b.height / 2, b.width - left, b.height / 2, { width: 2.4, role: 'geometry' });
   items.forEach((item, index) => {
     const x = left + unit * (index + 0.5);
-    b.rect(item.id, x - unit * 0.35, b.height / 2 - 13, unit * 0.7, 26, { fill: item.id === 'operator' ? 'solid' : 'none', color: item.id === 'operator' ? 'danger' : 'accent', role: 'boundary' });
+    b.rect(item.id, x - unit * 0.35, b.height / 2 - 13, unit * 0.7, 26, { fill: item.id === 'operator' ? 'ink' : 'none', color: item.id === 'operator' ? 'danger' : 'accent', role: 'boundary' });
     b.label(`${item.id}-label`, item.text, x, b.height / 2 - 25, { protected: true, anchorId: item.id, slot: 'N' });
-  });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileRestriction(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  if (hasEmptyItems(spec, 'sites')) return fail('restriction contains an empty site declaration');
-  const sites = specList(spec, 'sites').flatMap(parseCsv);
-  if (!sites.length) return fail('restriction-requires-explicit-sites');
-  const b = frame('restriction', ctx, spec);
-  const y = b.height / 2;
-  b.line('dna', 18, y, b.width - 18, y, { width: 3, role: 'geometry' });
-  sites.forEach((site, index) => {
-    const x = 32 + index * ((b.width - 64) / Math.max(1, sites.length - 1));
-    const id = `site-${index + 1}`;
-    b.line(id, x, y - 16, x, y + 16, { color: 'accent', role: 'annotation' });
-    b.label(`${id}-label`, site, x, y - 25, { anchorId: id, slot: 'N', priority: 'required' });
   });
   return layoutAndCompile(b.scene());
 }
@@ -720,24 +809,6 @@ export function compilePcr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   return layoutAndCompile(b.scene());
 }
 
-export function compileEcg(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  if (hasEmptyItems(spec, 'waves')) return fail('ecg contains an empty wave declaration');
-  const waves = specList(spec, 'waves').flatMap(parseCsv);
-  if (!waves.length) return fail('ecg-requires-explicit-waves');
-  const b = frame('ecg', ctx, spec);
-  const y = b.height / 2;
-  b.line('baseline', 16, y, b.width - 16, y, { color: 'guide', role: 'guide' });
-  const step = (b.width - 36) / waves.length;
-  const points: number[] = [18, y];
-  waves.forEach((wave, index) => {
-    const x = 18 + index * step;
-    points.push(x + step * 0.25, y, x + step * 0.45, y - 18, x + step * 0.62, y, x + step, y);
-    b.label(`wave-${index + 1}`, wave, x + step / 2, y - 24, { anchorId: `wave-${index + 1}`, slot: 'N', priority: 'required' });
-  });
-  b.polyline('waveform', points, { color: 'accent', role: 'geometry', width: 1.8 });
-  return layoutAndCompile(b.scene());
-}
-
 export function compileRama(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const kind = specGet(spec, 'kind')?.toLowerCase();
   if (kind && kind !== 'ramachandran') return fail(`unsupported-rama-kind:${kind}`);
@@ -757,7 +828,7 @@ export function compileRama(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   parsedPoints.forEach(({ phi, psi }, index) => {
     const x = 50 + ((phi + 180) / 360) * (b.width - 76);
     const y = b.height - 30 - ((psi + 180) / 360) * (b.height - 52);
-    b.circle(`point-${index + 1}`, x, y, 4, { fill: 'solid', color: 'accent' });
+    b.circle(`point-${index + 1}`, x, y, 4, { fill: 'ink', color: 'accent' });
   });
   if (!b.strokes.some((stroke) => stroke.id.startsWith('point-'))) return fail('rama-points-malformed');
   b.label('phi-label', 'φ', b.width / 2, b.height - 10, { protected: true });

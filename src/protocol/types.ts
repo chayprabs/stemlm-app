@@ -266,4 +266,6 @@ export interface Session {
   followups?: StepFollowup[];
   /** Raw capsule text, kept so we can re-parse / debug / export. */
   raw: string;
+  /** D38: the chat stopped before @end; only the blocks that closed are shown, and it cannot be saved. */
+  cutOff?: boolean;
 }

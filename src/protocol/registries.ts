@@ -13,9 +13,6 @@ import {
 } from '@/src/lib/figure/catalog';
 import { SUBJECT_REGISTRY } from './playbooks';
 import type { Archetype, VerifyMethod } from './types';
-
-export const PROTOCOL_EMIT_VERSION = 2;
-
 function keysOf(def: FamilyDef): string {
   const parts: string[] = [];
   if (def.required?.length) parts.push(`need:${def.required.join(',')}`);
@@ -33,22 +30,17 @@ const CATALOG_ENTRIES: Array<[string, FamilyDef]> = [
   ['ladder', FAMILY_CATALOG.ladder!],
 ];
 const CATALOG_TYPES = new Set(CATALOG_ENTRIES.map(([type]) => type));
+// D2: a family is advertised only when a subject row names it at top level; parenthesised text lists an
+// engine's variants (scene(ray) is scene kind: ray, not the ray template).
 const SUBJECT_DIAGRAM_FAMILIES = new Set(
   Object.values(SUBJECT_REGISTRY)
-    .flatMap(({ diagrams }) => diagrams.match(/[a-z][a-z0-9.-]*/gi) ?? [])
-    .filter((type) => CATALOG_TYPES.has(type.toLowerCase()))
-    .map((type) => type.toLowerCase()),
+    .flatMap(({ diagrams }) => diagrams.replace(/\([^)]*\)/g, '').match(/[a-z][a-z0-9.-]*/gi) ?? [])
+    .map((type) => type.toLowerCase())
+    .filter((type) => CATALOG_TYPES.has(type)),
 );
-// Topic-loop demand keeps the five engines; inventory evidence also retains schematic/sphere.
-const CORPUS_DEMAND_FAMILIES = new Set(['scene', 'plot', 'table', 'graph', 'circuit', 'schematic', 'sphere']);
 
 function isAdvertised(type: string, def: FamilyDef): boolean {
-  if (def.kind === 'engine' || SUBJECT_DIAGRAM_FAMILIES.has(type) || CORPUS_DEMAND_FAMILIES.has(type)) return true;
-  return CATALOG_ENTRIES.some(
-    ([canonical, candidate]) =>
-      (canonical === type || candidate.aliases?.includes(type)) &&
-      (SUBJECT_DIAGRAM_FAMILIES.has(canonical) || candidate.aliases?.some((alias) => SUBJECT_DIAGRAM_FAMILIES.has(alias))),
-  );
+  return def.kind === 'engine' || SUBJECT_DIAGRAM_FAMILIES.has(type);
 }
 
 /** One line per compiler family — appended to the attached file. */
@@ -77,13 +69,12 @@ export function renderDiagramRegistry(): string {
     'ENGINE',
     'type\tkeys',
     ...engines,
-    'ENGINE SCHEMAS — the `any` column is admission only, not an allowed-key list. plot data: x,y; x,y; scene kind: fbd uses body/force/axes; graph edge: from to label words; rankdir: LR|TB|TD; highlight: declared node. never emit `kind:` as a graph key; start/accept/decision/terminal: declared node ids; table rows: choose comma or semicolon for each whole row; use semicolons if a cell has commas; no commas in semicolon cells; never mix or pipe-delimit; circuit std ieee|iec; device V/R/C/L/I/D/M/S n1 n2 value; A n1 n2 n3; wire endpoint endpoint; probe/highlight; no wire_top/wire_bottom.',
+    'ENGINE SCHEMAS — the `any` column is admission only, not an allowed-key list. plot data: x,y; x,y; scene kind: fbd uses body/force/axes; graph edge: from to label words; rankdir: LR|TB|TD; highlight: declared node. never emit `kind:` as a graph key; start/accept/decision/terminal: declared node ids; table rows: choose comma or semicolon for each whole row; use semicolons if a cell has commas; no commas in semicolon cells; never mix or pipe-delimit; circuit std ieee|iec; device V/R/C/L/I/D/M/S n1 n2 value; A n1 n2 n3; Q C B E npn|pnp; M D G S nmos|pmos; wire endpoint endpoint; probe/highlight; no wire_top/wire_bottom.',
     'TEMPLATE',
     'type\tkeys',
     ...leftovers,
-    'TEMPLATE SAFE FORMS — unknown: omit. hash\tm: integer 1..10; buckets: bucket:value; datapath A,B,C+relation; array cells/rows; isometric gamma,t0; phasor vec LABEL magnitude∠degrees.',
-    'BEAM: L: positive span; supports: pin@0, roller@L; loads: point LABEL down@x (or P@x), x=L/2. Resolve L and x numerically. One central downward point load only; no distributed loads, moments, ranges, load: or w:. reactions: LABEL@0, LABEL@L optional. Elastic curve is schematic, not a solved displacement field. Unsupported loading: omit beam; use explicit type=sfd V/M data.',
-    'Unlisted families mean OMIT (including bz,dq,knot,mospi,rama).',
+    'TEMPLATE SAFE FORMS — unknown: omit. hash\tm: integer 1..10; buckets: bucket:value; array cells/rows; phasor vec LABEL magnitude∠degrees. Full grammar: TEMPLATE FORMS.',
+    'Unlisted families mean OMIT (including bz,dq,knot,mospi,rama and any template not listed above).',
     'REFUSE — OMIT @diagram for these (do not emit a spec): ' + refuse.join(', '),
     'FLOW/STATE: flowcharts, state machines and automata are type=graph (decision:, terminal:, start:, accept:); a message sequence is an ordered type=table. NEVER emit type=svg or type=mermaid.',
   ].join('\n');
@@ -113,7 +104,7 @@ export const ARCHETYPE_ROWS: Record<Archetype, string> = {
   code:
     'Restate constraints compactly → approach → trace one meaningful state transition on a concrete input (group trivial adjacent operations) → correctness + $O(\\cdot)$. Code as inline `code` NEVER a fence. Diagram the complete state AFTER the transition, not the algorithm in the abstract.',
   lab:
-    'Raw data + units + instrument precision → group the connected reductions (mean, slope, calibration) that produce one result → propagate uncertainty → report value ± uncertainty. Split only when the analysis goal changes. Diagram apparatus (echem/scene) or the plot of the material visual state.',
+    'Raw data + units + instrument precision → group the connected reductions (mean, slope, calibration) that produce one result → propagate uncertainty → report value ± uncertainty. Split only when the analysis goal changes. Diagram apparatus (scene) or the plot of the material visual state.',
   estimation:
     'Identify scale → Fermi breakdown into 2–5 factors with stated sources → evaluate related factors compactly → combine → order-of-magnitude check against a known scale. Flag every assumed factor in @uncertainty.',
 };

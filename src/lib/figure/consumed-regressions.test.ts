@@ -10,12 +10,12 @@ describe('consumed declaration compatibility', () => {
     expect(result).toMatchObject({ ok: true });
   });
 
-  it('uses an explicit cell endpoint order declaration', async () => {
+  it('refuses a cell even with an explicit endpoint order (D23: EMF branches were drawn as resistor zig-zags)', async () => {
     const result = await compileDiagramSpec({
       type: 'cell',
       content: 'kind: parallel-source\nnode: A terminal\nnode: C terminal\nedge: A C source-branch epsilon1 r1\nedge: A C source-branch epsilon2 r2\nlabel: I attaches=external-current\norder: A -> C',
     });
-    expect(result).toMatchObject({ ok: true });
+    expect(result).toMatchObject({ ok: false, code: 'refused', reason: 'unfaithful_family:cell' });
   });
 
   it('preserves the declared anatomy organ on a conic spec', async () => {

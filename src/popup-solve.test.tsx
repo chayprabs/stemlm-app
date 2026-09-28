@@ -54,7 +54,7 @@ it('does not offer the retired solve action off a supported chat', async () => {
   await act(async () => root.render(<App />));
   const solve = container.querySelector<HTMLButtonElement>('[data-launch="solve-with-stemlm"]');
   expect(solve).toBeNull();
-  expect(container.textContent).not.toContain('Solve with stemLM');
+  expect(container.textContent).not.toMatch(/Solve with stemlm/i);
 });
 
 it('restores a usable panel action when an unexpected launch rejects', async () => {

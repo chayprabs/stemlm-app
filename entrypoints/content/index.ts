@@ -24,6 +24,8 @@ import {
   sessionsMirrorFingerprint,
 } from '@/src/lib/session-sync';
 import { removeSplit } from '@/src/lib/split-screen';
+import { installFontFaces } from '@/src/lib/fonts';
+import { extensionAssetUrl } from '@/src/lib/extension-context';
 import { removeComposerSlot } from '@/src/lib/composer-slot';
 import { parseStemLmMessage } from '@/src/lib/messages';
 import { consumePendingPanelAction, handleStemLmPanelMessage } from '@/src/lib/panel-remote';
@@ -111,6 +113,7 @@ export default defineContentScript({
       for (const stop of cleanup) stop();
       removeSplit();
       removeComposerSlot();
+      for (const style of documentStyles) if (style.hasAttribute('data-stemlm-fonts')) style.remove();
       getController()?.stopWatching();
       try {
         browser.runtime.onMessage.removeListener(onMessage);
@@ -189,6 +192,8 @@ export default defineContentScript({
       ui.mount();
       documentStyles = [...document.querySelectorAll<HTMLStyleElement>('style[wxt-shadow-root-document-styles]')]
         .filter((style) => !existingStyles.has(style));
+      // Plex + KaTeX faces from the extension: a shadow root ignores its own @font-face (D4).
+      documentStyles.push(installFontFaces(document, extensionAssetUrl));
       rootObserver.observe(document, { childList: true });
       reconnectHost();
       phase = 'ready';
@@ -312,7 +317,7 @@ export default defineContentScript({
           await consumePendingPanelAction(tabId, adapter.id, startupStillCurrent, true);
         } catch {
           if (startupStillCurrent()) {
-            useStore.getState().setStatus('error', 'Could not finish the requested action. Please try stemLM again.');
+            useStore.getState().setStatus('error', 'Could not finish the requested action. Please try stemlm again.');
             useStore.getState().openPanel();
           }
         }

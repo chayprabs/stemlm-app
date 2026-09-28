@@ -3,7 +3,7 @@ import type { CompileCtx, CompileFailure, CompileResult, SemanticColor } from '.
 import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
-import { boxesOverlap, measureText, samplePathD, type Box, type Segment } from '../geom';
+import { boxHitsAny, boxesOverlap, measureText, polylineSegments, samplePathD, type Box, type Segment } from '../geom';
 import { FONT_MIN, FRAME_PAD, LABEL_GAP } from '../types';
 
 type Shape = 'box' | 'ellipse' | 'circle' | 'diamond' | 'stadium';
@@ -536,6 +536,61 @@ function drawLabelLines(b: SceneBuilder, id: string, lines: string[], at: Point,
   });
 }
 
+/** The lettering of an edge label centred at `at`: 0.8 em per line, the panel font set ~5 % wider than the estimate. */
+function labelInk(lines: string[], at: Point): Box {
+  const w = Math.max(...lines.map((line) => measureText(line, FONT_MIN).w)) * 1.05;
+  const h = (lines.length - 1) * LINE_HEIGHT + FONT_MIN * 0.8;
+  return { x1: at.x - w / 2, y1: at.y - h / 2, x2: at.x + w / 2, y2: at.y + h / 2 };
+}
+
+/** Unit vector from the nearest point of `route` toward `at` (the route's normal when `at` lies on it). */
+function awayFromRoute(route: Segment[], at: Point): Point {
+  let best = { d: Infinity, x: 0, y: -1 };
+  for (const s of route) {
+    const dx = s.x2 - s.x1;
+    const dy = s.y2 - s.y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const t = Math.max(0, Math.min(1, ((at.x - s.x1) * dx + (at.y - s.y1) * dy) / (len * len)));
+    const qx = s.x1 + t * dx;
+    const qy = s.y1 + t * dy;
+    const d = Math.hypot(at.x - qx, at.y - qy);
+    if (d < best.d) best = d > 1e-6 ? { d, x: (at.x - qx) / d, y: (at.y - qy) / d } : { d, x: -dy / len, y: dx / len };
+  }
+  return { x: best.x, y: best.y };
+}
+
+/**
+ * FIG-GRAPH-LABEL-02: dagre sets an edge label 3 units beside its edge, so on a curved route the lettering can
+ * sit on a line. Slide each label straight away from its own route (the layout is never redone) until no edge
+ * crosses its lettering, clear of nodes, the other labels and the frame; dagre's spot stays if nothing fits.
+ */
+function placeEdgeLabels(
+  b: SceneBuilder,
+  labels: Array<{ id: string; lines: string[]; at: Point }>,
+  nodes: Box[],
+  frame: { w: number; h: number },
+): void {
+  const strokeSegs = (id?: string) => b.strokes
+    .filter((s) => !id || s.id === id)
+    .flatMap((s) => (s.d ? samplePathD(s.d) : polylineSegments(s.points)));
+  const edges = strokeSegs();
+  const boxes = labels.map((label) => labelInk(label.lines, label.at));
+  labels.forEach((label, index) => {
+    const others = [...nodes, ...boxes.filter((_, other) => other !== index)];
+    const fits = (at: Point) => {
+      const box = labelInk(label.lines, at);
+      return box.x1 >= 0 && box.y1 >= 0 && box.x2 <= frame.w && box.y2 <= frame.h &&
+        !boxHitsAny(box, edges, 1) && !others.some((other) => boxesOverlap(box, other, 1));
+    };
+    const away = awayFromRoute(strokeSegs(label.id), label.at);
+    const moves = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].flatMap((step) => [step, -step])
+      .map((d) => ({ x: label.at.x + away.x * d, y: label.at.y + away.y * d }));
+    const at = fits(label.at) ? label.at : moves.find(fits) ?? label.at;
+    boxes[index] = labelInk(label.lines, at);
+    drawLabelLines(b, label.id, label.lines, at, label.id);
+  });
+}
+
 function drawSelfLoop(b: SceneBuilder, id: string, center: Point, geom: NodeGeom, slot: Point | undefined, lines: string[], style: { color: SemanticColor; markerEnd: boolean }): void {
   const toward = slot ?? { x: center.x, y: center.y - 1 };
   const length = Math.hypot(toward.x - center.x, toward.y - center.y) || 1;
@@ -617,6 +672,7 @@ export async function compileGraph(spec: SpecDoc, ctx: CompileCtx): Promise<Comp
   const b = new SceneBuilder('graph', layout.width, layout.height);
   b.hl(spec.highlight);
   const endpoint = (id: string) => ({ center: layout.pos.get(id)!, geom: geoms.get(id)! });
+  const edgeLabelsToPlace: Array<{ id: string; lines: string[]; at: Point }> = [];
 
   data.edges.forEach((edge, index) => {
     const id = graphEdgeId(index, edge.a, edge.b);
@@ -649,13 +705,19 @@ export async function compileGraph(spec: SpecDoc, ctx: CompileCtx): Promise<Comp
       const ty = ((end.x - before.x) / length) * 6;
       b.line(`${id}-bar`, end.x - tx, end.y - ty, end.x + tx, end.y + ty, { color, role: 'annotation', width: 2 });
     }
-    if (lines.length && laid.label) drawLabelLines(b, id, lines, laid.label, id);
+    if (lines.length && laid.label) edgeLabelsToPlace.push({ id, lines, at: laid.label });
   });
 
   for (const [id, points] of layout.starts) {
     const route = clipRoute(points, null, endpoint(id));
     if (route.length >= 2) b.path(`${id}-start`, routePath(route), { color: 'neutral', role: 'annotation', width: 1.5, markerEnd: true });
   }
+  const nodeBoxes = data.nodes.map((node) => {
+    const { x, y } = layout.pos.get(node.id)!;
+    const { w, h } = geoms.get(node.id)!;
+    return { x1: x - w / 2, y1: y - h / 2, x2: x + w / 2, y2: y + h / 2 };
+  });
+  placeEdgeLabels(b, edgeLabelsToPlace, nodeBoxes, { w: layout.width, h: layout.height });
 
   for (const node of data.nodes) {
     const p = layout.pos.get(node.id)!;

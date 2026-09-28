@@ -1067,11 +1067,13 @@ row: P4, 5, 2, 8, 10, 5, 3`;
       highlights: [],
     });
 
-    expect(frameBounds(result.scene)).toHaveLength(7);
+    // D20 (2026-09-25): a short-celled table that is only too wide for the nominal frame stays one
+    // coherent grid (was: 7 tiled panels, the first holding only the row keys).
+    expect(frameBounds(result.scene)).toHaveLength(1);
     const laid = layoutScene(result.scene);
     expect(laid.ok).toBe(true);
     if (!laid.ok) return;
-    assertTiledPanelsPreserveRowIdentity(result.scene, laid, ['P1', 'P2', 'P3', 'P4']);
+    assertTableLabelsInsideCells(result.scene, laid);
   });
 
   it('freezes the iteration 135 right-triangle relation matrix', async () => {

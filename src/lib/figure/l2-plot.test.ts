@@ -130,7 +130,11 @@ describe('L2 plot capability probes', () => {
     const result = compile('kind: function\nfn: x^2\ndomain: -2 4');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.scene.labels.filter((label) => label.id.startsWith('xtickl'))).toHaveLength(2);
+    // D17 (2026-09-25): at least four nice ticks, spanning both ends of the domain.
+    const ticks = result.scene.labels.filter((label) => label.id.startsWith('xtickl')).map((label) => Number(label.text));
+    expect(ticks.length).toBeGreaterThanOrEqual(4);
+    expect(ticks).toContain(-2);
+    expect(ticks).toContain(4);
   });
 
   it('keeps required axis and equation annotations visible and detached from plot geometry', () => {

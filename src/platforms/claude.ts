@@ -66,4 +66,3 @@ const config: AdapterConfig = {
 };
 
 export const claudeAdapter = createAdapter(config);
-export const claudeConfig = config;

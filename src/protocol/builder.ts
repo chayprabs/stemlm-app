@@ -5,7 +5,7 @@
  * preamble so the chat box stays clean. Inline paste is a last-resort fallback.
  */
 import type { Subject } from './types';
-import { assembleProtocolFile, CORE_PROTOCOL } from './protocol';
+import { assembleProtocolFile } from './protocol';
 import { SUBJECT_REGISTRY } from './playbooks';
 import { classifySubject } from './classifier';
 import { normalizeFollowupSelection } from '@/src/lib/followup-selection';
@@ -195,12 +195,6 @@ export function getDiagramRequirement(subject: Subject): string {
     '\n',
   );
 }
-
-export const FIRST_PASS_COMPLETION_REQUIREMENT = [
-  'FIRST PASS ONLY: produce the complete corrected capsule now; do not rely on a later repair/retry prompt.',
-  'Before sending, self-check that the output is exactly one fenced stemlm block ending in @end, every @step has non-empty @body work and id=, and every visual state-changing step has a closed @diagram spec (not SVG) that names every object in @body.',
-].join('\n');
-
 export const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
 
 export const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
@@ -224,26 +218,6 @@ export interface InjectionPayload {
 export function resolveSubject(question: string, opt?: BuildOptions): Subject {
   if (opt?.subject && opt.subject !== 'Auto') return opt.subject;
   return classifySubject(question);
-}
-
-const DIAGRAM_REMINDERS: Record<Subject, string> = {
-  Electrical:
-    'Use one complete circuit or hybridpi/opamp spec for the source topology and material state changes; OMIT unchanged algebra. Reconstruct node connectivity and count-check device lines and terminals. Never SVG coordinates.',
-  Chemistry:
-    'Use chem.smiles / newman / mo / table kind=ice / echem on visual steps — every named species is a spec id. Never SVG coordinates.',
-  Physics:
-    'Use scene FBD / ray (f,do) / field catalog (solenoid,dipole,parallel-plate,wire,TE10) / plot on visual steps — named forces, axes, core/B/H. Never SVG coordinates.',
-  Math: 'Use type=plot with fn: and eq: (or scene/table) when visual. Never SVG coordinates.',
-  Biology: 'Use table/graph/named templates (graph for pathways). Never SVG coordinates.',
-  CS: 'Use graph for control flow / state machines; table/array for DS traces. Code as inline `code`, never a fence.',
-  Mechanical: 'Use scene FBD / plot P-V / shaft templates. Never SVG coordinates.',
-  Civil: 'Use beam then type=sfd (sagging+). Never SVG coordinates.',
-  Chemical: 'Use PFD streams / type=mccabe (α,zF,xD,R,q — no stair corners). Never SVG coordinates.',
-  General: "Use the dominant subject's spec types whenever spatial/visual. Never SVG coordinates.",
-};
-
-export function getDiagramReminder(subject: Subject): string {
-  return DIAGRAM_REMINDERS[subject] ?? DIAGRAM_REMINDERS.General;
 }
 
 export const STEP_BODY_REMINDER =
@@ -276,11 +250,6 @@ export const STUDENT_PREAMBLE = [
 export const POINTER_PREAMBLE = [
   `New problem. Follow the attached ${STUDY_GUIDE_REFERENCE}, including its diagram instructions.`,
 ].join(' ');
-
-export function buildFollowAttachedLine(): string {
-  return `Follow the attached ${STUDY_GUIDE_REFERENCE} as an answer-format reference for my question. Infer the subject from the problem.`;
-}
-
 export interface ComposerStubOptions extends Pick<BuildOptions, 'hasImageAttachment'> {
   includeQuestion?: boolean;
 }

@@ -9,6 +9,9 @@ import { buildStepEntries, SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 import { SolutionView } from './SolutionView';
 import { Loading } from './Loading';
 import { EmptyState } from './EmptyState';
+import { useViewportWidth } from './use-viewport-width';
+import { isOverlayViewport, layoutPanelWidthVw } from '@/src/lib/split-ratio';
+import { ErrorBanner } from './ErrorBanner';
 import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
 import { IconClose, IconNavNext, IconNavPrev } from './icons';
@@ -20,7 +23,7 @@ import {
 } from '@/src/lib/saved-sessions';
 import { StorageQuotaError } from '@/src/lib/storage-errors';
 import { normalizeContentScale, setSettings } from '@/src/lib/settings';
-import { exportSessionPdf } from '@/src/lib/pdf';
+import { requestSessionPdf } from '@/src/lib/pdf-export-request';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
 
@@ -64,6 +67,7 @@ export function Panel() {
   } = useStore();
   const session = useActiveSession();
   const reducedMotion = useReducedMotion();
+  const viewport = useViewportWidth();
   const [saved, setSaved] = useState(false);
   const [contentScaleBusy, setContentScaleBusy] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
@@ -198,14 +202,10 @@ export function Panel() {
 
   async function onExportPdf() {
     if (!session) return;
-    try {
-      const result = await exportSessionPdf(session);
-      if (result.ok) return;
-    } catch {
-      // Export can fail when a browser print surface is unavailable.
-    }
+    // pdf.html builds and downloads the file in its own window (D7).
+    if (await requestSessionPdf(session)) return;
     if (useStore.getState().status !== 'error') {
-      useStore.getState().setStatus('error', 'PDF export failed. Try again or use Print from the dialog.');
+      useStore.getState().setStatus('error', 'Could not start the PDF export. Reload this tab and try again.');
     }
   }
 
@@ -241,7 +241,7 @@ export function Panel() {
       className="slm-panel"
       data-stemlm-theme={theme}
       data-content-scale={settings.contentScale}
-      style={{ width: `${(splitRatio * 100).toFixed(3)}vw` }}
+      style={{ width: `${layoutPanelWidthVw(splitRatio, viewport)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerDown={onPanelPointerDown}
@@ -250,9 +250,9 @@ export function Panel() {
       exit={reducedMotion ? undefined : { x: '100%' }}
       transition={reducedMotion ? { duration: 0 } : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       role="complementary"
-      aria-label="stemLM study panel"
+      aria-label="stemlm study panel"
     >
-      <ResizeHandle />
+      {!isOverlayViewport(viewport) && <ResizeHandle />}
       <PanelHeader
         session={session}
         view={view}
@@ -302,14 +302,7 @@ export function Panel() {
         </div>
       )}
 
-      {errorMessage && (
-        <div
-          className={`slm-banner ${status === 'error' ? 'slm-banner-error' : 'slm-banner-info'}`}
-          role={status === 'error' ? 'alert' : 'status'}
-        >
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage && <ErrorBanner message={errorMessage} tone={status === 'error' ? 'error' : 'info'} />}
 
       <div className="slm-body">
         {status === 'loading' && !session && <Loading theme={theme} />}

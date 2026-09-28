@@ -1,4 +1,5 @@
-import type { CompileCtx, CompileResult } from '../types';
+import { FONT_MIN, type CompileCtx, type CompileResult } from '../types';
+import { measureText } from '../geom';
 import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
@@ -142,7 +143,7 @@ export function compileSmith(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const reflectionImag = (2 * z0 * zL.imag) / reflectionDenominator;
   const loadX = cx + Math.max(-0.85, Math.min(0.85, reflectionReal)) * r;
   const loadY = cy - Math.max(-0.85, Math.min(0.85, reflectionImag)) * r;
-  b.circle('load', loadX, loadY, 3, { color: 'accent', fill: 'solid', role: 'annotation' });
+  b.circle('load', loadX, loadY, 3, { color: 'accent', fill: 'ink', role: 'annotation' });
   return layoutAndCompile(b.scene());
 }
 
@@ -198,7 +199,7 @@ export function compileMinkowski(spec: SpecDoc, ctx: CompileCtx): CompileResult 
   eventNames.forEach((event, i) => {
     const x = cx + ((i + 1) * s) / (eventNames.length + 1);
     const y = cy - ((i + 1) * s) / (eventNames.length + 1);
-    b.circle(`event-${i}`, x, y, 3, { color: 'danger', fill: 'solid', role: 'annotation' });
+    b.circle(`event-${i}`, x, y, 3, { color: 'danger', fill: 'ink', role: 'annotation' });
     b.label(`event-label-${i}`, event, x, y - 12, { slot: 'N', anchorId: `event-${i}`, priority: 'required' });
   });
   worldlines.forEach((raw, i) => {
@@ -237,8 +238,8 @@ export function compileRay(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const sx = w * 0.18;
   const tx = w * 0.82;
   const midY = h * 0.54;
-  b.circle('source-anchor', sx, midY, 4, { color: 'accent', fill: 'solid', role: 'annotation' });
-  b.circle('target-anchor', tx, midY, 4, { color: 'accent', fill: 'solid', role: 'annotation' });
+  b.circle('source-anchor', sx, midY, 4, { color: 'accent', fill: 'ink', role: 'annotation' });
+  b.circle('target-anchor', tx, midY, 4, { color: 'accent', fill: 'ink', role: 'annotation' });
   b.label('source-label', safeLabel(source, 'source'), sx, midY - 12, { slot: 'N', anchorId: 'source-anchor', priority: 'required' });
   b.label('target-label', safeLabel(target, 'target'), tx, midY - 12, { slot: 'N', anchorId: 'target-anchor', priority: 'required' });
   const spread = Math.min(24, h / Math.max(4, relations.length + 2));
@@ -395,10 +396,12 @@ function compileFieldCatalog(spec: SpecDoc, ctx: CompileCtx, rawCatalog: string)
     const cx = w / 2;
     const cy = h / 2;
     b.circle('wire', cx, cy, 8, { fill: 'muted', width: 1.6, role: 'annotation' });
+    // Current into the page: a full × on the wire; B circles clockwise; I named outside the outermost circle.
     b.line('current', cx - 4, cy - 4, cx + 4, cy + 4, { width: 1.4, role: 'connector' });
+    b.line('current-2', cx - 4, cy + 4, cx + 4, cy - 4, { width: 1.4, role: 'connector' });
     for (let i = 0; i < 4; i++) b.circle(`B${i}`, cx, cy, 18 + i * 12, { color: 'guide', width: 1, role: 'boundary' });
     b.path('Btan', `M ${cx + 30} ${cy - 6} A 30 30 0 0 1 ${cx + 6} ${cy + 30}`, { color: 'accent', markerEnd: true, width: 1.4, role: 'connector' });
-    b.label('I', 'I', cx, cy - 16, { protected: true, anchorId: 'wire' });
+    b.label('I', 'I (into page)', cx - 54 - 6 - measureText('I (into page)', FONT_MIN).w / 2, cy, { protected: true, anchorId: 'wire' });
     return layoutAndCompile(b.scene());
   }
   if (catalog === 'te10' || catalog === 'te-10' || catalog === 'waveguide') {
@@ -436,7 +439,7 @@ function compileFieldCatalog(spec: SpecDoc, ctx: CompileCtx, rawCatalog: string)
   const mur = /mu_r\s*=\s*(\S+)/i.exec(coreRaw)?.[1] ?? coreRaw.replace(/^mu_r\s*=\s*/i, '');
   const bRaw = specGet(spec, 'b') ?? '1.0 T';
   const hRaw = specGet(spec, 'h') ?? '?';
-  b.label('mu_r', `μ_r=${mur}`, coreX + coreW / 2, coreY - 10, { protected: true, anchorId: 'core' });
+  b.label('mu_r', `μ_r=${mur}`, coreX + coreW / 2, coreY - 12 - 4 - measureText('0', FONT_MIN).h / 2, { protected: true, anchorId: 'core' });
   b.label('B-val', `B=${bRaw}`, coreX + coreW - 8, bYs[1]! - 10, { anchorId: 'B', priority: 'preferred' });
   b.label('H-val', `H=${hRaw}`, coreX + coreW - 8, hy + 12, { anchorId: 'H', priority: 'preferred' });
   return layoutAndCompile(b.scene());
@@ -548,7 +551,7 @@ export function compileBz(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   });
   pointCoords.forEach((point, i) => {
     const id = point.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || `point-${i}`;
-    b.circle(id, point.x, point.y, 3, { fill: 'solid', color: 'accent', role: 'annotation' });
+    b.circle(id, point.x, point.y, 3, { fill: 'ink', color: 'accent', role: 'annotation' });
     b.label(`${id}-label`, point.name, point.x, point.y - 12, { slot: 'N', anchorId: id, priority: 'required' });
     if (i > 0) {
       const previous = pointCoords[i - 1]!;

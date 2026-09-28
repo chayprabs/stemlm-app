@@ -26,10 +26,11 @@ import {
   THREAD_PROTOCOL_SELECTORS,
 } from '@/src/protocol/builder';
 import { buildStepEntries } from '@/src/lib/step-entries';
-import { attachTextFile } from '@/src/lib/file-inject';
+import { attachTextFile, hasConfirmedAttachment } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import {
   applyStepPatch,
+  closedPrefix,
   findResumeToken,
   stitchResume,
   groupResumeParts,
@@ -85,7 +86,13 @@ const NO_CAPSULE_STABILITY_MS = 10_000;
 const PARTIAL_STALL_MS = 10_000;
 const STREAMING_STALL_MS = 60_000;
 
-const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end', 'malformed_verify']);
+const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end']);
+
+/** How often a watching controller checks that its observed root is still in the page (CAP-OBS-01). */
+const ROOT_CHECK_MS = 2_000;
+
+/** A guide chip must stay gone this long before it counts as removed (a send also moves it). */
+const GUIDE_REMOVED_CONFIRM_MS = 1_000;
 
 /**
  * Closing blocks a finished full answer may lack (D11): its steps are still
@@ -102,9 +109,15 @@ function missingClosingNotice(result: ParseResult): string | undefined {
   // Patches and Ask-in-chat answers are incremental: they never carry these blocks.
   if (result.patch?.length || mode === 'patch' || mode === 'resolve') return undefined;
   const missing = [...new Set(result.warningCodes)].flatMap((code) => OPTIONAL_CLOSING_BLOCKS[code] ?? []);
-  if (!missing.length) return undefined;
-  const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(missing);
-  return `This answer arrived without its ${list}. The steps are complete; double-check the final result.`;
+  if (missing.length) {
+    const list = new Intl.ListFormat('en', { type: 'conjunction' }).format(missing);
+    return `This answer arrived without its ${list}. The steps are complete; double-check the final result.`;
+  }
+  // PARSE-04 (D30): the parser already marked the check failed with a correction note.
+  if (result.warningCodes.includes('malformed_verify')) {
+    return 'The final check in this answer was incomplete, so the result is shown as not verified. Double-check it.';
+  }
+  return undefined;
 }
 
 function hasUsableParsedContent(result: ParseResult): boolean {
@@ -117,7 +130,7 @@ function hasUsableParsedContent(result: ParseResult): boolean {
 }
 
 /** Full answers need the complete contract; repair/follow-up modes stay incremental. */
-function hasCaptureContract(result: ParseResult): boolean {
+export function hasCaptureContract(result: ParseResult): boolean {
   if (!hasUsableParsedContent(result)) return false;
   const hasOversizedCapsule =
     result.warningCodes.includes('invalid_step_count') &&
@@ -183,12 +196,17 @@ export function keepActiveQid(active: Session, incoming: Capsule): Capsule {
 
 interface ComposerOperation {
   isCurrent: () => boolean;
+  /** A newer inject / follow-up started after this one. */
+  superseded: () => boolean;
   recordDraft: () => void;
 }
 
 export class StemController {
   private adapter: PlatformAdapter;
   private observer: MutationObserver | null = null;
+  private observedRoot: ParentNode | null = null;
+  private rootTimer: ReturnType<typeof setInterval> | null = null;
+  private guideMissingSince = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private stabilityTimer: ReturnType<typeof setTimeout> | null = null;
   private capturedRaw = new Set<string>();
@@ -203,6 +221,8 @@ export class StemController {
   private pendingFollowUpAnchor: { sessionId: string; anchorStepId: string } | null = null;
   /** Truncated capsule waiting for a `@resume` continuation. */
   private pendingResume: { token: string; raw: string } | null = null;
+  /** D38: the cut-off answer on screen, waiting for the rest of its reply. */
+  private cutOffId: string | null = null;
   private watching = false;
   /** Cleared on each inject/follow-up so stale chat capsules do not block capture. */
   private captureEpoch = 0;
@@ -237,8 +257,22 @@ export class StemController {
         this.adapter.findEditor() === editor &&
         (this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document) === root &&
         this.adapter.getEditorText() === draft,
+      superseded: () => generation !== this.composerGeneration,
       recordDraft: () => { draft = this.adapter.getEditorText(); },
     };
+  }
+
+  /**
+   * INJ-01: the draft, chat, editor or on/off switch changed while the guide was
+   * attaching. Say so instead of doing nothing; a newer attempt speaks for itself.
+   */
+  private abandonAttach(operation: ComposerOperation): false {
+    const store = useStore.getState();
+    if (!operation.superseded() && store.settings.stemlmEnabled !== false) {
+      store.setStatus('error', 'Your chat box changed while stemlm was attaching its guide, so it stopped. Check the chat box, then click the stemlm + button again.');
+      store.openPanel();
+    }
+    return false;
   }
 
   get platformId() {
@@ -299,10 +333,10 @@ export class StemController {
       requireConfirmation: this.delivery === 'file',
       root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
     });
-    if (!operation.isCurrent()) return false;
+    if (!operation.isCurrent()) return this.abandonAttach(operation);
 
     if (!attached.ok && this.delivery === 'file') {
-      store.setStatus('error', 'Could not attach the stemLM instruction file. Wait for uploads to finish, then try the + button again. Your question is unchanged.');
+      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try the + button again. Your question is unchanged.');
       store.openPanel();
       return false;
     }
@@ -352,11 +386,11 @@ export class StemController {
       injectionMethod = 'text';
     }
 
-    if (!operation.isCurrent()) return false;
+    if (!operation.isCurrent()) return this.abandonAttach(operation);
     if (!ok) {
       store.setStatus(
         'error',
-        'Could not add the stemLM study guide to the chat box. Click in the input and try stemLM again.',
+        'Could not add the stemlm study guide to the chat box. Click in the input and try stemlm again.',
       );
       store.openPanel();
       return false;
@@ -367,7 +401,7 @@ export class StemController {
     store.setButtonInjected(true);
     if (!hasUserContent && attached.ok) {
       this.adapter.focusComposerQuestionSlot();
-      store.setStatus('idle', 'Instructions attached. Type your question above the stemLM line, then send when ready.');
+      store.setStatus('idle', 'Instructions attached. Type your question above the stemlm line, then send when ready.');
     } else {
       store.setStatus('loading');
     }
@@ -432,9 +466,9 @@ export class StemController {
       requireConfirmation: this.delivery === 'file',
       root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
     });
-    if (!operation.isCurrent()) return false;
+    if (!operation.isCurrent()) return this.abandonAttach(operation);
     if (!attached.ok && this.delivery === 'file') {
-      store.setStatus('error', 'Could not attach the stemLM instruction file. Wait for uploads to finish, then try Ask in chat again. Your draft is unchanged.');
+      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try Ask in chat again. Your draft is unchanged.');
       return false;
     }
     let ok: boolean;
@@ -454,7 +488,7 @@ export class StemController {
       });
     }
 
-    if (!operation.isCurrent()) return false;
+    if (!operation.isCurrent()) return this.abandonAttach(operation);
     if (!ok) {
       useStore
         .getState()
@@ -609,13 +643,27 @@ export class StemController {
     if (this.watching) return;
     this.watching = true;
     this.observer = new MutationObserver(() => this.scheduleCheck());
-    this.observer.observe(this.watchRoot(), {
+    this.observeRoot();
+    // CAP-OBS-01: a host that swaps its conversation root would leave the observer on a
+    // detached node and capture would silently stop. Rebind when that happens.
+    this.rootTimer = setInterval(() => {
+      if (this.observedRoot && !(this.observedRoot as Node).isConnected) {
+        this.observeRoot();
+        this.scheduleCheck();
+      }
+    }, ROOT_CHECK_MS);
+    // Also check immediately in case the answer is already present.
+    this.scheduleCheck();
+  }
+
+  private observeRoot(): void {
+    this.observer?.disconnect();
+    this.observedRoot = this.watchRoot();
+    this.observer?.observe(this.observedRoot, {
       childList: true,
       subtree: true,
       characterData: true,
     });
-    // Also check immediately in case the answer is already present.
-    this.scheduleCheck();
   }
 
   stopWatching(): void {
@@ -623,6 +671,11 @@ export class StemController {
     this.watching = false;
     this.observer?.disconnect();
     this.observer = null;
+    this.observedRoot = null;
+    if (this.rootTimer) {
+      clearInterval(this.rootTimer);
+      this.rootTimer = null;
+    }
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -646,6 +699,7 @@ export class StemController {
     this.captureEpoch += 1;
     this.capturedRaw.clear();
     this.pendingResume = null;
+    this.cutOffId = null;
   }
 
   /**
@@ -662,6 +716,7 @@ export class StemController {
    */
   private checkForCapsule(): void {
     if (!this.watching) return;
+    this.checkGuideStillAttached();
     this.maybeAnswerStarted();
 
     const capsules = this.adapter.extractCapsules();
@@ -720,10 +775,65 @@ export class StemController {
       this.stabilityTimer = setTimeout(() => this.evaluateStable(), Math.min(STABILITY_MS, stall - quietFor));
       return;
     }
-    // A stable prefix is still a prefix. Surface an explicit error state but
-    // leave the watcher alive so a later final @end can be reconciled and
-    // captured without storing or duplicating the incomplete answer.
-    this.offerRepairPrompt(parse(candidate));
+    // A stable prefix is still a prefix: the chat stopped writing. Show the blocks that closed
+    // (D38), else report it; either way the watcher stays alive, so a later @end or continuation
+    // replaces it instead of duplicating it.
+    if (!this.showCutOff(candidate)) this.offerRepairPrompt(parse(candidate));
+  }
+
+  /**
+   * D38: a full answer the chat stopped writing shows its closed blocks as a cut-off session
+   * (never saved; never replacing another answer). False when nothing usable closed.
+   */
+  private showCutOff(candidate: string): boolean {
+    const prefix = this.pendingFollowUpCapture ? null : closedPrefix(candidate);
+    if (!prefix) return false;
+    const result = parse(prefix);
+    const cap = result.capsule;
+    const closedContract = hasCaptureContract({
+      ...result,
+      warningCodes: result.warningCodes.filter((code) => code !== 'missing_end'),
+    });
+    if (!cap || result.patch?.length || cap.meta.mode === 'patch' || cap.meta.mode === 'resolve' ||
+        !closedContract) return false;
+    const store = useStore.getState();
+    const shown = store.sessions.find((s) => s.id === this.cutOffId);
+    if (shown?.raw === result.raw) return true;
+    const session: Session = {
+      id: shown?.id ?? makeId(),
+      createdAt: shown?.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
+      platform: this.adapter.id,
+      question: cleanSessionQuestion(this.lastQuestion) || cap.meta.question?.trim() || cap.meta.topic,
+      capsule: cap,
+      raw: result.raw,
+      cutOff: true,
+    };
+    this.commitSession(session, Boolean(shown));
+    this.cutOffId = session.id;
+    void rememberCurrentChat(this.adapter.id);
+    this.resetInjection();
+    useStore.getState().setStatus(
+      'ready',
+      'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm + button.',
+    );
+    return true;
+  }
+
+  /** D38: the cut-off answer `incoming` finishes, unless it answers a different question. */
+  private cutOffTarget(incoming: Capsule): Session | undefined {
+    const shown = useStore.getState().sessions.find((s) => s.id === this.cutOffId);
+    return shown && !incomingForcesNewSession(shown, incoming) ? shown : undefined;
+  }
+
+  /** D38: a reply that brings only steps the cut-off answer lacks continues it (stitched). */
+  private joinCutOff(candidate: string): string {
+    if (!this.cutOffId) return candidate;
+    const incoming = parse(candidate).capsule;
+    const shown = incoming?.steps.length ? this.cutOffTarget(incoming) : undefined;
+    if (!shown) return candidate;
+    const ids = new Set(shown.capsule.steps.map((s) => s.id));
+    return incoming!.steps.some((s) => ids.has(s.id)) ? candidate : stitchResume([shown.raw, candidate]);
   }
 
   /**
@@ -746,11 +856,15 @@ export class StemController {
       this.pendingResume = null;
     }
 
-    const key = candidate.trim();
-    if (this.capturedRaw.has(key)) {
-      this.resolveLoadingIfAlreadyCaptured(key);
+    const own = candidate.trim();
+    if (this.capturedRaw.has(own)) {
+      this.resolveLoadingIfAlreadyCaptured(own);
       return;
     }
+    candidate = this.joinCutOff(candidate);
+    const key = candidate.trim();
+    // A continuation stitched onto a cut-off answer must not be captured again on its own.
+    if (key !== own) this.rememberCaptured(own);
 
     const result = parse(candidate);
     const usable = hasCaptureContract(result);
@@ -779,9 +893,14 @@ export class StemController {
     // same-topic capsule without a qid can replace the active session.
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    useStore
-      .getState()
-      .setStatus('error', `stemLM couldn't read a structured answer from this response. Parser code: ${code}.`);
+    // No capsule at all is usually the chat's own error or usage-limit reply, not a garbled answer;
+    // a missing @end on a stable reply means the chat stopped writing.
+    const lead = code === 'no_capsule'
+      ? 'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm + button.'
+      : code === 'missing_end'
+        ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemlm + button.'
+        : "stemlm couldn't read this answer. Click the stemlm + button and send your question again.";
+    useStore.getState().setStatus('error', `${lead}\nParser code: ${code}.`);
     this.resetInjection();
     void trackEvent('extension_error', {
       platform: this.adapter.id,
@@ -807,6 +926,8 @@ export class StemController {
       blocks > this.baselineBlocks || this.adapter.isStreaming() || text.includes('@meta');
     if (started) {
       this.answerStarted = true;
+      // DISABLED-01: switched off mid-answer, stemLM must not pop its panel open.
+      if (useStore.getState().settings.stemlmEnabled === false) return;
       try {
         this.onAnswerStartedCb?.();
       } catch {
@@ -856,7 +977,7 @@ export class StemController {
   private rejectPatch(detail: string): void {
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    useStore.getState().setStatus('error', `This update was not applied to the answer. ${detail}`);
+    useStore.getState().setStatus('error', `stemlm couldn't apply this change, so the answer on screen is unchanged.\n${detail}`);
     this.resetInjection();
   }
 
@@ -931,6 +1052,7 @@ export class StemController {
     }
 
     const incoming = questionCapsules[0]!;
+    const cutOff = this.cutOffTarget(incoming);
     const nativeSameQid =
       active &&
       questionCapsules.length === 1 &&
@@ -944,6 +1066,7 @@ export class StemController {
         incoming.meta.mode == null);
 
     const followUpSameQuestion =
+      !cutOff &&
       (this.pendingFollowUpCapture || Boolean(nativeSameQid)) &&
       active &&
       questionCapsules.length === 1 &&
@@ -992,17 +1115,19 @@ export class StemController {
         last.platform === this.adapter.id &&
         cleanSessionQuestion(last.question) === cleanedQuestion &&
         !incomingForcesNewSession(active, cap);
+      // D38: the finished reply replaces the cut-off answer it completes, even when not active.
+      const replaced = i === 0 && cutOff ? cutOff : shouldReplace ? last : undefined;
 
       const session: Session = {
-        id: shouldReplace ? last.id : makeId(),
-        createdAt: shouldReplace ? last.createdAt : Date.now(),
+        id: replaced?.id ?? makeId(),
+        createdAt: replaced?.createdAt ?? Date.now(),
         updatedAt: Date.now(),
         platform: this.adapter.id,
         question: cleanedQuestion,
         capsule: cap,
         raw: result.raw,
       };
-      this.commitSession(session, Boolean(shouldReplace));
+      this.commitSession(session, Boolean(replaced));
       void trackEvent('question_solved', {
         platform: this.adapter.id,
         subject: cap.meta.subject,
@@ -1072,6 +1197,7 @@ export class StemController {
     void rememberCurrentChat(this.adapter.id);
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
+    this.cutOffId = null;
     this.resetInjection();
     const notice = missingClosingNotice(result);
     if (notice) useStore.getState().setStatus('ready', notice);
@@ -1141,7 +1267,7 @@ export class StemController {
       } else {
         store.setStatus(
           'error',
-          'No stemLM answers found in this chat. Solve a question with stemLM first.',
+          'No stemlm answers found in this chat. Solve a question with stemlm first.',
         );
       }
     }
@@ -1193,12 +1319,19 @@ export class StemController {
           result.capsule!.meta.question ??
           result.capsule!.meta.topic,
         capsule: result.capsule!,
+        ...(prev?.followups ? { followups: prev.followups } : {}),
         raw: result.raw,
       });
     }
 
     if (sessions.length) {
-      store.setSessions(sessions);
+      // LOAD-01: merge, never replace. Sessions the page does not show (restored, other
+      // chats) stay; reloaded ones keep their place and follow-ups.
+      const byId = new Map(sessions.map((s) => [s.id, s]));
+      const merged = store.sessions.map((s) => byId.get(s.id) ?? s);
+      merged.push(...sessions.filter((s) => !store.sessions.some((e) => e.id === s.id)));
+      store.setSessions(merged);
+      store.setActiveSession(sessions[sessions.length - 1]!.id);
       store.setStatus('ready');
       void trackEvent('conversation_loaded', { platform: this.adapter.id, count: sessions.length });
     }
@@ -1218,6 +1351,33 @@ export class StemController {
   }
 
   /** Allow the user to inject again (e.g. after starting a new question). */
+  /**
+   * LIVE-02: the student removed the attached guide from the chat box before sending. The draft still
+   * carries the stemlm pointer (nothing was sent) but no guide chip is shown any more. Confirmed after
+   * a second, because a send also moves the chip out of the composer just before the host clears it.
+   */
+  private checkGuideStillAttached(): void {
+    const removed = useStore.getState().buttonInjected && this.delivery === 'file' &&
+      composerTextHasProtocol(this.adapter.getEditorText()) &&
+      !hasConfirmedAttachment(PROTOCOL_FILENAME, this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document);
+    if (!removed) {
+      this.guideMissingSince = 0;
+      return;
+    }
+    const now = Date.now();
+    if (!this.guideMissingSince) {
+      this.guideMissingSince = now;
+      setTimeout(() => this.checkGuideStillAttached(), GUIDE_REMOVED_CONFIRM_MS + 50);
+      return;
+    }
+    if (now - this.guideMissingSince < GUIDE_REMOVED_CONFIRM_MS) return;
+    this.guideMissingSince = 0;
+    this.resetInjection();
+    this.pendingFollowUpCapture = false;
+    this.pendingFollowUpAnchor = null;
+    useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Click the stemlm + button to attach it again.');
+  }
+
   resetInjection(): void {
     this.preparedComposer = null;
     useStore.getState().setButtonInjected(false);

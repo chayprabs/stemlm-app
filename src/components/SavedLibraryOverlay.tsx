@@ -40,7 +40,7 @@ export function SavedLibraryOverlay({
 }) {
   const [items, setItems] = useState<SavedSessionSnapshot[]>(sessions ?? []);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
-  const dialogRef = useDialogFocus<HTMLDivElement>();
+  const dialogRef = useDialogFocus<HTMLDivElement>('container');
 
   useEffect(() => {
     if (sessions) {

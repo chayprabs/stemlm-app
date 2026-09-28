@@ -130,8 +130,14 @@ describe('shipped protocol file (criterion 1)', () => {
       expect(allowed.has(t) || t in FAMILY_CATALOG, `invented type=${t}`).toBe(true);
     }
     expect(FILE).toMatch(/NEVER emit type=svg/i);
-    for (const t of spec) {
-      expect(FILE, `catalog type ${t} missing from registry`).toContain(t);
+    // D2: the registry advertises only kept families, each one a real catalog spec type.
+    const advertised = renderDiagramRegistry()
+      .split('\n')
+      .filter((line) => /^[a-z][a-z0-9.-]*\t/.test(line) && !line.startsWith('type\t'))
+      .map((line) => line.split('\t', 1)[0]!);
+    expect(advertised.length).toBeGreaterThan(5);
+    for (const t of advertised) {
+      expect(spec.has(t), `advertised ${t} is not a catalog spec type`).toBe(true);
     }
   });
 
@@ -312,16 +318,16 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
     expect(FILE).toContain('Transformation: show input, every structural/data-state change, and output; never only endpoint.');
   });
 
-  it('keeps leftover types but prefers ENGINE then the subject row', () => {
+  it('keeps kept template types but prefers ENGINE then the subject row', () => {
     expect(FILE).toContain('Use ENGINE types first, then the subject row');
     expect(FILE).toContain('TEMPLATE');
-    expect(FILE).toContain('hybridpi');
-    expect(FILE).toContain('anatomy');
+    expect(FILE).toMatch(/^timing\t/m);
+    expect(FILE).toMatch(/^chem\.smiles\t/m);
+    expect(FILE).not.toMatch(/^(?:anatomy|hybridpi)\t/m);
   });
 
-  it('uses catalog hybridpi/opamp keys and does not list Physics sfd', () => {
-    expect(FILE).toContain('rpi,gm,re,rc');
-    expect(FILE).toContain('rf,rg');
+  it('does not advertise the dropped hybridpi/opamp templates and does not list Physics sfd', () => {
+    expect(FILE).not.toMatch(/\bhybridpi\b|\bopamp\b|rpi,gm,re,rc/);
     expect(FILE).not.toMatch(/hybridpi REQUIRES rpi,gm,RE,RC/);
     expect(FILE).not.toMatch(/opamp REQUIRES Rf,Rg/);
     const physicsLine = FILE.split('\n').find((l) => l.startsWith('PHYSICS\t'));

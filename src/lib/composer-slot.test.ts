@@ -288,7 +288,7 @@ describe('landing-page composer markup', () => {
     expect(document.querySelector('form')!.contains(slot!)).toBe(false);
   });
 
-  it('pins a narrow centered pill to the left edge instead of covering the heading', () => {
+  it('docks inside a narrow pill that hugs the window edge, before its + (D37)', () => {
     document.body.innerHTML = `
       <form>
         <div class="composer-pill">
@@ -306,12 +306,15 @@ describe('landing-page composer markup', () => {
       x: 20, y: 528, width: 32, height: 32, top: 528, left: 20, bottom: 560, right: 52, toJSON() {},
     } as DOMRect);
     const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
-    expect(Number.parseFloat(slot.style.left)).toBe(8);
-    expect(Number.parseFloat(slot.style.top)).toBe(528);
-    expect(Number.parseFloat(slot.style.top)).toBeGreaterThan(400);
+    // No room left of the pill: inside it, never pinned over its own + or over the heading.
+    expect(slot.dataset.dock).toBe('before-plus');
+    expect(slot.parentElement).toBe(pill);
+    expect(slot.nextElementSibling).toBe(plus);
+    expect(slot.style.position).toBe('');
+    expect(slot.style.left).toBe('');
   });
 
-  it('sits above a bottom-docked narrow composer when there is no left room', () => {
+  it('docks inside a bottom-docked narrow composer instead of floating above it (D37)', () => {
     document.body.innerHTML = `
       <div class="thread"><p>assistant reply</p></div>
       <form>
@@ -332,9 +335,11 @@ describe('landing-page composer markup', () => {
       x: 20, y: 788, width: 32, height: 32, top: 788, left: 20, bottom: 820, right: 52, toJSON() {},
     } as DOMRect);
     const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
-    expect(Number.parseFloat(slot.style.left)).toBe(12);
-    expect(Number.parseFloat(slot.style.top)).toBe(780 - 32 - 8);
-    expect(Number.parseFloat(slot.style.top) + 32).toBeLessThanOrEqual(780);
+    expect(slot.dataset.dock).toBe('before-plus');
+    expect(slot.parentElement).toBe(pill);
+    expect(slot.nextElementSibling).toBe(plus);
+    expect(slot.style.position).toBe('');
+    expect(slot.style.top).toBe('');
   });
 
   it('prefers the inner pill over a page-sized wrapper that also contains a stray +', () => {

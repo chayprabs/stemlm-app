@@ -79,4 +79,3 @@ const config: AdapterConfig = {
 };
 
 export const grokAdapter = createAdapter(config);
-export const grokConfig = config;

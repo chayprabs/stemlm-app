@@ -105,7 +105,7 @@ export function SettingsOverlay({
 }) {
   const [settings, setLocal] = useState<Settings>(DEFAULT_SETTINGS);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
-  const dialogRef = useDialogFocus<HTMLDivElement>();
+  const dialogRef = useDialogFocus<HTMLDivElement>('container');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -238,7 +238,7 @@ export function SettingsOverlay({
 
         <footer className="slm-settings-foot">
           <p className="slm-settings-foot-note">Changes save automatically</p>
-          <nav className="slm-settings-links" aria-label="About stemLM">
+          <nav className="slm-settings-links" aria-label="About stemlm">
             {SETTINGS_LEGAL_LINKS.map((item, i) => (
               <Fragment key={item.id}>
                 {i > 0 && <span className="slm-settings-links-sep" aria-hidden="true" />}

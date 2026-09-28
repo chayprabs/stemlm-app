@@ -200,7 +200,7 @@ describe('popup chrome', () => {
     expect(text).toContain(OPEN_STUDY_PANEL_LABEL);
     expect(text).toContain(SAVED_QUESTIONS_LABEL);
     expect(text).not.toContain('ChatGPT');
-    expect(text).not.toContain('Solve with stemLM');
+    expect(text).not.toMatch(/Solve with stemlm/i);
     expect(text).toContain('Claude');
     expect(text).toContain('Gemini');
     expect(text).toContain('Grok');
@@ -450,6 +450,15 @@ describe('popup chrome', () => {
     expect(window.close).toHaveBeenCalled();
     expect(container.querySelector('[role="dialog"][aria-labelledby="slm-settings-title"]')).toBeNull();
     expect(container.querySelector('.slm-popup-head')).toBeTruthy();
+    unmount();
+  });
+
+  it('links to the How to use stemLM page (ONBOARD-01)', async () => {
+    const { container, unmount } = await renderPopup();
+    const link = clickLaunch(container, 'welcome');
+    expect(link.textContent).toContain('How to use stemlm');
+    await act(async () => { await Promise.resolve(); });
+    expect(tabsCreate).toHaveBeenCalledWith({ url: 'chrome-extension://test/welcome.html', active: true });
     unmount();
   });
 

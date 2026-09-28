@@ -58,6 +58,18 @@ function innermost(elements: HTMLElement[]): HTMLElement[] {
   return elements.filter((el) => !elements.some((other) => other !== el && el.contains(other)));
 }
 
+const USER_MESSAGE_SELECTOR = '[data-testid*="user" i], [data-message-author-role="user"], [data-role="user"]';
+
+/**
+ * Assistant messages in page order. A generic selector (".message-bubble") can also match the
+ * student's own message, which is never a reply; selector order is not page order.
+ */
+function assistantBlocks(selectors: string[]): HTMLElement[] {
+  return innermost(allMatches(selectors))
+    .filter((el) => !el.closest(USER_MESSAGE_SELECTOR))
+    .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
 function outsideComposerSlot(el: HTMLElement | null): HTMLElement | null {
   if (!el?.isConnected) return null;
   if (el.closest(COMPOSER_SLOT_SELECTOR)) return null;
@@ -120,13 +132,25 @@ function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document)
   return null;
 }
 
-function selectAllContents(el: HTMLElement): void {
+/**
+ * Select `range` and tell the editor now. Chrome queues `selectionchange`, and ProseMirror pastes at
+ * its own selection until that event arrives, so a paste sent right after moving the caret would
+ * land where the student last clicked.
+ */
+function selectRange(range: Range): void {
   const sel = window.getSelection();
   if (!sel) return;
-  const range = document.createRange();
-  range.selectNodeContents(el);
   sel.removeAllRanges();
   sel.addRange(range);
+  document.dispatchEvent(new Event('selectionchange'));
+}
+
+/** Select all of `el`, or put the caret at its start or end. */
+function selectContents(el: HTMLElement, caret?: 'start' | 'end'): void {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  if (caret) range.collapse(caret === 'start');
+  selectRange(range);
 }
 
 /** True when the editor visibly contains the text we tried to write. */
@@ -183,47 +207,6 @@ function rebuildParagraphs(el: HTMLElement, text: string): void {
 }
 
 const FOLLOWUP_QUESTION_MARKER = 'Ask your question here:';
-
-function moveCursorToStart(el: HTMLElement): void {
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-function moveCursorToEnd(el: HTMLElement): void {
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-function moveCursorToTextOffset(root: HTMLElement, targetOffset: number): void {
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  let offset = 0;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    const len = node.textContent?.length ?? 0;
-    if (offset + len >= targetOffset) {
-      range.setStart(node, Math.max(0, targetOffset - offset));
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-      return;
-    }
-    offset += len;
-  }
-  moveCursorToEnd(root);
-}
 
 const COMPOSER_ROOT_SELECTOR = [
   'input-area-v2',
@@ -302,12 +285,12 @@ export function appendEditorText(el: HTMLElement, text: string): boolean {
   }
 
   el.focus();
-  moveCursorToEnd(el);
+  selectContents(el, 'end');
 
   if (dispatchSyntheticPaste(el, chunk, 'append') && editorReflectsText(el, text)) return true;
 
   try {
-    moveCursorToEnd(el);
+    selectContents(el, 'end');
     if (document.execCommand('insertText', false, chunk) && editorReflectsText(el, text)) return true;
   } catch {
     /* fall through */
@@ -348,12 +331,12 @@ export function setEditorText(el: HTMLElement, text: string): boolean {
   // contenteditable (ProseMirror / Quill / Lexical) — try several strategies and
   // verify the full protocol landed (Gemini Quill often truncates execCommand).
   el.focus();
-  selectAllContents(el);
+  selectContents(el);
 
   if (dispatchSyntheticPaste(el, text, 'replace') && editorReflectsText(el, text)) return true;
 
   try {
-    selectAllContents(el);
+    selectContents(el);
     if (document.execCommand('insertText', false, text) && editorReflectsText(el, text)) return true;
   } catch {
     /* fall through */
@@ -378,15 +361,30 @@ export function focusComposerQuestionSlot(editor: HTMLElement | null): void {
     return;
   }
 
-  const text = getEditorTextOf(editor);
-  const idx = text.indexOf(FOLLOWUP_QUESTION_MARKER);
-  if (idx === -1) {
-    moveCursorToStart(editor);
+  // Find the label in the DOM itself: innerText offsets count paragraph breaks that no text node holds.
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const text = node.textContent ?? '';
+    const idx = text.indexOf(FOLLOWUP_QUESTION_MARKER);
+    if (idx === -1) continue;
+    const line = node.parentElement?.closest('p, div, li');
+    const next = line && line !== editor && editor.contains(line) ? line.nextElementSibling : null;
+    const range = document.createRange();
+    if (next && !next.textContent?.trim()) {
+      // Paragraph editors (ProseMirror, Quill): the question goes on the blank line under the label.
+      range.selectNodeContents(next);
+      range.collapse(false);
+    } else {
+      let offset = idx + FOLLOWUP_QUESTION_MARKER.length;
+      while (offset < text.length && (text[offset] === '\n' || text[offset] === '\r')) offset++;
+      range.setStart(node, offset);
+      range.collapse(true);
+    }
+    selectRange(range);
     return;
   }
-  let offset = idx + FOLLOWUP_QUESTION_MARKER.length;
-  while (offset < text.length && (text[offset] === '\n' || text[offset] === '\r')) offset++;
-  moveCursorToTextOffset(editor, offset);
+  selectContents(editor, 'start');
 }
 
 export function getEditorTextOf(el: HTMLElement | null): string {
@@ -632,18 +630,18 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getAssistantBlocks() {
-      return innermost(allMatches(config.assistant));
+      return assistantBlocks(config.assistant);
     },
 
     getLatestAssistantText() {
-      const blocks = innermost(allMatches(config.assistant));
+      const blocks = assistantBlocks(config.assistant);
       const last = blocks[blocks.length - 1];
       return last ? (last.innerText ?? last.textContent ?? '') : '';
     },
 
     extractCapsules() {
       const capsules: string[] = [];
-      for (const block of innermost(allMatches(config.assistant))) {
+      for (const block of assistantBlocks(config.assistant)) {
         // Within a message keep only the innermost code elements so a <pre>
         // wrapping a <code> is not counted twice; dedupe identical text.
         const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], block));
@@ -661,7 +659,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       }
       // If the model dropped the fence, fall back to scanning message text.
       if (capsules.length === 0) {
-        for (const block of innermost(allMatches(config.assistant))) {
+        for (const block of assistantBlocks(config.assistant)) {
           const text = block.innerText ?? block.textContent ?? '';
           if (text.includes('@meta')) capsules.push(text);
         }
@@ -691,5 +689,3 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
   };
 }
-
-export const _internal = { firstMatch, allMatches, innermost };

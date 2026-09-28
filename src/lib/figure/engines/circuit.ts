@@ -4,6 +4,8 @@ import { SceneBuilder, frameSize } from '../scene-build';
 import { emitSvg } from '../emit';
 import { layoutScene, overlaysFromLayout, strokeSegments } from '../slk';
 import { boxHitsAny, boxesOverlap, measureText } from '../geom';
+import { deviceHalf, displayDeviceValue, drawGlyph } from './circuit-glyphs';
+import { compileStageCircuit } from './circuit-stage';
 
 export interface Device {
   id: string;
@@ -13,13 +15,16 @@ export interface Device {
   n3?: string;
   value?: string;
   switchState?: 'open' | 'closed';
+  /** Q (C B E) and M (D G S) transistors; n1..n3 keep the written terminal order. */
+  transistor?: 'npn' | 'pnp' | 'nmos' | 'pmos';
 }
 
-interface ParsedCircuit {
+export interface ParsedCircuit {
   devices: Device[];
   wires: Array<{ a: string; b: string }>;
   ports: Array<{ node: string; role: 'input' | 'output' | 'return' }>;
   labels: Array<{ target: string; text: string; id: string }>;
+  probes: Array<{ id: string; name: string; node: string }>;
   error?: string;
 }
 
@@ -34,6 +39,8 @@ interface CircuitPairLayout {
 const CONTROL_KEYS = new Set(['std', 'probe', 'highlight', 'caption', 'kind', 'title', 'wire', 'port', 'label']);
 const TWO_TERM = new Set(['r', 'c', 'l', 'v', 'i', 'd', 'm', 's']);
 const THREE_TERM = new Set(['a', 'q']);
+const BJT_TYPE = /^(npn|pnp)$/i;
+const FET_TYPE = /^(nmos|pmos)$/i;
 const UNSUPPORTED_DIODE_VARIANT = /\b(?:zener|schottky|led|light[- ]emitting|photodiode|varactor|tunnel|avalanche|laser)\b/i;
 
 function isGnd(n: string): boolean {
@@ -56,7 +63,22 @@ function parseDevice(id: string, raw: string): { device?: Device; error?: string
   if (parts.length < terminalCount) {
     return { error: `${id} is missing terminal ${terminalCount === 3 ? 'n3' : 'n2'}` };
   }
-  if (kind === 'q') return { error: `unsupported transistor ${id}` };
+  if (kind === 'q') {
+    // Q<id>: C B E [npn|pnp] [value] — npn unless declared otherwise.
+    if (parts[3] && FET_TYPE.test(parts[3])) return { error: `transistor ${id} is a BJT: write npn or pnp` };
+    const type = parts[3] && BJT_TYPE.test(parts[3]) ? parts[3].toLowerCase() as 'npn' | 'pnp' : undefined;
+    const value = parts.slice(type ? 4 : 3).join(' ') || undefined;
+    return { device: { id, kind, n1: parts[0]!, n2: parts[1]!, n3: parts[2]!, value, transistor: type ?? 'npn' } };
+  }
+  const fetIndex = kind === 'm' ? parts.findIndex((part) => FET_TYPE.test(part)) : -1;
+  if (fetIndex >= 0) {
+    // M<id>: D G S nmos|pmos [value]; a body terminal is accepted only when tied to the source.
+    if (fetIndex !== 3 && !(fetIndex === 4 && parts[3] === parts[2])) {
+      return { error: `transistor ${id} needs D G S nmos|pmos (a body terminal apart from the source is not drawn)` };
+    }
+    const value = parts.slice(fetIndex + 1).join(' ') || undefined;
+    return { device: { id, kind, n1: parts[0]!, n2: parts[1]!, n3: parts[2]!, value, transistor: parts[fetIndex]!.toLowerCase() as 'nmos' | 'pmos' } };
+  }
   const value = parts.slice(terminalCount).join(' ') || undefined;
   if (kind === 's') {
     const switchState = (value ?? 'open').toLowerCase();
@@ -89,16 +111,6 @@ function parseDevice(id: string, raw: string): { device?: Device; error?: string
   };
 }
 
-function displayDeviceValue(device: Device): string | undefined {
-  if (!device.value) return undefined;
-  // Preserve authored units while making compact resistor notation readable;
-  // a bare value remains bare rather than gaining an inferred unit.
-  if (device.kind === 'r' && /Ω$/u.test(device.value.trim())) {
-    return `${device.value.trim().replace(/\s*Ω$/u, '')} Ω`;
-  }
-  return device.value;
-}
-
 function parsePort(raw: string): ParsedCircuit['ports'][number] | null {
   const parts = raw.trim().split(/\s+/).filter(Boolean);
   if (parts.length !== 2 || !/^(input|output|return)$/i.test(parts[1]!)) return null;
@@ -115,7 +127,7 @@ function parseLabel(raw: string, index: number): ParsedCircuit['labels'][number]
 }
 
 function parseCircuit(spec: SpecDoc): ParsedCircuit {
-  const result: ParsedCircuit = { devices: [], wires: [], ports: [], labels: [] };
+  const result: ParsedCircuit = { devices: [], wires: [], ports: [], labels: [], probes: [] };
   if (spec.lists.size) {
     result.error = 'circuit declarations need inline values; repeat wire, port, or label keys';
     return result;
@@ -194,6 +206,27 @@ function parseCircuit(spec: SpecDoc): ParsedCircuit {
       return result;
     }
   }
+  for (const meter of result.devices) {
+    // A meter reads two nodes; a third node token is a MOSFET missing its type, never a meter value.
+    const first = meter.kind === 'm' && !meter.transistor ? meter.value?.split(/\s+/)[0] : undefined;
+    if (first && result.devices.some((device) => device !== meter && [device.n1, device.n2, device.n3].includes(first))) {
+      result.error = `${meter.id} has three nodes: write nmos or pmos for a MOSFET`;
+      return result;
+    }
+  }
+  for (const [index, raw] of specGetAll(spec, 'probe').entries()) {
+    const m = /^([A-Za-z0-9_-]+)\s*=\s*([A-Za-z0-9_+-]+)$/.exec(raw.trim());
+    if (!m) {
+      result.error = 'probe needs name=node';
+      return result;
+    }
+    if (!declaredNodes.has(m[2]!)) {
+      result.error = `probe node not found: ${m[2]}`;
+      return result;
+    }
+    const repeated = result.probes.some((probe) => probe.name === m[1]);
+    result.probes.push({ id: repeated ? `${m[1]}:${index}` : m[1]!, name: m[1]!, node: m[2]! });
+  }
   for (const [index, raw] of specGetAll(spec, 'label').entries()) {
     const label = parseLabel(raw, index);
     if (!label) {
@@ -255,6 +288,11 @@ function portsReachDeviceNodes(
   return new Set(ports.filter((port) => reachable.has(port.node)).map((port) => port.node));
 }
 
+/** Designator-to-value spacing: 16 units, plus a subscript's drop and a superscript's rise between them. */
+function pairGap(designator: string, value: string): number {
+  return 16 + (/_/.test(designator) ? 3.6 : 0) + (/\^/.test(value) ? 4.8 : 0);
+}
+
 function pairGroups(scene: Scene): string[] {
   return [...new Set(scene.labels.map((label) => label.groupId).filter((id): id is string => Boolean(id && id.startsWith('pair:'))))];
 }
@@ -282,7 +320,7 @@ function compileCircuitScene(builder: SceneBuilder): CompileResult {
     // source coordinates. A split or missing joint slot must fail closed.
     const verticalGap = pairPlaced ? placedValue.y - placedDesignator.y : Number.NaN;
     if (!designator || !value || !pairPlaced || Math.abs(placedDesignator.x - placedValue.x) > 0.1 ||
-      placedDesignator.y >= placedValue.y || Math.abs(verticalGap - 16) > 0.1 || !pairFits) {
+      placedDesignator.y >= placedValue.y || Math.abs(verticalGap - pairGap(designator.text ?? '', value.text ?? '')) > 0.1 || !pairFits) {
       return { ok: false, code: 'unsatisfiable', reason: `designator/value pair ${group} is not ordered (${Boolean(pairFits)},${Number.isFinite(verticalGap) ? verticalGap : 'missing'})` };
     }
   }
@@ -303,9 +341,9 @@ function arrangeCircuitPairs(scene: Scene, pairs: CircuitPairLayout[]): boolean 
     const designator = labels.find((label) => !label.id.endsWith('-val'));
     const value = labels.find((label) => label.id.endsWith('-val'));
     if (!designator || !value) return null;
-    const verticalGap = pair.horizontal ? 16 : 8;
-    const designatorY = pair.horizontal ? y - 32 : y - verticalGap;
-    const valueY = pair.horizontal ? y - 16 : y + verticalGap;
+    const gap = pairGap(designator.text ?? '', value.text ?? '');
+    const designatorY = pair.horizontal ? y - 16 - gap : y - gap / 2;
+    const valueY = pair.horizontal ? y - 16 : y + gap / 2;
     const designatorSize = measureText(designator.text ?? designator.id, 12, false);
     const valueSize = measureText(value.text ?? '', 12, false);
     return { designator, value, boxes: [boxFor(x, designatorY, designatorSize.w, designatorSize.h), boxFor(x, valueY, valueSize.w, valueSize.h)] };
@@ -377,125 +415,6 @@ function arrangeCircuitPairs(scene: Scene, pairs: CircuitPairLayout[]): boolean 
   return placeHorizontal(0);
 }
 
-
-function ieeeZigzag(x: number, y: number, horiz: boolean, half: number): number[] {
-  const h = Math.max(12, half);
-  if (horiz) {
-    return [x - h, y, x - h * 0.66, y - 6, x - h * 0.33, y + 6, x, y - 6, x + h * 0.33, y + 6, x + h * 0.66, y - 6, x + h, y];
-  }
-  return [x, y - h, x - 6, y - h * 0.66, x + 6, y - h * 0.33, x, y, x - 6, y + h * 0.33, x + 6, y + h * 0.66, x, y + h];
-}
-
-function drawGlyph(
-  b: SceneBuilder,
-  d: Device,
-  x: number,
-  y: number,
-  horiz: boolean,
-  std: string,
-  half: number,
-  direction: 'right' | 'left' | 'down' | 'up' = 'right',
-): void {
-  const iec = std === 'iec';
-  if (d.kind === 'r') {
-    if (iec) {
-      if (horiz) b.rect(d.id, x - half, y - 7, half * 2, 14, { fill: 'none', role: 'geometry', width: 1.8 });
-      else b.rect(d.id, x - 7, y - half, 14, half * 2, { fill: 'none', role: 'geometry', width: 1.8 });
-    } else b.polyline(d.id, ieeeZigzag(x, y, horiz, half), { role: 'geometry', width: 1.8 });
-    return;
-  }
-  if (d.kind === 'c') {
-    if (horiz) {
-      b.line(d.id, x - 5, y - 12, x - 5, y + 12, { role: 'geometry', width: 2 });
-      b.line(`${d.id}-b`, x + 5, y - 12, x + 5, y + 12, { role: 'geometry', width: 2 });
-    } else {
-      b.line(d.id, x - 12, y - 5, x + 12, y - 5, { role: 'geometry', width: 2 });
-      b.line(`${d.id}-b`, x - 12, y + 5, x + 12, y + 5, { role: 'geometry', width: 2 });
-    }
-    return;
-  }
-  if (d.kind === 'l') {
-    if (horiz) b.path(d.id, `M ${x - 16} ${y} q 8 -8 16 0 q 8 8 16 0 q 8 -8 16 0`, { role: 'geometry', width: 1.8 });
-    else b.path(d.id, `M ${x} ${y - 16} q 8 8 0 16 q -8 8 0 16 q 8 8 0 16`, { role: 'geometry', width: 1.8 });
-    return;
-  }
-  if (d.kind === 'v') {
-    b.circle(d.id, x, y, Math.min(12, half), { role: 'geometry' });
-    if (/^ac(?:\s|$)/i.test(d.value ?? '')) {
-      b.path(`${d.id}-ac`, `M ${x - 6} ${y} q 3 -7 6 0 q 3 7 6 0`, { role: 'geometry', width: 1.6 });
-    } else {
-      const n1Positive = direction === 'right' || direction === 'down';
-      const positiveX = horiz ? x + (n1Positive ? -6 : 6) : x;
-      const positiveY = horiz ? y : y + (n1Positive ? -6 : 6);
-      const negativeX = horiz ? x + (n1Positive ? 6 : -6) : x;
-      const negativeY = horiz ? y : y + (n1Positive ? 6 : -6);
-      b.label(`${d.id}-plus`, '+', positiveX, positiveY, { protected: true, priority: 'optional' });
-      b.label(`${d.id}-minus`, '−', negativeX, negativeY, { protected: true, priority: 'optional' });
-    }
-    return;
-  }
-  if (d.kind === 'i') {
-    b.circle(`${d.id}-body`, x, y, Math.min(12, half), { role: 'geometry' });
-    if (horiz) {
-      const leftToRight = direction !== 'left';
-      b.line(d.id, x + (leftToRight ? -6 : 6), y, x + (leftToRight ? 6 : -6), y, { color: 'accent', role: 'connector', markerEnd: true, width: 1.4 });
-    } else {
-      const topToBottom = direction !== 'up';
-      b.line(d.id, x, y + (topToBottom ? -6 : 6), x, y + (topToBottom ? 6 : -6), { color: 'accent', role: 'connector', markerEnd: true, width: 1.4 });
-    }
-    return;
-  }
-  if (d.kind === 'm') {
-    b.circle(d.id, x, y, Math.min(12, half), { role: 'geometry' });
-    b.label(`${d.id}-meter`, 'M', x, y, { protected: true, priority: 'optional' });
-    return;
-  }
-  if (d.kind === 's') {
-    if (horiz) {
-      b.line(d.id, x - half, y, x - 5, y, { role: 'geometry', width: 1.8 });
-      b.line(`${d.id}-blade`, x - 5, y, x + 6, d.switchState === 'closed' ? y : y - 7, { role: 'geometry', width: 1.8 });
-      b.line(`${d.id}-right`, x + 6, y, x + half, y, { role: 'geometry', width: 1.8 });
-    } else {
-      b.line(d.id, x, y - half, x, y - 5, { role: 'geometry', width: 1.8 });
-      b.line(`${d.id}-blade`, x, y - 5, d.switchState === 'closed' ? x : x + 7, y + 6, { role: 'geometry', width: 1.8 });
-      b.line(`${d.id}-right`, x, y + 6, x, y + half, { role: 'geometry', width: 1.8 });
-    }
-    return;
-  }
-  if (d.kind === 'd') {
-    if (horiz) {
-      const right = direction !== 'left';
-      b.polygon(d.id, right ? [x - 8, y - 10, x - 8, y + 10, x + 8, y] : [x + 8, y - 10, x + 8, y + 10, x - 8, y], { fill: 'none', role: 'geometry' });
-      const barX = x + (right ? 8 : -8);
-      b.line(`${d.id}-bar`, barX, y - 10, barX, y + 10, { role: 'geometry', width: 2 });
-    } else {
-      const down = direction !== 'up';
-      b.polygon(d.id, down ? [x - 10, y - 8, x + 10, y - 8, x, y + 8] : [x - 10, y + 8, x + 10, y + 8, x, y - 8], { fill: 'none', role: 'geometry' });
-      const barY = y + (down ? 8 : -8);
-      b.line(`${d.id}-bar`, x - 10, barY, x + 10, barY, { role: 'geometry', width: 2 });
-    }
-    return;
-  }
-  if (d.kind === 'a') {
-    const left = direction === 'left';
-    b.polygon(
-      d.id,
-      left ? [x + 17, y - 16, x + 17, y + 16, x - 18, y] : [x - 17, y - 16, x - 17, y + 16, x + 18, y],
-      { fill: 'none', role: 'geometry', width: 1.8 },
-    );
-    b.label(`${d.id}-plus`, '+', x + (left ? 11 : -11), y - 7, { protected: true, priority: 'optional' });
-    b.label(`${d.id}-minus`, '−', x + (left ? 11 : -11), y + 7, { protected: true, priority: 'optional' });
-    return;
-  }
-  b.polygon(d.id, [x - 12, y - 14, x - 12, y + 14, x + 13, y], { fill: 'none', role: 'geometry', width: 1.8 });
-}
-
-function deviceHalf(d: Device, horiz: boolean): number {
-  if (d.kind === 'v' || d.kind === 'i' || d.kind === 'm') return 12;
-  if (d.kind === 'c') return 6;
-  if (d.kind === 'd') return 8;
-  return horiz ? 20 : 16;
-}
 
 function rankNodes(devices: Device[], ports: ParsedCircuit['ports']): { ranks: Map<string, number>; cyclic: boolean } {
   const outgoing = new Map<string, string[]>();
@@ -573,6 +492,9 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (parsed.error) return { ok: false, code: 'malformed', reason: parsed.error };
   const devices = parsed.devices;
   if (!devices.length) return { ok: false, code: 'malformed', reason: 'circuit needs devices' };
+  if (devices.some((device) => device.transistor)) {
+    return compileStageCircuit({ ...parsed, isGround: isGnd, std: (specGet(spec, 'std') ?? 'ieee').toLowerCase(), highlight: spec.highlight });
+  }
   if (hasUnsupportedAmplifierFeedback(devices)) {
     return { ok: false, code: 'unsatisfiable', reason: 'feedback around a three-terminal amplifier needs a feedback-aware layout' };
   }
@@ -670,14 +592,14 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const addPin = (node: string, x: number, y: number) => { const points = pins.get(node) ?? []; points.push({ x, y }); pins.set(node, points); };
   const addTerminal = (d: Device, terminal: 'n1' | 'n2' | 'n3', x: number, y: number, gx: number, gy: number) => {
     b.line(`${d.id}-${terminal}`, x, y, gx, gy, { role: 'connector', width: 1.2 });
-    b.circle(`j:${d.id}:${d[terminal]!}`, x, y, 2.2, { fill: 'solid', role: 'connector' });
+    b.circle(`j:${d.id}:${d[terminal]!}`, x, y, 2.2, { fill: 'ink', role: 'connector' });
     b.node(`n:${d.id}:${d[terminal]!}`, x - 2, y - 2, 4, 4, 'junction');
     addPin(d[terminal]!, x, y);
   };
   const addRoutedTerminal = (d: Device, terminal: 'n1' | 'n2' | 'n3', x: number, y: number, gx: number, gy: number) => {
     const bendX = (x + gx) / 2;
     b.polyline(`${d.id}-${terminal}`, [x, y, bendX, y, bendX, gy, gx, gy], { role: 'connector', width: 1.2 });
-    b.circle(`j:${d.id}:${d[terminal]!}`, x, y, 2.2, { fill: 'solid', role: 'connector' });
+    b.circle(`j:${d.id}:${d[terminal]!}`, x, y, 2.2, { fill: 'ink', role: 'connector' });
     b.node(`n:${d.id}:${d[terminal]!}`, x - 2, y - 2, 4, 4, 'junction');
     addPin(d[terminal]!, x, y);
   };
@@ -801,18 +723,27 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     const c = pins.get(wire.b)?.[0] ?? { x: xOf(wire.b), y: yOf.get(wire.b) ?? yTop };
     const mid = (a.x + c.x) / 2;
     b.polyline(`wire:${index}`, [a.x, a.y, mid, a.y, mid, c.y, c.x, c.y], { role: 'connector', width: 1.2 });
-    b.circle(`wire:${index}:a`, a.x, a.y, 2.2, { fill: 'solid', role: 'connector' });
-    b.circle(`wire:${index}:b`, c.x, c.y, 2.2, { fill: 'solid', role: 'connector' });
+    b.circle(`wire:${index}:a`, a.x, a.y, 2.2, { fill: 'ink', role: 'connector' });
+    b.circle(`wire:${index}:b`, c.x, c.y, 2.2, { fill: 'ink', role: 'connector' });
   }
   for (const port of parsed.ports) {
     const x = port.role === 'input' ? 24 : port.role === 'output' ? w - 24 : xOf(port.node);
-    const y = yOf.get(port.node) ?? yTop;
-    const target = pins.get(port.node)?.[0] ?? { x: xOf(port.node), y };
+    // Join the node where it runs on its own row (nearest end first); a node drawn only on a lifted
+    // track takes the port to that track. Either way the lead runs straight.
+    const rowY = yOf.get(port.node) ?? yTop;
+    const nearest = (points: Array<{ x: number; y: number }>) => [...points].sort((p, q) => Math.abs(p.x - x) - Math.abs(q.x - x))[0];
+    const nodePins = pins.get(port.node) ?? [];
+    const target = nearest(nodePins.filter((pin) => Math.abs(pin.y - rowY) < 0.5)) ?? nearest(nodePins) ?? { x: xOf(port.node), y: rowY };
+    const y = target.y;
     const bendX = (x + target.x) / 2;
     b.polyline(`port:${port.node}:connection`, [x, y, bendX, y, bendX, target.y, target.x, target.y], { role: 'connector', width: 1.2 });
     b.node(`port:${port.node}`, x - 3, y - 3, 6, 6, 'port');
     b.circle(`port:${port.node}:dot`, x, y, 3, { color: 'accent', role: 'connector', fill: 'none' });
-    b.label(`port:${port.node}:label`, port.node, x, y, { protected: true, priority: 'required', anchorId: `port:${port.node}`, slot: port.role === 'input' ? 'W' : 'E' });
+    // The name sits beside the terminal on its outer side, or above it when the frame edge is too close.
+    const size = measureText(port.node, 12, false);
+    const besideX = x + (port.role === 'input' ? -1 : 1) * (7 + size.w / 2);
+    const beside = besideX - size.w / 2 >= 4 && besideX + size.w / 2 <= w - 4;
+    b.label(`port:${port.node}:label`, port.node, beside ? besideX : x, beside ? y : y - 7 - size.h / 2, { protected: true, priority: 'required', anchorId: `port:${port.node}`, slot: port.role === 'input' ? 'W' : 'E' });
   }
   for (const label of parsed.labels) {
     const device = devices.find((entry) => entry.id.toLowerCase() === label.target.toLowerCase());
@@ -826,12 +757,8 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
       : yOf.get(targetNode!)!;
     b.label(label.id, label.text, x, y, { anchorId: device?.id ?? targetNode ?? `port:${port!.node}`, priority: 'preferred', slot: device ? 'NE' : 'W' });
   }
-  const probe = specGet(spec, 'probe');
-  if (probe) {
-    const m = /^([A-Za-z0-9_-]+)\s*=\s*([A-Za-z0-9_+-]+)$/.exec(probe.trim());
-    if (!m) return { ok: false, code: 'malformed', reason: 'probe needs name=node' };
-    if (!nodeSet.has(m[2]!)) return { ok: false, code: 'malformed', reason: `probe node not found: ${m[2]}` };
-    b.label(m[1]!, m[1]!, xOf(m[2]!), yOf.get(m[2]!)!, { slot: 'NE', anchorId: `n:${m[2]}` });
+  for (const probe of parsed.probes) {
+    b.label(probe.id, probe.name, xOf(probe.node), yOf.get(probe.node)!, { slot: 'NE', anchorId: `n:${probe.node}` });
   }
   return compileCircuitScene(b);
 }

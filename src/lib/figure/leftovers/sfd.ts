@@ -1,4 +1,5 @@
-import type { CompileCtx, CompileResult } from '../types';
+import { FONT_MIN, type CompileCtx, type CompileResult } from '../types';
+import { measureText } from '../geom';
 import { specGet, specGetAll, specHasEmptyDelimitedValue, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
@@ -81,17 +82,6 @@ function drawSupport(b: SceneBuilder, id: string, kind: string, x: number, y: nu
   b.line(`${id}-ground`, x - 10, y + 14, x + 10, y + 14, { role: 'boundary', color: 'muted' });
 }
 
-function symbolicCoefficient(value: string): { base: string; coefficient: number } | null {
-  const match = /([A-Za-z]+)\s*(?:\/\s*(\d+(?:\.\d+)?))?/.exec(value);
-  if (!match) return null;
-  return { base: match[1]!.toLowerCase(), coefficient: match[2] ? 1 / Number(match[2]) : 1 };
-}
-
-function ordinate(points: { x: number; y: number }[], mapX: (x: number) => number, y0: number, height: number): number[] {
-  const max = Math.max(...points.map((point) => Math.abs(point.y)), 1);
-  return points.flatMap((point) => [mapX(point.x), y0 - (point.y / max) * height]);
-}
-
 /** Physical admission is separate from preserving supplied ordinate geometry. */
 export function validateSfdSemantics(spec: SpecDoc): string | null {
   const length = specNumber(spec, 'l', 8) ?? 8;
@@ -161,6 +151,43 @@ export function validateSfdSemantics(spec: SpecDoc): string | null {
   return null;
 }
 
+type Point = { x: number; y: number };
+
+/** A load as a quantity: `point 12kN down` → `12 kN`, a force symbol stays as written. */
+function loadText(label: string): string {
+  const text = label.replace(/@.*$/, '').replace(/^\s*point\s+/i, '').replace(/\s+down\s*$/i, '').trim();
+  return text.replace(/^([+-]?\d+(?:\.\d+)?)\s*([A-Za-z]+)$/, '$1 $2');
+}
+
+function compact(value: number): string {
+  return String(Number(value.toFixed(3)));
+}
+
+/**
+ * The ordinates a textbook writes on a V or M diagram: each plateau once, both sides of a jump, local extrema,
+ * nonzero ends, and (`at`) the value at any other named station. Runs of equal value are one plateau.
+ */
+type Ordinate = { x: number; y: number; side: 'left' | 'right' | 'centre' };
+
+function keyOrdinates(points: Point[], at: number[]): Ordinate[] {
+  const runs: { x1: number; x2: number; y: number }[] = [];
+  for (const p of points) {
+    const last = runs.at(-1);
+    if (last && last.y === p.y) last.x2 = p.x;
+    else runs.push({ x1: p.x, x2: p.x, y: p.y });
+  }
+  const jump = (x: number) => points.filter((p) => p.x === x).length > 1;
+  return runs.flatMap((run, i): Ordinate[] => {
+    if (run.y === 0) return [];
+    const before = runs[i - 1];
+    const after = runs[i + 1];
+    const extremum = !before || !after || (run.y - before.y) * (run.y - after.y) > 0;
+    if (run.x2 > run.x1) return [{ x: (run.x1 + run.x2) / 2, y: run.y, side: 'centre' }];
+    if (jump(run.x1)) return [{ x: run.x1, y: run.y, side: before?.x2 === run.x1 ? 'right' : 'left' }];
+    return extremum || at.includes(run.x1) ? [{ x: run.x1, y: run.y, side: 'centre' }] : [];
+  });
+}
+
 export function compileSfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const L = specNumber(spec, 'l', 8) ?? 8;
   const parsedV = parsePieces(specGetAll(spec, 'v').join(';'));
@@ -175,138 +202,77 @@ export function compileSfd(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (sign && sign.toLowerCase().replace(/[\s_-]+/g, '') !== 'sagging+' && sign.toLowerCase().replace(/[\s_-]+/g, '') !== 'saggingpositive') {
     return fail('sfd supports the sagging-positive sign convention only');
   }
-  const { w, h } = frameSize(ctx.profile);
-  const b = new SceneBuilder('sfd', w, h);
-  b.hl(spec.highlight);
-  const bands = 3;
-  const bandH = (h - 12) / bands;
-  const padL = 36;
-  const padR = 12;
-  const mapX = (x: number) => padL + (x / L) * (w - padL - padR);
-
   if (specHasEmptyDelimitedValue(spec, 'supports') || specHasEmptyDelimitedValue(spec, 'loads')) return fail('sfd contains an empty station declaration');
   const parsedSupports = parseStations(specGetAll(spec, 'supports').join(','), L);
   const parsedLoads = parseStations(specGetAll(spec, 'loads').join(','), L);
   if (parsedSupports.malformed || parsedLoads.malformed) return fail('sfd contains an unknown or malformed station target');
-  const supports = parsedSupports.stations;
-  supports.forEach((support, index) => {
-    const id = `support-${support.kind}-${index}`;
-    drawSupport(b, id, support.kind, mapX(support.at), 25);
-    b.label(`${id}-label`, support.kind, mapX(support.at), 11, { slot: 'N', priority: 'optional' });
-  });
+  const supports = parsedSupports.stations.length
+    ? parsedSupports.stations
+    : [{ kind: 'pin', at: 0, label: 'pin' }, { kind: 'roller', at: L, label: 'roller' }];
   const loads = parsedLoads.stations;
+
+  // Everything is placed here, sized from the text at the minimum font; the frame grows to fit (presentation scales).
+  const textH = measureText('0', FONT_MIN).h;
+  const amplitude = 22;
+  const { w } = frameSize(ctx.profile);
+  const padL = 30;
+  const padR = 14;
+  const mapX = (x: number) => padL + (x / L) * (w - padL - padR);
+  const beamY = (loads.length ? textH + 30 : 8) + 4;
+  const dimY = beamY + 26;
+  const beamBottom = dimY + textH + 6;
+  const band = (pts: Point[]) => ({
+    above: pts.some((p) => p.y > 0) ? amplitude + textH + 8 : 8,
+    below: pts.some((p) => p.y < 0) ? amplitude + textH + 8 : 8,
+  });
+  const vBand = band(V);
+  const mBand = band(M);
+  const vTop = beamBottom + 6;
+  const mTop = vTop + vBand.above + vBand.below + 6;
+  const h = mTop + mBand.above + mBand.below + 4;
+  const b = new SceneBuilder('sfd', w, h);
+  b.hl(spec.highlight);
+  b.panel('beam', 'loaded beam', 0, 0, w, beamBottom);
+
+  b.line('beam', padL, beamY, w - padR, beamY, { role: 'geometry', width: 2.4 });
+  supports.forEach((support, index) => drawSupport(b, `support-${support.kind}-${index}`, support.kind, mapX(support.at), beamY));
   loads.forEach((load, index) => {
     const x = mapX(load.at);
-    b.line(`load-${index}`, x, 28, x, 49, { color: 'danger', role: 'annotation', markerEnd: true });
-    b.label(`load-${index}-label`, load.label.replace(/@.*$/, ''), x, 52, { slot: 'S', priority: 'optional' });
+    b.line(`load-${index}`, x, beamY - 24, x, beamY - 1, { color: 'danger', role: 'annotation', markerEnd: true });
+    b.label(`load-${index}-label`, loadText(load.label), x, beamY - 26 - textH / 2, { protected: true, anchorId: `load-${index}` });
+  });
+  const stations = [...new Set([0, L, ...supports.map((s) => s.at), ...loads.map((l) => l.at)])].sort((a, c) => a - c);
+  b.line('span-line', mapX(0), dimY, mapX(L), dimY, { color: 'muted', role: 'guide', width: 1 });
+  stations.forEach((x, index) => {
+    b.line(`span-tick-${index}`, mapX(x), dimY - 4, mapX(x), dimY + 4, { color: 'muted', role: 'guide', width: 1 });
+    const next = stations[index + 1];
+    if (next === undefined) return;
+    const text = compact(next - x);
+    if (measureText(text, FONT_MIN).w + 4 > mapX(next) - mapX(x)) return;
+    b.label(`span-${index}`, text, (mapX(x) + mapX(next)) / 2, dimY + 3 + textH / 2, { protected: true, anchorId: 'span-line' });
   });
 
-  const drawPlot = (name: string, pts: { x: number; y: number }[], band: number, ylabel: string) => {
-    const top = 6 + band * bandH;
-    const mid = top + bandH * 0.55;
+  const drawPlot = (name: 'V' | 'M', pts: Point[], top: number, extent: { above: number; below: number }, at: number[]) => {
+    const mid = top + extent.above;
+    b.panel(`${name}-panel`, name === 'V' ? 'shear force' : 'bending moment', 0, top, w, extent.above + extent.below);
     b.line(`${name}-x`, padL, mid, w - padR, mid, { color: 'guide', role: 'axis', width: 1 });
-    b.line(`${name}-y`, padL, top + 8, padL, top + bandH - 8, { color: 'muted', role: 'axis', width: 1 });
-    b.label(`${name}-yl`, ylabel, 14, mid, { protected: true, priority: 'required' });
-    if (!pts.length) return;
-    const poly = ordinate(pts, mapX, mid, bandH * 0.35);
+    b.line(`${name}-y`, padL, top + 2, padL, top + extent.above + extent.below - 2, { color: 'muted', role: 'axis', width: 1 });
+    b.label(`${name}-yl`, name, padL / 2, mid, { protected: true });
+    const max = Math.max(...pts.map((p) => Math.abs(p.y)), 1e-9);
+    const yOf = (value: number) => mid - (value / max) * amplitude;
+    const poly = pts.flatMap((p) => [mapX(p.x), yOf(p.y)]);
+    b.polygon(`${name}-area`, [mapX(pts[0]!.x), mid, ...poly, mapX(pts.at(-1)!.x), mid], { color: 'muted', role: 'geometry', fill: 'tint', width: 0 });
     b.polyline(name, poly, { color: spec.highlight.includes(name) ? 'accent' : 'neutral', role: 'geometry', width: 1.8, fill: 'none' });
-    pts.forEach((p, i) => {
-      if (i === 0 || i === pts.length - 1 || i === Math.floor(pts.length / 2)) {
-        const yMax = Math.max(...pts.map((point) => Math.abs(point.y)), 1);
-        b.label(`${name}-o${i}`, String(p.y), mapX(p.x), mid - (p.y / yMax) * (bandH * 0.35) - 8, { slot: 'N', priority: 'optional' });
-      }
+    keyOrdinates(pts, at).forEach((o, i) => {
+      const text = compact(o.y);
+      const half = measureText(text, FONT_MIN).w / 2;
+      const nudge = o.side === 'left' ? -half - 3 : o.side === 'right' ? half + 3 : 0;
+      const x = Math.min(w - padR - half, Math.max(padL + half + 3, mapX(o.x) + nudge));
+      const y = o.y > 0 ? yOf(o.y) - 4 - textH / 2 : yOf(o.y) + 4 + textH / 2;
+      b.label(`${name}-o${i}`, text, x, y, { protected: true, anchorId: name });
     });
   };
-
-  // Load diagram (supports)
-  const top = 6;
-  const beamY = top + 18;
-  b.line('beam', padL, beamY, w - padR, beamY, { role: 'geometry', width: 2.4 });
-  if (!supports.length) {
-    drawSupport(b, 'support-pin-0', 'pin', mapX(0), beamY);
-    drawSupport(b, 'support-roller-1', 'roller', mapX(L), beamY);
-  }
-  b.label('L', `L=${L}`, w / 2, top + 8, { protected: true, priority: 'required' });
-  drawPlot('V', V, 1, 'V');
-  drawPlot('M', M, 2, 'M');
-  b.label('sign', sign ?? 'sagging+', w - 40, h - 8, { priority: 'preferred', slot: 'SE' });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileBeam(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const allowed = new Set(['l', 'span', 'supports', 'loads', 'reactions', 'elastic_curve', 'caption', 'highlight']);
-  const unknown = [...spec.values.keys(), ...spec.lists.keys()].filter((key) => !allowed.has(key));
-  if (unknown.length) return fail(`unsupported beam key: ${unknown.join(', ')}`);
-  if (specGetAll(spec, 'loads').some((line) => line.split(/[,;]+/).some((load) => !/^\s*(?:point\s+\S+\s+down|[A-Za-z]\d*)\s*@\s*\S+\s*$/.test(load)))) {
-    return fail('beam loads must be point LABEL down@x or a point-force symbol@x');
-  }
-  const L = specNumber(spec, 'l', specNumber(spec, 'span', 8)) ?? 8;
-  if (!Number.isFinite(L) || L <= 0) return fail('beam span must be positive');
-  if (specHasEmptyDelimitedValue(spec, 'supports') || specHasEmptyDelimitedValue(spec, 'loads') || specHasEmptyDelimitedValue(spec, 'reactions')) return fail('beam contains an empty station declaration');
-  const parsedSupports = parseStations(specGetAll(spec, 'supports').join(','), L);
-  const parsedLoads = parseStations(specGetAll(spec, 'loads').join(','), L);
-  const parsedReactions = parseStations(specGetAll(spec, 'reactions').join(','), L);
-  if (parsedSupports.malformed || parsedLoads.malformed || parsedReactions.malformed) return fail('beam contains an unknown or malformed station target');
-  const supports = parsedSupports.stations;
-  const loads = parsedLoads.stations;
-  const reactions = parsedReactions.stations;
-  if (supports.length < 2) return fail('beam requires two supports');
-  const tolerance = Math.max(1e-6, L * 1e-6);
-  const endpointSupports = supports.length === 2
-    && Math.abs(supports[0]!.at) <= tolerance
-    && Math.abs(supports[1]!.at - L) <= tolerance;
-  const centralPointLoad = loads.length === 1 && Math.abs(loads[0]!.at - L / 2) <= tolerance;
-  if (loads.length && (!endpointSupports || !centralPointLoad)) {
-    return fail('beam elastic curve currently supports one central load between endpoint supports');
-  }
-  if (reactions.length >= 2 && loads.length) {
-    const load = symbolicCoefficient(loads[0]!.label);
-    const left = symbolicCoefficient(reactions[0]!.label);
-    const right = symbolicCoefficient(reactions[1]!.label);
-    if (load && left && right && load.base === left.base && load.base === right.base) {
-      const expected = load.coefficient / 2;
-      if (Math.abs(left.coefficient - expected) > 1e-6 || Math.abs(right.coefficient - expected) > 1e-6) return fail('beam reactions do not balance the declared load');
-    }
-  }
-  const { w, h } = frameSize(ctx.profile);
-  const b = new SceneBuilder('beam', w, h);
-  b.hl(spec.highlight);
-  b.panel('deformed', 'deformed beam', 10, 8, w - 20, (h - 24) / 2);
-  b.panel('freebody', 'free-body beam', 10, 16 + (h - 24) / 2, w - 20, (h - 24) / 2);
-  const x0 = 28;
-  const x1 = w - 28;
-  const mapX = (x: number) => x0 + (x / L) * (x1 - x0);
-  const upper = 8 + (h - 24) * 0.23;
-  const lower = 16 + (h - 24) * 0.73;
-  b.line('beam-reference', x0, upper, x1, upper, { color: 'muted', role: 'guide', dash: true, width: 1.2 });
-  const curve: number[] = [];
-  for (let i = 0; i <= 16; i++) {
-    const t = i / 16;
-    curve.push(x0 + t * (x1 - x0), upper + Math.sin(Math.PI * t) * 18);
-  }
-  b.polyline('elastic-curve', curve, { color: 'accent', role: 'geometry', width: 2, fill: 'none' });
-  b.line('beam-freebody', x0, lower, x1, lower, { role: 'geometry', width: 2.4 });
-  supports.forEach((support, index) => drawSupport(b, `support-${index}`, support.kind, mapX(support.at), lower));
-  loads.forEach((load, index) => {
-    const x = mapX(load.at);
-    b.line(`load-${index}`, x, lower - 25, x, lower - 2, { color: 'danger', role: 'annotation', markerEnd: true });
-    b.label(`load-${index}-label`, load.label.replace(/@.*$/, ''), x, lower - 30, { slot: 'N', priority: 'preferred' });
-  });
-  reactions.forEach((reaction, index) => {
-    const x = mapX(reaction.at);
-    b.line(`reaction-${index}`, x, lower + 25, x, lower + 2, { color: 'accent', role: 'annotation', markerEnd: true });
-    b.label(`reaction-${index}-label`, reaction.label.replace(/@.*$/, ''), x, lower + 30, { slot: 'S', priority: 'optional' });
-  });
-  const elasticCurve = specGet(spec, 'elastic_curve');
-  const landmark = elasticCurve?.match(/\blandmark\s*[:=]?\s*([^;]+)/i)?.[1]?.trim() ?? 'delta';
-  b.label('elastic-landmark', landmark, mapX(L / 2), upper + 29, { slot: 'S', priority: 'preferred', panelId: 'deformed' });
-  if (centralPointLoad) b.label('halfspan', 'L/2', mapX(L / 2), lower + 30, { slot: 'S', priority: 'preferred', panelId: 'freebody' });
-  const firstSupport = supports[0]!;
-  const lastSupport = supports.at(-1)!;
-  b.dimension(
-    'beam-span',
-    `support-0-${firstSupport.kind.includes('roller') ? 'roller' : 'pin'}`,
-    `support-${Math.max(0, supports.length - 1)}-${lastSupport.kind.includes('roller') ? 'roller' : 'pin'}`,
-  );
+  drawPlot('V', V, vTop, vBand, []);
+  drawPlot('M', M, mTop, mBand, stations.filter((x) => V.filter((p) => p.x === x).length > 1));
   return layoutAndCompile(b.scene());
 }

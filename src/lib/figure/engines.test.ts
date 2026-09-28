@@ -46,8 +46,10 @@ describe('five engines through resolveDiagram', () => {
     const content = ['kind: ice', 'species: N2, H2, NH3', 'I: 1, 3, 0', 'C: -x, -3x, +2x', 'E: 1-x, 3-3x, 2x', 'highlight_row: C'].join('\n');
     const resolved = await resolveDiagram({ type: 'table', content }, 'light', 'step');
     expect(svgMarkupHasGraphicShapes(resolved.svg)).toBe(true);
-    expect(resolved.svg).toContain('N2');
-    expect(resolved.svg).toContain('NH3');
+    // D21 (2026-09-25): species render as formulas (N<sub>2</sub>), so check the rendered label text.
+    const texts = [...new DOMParser().parseFromString(resolved.svg, 'image/svg+xml').querySelectorAll('text')].map((text) => text.textContent);
+    expect(texts).toContain('N2');
+    expect(texts).toContain('NH3');
   });
 
   it('scene FBD has named forces not a legend list', async () => {

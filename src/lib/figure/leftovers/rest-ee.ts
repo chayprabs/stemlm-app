@@ -140,7 +140,7 @@ export function compileTwoport(spec: SpecDoc, ctx: CompileCtx): CompileResult {
       b.line(`element-${i}-bottom`, x, cy + 5, x, innerBottom, { width: 1.2, role: 'connector' });
     } else {
       b.line(`element-${i}-left`, x - 20, innerTop, x - 8, innerTop, { width: 1.2, role: 'connector' });
-      b.rect(`element-${i}`, x - 8, innerTop - 6, 16, 12, { fill: 'solid', role: 'geometry' });
+      b.rect(`element-${i}`, x - 8, innerTop - 6, 16, 12, { fill: 'paper', role: 'geometry' });
       b.line(`element-${i}-right`, x + 8, innerTop, x + 20, innerTop, { width: 1.2, role: 'connector' });
     }
     label(b, `element-label-${i}`, element, x, cy + 34, `element-${i}`);
@@ -202,99 +202,12 @@ export function compileXfmr(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (kind) label(b, 'kind-label', kind, cx, h - 10, 'core-right');
   const polarity = specGet(spec, 'polarity');
   if (polarity) {
-    b.circle('polarity-primary', cx - 34, top + 12, 3, { fill: 'solid', color: 'accent', role: 'annotation' });
-    b.circle('polarity-secondary', cx + 34, top + 12, 3, { fill: 'solid', color: 'accent', role: 'annotation' });
+    b.circle('polarity-primary', cx - 34, top + 12, 3, { fill: 'ink', color: 'accent', role: 'annotation' });
+    b.circle('polarity-secondary', cx + 34, top + 12, 3, { fill: 'ink', color: 'accent', role: 'annotation' });
     label(b, 'polarity-label', polarity, cx, 16, 'polarity-primary');
   }
   const phase = specGet(spec, 'phase');
   if (phase) label(b, 'phase-label', `phase=${phase}`, cx, 28, 'core-right');
-  return layoutAndCompile(b.scene());
-}
-
-export function compileConstel(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const rawSymbols = valueOr(spec, ['symbols', 'points']);
-  if (!rawSymbols) return malformed('constel', 'requires symbols or points');
-  const symbols = parseCsv(rawSymbols);
-  if (!symbols.length) return malformed('constel', 'requires at least one symbol');
-  const b = frame('constel', ctx, spec);
-  const { width: w, height: h } = b;
-  const cx = w / 2;
-  const cy = h / 2;
-  b.line('i-axis', 22, cy, w - 22, cy, { markerEnd: true, color: 'muted', role: 'axis' });
-  b.line('q-axis', cx, h - 20, cx, 20, { markerEnd: true, color: 'muted', role: 'axis' });
-  const cols = Math.max(1, Math.ceil(Math.sqrt(symbols.length)));
-  const spacing = Math.min(34, (w - 74) / Math.max(1, cols));
-  symbols.forEach((symbol, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = cx + (col - (cols - 1) / 2) * spacing;
-    const y = cy + (row - (Math.ceil(symbols.length / cols) - 1) / 2) * spacing;
-    b.circle(`symbol-${i}`, x, y, 3.5, { fill: 'solid', color: 'accent', role: 'geometry' });
-    label(b, `symbol-label-${i}`, symbol, x, y - 9, `symbol-${i}`);
-  });
-  const mapping = specGet(spec, 'mapping');
-  if (mapping) label(b, 'mapping-label', mapping, 26, 16, 'i-axis');
-  const modulation = specGet(spec, 'modulation');
-  if (modulation) label(b, 'modulation-label', modulation, w - 28, 16, 'q-axis');
-  const axis = specGet(spec, 'axis');
-  if (axis) label(b, 'axis-label', axis, w / 2, h - 8, 'i-axis');
-  const m = specGet(spec, 'm');
-  if (m) label(b, 'order-label', `M=${m}`, w - 28, h - 8, 'q-axis');
-  return layoutAndCompile(b.scene());
-}
-
-export function compileEye(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const signal = specGet(spec, 'signal');
-  if (!signal) return malformed('eye', 'requires signal');
-  const b = frame('eye', ctx, spec);
-  const { width: w, height: h } = b;
-  const mid = h / 2;
-  b.line('time-axis', 26, mid, w - 26, mid, { color: 'guide', role: 'axis' });
-  b.line('threshold', 26, mid - 2, w - 26, mid - 2, { color: 'muted', dash: true, role: 'dimension' });
-  b.path('eye-upper', `M 30 ${mid} Q ${w / 2} ${mid - 46} ${w - 30} ${mid}`, { color: 'accent', width: 1.5, role: 'geometry' });
-  b.path('eye-lower', `M 30 ${mid} Q ${w / 2} ${mid + 46} ${w - 30} ${mid}`, { color: 'accent', width: 1.5, role: 'geometry' });
-  label(b, 'signal-label', signal, 30, 16, 'eye-upper');
-  const unit = specGet(spec, 'unit');
-  if (unit) label(b, 'unit-label', unit, w - 28, h - 8, 'time-axis');
-  const mask = specGet(spec, 'mask');
-  if (mask) {
-    b.path('mask-upper', `M 92 ${mid} Q ${w / 2} ${mid - 24} ${w - 92} ${mid}`, { color: 'danger', dash: true, role: 'boundary' });
-    b.path('mask-lower', `M 92 ${mid} Q ${w / 2} ${mid + 24} ${w - 92} ${mid}`, { color: 'danger', dash: true, role: 'boundary' });
-    label(b, 'mask-label', `mask=${mask}`, w / 2, 18, 'mask-upper');
-  }
-  const threshold = specGet(spec, 'threshold');
-  if (threshold) label(b, 'threshold-label', `threshold=${threshold}`, 28, mid - 18, 'threshold');
-  const caption = specGet(spec, 'label');
-  if (caption) label(b, 'annotation-label', caption, w / 2, h - 8, 'time-axis');
-  const kind = specGet(spec, 'kind');
-  if (kind) label(b, 'kind-label', kind, 28, h - 8, 'time-axis');
-  return layoutAndCompile(b.scene());
-}
-
-export function compileCmos(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const missing = required(spec, 'cmos', ['pmos', 'nmos', 'input', 'output', 'supply', 'gnd']);
-  if (missing) return missing;
-  const b = frame('cmos', ctx, spec);
-  const { width: w, height: h } = b;
-  const cx = w / 2;
-  b.line('supply-rail', 42, 20, w - 42, 20, { width: 1.5, role: 'boundary' });
-  b.line('ground-rail', 42, h - 20, w - 42, h - 20, { width: 1.5, role: 'boundary' });
-  b.rect('pmos', cx - 18, 30, 36, 34, { fill: 'none', color: 'accent', role: 'geometry' });
-  b.rect('nmos', cx - 18, h - 64, 36, 34, { fill: 'none', color: 'accent', role: 'geometry' });
-  b.line('input', 48, h / 2, cx - 18, h / 2, { width: 1.6, role: 'connector' });
-  b.line('gate', cx - 18, h / 2 - 30, cx - 18, h / 2 + 30, { width: 1.6, role: 'geometry' });
-  b.line('output-junction', cx + 18, 64, cx + 18, h - 64, { width: 1.6, role: 'connector' });
-  b.line('output', cx + 18, h / 2, w - 28, h / 2, { width: 1.6, role: 'connector', markerEnd: true });
-  b.line('p-connection', cx, 20, cx, 30, { width: 1.4, role: 'connector' });
-  b.line('n-connection', cx, h - 64, cx, h - 20, { width: 1.4, role: 'connector' });
-  label(b, 'pmos-label', specGet(spec, 'pmos')!, cx + 28, 46, 'pmos');
-  label(b, 'nmos-label', specGet(spec, 'nmos')!, cx + 28, h - 48, 'nmos');
-  label(b, 'input-label', specGet(spec, 'input')!, 48, h / 2 - 12, 'input');
-  label(b, 'output-label', specGet(spec, 'output')!, w - 28, h / 2 - 12, 'output');
-  label(b, 'supply-label', specGet(spec, 'supply')!, w - 34, 14, 'supply-rail');
-  label(b, 'ground-label', specGet(spec, 'gnd')!, w - 34, h - 8, 'ground-rail');
-  const kind = specGet(spec, 'kind');
-  if (kind) label(b, 'kind-label', kind, cx, h - 8, 'output');
   return layoutAndCompile(b.scene());
 }
 

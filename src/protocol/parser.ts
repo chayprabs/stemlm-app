@@ -154,13 +154,15 @@ function isStructural(line: string): boolean {
   return /^@(diagram|step|formula|q|patch|verify|uncertainty|resume)\b/i.test(t);
 }
 
-/** `key=value` attrs on an open marker (`@step id=s1`, `@diagram id=f1 type=circuit`). */
+/**
+ * `key=value` attrs on an open marker (`@step id=s1`, `@diagram id=f1 type=circuit`).
+ * Models also write `id = s1`, `id: s1` and `id="s1"`; all read the same.
+ */
 export function parseMarkerAttrs(line: string): Record<string, string> {
   const attrs: Record<string, string> = {};
-  const re = /\b([A-Za-z][A-Za-z0-9_-]*)=([^\s]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(line)) !== null) {
-    if (m[1] && m[2]) attrs[m[1].toLowerCase()] = m[2];
+  for (const m of line.matchAll(/\b([A-Za-z][A-Za-z0-9_-]*)\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|([^\s"']+))/g)) {
+    const value = m[2] ?? m[3] ?? m[4];
+    if (m[1] && value) attrs[m[1].toLowerCase()] = value;
   }
   return attrs;
 }
@@ -335,7 +337,7 @@ function applyLocaleStd(capsule: Capsule): void {
   for (const d of capsule.solutionDiagrams) apply(d);
 }
 
-const DIAGRAM_TYPE_RE = /type\s*=\s*([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i;
+const DIAGRAM_TYPE_RE = /type\s*[=:]\s*["']?([a-z][a-z0-9]*(?:[.-][a-z0-9]+)*)/i;
 
 export function parseDiagramOpen(line: string): DiagramType {
   const attrs = parseMarkerAttrs(line);

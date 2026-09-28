@@ -672,11 +672,3 @@ export function diagramQualityMessage(code: ParseWarningCode, capsule: Capsule):
       return `Diagrams are incomplete for this visual problem.`;
   }
 }
-
-export function capsuleHasDiagramIssues(capsule: Capsule): boolean {
-  return auditCapsuleDiagrams(capsule).length > 0;
-}
-
-export function primaryDiagramIssue(capsule: Capsule): ParseWarningCode | null {
-  return auditCapsuleDiagrams(capsule)[0] ?? null;
-}

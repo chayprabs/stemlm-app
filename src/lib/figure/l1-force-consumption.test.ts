@@ -77,8 +77,10 @@ describe('FBD force quantity fidelity', () => {
       content: 'kind: fbd\nbody: cart\nforce: F 10 N right\nforce: G 20 kN left',
     }, 'step');
     expect(mixedUnit.ok).toBe(true);
-    expect(labels(mixedUnit)).toContain('F 10 N (schematic)');
-    expect(labels(mixedUnit)).toContain('G 20 kN (schematic)');
+    // D18 (2026-09-25): clean force labels and one "arrows not to scale" note per figure.
+    expect(labels(mixedUnit)).toContain('F 10 N');
+    expect(labels(mixedUnit)).toContain('G 20 kN');
+    expect(labels(mixedUnit).filter((text) => text === 'arrows not to scale')).toHaveLength(1);
   });
 
   it('marks a same-unit range over 2:1 schematic instead of clamping its ratio', async () => {
@@ -87,8 +89,10 @@ describe('FBD force quantity fidelity', () => {
       content: 'kind: fbd\nbody: cart\nforce: F 2 N right\nforce: G 10 N left',
     }, 'step');
     expect(result.ok).toBe(true);
-    expect(labels(result)).toContain('F 2 N (schematic)');
-    expect(labels(result)).toContain('G 10 N (schematic)');
+    // D18 (2026-09-25): clean force labels and one "arrows not to scale" note per figure.
+    expect(labels(result)).toContain('F 2 N');
+    expect(labels(result)).toContain('G 10 N');
+    expect(labels(result).filter((text) => text === 'arrows not to scale')).toHaveLength(1);
     const f = forceStroke(result, 'force-f');
     const g = forceStroke(result, 'force-g');
     expect(Math.hypot(f!.points[2]! - f!.points[0]!, f!.points[3]! - f!.points[1]!)).toBeCloseTo(43, 5);

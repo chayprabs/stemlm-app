@@ -256,12 +256,6 @@ export function lookupFamily(type: string): FamilyDef | undefined {
 export function isKnownDiagramType(type: string): boolean {
   return lookupFamily(type) !== undefined;
 }
-
-export function isHatchType(type: string): boolean {
-  const def = lookupFamily(type);
-  return def?.kind === 'hatch';
-}
-
 export function isRefuseType(type: string): boolean {
   return lookupFamily(type)?.kind === 'refuse';
 }
@@ -315,8 +309,4 @@ export function familyRequiredMissing(type: string, content: string): string[] {
     if (!hit) missing.push(def.requiredAny.join('|'));
   }
   return missing;
-}
-
-export function catalogTokens(): string[] {
-  return Object.keys(FAMILY_CATALOG);
 }

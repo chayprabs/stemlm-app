@@ -1,7 +1,7 @@
 import type { Scene, SemanticColor } from './types';
 import type { LayoutResult } from './slk';
 import { FONT_SANS_SVG } from '@/src/lib/fonts';
-import { labelMarkup } from './label-format';
+import { chemicalNotation, labelMarkup, orbitalNotation } from './label-format';
 
 const COLOR: Record<SemanticColor, string> = {
   neutral: '#334155',
@@ -10,6 +10,9 @@ const COLOR: Record<SemanticColor, string> = {
   danger: '#dc2626',
   guide: '#64748b',
 };
+
+/** The figure surface; presentation maps it to each theme's paper colour. */
+const PAPER = '#ffffff';
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -33,7 +36,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${scene.width} ${scene.height}" data-stemlm-family="${esc(scene.family)}" font-family="${FONT_SANS_SVG}">`,
   );
   parts.push(
-    `<defs><marker id="slm-arrow" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0,0 6,3 0,6" fill="${COLOR.neutral}"/></marker><pattern id="slm-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(25)"><line x1="0" y1="0" x2="0" y2="8" stroke="${COLOR.muted}" stroke-width="1"/></pattern><pattern id="slm-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="${COLOR.muted}"/></pattern></defs>`,
+    `<defs><marker id="slm-arrow" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto-start-reverse"><polygon points="0,0 6,3 0,6" fill="${COLOR.neutral}"/></marker><pattern id="slm-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(25)"><line x1="0" y1="0" x2="0" y2="8" stroke="${COLOR.muted}" stroke-width="1"/></pattern><pattern id="slm-dots" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="${COLOR.muted}"/></pattern></defs>`,
   );
 
   for (const n of scene.nodes) {
@@ -48,12 +51,15 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
       ? `url(#slm-${s.pattern})`
       : s.fill === 'none' || !s.fill
         ? 'none'
-        : s.fill === 'solid'
-          ? '#ffffff'
-          : COLOR[s.fill];
+        : s.fill === 'ink' || s.fill === 'tint'
+          ? stroke
+          : s.fill === 'paper'
+            ? PAPER
+            : COLOR[s.fill];
     const mark = s.markerEnd ? ' marker-end="url(#slm-arrow)"' : '';
     const markS = s.markerStart ? ' marker-start="url(#slm-arrow)"' : '';
-    const common = `id="${esc(s.id)}" fill="${fill}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${dash}${mark}${markS}`;
+    const tint = s.fill === 'tint' && !s.pattern ? ' fill-opacity="0.18"' : '';
+    const common = `id="${esc(s.id)}" fill="${fill}"${tint} stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${dash}${mark}${markS}`;
     if (s.kind === 'line' && s.points.length >= 4) {
       parts.push(
         `<line ${common} x1="${s.points[0]}" y1="${s.points[1]}" x2="${s.points[2]}" y2="${s.points[3]}"/>`,
@@ -86,7 +92,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
     if (p.overlay) continue;
     const text = p.label.text ?? '';
     parts.push(
-      `<text id="${esc(p.label.id)}" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${layout.fontSize}" fill="${COLOR.neutral}">${labelMarkup(text, layout.fontSize)}</text>`,
+      `<text id="${esc(p.label.id)}" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${layout.fontSize}" fill="${COLOR.neutral}">${labelMarkup(p.label.notation === 'chem' ? chemicalNotation(text) : p.label.notation === 'orbital' ? orbitalNotation(text) : text, layout.fontSize)}</text>`,
     );
   }
 

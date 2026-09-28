@@ -1,4 +1,5 @@
-import type { CompileCtx, CompileResult, SemanticColor } from '../types';
+import { FONT_MIN, type CompileCtx, type CompileResult, type SemanticColor } from '../types';
+import { measureText } from '../geom';
 import { parseCsv, specGet, specGetAll, specHasEmptyDeclaration, specHasEmptyDelimitedValue, specList, specNumber, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
@@ -106,7 +107,7 @@ function supportedSchematicKind(kind: string | undefined): boolean {
   return !kind || /^(?:graph|network|schematic|pourbaix)$/i.test(kind.trim());
 }
 
-type RelationFamily = 'list' | 'schematic' | 'pipeline' | 'datapath' | 'ring' | 'topology' | 'sphere';
+type RelationFamily = 'list' | 'schematic' | 'pipeline' | 'datapath' | 'ring' | 'sphere';
 
 const SUPPORTED_RELATION_ROLES: Readonly<Record<RelationFamily, ReadonlySet<string>>> = {
   list: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'from', 'reverse', 'backward', 'source']),
@@ -114,7 +115,6 @@ const SUPPORTED_RELATION_ROLES: Readonly<Record<RelationFamily, ReadonlySet<stri
   pipeline: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
   datapath: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
   ring: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'from', 'reverse', 'backward', 'source']),
-  topology: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'from', 'reverse', 'backward', 'source']),
   sphere: new Set(['connect', 'connects', 'feeds', 'next', 'directed', 'undirected', 'adjacent', 'radiates-from', 'from', 'reverse', 'backward', 'source']),
 };
 
@@ -243,24 +243,43 @@ export function compileHash(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (parsedEntries.invalid) return fail('hash bucket entries must state a bucket and one or more values');
   const entries = parsedEntries.entries;
   if (entries.some((entry) => entry.bucket < 0 || entry.bucket >= m)) return fail('hash entry references an undeclared bucket');
-  const b = frame('hash', ctx, spec);
-  const { width: w, height: h } = b;
+  // Rows and boxes are sized from the text at the minimum font so every value fits inside its own box; the frame
+  // grows to the table (presentation scales it) and a chain too long to read at that scale is refused.
+  const chains = Array.from({ length: m }, (_, i) => entries.filter((entry) => entry.bucket === i).map((entry) => entry.value));
+  const pad = 8;
+  const gap = 18;
+  const margin = 12;
+  const boxW = (texts: string[]) => Math.max(28, ...texts.map((text) => measureText(text, FONT_MIN).w + 2 * pad));
+  const bucketW = boxW(chains.map((_, i) => String(i)));
+  const entryW = boxW(entries.map((entry) => entry.value));
+  const boxH = measureText('0', FONT_MIN).h + pad;
+  const pitch = boxH + 4;
+  const top = (specGet(spec, 'label') ?? spec.caption ?? specGet(spec, 'kind')) ? 30 : margin;
+  const contentW = 2 * margin + bucketW + Math.max(0, ...chains.map((chain) => chain.length)) * (gap + entryW);
+  const nominal = frameSize(ctx.profile);
+  if (contentW > 2 * nominal.w) return fail('hash chain is too long to draw legibly', 'refused');
+  const contentH = top + m * pitch - 4 + margin;
+  const b = new SceneBuilder('hash', Math.max(nominal.w, contentW), Math.max(nominal.h, contentH));
+  b.hl(spec.highlight);
   addSemanticCaption(b, spec, 'hash-caption');
-  const bucketH = Math.min(22, (h - 20) / m);
-  for (let i = 0; i < m; i++) {
-    const y = 10 + i * bucketH;
+  const left = (b.width - contentW) / 2 + margin;
+  const first = top + (b.height - contentH) / 2;
+  chains.forEach((chain, i) => {
+    const y = first + i * pitch;
+    const mid = y + boxH / 2;
     const id = `bucket-${i}`;
-    b.rect(id, 48, y, 52, bucketH - 3, { fill: 'none', role: 'boundary' });
-    b.label(`bucket-label-${i}`, String(i), 74, y + (bucketH - 3) / 2, { protected: true, anchorId: id });
-    const valuesInBucket = entries.filter((entry) => entry.bucket === i).map((entry) => entry.value);
-    valuesInBucket.forEach((value, ei) => {
-      const x = 120 + ei * 48;
+    b.rect(id, left, y, bucketW, boxH, { fill: 'none', role: 'boundary' });
+    b.label(`bucket-label-${i}`, String(i), left + bucketW / 2, mid, { protected: true, anchorId: id });
+    let previousRight = left + bucketW;
+    chain.forEach((value, ei) => {
+      const x = previousRight + gap;
       const entryId = `entry-${i}-${ei}`;
-      b.rect(entryId, x, y + 2, 42, bucketH - 7, { fill: 'none', role: 'boundary' });
-      b.label(`entry-label-${i}-${ei}`, value, x + 21, y + (bucketH - 5) / 2, { priority: 'required', anchorId: entryId });
-      link(b, `bucket-link-${i}-${ei}`, 100, y + (bucketH - 3) / 2, x, y + (bucketH - 3) / 2, 'next');
+      b.rect(entryId, x, y, entryW, boxH, { fill: 'none', role: 'boundary' });
+      b.label(`entry-label-${i}-${ei}`, value, x + entryW / 2, mid, { protected: true, anchorId: entryId });
+      link(b, `bucket-link-${i}-${ei}`, previousRight, mid, x, mid, 'next');
+      previousRight = x + entryW;
     });
-  }
+  });
   return layoutAndCompile(b.scene());
 }
 
@@ -268,7 +287,6 @@ interface TimedJob { name: string; start: number; duration: number }
 
 function timedJobs(spec: SpecDoc): { jobs: TimedJob[]; invalid: boolean } {
   const jobs: TimedJob[] = [];
-  const seen = new Set<string>();
   let invalid = false;
   for (const part of values(spec, 'jobs').flatMap((value) => value.split(';'))) {
     const text = part.trim();
@@ -277,27 +295,25 @@ function timedJobs(spec: SpecDoc): { jobs: TimedJob[]; invalid: boolean } {
       continue;
     }
     const bits = text.split(/[|,\s]+/);
-    if (bits.length !== 3) {
-      invalid = true;
-      continue;
-    }
     const start = Number(bits[1]);
     const duration = Number(bits[2]);
-    if (!bits[0] || !Number.isFinite(start) || !Number.isFinite(duration) || duration <= 0) {
+    if (bits.length !== 3 || !bits[0] || !Number.isFinite(start) || !Number.isFinite(duration) || duration <= 0) {
       invalid = true;
       continue;
     }
-    const name = bits[0].toLowerCase();
-    if (seen.has(name)) {
-      invalid = true;
-      continue;
-    }
-    seen.add(name);
     jobs.push({ name: bits[0], start, duration });
   }
   return { jobs, invalid };
 }
 
+function compactTime(value: number): string {
+  return String(Number(value.toFixed(3)));
+}
+
+/**
+ * One lane when no two slices overlap (CPU scheduling: a process may run in several slices; idle gaps stay empty and
+ * dashed), else one row per task. The time scale is chosen so each slice holds its name and the times at its ends.
+ */
 export function compileGantt(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (specHasEmptyDeclaration(spec, 'jobs')) return fail('gantt jobs must state exactly name, start, and positive duration');
   const tnowRaw = specGet(spec, 'tnow');
@@ -306,30 +322,71 @@ export function compileGantt(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (parsedJobs.invalid) return fail('gantt jobs must state exactly name, start, and positive duration');
   const jobs = parsedJobs.jobs;
   if (!jobs.length) return fail('gantt jobs must state name, start, and positive duration');
-  const b = frame('gantt', ctx, spec);
-  const { width: w, height: h } = b;
-  addSemanticCaption(b, spec, 'gantt-caption');
-  const min = Math.min(...jobs.map((job) => job.start));
-  const max = Math.max(...jobs.map((job) => job.start + job.duration));
-  const span = max - min || 1;
-  const left = 58;
-  const right = w - 12;
-  const rowH = Math.min(24, (h - 24) / jobs.length);
-  b.line('gantt-axis', left, 12, right, 12, { role: 'axis', markerEnd: true });
-  jobs.forEach((job, index) => {
-    const y = 20 + index * rowH;
-    const x = left + ((job.start - min) / span) * (right - left);
-    const barW = Math.max(8, (job.duration / span) * (right - left));
-    const id = `job-bar-${index}`;
-    b.rect(id, x, y, Math.min(barW, right - x), rowH - 4, { fill: 'none', color: 'accent', role: 'boundary' });
-    b.label(`job-label-${index}`, job.name, 28, y + (rowH - 4) / 2, { protected: true, anchorId: id });
-    b.label(`job-time-${index}`, `${job.start}+${job.duration}`, x + Math.min(barW, right - x) / 2, y + (rowH - 4) / 2, { priority: 'optional', anchorId: id });
-  });
+  const clash = (a: TimedJob, b: TimedJob) => a.start < b.start + b.duration && b.start < a.start + a.duration;
+  if (jobs.some((a, i) => jobs.slice(i + 1).some((b) => a.name.toLowerCase() === b.name.toLowerCase() && clash(a, b)))) {
+    return fail('a gantt job cannot run twice at the same time');
+  }
+  const lane = !jobs.some((a, i) => jobs.slice(i + 1).some((b) => clash(a, b)));
   const now = specNumber(spec, 'tnow');
-  if (now !== undefined && Number.isFinite(now)) {
-    const x = left + ((now - min) / span) * (right - left);
-    b.line('gantt-now', Math.max(left, Math.min(right, x)), 12, Math.max(left, Math.min(right, x)), h - 10, { color: 'danger', dash: true, role: 'guide' });
-    b.label('gantt-now-label', `now=${now}`, Math.max(left, Math.min(right, x)), h - 8, { priority: 'preferred', anchorId: 'gantt-now' });
+  const min = Math.min(...jobs.map((job) => job.start), now ?? Infinity);
+  const max = Math.max(...jobs.map((job) => job.start + job.duration), now ?? -Infinity);
+  const textW = (text: string) => measureText(text, FONT_MIN).w;
+  const textH = measureText('0', FONT_MIN).h;
+  const nominal = frameSize(ctx.profile);
+  const rows = lane ? [''] : [...new Map(jobs.map((job) => [job.name.toLowerCase(), job.name])).values()];
+  const nameW = lane ? 0 : Math.max(...rows.map(textW)) + 10;
+  const margin = 14;
+  // Lane: every slice (and gap) holds its name and the times written at both of its ends.
+  const pieces = lane
+    ? [...jobs.map((job) => ({ from: job.start, to: job.start + job.duration, text: job.name })),
+      ...[...jobs].sort((a, b) => a.start - b.start).flatMap((job, i, sorted) => {
+        const next = sorted[i + 1];
+        return next && next.start > job.start + job.duration ? [{ from: job.start + job.duration, to: next.start, text: '' }] : [];
+      })]
+    : jobs.map((job) => ({ from: job.start, to: job.start + job.duration, text: job.name }));
+  const needed = Math.max(...pieces.map((piece) => (Math.max(textW(piece.text), (textW(compactTime(piece.from)) + textW(compactTime(piece.to))) / 2) + 8) / (piece.to - piece.from)));
+  const scale = Math.max((nominal.w - 2 * margin - nameW) / (max - min), needed);
+  const width = 2 * margin + nameW + (max - min) * scale;
+  if (width > 2 * nominal.w) return { ok: false, code: 'refused', reason: 'gantt slices are too many or too short to label legibly' };
+  const barH = textH + 12;
+  const rowPitch = barH + 6;
+  const caption = specGet(spec, 'label') ?? spec.caption ?? specGet(spec, 'kind');
+  const top = (caption ? 26 : 8) + (now !== undefined ? textH + 6 : 0);
+  const lanesH = rows.length * rowPitch - 6;
+  const height = top + lanesH + 10 + textH + margin;
+  // A single lane is a wide strip: its frame is only as tall as the lane and its times.
+  const b = new SceneBuilder('gantt', Math.max(nominal.w, width), lane ? height : Math.max(nominal.h, height));
+  b.hl(spec.highlight);
+  addSemanticCaption(b, spec, 'gantt-caption');
+  const left = (b.width - width) / 2 + margin + nameW;
+  const y0 = (b.height - height) / 2 + top;
+  const xOf = (t: number) => left + (t - min) * scale;
+  const rowOf = (name: string) => (lane ? 0 : rows.findIndex((row) => row.toLowerCase() === name.toLowerCase()));
+  jobs.forEach((job, index) => {
+    const y = y0 + rowOf(job.name) * rowPitch;
+    const id = `job-bar-${index}`;
+    b.rect(id, xOf(job.start), y, job.duration * scale, barH, { fill: 'none', color: 'accent', role: 'boundary' });
+    if (lane) b.label(`job-label-${index}`, job.name, xOf(job.start + job.duration / 2), y + barH / 2, { protected: true, anchorId: id });
+  });
+  const axis = y0 + lanesH;
+  if (lane) {
+    pieces.filter((piece) => !piece.text).forEach((gap, index) => {
+      b.path(`idle-${index}`, `M ${xOf(gap.from)} ${y0} h ${(gap.to - gap.from) * scale} v ${barH} h ${-(gap.to - gap.from) * scale} Z`, { fill: 'none', color: 'muted', role: 'guide', dash: true });
+    });
+    const times = [...new Set(pieces.flatMap((piece) => [piece.from, piece.to]))].sort((a, c) => a - c);
+    times.forEach((t, index) => b.label(`time-${index}`, compactTime(t), xOf(t), axis + 4 + textH / 2, { protected: true }));
+  } else {
+    rows.forEach((row, index) => b.label(`row-label-${index}`, row, left - 6 - textW(row) / 2, y0 + index * rowPitch + barH / 2, { protected: true }));
+    b.line('gantt-axis', left, axis, xOf(max), axis, { role: 'axis', markerEnd: true });
+    const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000].find((s) => (max - min) / s <= 8 && s * scale >= textW(compactTime(max)) + 8) ?? max - min;
+    for (let t = Math.ceil(min / step) * step, index = 0; t <= max + 1e-9; t += step, index++) {
+      b.line(`time-tick-${index}`, xOf(t), axis, xOf(t), axis + 3, { role: 'axis', width: 1 });
+      b.label(`time-${index}`, compactTime(t), xOf(t), axis + 5 + textH / 2, { protected: true });
+    }
+  }
+  if (now !== undefined) {
+    b.line('gantt-now', xOf(now), y0 - 4, xOf(now), axis, { color: 'danger', dash: true, role: 'guide' });
+    b.label('gantt-now-label', `now = ${compactTime(now)}`, Math.min(b.width - margin - textW(`now = ${compactTime(now)}`) / 2, Math.max(margin + textW(`now = ${compactTime(now)}`) / 2, xOf(now))), y0 - 8 - textH / 2, { protected: true, anchorId: 'gantt-now' });
   }
   return layoutAndCompile(b.scene());
 }
@@ -440,39 +497,92 @@ export function compileSchematicPlot(spec: SpecDoc, ctx: CompileCtx): CompileRes
   return layoutAndCompile(b.scene());
 }
 
-function kmapSize(variableText: string): { rows: number; cols: number } {
-  const groups = variableText.split(/[,/]/).map((group) => group.trim()).filter(Boolean);
-  if (groups.length === 2 && groups[0]!.length && groups[1]!.length) return { rows: 2 ** groups[0]!.length, cols: 2 ** groups[1]!.length };
-  const count = variableText.replace(/[^A-Za-z]/g, '').length;
-  return count > 0 && count <= 4 ? { rows: 2 ** Math.ceil(count / 2), cols: 2 ** Math.floor(count / 2) } : { rows: 0, cols: 0 };
+/**
+ * K-map variables, first = most significant. `AB,CD` or `AB/C` name the row and column groups; a list (`A,B,C`,
+ * `x1,x2`) or a run of letters (`ABCD`) splits in half with the extra variable on the columns.
+ */
+function kmapVariables(text: string): { rows: string[]; cols: string[] } | null {
+  const letters = (group: string) => (/^[A-Za-z]+$/.test(group) ? [...group] : [group]);
+  const names = (group: string) => (group.includes(',') ? group.split(',').map((name) => name.trim()) : letters(group.trim()));
+  const halves = text.split('/');
+  let rows: string[];
+  let cols: string[];
+  if (halves.length === 2) {
+    [rows, cols] = halves.map(names) as [string[], string[]];
+  } else {
+    const tokens = text.split(',').map((token) => token.trim());
+    if (tokens.length === 2 && tokens.every((token) => /^[A-Za-z]+$/.test(token)) && tokens.some((token) => token.length > 1)) {
+      [rows, cols] = tokens.map(letters) as [string[], string[]];
+    } else {
+      const all = tokens.length === 1 ? letters(tokens[0]!) : tokens;
+      rows = all.slice(0, Math.floor(all.length / 2));
+      cols = all.slice(Math.floor(all.length / 2));
+    }
+  }
+  const all = [...rows, ...cols];
+  if (halves.length > 2 || !rows.length || !cols.length || rows.length > 2 || cols.length > 2) return null;
+  if (all.some((name) => !/^[A-Za-z][A-Za-z0-9']*$/.test(name)) || new Set(all.map((name) => name.toLowerCase())).size !== all.length) return null;
+  return { rows, cols };
+}
+
+function kmapIndices(text: string | undefined, size: number): number[] | null {
+  if (text === undefined) return [];
+  const values = parseCsv(text).map(Number);
+  if (new Set(values).size !== values.length || values.some((value) => !Number.isInteger(value) || value < 0 || value >= size)) return null;
+  return values;
 }
 
 export function compileKmap(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const variableText = specGet(spec, 'vars');
   const mintermText = specGet(spec, 'minterms');
   if (!variableText || !mintermText) return fail('kmap requires vars and minterms');
-  if (hasEmptyItems(spec, 'minterms')) return fail('kmap has invalid variable or minterm semantics');
-  const size = kmapSize(variableText);
-  const minterms = parseCsv(mintermText).map(Number);
-  if (!size.rows || !size.cols || new Set(minterms).size !== minterms.length || minterms.some((value) => !Number.isInteger(value) || value < 0 || value >= size.rows * size.cols)) return fail('kmap has invalid variable or minterm semantics');
-  const b = frame('kmap', ctx, spec);
-  const { width: w, height: h } = b;
+  if (hasEmptyItems(spec, 'minterms', 'dontcares')) return fail('kmap has invalid variable or minterm semantics');
+  const vars = kmapVariables(variableText);
+  if (!vars) return fail('kmap needs 2 to 4 distinct variables (at most two on each side)');
+  const size = 2 ** (vars.rows.length + vars.cols.length);
+  const minterms = kmapIndices(mintermText, size);
+  const dontCares = kmapIndices(specGet(spec, 'dontcares'), size);
+  if (!minterms || !dontCares || dontCares.some((value) => minterms.includes(value))) return fail('kmap has invalid variable or minterm semantics');
+
+  // Rows and columns in Gray code, so neighbouring cells (wrapping at the edges) differ in one variable; the header
+  // bits of a cell, row then column, spell its minterm number.
+  const gray = (count: number) => Array.from({ length: 2 ** count }, (_, i) => i ^ (i >> 1));
+  const bits = (value: number, count: number) => value.toString(2).padStart(count, '0');
+  const name = (group: string[]) => group.join(group.every((item) => item.length === 1) ? '' : ',');
+  const rowCodes = gray(vars.rows.length);
+  const colCodes = gray(vars.cols.length);
+  const textH = measureText('0', FONT_MIN).h;
+  const cellW = Math.max(30, measureText('00', FONT_MIN).w + 14);
+  const cellH = textH + 12;
+  const rowName = name(vars.rows);
+  const colName = name(vars.cols);
+  const rowNameW = measureText(rowName, FONT_MIN).w;
+  const headerW = measureText('00', FONT_MIN).w + 12;
+  const margin = 10;
+  const caption = specGet(spec, 'label') ?? spec.caption ?? specGet(spec, 'kind');
+  const contentW = margin + rowNameW + 8 + headerW + colCodes.length * cellW + margin;
+  const contentH = (caption ? 24 : margin) + 2 * (textH + 6) + rowCodes.length * cellH + margin;
+  const nominal = frameSize(ctx.profile);
+  const b = new SceneBuilder('kmap', Math.max(nominal.w, contentW), Math.max(nominal.h, contentH));
+  b.hl(spec.highlight);
   addSemanticCaption(b, spec, 'kmap-caption');
-  const cellW = Math.min(38, (w - 44) / size.cols);
-  const cellH = Math.min(26, (h - 38) / size.rows);
-  const left = (w - size.cols * cellW) / 2;
-  const top = 22;
-  for (let row = 0; row < size.rows; row++) {
-    for (let col = 0; col < size.cols; col++) {
-      const index = row * size.cols + col;
-      const id = `kmap-cell-${index}`;
-      const x = left + col * cellW;
-      const y = top + row * cellH;
-      b.rect(id, x, y, cellW - 2, cellH - 2, { fill: 'none', role: 'boundary' });
-      b.label(`kmap-value-${index}`, minterms.includes(index) ? '1' : '0', x + (cellW - 2) / 2, y + (cellH - 2) / 2, { protected: true, anchorId: id });
-    }
-  }
-  b.label('kmap-vars', variableText, w / 2, h - 12, { protected: true });
+  const x0 = (b.width - contentW) / 2 + margin + rowNameW + 8 + headerW;
+  const y0 = (b.height - contentH) / 2 + (caption ? 24 : margin) + 2 * (textH + 6);
+  b.label('kmap-colvars', colName, x0 + (colCodes.length * cellW) / 2, y0 - textH * 1.5 - 9, { protected: true });
+  b.label('kmap-rowvars', rowName, x0 - headerW - 4 - rowNameW / 2, y0 + (rowCodes.length * cellH) / 2, { protected: true });
+  colCodes.forEach((code, col) => b.label(`kmap-col-${col}`, bits(code, vars.cols.length), x0 + (col + 0.5) * cellW, y0 - 3 - textH / 2, { protected: true }));
+  rowCodes.forEach((rowCode, row) => {
+    const y = y0 + row * cellH;
+    b.label(`kmap-row-${row}`, bits(rowCode, vars.rows.length), x0 - headerW / 2, y + cellH / 2, { protected: true });
+    colCodes.forEach((colCode, col) => {
+      const minterm = (rowCode << vars.cols.length) | colCode;
+      const id = `kmap-cell-${minterm}`;
+      const x = x0 + col * cellW;
+      b.rect(id, x, y, cellW, cellH, { fill: 'none', role: 'boundary' });
+      const value = minterms.includes(minterm) ? '1' : dontCares.includes(minterm) ? 'X' : '0';
+      b.label(`kmap-value-${minterm}`, value, x + cellW / 2, y + cellH / 2, { protected: true, anchorId: id });
+    });
+  });
   return layoutAndCompile(b.scene());
 }
 
@@ -544,7 +654,7 @@ export function compileRing(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   names.forEach((name, index) => {
     const id = `ring-node-${index}`;
     const pos = positions[index]!;
-    b.circle(id, pos.x, pos.y, 5, { fill: 'solid', color: 'accent', role: 'geometry' });
+    b.circle(id, pos.x, pos.y, 5, { fill: 'ink', color: 'accent', role: 'geometry' });
     b.label(`ring-label-${index}`, name, pos.x, pos.y - 10, { protected: true, anchorId: id });
   });
   const byName = new Map(names.map((name, index) => [name, index]));
@@ -555,54 +665,6 @@ export function compileRing(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     const to = positions[byName.get(edge.to)!]!;
     link(b, `ring-relation-${index}`, from.x, from.y, to.x, to.y, edge.role);
   });
-  return layoutAndCompile(b.scene());
-}
-
-export function compileTopology(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  if (hasEmptyItems(spec, 'nodes', 'identifications')) return fail('topology requires named nodes and complete identifications');
-  const names = itemNames(spec, 'nodes');
-  if (hasDuplicateNames(names)) return fail('topology node names must be unique');
-  const pairs: Array<{ left: string; right: string }> = [];
-  let invalidIdentification = false;
-  for (const part of values(spec, 'identifications').flatMap((value) => value.split(/[;,]/))) {
-    const text = part.trim();
-    if (!text) continue;
-    const match = /^(.+?)\s*(<->|=|~)\s*(.+?)$/.exec(text);
-    if (!match || /<->|=|~/.test(match[1]!) || /<->|=|~/.test(match[3]!)) {
-      invalidIdentification = true;
-      continue;
-    }
-    const left = match[1]!.trim();
-    const right = match[3]!.trim();
-    if (!left || !right) {
-      invalidIdentification = true;
-      continue;
-    }
-    pairs.push({ left, right });
-  }
-  if (invalidIdentification) return fail('topology identifications must state exactly two named sides');
-  if (names.length) {
-    const declared = new Set(names.map((name) => name.toLowerCase()));
-    if (pairs.some((pair) => !declared.has(pair.left.toLowerCase()) || !declared.has(pair.right.toLowerCase()))) return fail('topology identification names an undeclared side');
-  }
-  if (!names.length && !pairs.length) return fail('topology requires named boundary identifications');
-  const parsed = relations(spec);
-  if (parsed.invalid) return fail('topology relation is missing an explicit endpoint');
-  const unsupported = unsupportedRelation('topology', parsed.items);
-  if (unsupported) return fail(unsupported);
-  const b = frame('topology', ctx, spec);
-  const { width: w, height: h } = b;
-  addSemanticCaption(b, spec, 'topology-caption');
-  b.rect('topology-boundary', 42, 24, w - 84, h - 48, { fill: 'none', role: 'boundary' });
-  pairs.forEach((pair, index) => {
-    const y = 38 + index * Math.min(24, (h - 60) / Math.max(1, pairs.length));
-    link(b, `identification-${index}`, 42, y, w - 42, y, 'identification', 'accent');
-    b.label(`identification-label-${index}`, `${pair.left} = ${pair.right}`, w / 2, y - 7, { priority: 'required', anchorId: `identification-${index}` });
-  });
-  if (names.length) {
-    const graphResult = drawRelationGraph(b, names, parsed.items, h - 20);
-    if (graphResult) return graphResult;
-  }
   return layoutAndCompile(b.scene());
 }
 
@@ -634,7 +696,7 @@ export function compileSphere(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     const x = cx + Math.cos(angle) * radius * 0.78;
     const y = cy + Math.sin(angle) * radius * 0.78;
     const id = `sphere-node-${index}`;
-    b.circle(id, x, y, 3, { fill: 'solid', color: 'accent', role: 'geometry' });
+    b.circle(id, x, y, 3, { fill: 'ink', color: 'accent', role: 'geometry' });
     b.label(`sphere-node-label-${index}`, name, x, y - 9, { priority: 'preferred', anchorId: id });
     const declaredRole = parsed.items[index % Math.max(1, parsed.items.length)]?.role ?? 'radiates';
     const radialRole = /inward/i.test(specGet(spec, 'direction') ?? '') ? 'reverse' : declaredRole;
@@ -645,111 +707,89 @@ export function compileSphere(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   return layoutAndCompile(b.scene());
 }
 
-export function compileIsometric(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const gamma = specGet(spec, 'gamma');
-  const origin = specGet(spec, 't0');
-  if (!gamma || !origin) return fail('isometric projection requires gamma and t0');
-  if (/implicit|unbounded|surface/i.test(specGet(spec, 'geometry') ?? '')) return fail('continuous unbounded isometric surfaces are unsupported', 'refused');
-  const b = frame('isometric', ctx, spec);
-  const { width: w, height: h } = b;
-  const ox = w / 2;
-  const oy = h / 2 + 20;
-  b.line('axis-time', ox, oy, ox + 44, oy - 26, { markerEnd: true, role: 'axis' });
-  b.line('axis-space', ox, oy, ox, oy - 44, { markerEnd: true, color: 'muted', role: 'axis' });
-  b.line('axis-basis', ox, oy, ox - 38, oy - 20, { markerEnd: true, color: 'danger', role: 'axis' });
-  b.label('isometric-gamma', `gamma=${gamma}`, ox + 50, oy - 30, { protected: true, anchorId: 'axis-time' });
-  b.label('isometric-origin', `t0=${origin}`, ox, oy + 12, { protected: true, anchorId: 'axis-time' });
-  return layoutAndCompile(b.scene());
-}
-
 export function compileKnot(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const crossings = specNumber(spec, 'crossings');
   if (!crossings || crossings < 1 || crossings > 7) return fail('knot requires 1 to 7 crossings');
   return fail('crossing count does not determine over-under knot geometry', 'refused');
 }
 
-function endpointLabel(value: string): string {
-  return value.replace(/@[-+]?\d+(?:\.\d+)?$/, '').trim() || value;
+const MULTIPLET: Record<string, number> = {
+  s: 1, d: 2, t: 3, q: 4, p: 5, singlet: 1, doublet: 2, triplet: 3, quartet: 4, quintet: 5, pentet: 5, sextet: 6,
+  septet: 7, heptet: 7, octet: 8, nonet: 9,
+};
+const MULTIPLET_NAME = ['', 'singlet', 'doublet', 'triplet', 'quartet', 'quintet', 'sextet', 'septet', 'octet', 'nonet', 'decet'];
+
+/** Line counts of each coupling: `t`, `quartet`, `5`, or a run of letters such as `dd`, `dt`, `ddd`. */
+function couplings(value: string): number[] | null {
+  const text = value.trim().toLowerCase();
+  if (/^\d+$/.test(text)) return Number(text) >= 1 && Number(text) <= 10 ? [Number(text)] : null;
+  if (MULTIPLET[text]) return [MULTIPLET[text]];
+  if (/^[sdtqp]{2,3}$/.test(text)) return [...text].map((letter) => MULTIPLET[letter]!);
+  return null;
 }
 
-interface MechanismArrow {
-  from: string;
-  to: string;
-  kind: 'pair' | 'radical';
-}
-
-function mechanismArrows(spec: SpecDoc, from: string, to: string): { arrows: MechanismArrow[]; invalid: boolean } {
-  const arrows: MechanismArrow[] = [];
-  let invalid = false;
-  for (const part of values(spec, 'arrow').flatMap((value) => value.split(';'))) {
-    const text = part.trim();
-    if (!text) {
-      invalid = true;
-      continue;
-    }
-    const match = /^(\S+)\s*(?:->|→)\s*(\S+)(?:\s+(pair|radical))?$/.exec(text)
-      ?? /^(\S+)\s+(\S+)(?:\s+(pair|radical))?$/.exec(text);
-    if (!match || match[1] !== from || match[2] !== to) {
-      invalid = true;
-      continue;
-    }
-    arrows.push({ from: match[1], to: match[2], kind: match[3] === 'pair' ? 'pair' : 'radical' });
-  }
-  return { arrows, invalid };
-}
-
-export function compileMechanism(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const from = specGet(spec, 'from');
-  const to = specGet(spec, 'to');
-  if (!from || !to) return fail('mechanism requires explicit from and to endpoints');
-  if (specHasEmptyDeclaration(spec, 'arrow')) return fail('mechanism arrow declaration is empty');
-  const parsedArrows = mechanismArrows(spec, from, to);
-  if (parsedArrows.invalid) return fail('mechanism arrows must name the declared from and to endpoints');
-  const arrows = parsedArrows.arrows.length ? parsedArrows.arrows : [{ from, to, kind: 'radical' as const }];
-  const b = frame('mechanism', ctx, spec);
-  const { width: w, height: h } = b;
-  addSemanticCaption(b, spec, 'mechanism-caption');
-  const left = 58;
-  const right = w - 58;
-  b.circle('mechanism-from', left, h / 2, 16, { role: 'boundary' });
-  b.circle('mechanism-to', right, h / 2, 16, { role: 'boundary' });
-  arrows.forEach((arrow, index) => {
-    const centerY = h / 2 + (index - (arrows.length - 1) / 2) * 12;
-    const arrowId = index === 0 ? 'mechanism-arrow' : `mechanism-arrow-${index}`;
-    const offsets = arrow.kind === 'pair' ? [-2, 2] : [0];
-    offsets.forEach((offset, lane) => {
-      const id = lane === 0 ? arrowId : `${arrowId}-pair`;
-      const y = centerY + offset;
-      b.path(id, `M ${left + 18} ${y} Q ${w / 2} ${y - 34} ${right - 18} ${y}`, { markerEnd: true, color: 'accent', role: 'connector' });
-    });
-  });
-  b.label('mechanism-from-label', endpointLabel(from), left, h / 2 + 28, { protected: true, anchorId: 'mechanism-from' });
-  b.label('mechanism-to-label', endpointLabel(to), right, h / 2 + 28, { protected: true, anchorId: 'mechanism-to' });
-  return layoutAndCompile(b.scene());
-}
-
-function splittingCount(value: string): number | null {
-  const aliases: Record<string, number> = { s: 1, d: 2, t: 3, q: 4, quintet: 5, sextet: 6, septet: 7, octet: 8, nonet: 9, decet: 10 };
-  const numeric = Number(value);
-  if (Number.isInteger(numeric) && numeric > 0 && numeric <= 10) return numeric;
-  return aliases[value.toLowerCase()] ?? null;
+function binomial(n: number, k: number): number {
+  let value = 1;
+  for (let i = 1; i <= k; i++) value = (value * (n - i + 1)) / i;
+  return value;
 }
 
 export function compileSplitting(spec: SpecDoc, ctx: CompileCtx): CompileResult {
-  const multiplicity = splittingCount(specGet(spec, 'mult') ?? specGet(spec, 'peak') ?? '');
-  const j = specGet(spec, 'j');
-  if (!multiplicity || !j) return fail('splitting requires a supported multiplicity and J value');
-  const b = frame('splitting', ctx, spec);
-  const { width: w, height: h } = b;
-  addSemanticCaption(b, spec, 'splitting-caption');
-  const spacing = Math.min(18, (w - 32) / Math.max(1, multiplicity - 1));
-  const start = w / 2 - (multiplicity - 1) * spacing / 2;
-  for (let index = 0; index < multiplicity; index++) {
-    const x = start + index * spacing;
-    b.line(`split-peak-${index}`, x, h - 28, x, 38, { color: 'accent', width: 1.4, role: 'geometry' });
+  const counts = couplings(specGet(spec, 'mult') ?? specGet(spec, 'peak') ?? '')?.filter((count) => count > 1);
+  if (!counts) return fail('splitting requires a supported multiplicity');
+  const jText = specGet(spec, 'j');
+  const js = jText === undefined ? [] : parseCsv(jText).map((value) => Number(/^\s*(\d+(?:\.\d+)?)/.exec(value)?.[1] ?? NaN));
+  if (js.length !== counts.length || js.some((value) => !Number.isFinite(value) || value <= 0)) return fail('splitting needs one positive J value per coupling');
+
+  // First-order multiplet: convolve one binomial pattern (n lines, J apart) per coupling; coincident lines add.
+  let lines = [{ at: 0, weight: 1 }];
+  counts.forEach((count, index) => {
+    const merged = new Map<number, number>();
+    for (const line of lines) {
+      for (let k = 0; k < count; k++) {
+        const at = Math.round((line.at + (k - (count - 1) / 2) * js[index]!) * 1e6) / 1e6;
+        merged.set(at, (merged.get(at) ?? 0) + line.weight * binomial(count - 1, k));
+      }
+    }
+    lines = [...merged].map(([at, weight]) => ({ at, weight })).sort((a, b) => a.at - b.at);
+  });
+  const spread = lines.at(-1)!.at - lines[0]!.at;
+  const closest = Math.min(...lines.slice(1).map((line, i) => line.at - lines[i]!.at));
+  const { w } = frameSize(ctx.profile);
+  const scale = lines.length > 1 ? Math.min((w - 80) / spread, 44 / closest) : 0;
+  if (lines.length > 1 && closest * scale < 8) return fail('multiplet lines are too close to draw apart', 'refused');
+
+  const textH = measureText('0', FONT_MIN).h;
+  const caption = specGet(spec, 'label') ?? spec.caption;
+  const top = caption ? 26 : 8;
+  const jy = top + 2 * textH + 12;
+  const baseline = jy + 8 + 72;
+  const b = new SceneBuilder('splitting', w, Math.max(frameSize(ctx.profile).h, baseline + textH + 12));
+  b.hl(spec.highlight);
+  if (caption) b.label('splitting-caption', caption, w / 2, 12, { protected: true });
+  const name = counts.length ? counts.map((count, i) => `${MULTIPLET_NAME[count]}${i ? 's' : ''}`).join(' of ') : 'singlet';
+  b.label('splitting-multiplicity', name, w / 2, top + textH / 2, { protected: true });
+  const heaviest = Math.max(...lines.map((line) => line.weight));
+  const xOf = (at: number) => w / 2 + (at - (lines[0]!.at + spread / 2)) * scale;
+  b.line('splitting-baseline', 30, baseline, w - 30, baseline, { color: 'muted', role: 'axis', width: 1 });
+  lines.forEach((line, index) => {
+    const x = xOf(line.at);
+    b.line(`split-peak-${index}`, x, baseline, x, baseline - (line.weight / heaviest) * 72, { color: 'accent', width: 1.6, role: 'geometry' });
+  });
+  if (jText !== undefined) {
+    const unit = /[A-Za-z]+/.exec(jText)?.[0];
+    const text = `J = ${js.join(', ')}${unit ? ` ${unit}` : ''}`;
+    if (counts.length === 1) {
+      const [x1, x2] = [xOf(lines[0]!.at), xOf(lines[1]!.at)];
+      b.line('splitting-j-bracket', x1, jy, x2, jy, { color: 'muted', role: 'guide', width: 1 });
+      b.line('splitting-j-tick-0', x1, jy, x1, jy + 5, { color: 'muted', role: 'guide', width: 1 });
+      b.line('splitting-j-tick-1', x2, jy, x2, jy + 5, { color: 'muted', role: 'guide', width: 1 });
+      b.label('splitting-j', text, Math.min(w - 30 - measureText(text, FONT_MIN).w / 2, Math.max(30 + measureText(text, FONT_MIN).w / 2, (x1 + x2) / 2)), jy - 3 - textH / 2, { protected: true, anchorId: 'splitting-j-bracket' });
+    } else {
+      b.label('splitting-j', text, w / 2, jy - 3 - textH / 2, { protected: true });
+    }
   }
-  b.label('splitting-j', `J=${j}`, w / 2, 20, { protected: true });
-  b.label('splitting-multiplicity', specGet(spec, 'peak') ?? specGet(spec, 'mult')!, w / 2, h - 12, { protected: true });
+  b.label('splitting-ratio', lines.map((line) => line.weight).join(':'), w / 2, baseline + 4 + textH / 2, { protected: true });
   return layoutAndCompile(b.scene());
 }
 

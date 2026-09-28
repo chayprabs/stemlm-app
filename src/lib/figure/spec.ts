@@ -186,9 +186,3 @@ export function specIds(spec: SpecDoc): string[] {
 export function parseCsv(value: string): string[] {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
-
-export function parsePair(value: string): { x: number; y: number } | null {
-  const m = /(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)/.exec(value);
-  if (!m) return null;
-  return { x: Number(m[1]), y: Number(m[2]) };
-}

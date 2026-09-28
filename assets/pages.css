@@ -393,6 +393,11 @@ html[data-stemlm-theme='dark'] .slm-popup {
   background: color-mix(in srgb, #000 42%, transparent);
   cursor: pointer;
 }
+/* Page-sized dialogs hold focus on open without a ring (UI-FOCUS-01). */
+.slm-library-dialog:focus,
+.slm-settings-dialog:focus {
+  outline: none;
+}
 .slm-library-dialog {
   position: relative;
   z-index: 1;
@@ -1162,14 +1167,10 @@ html[data-stemlm-theme='dark'] .slm-popup {
   gap: 0.05rem;
   flex-shrink: 0;
   margin-top: 0.02rem;
-  opacity: 0.55;
-  transition: opacity 120ms var(--slm-theme-ease);
 }
-.slm-library-row:hover .slm-library-row-actions,
-.slm-library-row:focus-within .slm-library-row-actions {
-  opacity: 1;
-}
+/* Full contrast at rest (LIB-ICONS-01): a dimmed icon fell below 3:1 in both themes. */
 .slm-library-icon-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1197,6 +1198,23 @@ html[data-stemlm-theme='dark'] .slm-popup {
 .slm-library-icon-btn:focus-visible {
   outline: 2px solid var(--slm-ring);
   outline-offset: 1px;
+}
+/* Keyboard users get the action name in text; the mouse gets the native title. */
+.slm-library-icon-btn:focus-visible::after {
+  content: attr(data-label);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1;
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--radius-sm);
+  background: var(--slm-fg);
+  color: var(--slm-bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .slm-library-icon-btn--quiet:hover:not(:disabled) {
   color: var(--slm-error);
@@ -1482,6 +1500,13 @@ html[data-stemlm-theme='dark'] .slm-popup {
   box-shadow: var(--slm-shadow);
   text-align: center;
 }
+.slm-saved-pdf-title {
+  margin: 0 0 0.25rem;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--slm-fg);
+}
 .slm-saved-pdf-status {
   margin: 0;
   font-size: 14px;
@@ -1489,7 +1514,161 @@ html[data-stemlm-theme='dark'] .slm-popup {
   color: var(--slm-fg-muted);
 }
 .slm-saved-pdf-status.is-error {
-  color: #dc2626;
+  color: var(--slm-error);
+}
+
+/* Popup link to the first-run guide (ONBOARD-01). */
+.slm-popup-help {
+  display: block;
+  width: 100%;
+  margin: 0.7rem 0 0;
+  padding: 0.35rem 0;
+  border: none;
+  background: none;
+  color: var(--slm-fg-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.slm-popup-help:hover:not(:disabled) {
+  color: var(--slm-fg);
+}
+.slm-popup-help:focus {
+  outline: none;
+}
+.slm-popup-help:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- welcome: first-run guide (ONBOARD-01) ---------- */
+.slm-welcome {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 40px 24px 56px;
+}
+.slm-welcome-head {
+  margin-bottom: 28px;
+}
+.slm-welcome-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--slm-fg);
+}
+.slm-welcome-lede {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  font-size: 16px;
+  color: var(--slm-fg-muted);
+}
+.slm-welcome-steps {
+  display: grid;
+  gap: 28px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.slm-welcome-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+  align-items: start;
+  gap: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--slm-border);
+}
+.slm-welcome-step:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.slm-welcome-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--slm-solid);
+  color: var(--slm-solid-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+.slm-welcome-step h2 {
+  margin: 12px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--slm-fg);
+}
+.slm-welcome-step p {
+  margin: 6px 0 0;
+  max-width: 46ch;
+  color: var(--slm-fg-muted);
+}
+.slm-welcome-shot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-card);
+  background: var(--slm-bg-elevated);
+}
+.slm-welcome-start {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--slm-border);
+}
+.slm-welcome-start h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--slm-fg);
+}
+.slm-welcome-hosts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.slm-welcome-host {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-md);
+  background: var(--slm-bg-elevated);
+  color: var(--slm-fg);
+  font-weight: 500;
+  text-decoration: none;
+}
+.slm-welcome-host:hover {
+  background: var(--slm-bg-muted);
+}
+.slm-welcome-host:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-welcome-note {
+  margin: 28px 0 0;
+  max-width: 64ch;
+  font-size: 13px;
+  color: var(--slm-fg-subtle);
+}
+@media (max-width: 760px) {
+  .slm-welcome {
+    padding: 28px 16px 40px;
+  }
+  .slm-welcome-step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
