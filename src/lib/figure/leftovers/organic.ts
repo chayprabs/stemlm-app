@@ -164,33 +164,37 @@ export function compileFischer(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const y0 = 25;
   const dy = (h - 50) / (chain.length - 1);
   const labels: Array<{ value: string; ids: string[] }> = [];
+  const textH = measureText('C', FONT_MIN).h;
   for (let i = 0; i < chain.length; i++) {
     const y = y0 + i * dy;
     const centerId = `center-${i}`;
-    b.circle(centerId, x, y, 3, { fill: 'ink', role: 'geometry' });
+    const end = i === 0 || i === chain.length - 1;
+    // The top and bottom groups are written at the ends of the vertical bond, not marked with a dot.
+    if (!end) b.circle(centerId, x, y, 3, { fill: 'ink', role: 'geometry' });
     if (i < chain.length - 1) b.line(`backbone-${i}`, x, y, x, y + dy, { width: 1.8, role: 'geometry' });
-    if (i > 0 && i < chain.length - 1) {
+    if (!end) {
       b.line(`cross-left-${i}`, x, y, x - 38, y, { width: 1.8, role: 'geometry' });
       b.line(`cross-right-${i}`, x, y, x + 38, y, { width: 1.8, role: 'geometry' });
       if (left.length) {
         const leftId = `fischer-left-label-${i}`;
         const rightId = `fischer-right-label-${i}`;
-        b.label(leftId, left[i - 1]!, x - 54, y, { slot: 'W', protected: true, priority: 'required', anchorId: `cross-left-${i}` });
-        b.label(rightId, right[i - 1]!, x + 54, y, { slot: 'E', protected: true, priority: 'required', anchorId: `cross-right-${i}` });
+        b.label(leftId, left[i - 1]!, x - 54, y, { slot: 'W', protected: true, priority: 'required', anchorId: `cross-left-${i}`, notation: 'chem' });
+        b.label(rightId, right[i - 1]!, x + 54, y, { slot: 'E', protected: true, priority: 'required', anchorId: `cross-right-${i}`, notation: 'chem' });
         labels.push({ value: left[i - 1]!, ids: [`cross-left-${i}`, leftId] }, { value: right[i - 1]!, ids: [`cross-right-${i}`, rightId] });
       }
     }
     // A crossing is the stereocentre itself: with its two substituents drawn, its carbon is not written.
-    if (left.length && i > 0 && i < chain.length - 1) {
+    if (left.length && !end) {
       labels.push({ value: chain[i]!, ids: [centerId] });
       continue;
     }
     const labelId = `center-label-${i}`;
-    b.label(labelId, chain[i]!, x + (i === 0 || i === chain.length - 1 ? 0 : i % 2 ? -54 : 54), y, {
-      slot: i === 0 ? 'N' : i === chain.length - 1 ? 'S' : i % 2 ? 'W' : 'E',
-      priority: 'required',
-      anchorId: centerId,
-    });
+    if (end) {
+      b.label(labelId, chain[i]!, x, y + (i === 0 ? -1 : 1) * (4 + textH / 2), { protected: true, priority: 'required', anchorId: `backbone-${Math.min(i, chain.length - 2)}`, notation: 'chem' });
+      labels.push({ value: chain[i]!, ids: [labelId] });
+      continue;
+    }
+    b.label(labelId, chain[i]!, x + (i % 2 ? -54 : 54), y, { slot: i % 2 ? 'W' : 'E', priority: 'required', anchorId: centerId, notation: 'chem' });
     labels.push({ value: chain[i]!, ids: [centerId, labelId] });
   }
   highlightMatching(b, spec, labels);

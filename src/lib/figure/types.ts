@@ -99,6 +99,8 @@ export interface Overlay {
   baseline: 'hanging' | 'middle' | 'alphabetic';
   width: number;
   height: number;
+  /** The label kernel's font size for this layout, in viewBox units. */
+  fontSize?: number;
 }
 
 export interface Scene {

@@ -3,6 +3,7 @@ import { measureText } from '../geom';
 import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
+import { compileChargeField } from './field-charges';
 
 type ParsedPhasor = { mag: number; deg: number; id: string };
 
@@ -35,8 +36,6 @@ function parsePhasor(raw: string): ParsedPhasor | null {
 
 export function compilePhasor(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const { w, h } = frameSize(ctx.profile);
-  const b = new SceneBuilder('phasor', w, h);
-  b.hl(spec.highlight);
   const rawVectors = [...specGetAll(spec, 'vec'), ...specGetAll(spec, 'i1'), ...specGetAll(spec, 'v')];
   if (!rawVectors.length) return failure('phasor needs at least one vec record');
   const parsed = rawVectors.map(parsePhasor);
@@ -44,33 +43,50 @@ export function compilePhasor(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     return failure('every phasor vec must be LABEL magnitude∠degrees');
   }
   const vectors = parsed as ParsedPhasor[];
-  const cx = w * 0.32;
-  const cy = h * 0.62;
-  b.line('real-axis', cx - 20, cy, w - 24, cy, { markerEnd: true, color: 'muted', role: 'axis' });
-  b.line('imag-axis', cx, h - 16, cx, 16, { markerEnd: true, color: 'muted', role: 'axis' });
-  b.label('real-label', 'Re', w - 18, cy + 12, { protected: true, anchorId: 'real-axis' });
-  b.label('imag-label', 'Im', cx + 14, 18, { protected: true, anchorId: 'imag-axis' });
-  const maxM = Math.max(1, ...vectors.map((vector) => Math.abs(vector.mag)));
-  const scale = Math.min(w, h) * 0.35 / maxM;
-  vectors.forEach((vector, i) => {
+  // Fit the origin and scale to the tips so every vector stays inside its axis, whichever quadrants it uses.
+  const tips = vectors.map((vector) => {
     const angle = (vector.deg * Math.PI) / 180;
-    const x2 = cx + Math.cos(angle) * vector.mag * scale;
-    const y2 = cy - Math.sin(angle) * vector.mag * scale;
-    const vectorId = `vector-${i}`;
-    b.line(vectorId, cx, cy, x2, y2, {
-      markerEnd: true,
-      color: i === 0 ? 'accent' : 'danger',
-      width: 1.8,
-      role: 'connector',
-    });
-    b.label(`${vectorId}-head`, vector.id, x2, y2, { slot: 'NE', anchorId: vectorId, priority: 'required' });
-    b.line(`projection-${i}-x`, x2, y2, x2, cy, { dash: true, color: 'guide', role: 'guide' });
-    b.line(`projection-${i}-y`, x2, y2, cx, y2, { dash: true, color: 'guide', role: 'guide' });
-    b.label(`${vectorId}-value`, `${vector.id}=${vector.mag}∠${vector.deg}`, x2, y2 + 14, {
-      slot: 'S', anchorId: vectorId, priority: 'preferred',
-    });
+    return { x: Math.cos(angle) * vector.mag, y: Math.sin(angle) * vector.mag };
   });
-  return layoutAndCompile(b.scene());
+  const xs = [0, ...tips.map((tip) => tip.x)];
+  const ys = [0, ...tips.map((tip) => tip.y)];
+  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const pad = { l: 24, r: 34, t: 26, b: 20 };
+  const room = { w: w - pad.l - pad.r, h: h - pad.t - pad.b };
+  const fit = Math.min(maxX > minX ? room.w / (maxX - minX) : Infinity, maxY > minY ? room.h / (maxY - minY) : Infinity);
+  const scale = Number.isFinite(fit) ? fit : 1;
+  const cx = pad.l + (room.w - (maxX - minX) * scale) / 2 - minX * scale;
+  const cy = pad.t + (room.h - (maxY - minY) * scale) / 2 + maxY * scale;
+  const build = (withValues: boolean) => {
+    const b = new SceneBuilder('phasor', w, h);
+    b.hl(spec.highlight);
+    b.line('real-axis', 8, cy, w - 26, cy, { markerEnd: true, color: 'muted', role: 'axis' });
+    b.line('imag-axis', cx, h - 8, cx, 12, { markerEnd: true, color: 'muted', role: 'axis' });
+    b.label('real-label', 'Re', w - 14, cy + 12, { protected: true, anchorId: 'real-axis' });
+    b.label('imag-label', 'Im', cx + 14, 14, { protected: true, anchorId: 'imag-axis' });
+    vectors.forEach((vector, i) => {
+      const x2 = cx + tips[i]!.x * scale;
+      const y2 = cy - tips[i]!.y * scale;
+      const vectorId = `vector-${i}`;
+      b.line(vectorId, cx, cy, x2, y2, {
+        markerEnd: true,
+        color: i === 0 ? 'accent' : 'danger',
+        width: 1.8,
+        role: 'connector',
+      });
+      // One name per vector; the value rides on it when there is room.
+      const text = withValues ? `${vector.id}=${vector.mag}∠${vector.deg}°` : vector.id;
+      b.label(`${vectorId}-head`, text, x2, y2, { slot: 'NE', anchorId: vectorId, priority: 'required' });
+      // A vector on an axis is its own projection; a dashed copy would only overdraw it.
+      if (Math.abs(x2 - cx) > 4 && Math.abs(y2 - cy) > 4) {
+        b.line(`projection-${i}-x`, x2, y2, x2, cy, { dash: true, color: 'guide', role: 'guide' });
+        b.line(`projection-${i}-y`, x2, y2, cx, y2, { dash: true, color: 'guide', role: 'guide' });
+      }
+    });
+    return layoutAndCompile(b.scene());
+  };
+  const full = build(true);
+  return full.ok ? full : build(false);
 }
 
 function parseImpedance(raw: string): { real: number; imag: number } | null {
@@ -446,6 +462,7 @@ function compileFieldCatalog(spec: SpecDoc, ctx: CompileCtx, rawCatalog: string)
 }
 
 export function compileField(spec: SpecDoc, ctx: CompileCtx): CompileResult {
+  if (specGetAll(spec, 'charge').length || /^(charges|point[-_]charges)$/i.test(specGet(spec, 'catalog')?.trim() ?? '')) return compileChargeField(spec, ctx);
   const hasSemanticRecords = specGetAll(spec, 'source').length > 0 || specGetAll(spec, 'surface').length > 0 || specGetAll(spec, 'field_lines').length > 0 || specGetAll(spec, 'variant').length > 0;
   if (!hasSemanticRecords) {
     const kind = specGet(spec, 'kind');

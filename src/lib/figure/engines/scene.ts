@@ -584,6 +584,36 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
     taken.push(labelBoxAt(end, slot, plan.size));
     b.label(`force-label-${strokeId.slice('force-'.length)}`, plan.text, end.x, end.y, { slot, priority: plan.force.magnitudeText ? 'required' : 'preferred', anchorId: strokeId });
   }
+  // An angle the spec states for a force ("at 30 deg from horizontal") is marked where the force leaves its
+  // body: a dashed reference line along the nearer reference ray, an arc to the arrow, and the stated value.
+  for (const { plan, from, strokeId } of forceLines) {
+    const angle = parseAngle(plan.force.direction);
+    if (!angle || !Number.isFinite(angle.degrees) || Math.abs(angle.degrees) % 90 === 0) continue;
+    const bases = angle.reference === 'horizontal' || angle.reference === 'x' ? [0, 180]
+      : angle.reference === 'vertical' || angle.reference === 'y' ? [-90, 90]
+        : angle.reference === 'incline' || angle.reference === 'surface' ? [-incline, 180 - incline] : [];
+    if (!bases.length) continue;
+    const forceDeg = (Math.atan2(plan.vec.dy, plan.vec.dx) * 180) / Math.PI;
+    const turn = (from: number) => ((forceDeg - from + 540) % 360) - 180;
+    const refDeg = bases.sort((a, c) => Math.abs(turn(a)) - Math.abs(turn(c)))[0]!;
+    const sweep = turn(refDeg);
+    const id = `angle-${strokeId.slice('force-'.length)}`;
+    const ref = (refDeg * Math.PI) / 180;
+    b.line(`${id}-ref`, from.x, from.y, from.x + Math.cos(ref) * 26, from.y + Math.sin(ref) * 26, { color: 'guide', role: 'guide', width: 1 });
+    b.arc(id, from.x, from.y, 15, 15, refDeg, refDeg + sweep, { color: 'muted', role: 'annotation', width: 1.2 });
+    const text = `${Number(Math.abs(angle.degrees).toFixed(2))}°`;
+    const size = measureText(text, FONT_MIN);
+    const lines = strokeSegments({ strokes: b.strokes } as Scene);
+    const bisector = ((refDeg + sweep / 2) * Math.PI) / 180;
+    const spot = [20, 24, 28, 32, 38].map((r) => ({ x: from.x + Math.cos(bisector) * (r + size.w / 2), y: from.y + Math.sin(bisector) * (r + size.h / 2) })).find((p) => {
+      const box = { x1: p.x - size.w / 2, y1: p.y - size.h / 2, x2: p.x + size.w / 2, y2: p.y + size.h / 2 };
+      return box.x1 >= 4 && box.y1 >= 4 && box.x2 <= w - 4 && box.y2 <= h - 4 && !boxHitsAny(box, lines, 2.5) && !taken.some((other) => boxesOverlap(box, other, 2));
+    });
+    if (spot) {
+      taken.push({ x1: spot.x - size.w / 2, y1: spot.y - size.h / 2, x2: spot.x + size.w / 2, y2: spot.y + size.h / 2 });
+      b.label(`${id}-label`, text, spot.x, spot.y, { protected: true, priority: 'required', anchorId: id });
+    }
+  }
   if (angleMark) {
     // The angle mark sits inside its angle, just beyond the arc: the first bisector spot clear of every
     // stroke (a tight 2 px gap — it belongs to those lines) and every force label.
@@ -728,9 +758,12 @@ function drawFbd(b: SceneBuilder, spec: SpecDoc, w: number, h: number): CompileR
       b.label(`${id}-label`, parts[0] ?? 'surface', p.x, p.y + 18, { priority: 'optional', anchorId: id });
     }
   }
-  // Arrow lengths are proportional only for same-unit magnitudes within 2:1; say so once, not per force.
+  // Arrow lengths are proportional only for same-unit magnitudes within 2:1; say so once, not per force, in a
+  // footer band under the drawing: the note never competes with forces for room or reads as one's label.
   if (declaredUnits.length && (!comparableUnit || rangeRequiresSchematic)) {
-    b.label('scale-note', 'arrows not to scale', 4, h - 4, { slot: 'NE', priority: 'required' });
+    const size = measureText('arrows not to scale', FONT_MIN);
+    b.height = h + size.h + 8;
+    b.label('scale-note', 'arrows not to scale', 4 + size.w / 2, h + 2 + size.h / 2, { protected: true, priority: 'required' });
   }
   const extras = drawDimensionsAndAngles(b, spec, positions, w, h, used);
   if (extras) return extras;
@@ -2162,14 +2195,44 @@ function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: nu
     b.node(id, point.x - 4, point.y - 4, 8, 8, 'state');
     b.circle(id, point.x, point.y, 3.5, { color: 'accent', fill: 'ink', role: 'geometry', width: 1.2 });
   }
+  // On a P–V diagram an isotherm or an adiabat is the curve P·V^n = constant through both states (n from
+  // the states: 1 for an isotherm, γ for an adiabat); a straight chord would show a different process with a
+  // different area under it. States that cannot lie on the named curve are refused, never drawn straight.
+  const pv = /(^|[^a-z])(v|volume)([^a-z]|$)/i.test(xTitle) && /(^|[^a-z])(p|pressure)([^a-z]|$)/i.test(yTitle);
+  const processCurve = (path: ThermoPath): Point[] | Failure | null => {
+    const kind = path.kind.toLowerCase();
+    const isotherm = /isotherm/.test(kind);
+    const adiabat = /adiabat|isentrop/.test(kind);
+    if (!pv || !(isotherm || adiabat || /polytrop/.test(kind))) return null;
+    const a = states.find((state) => state.id === path.from)!;
+    const c = states.find((state) => state.id === path.to)!;
+    if (!(a.x > 0 && c.x > 0 && a.y > 0 && c.y > 0) || a.x === c.x) return failure(`${path.kind} path ${path.from} to ${path.to} needs two states with different positive volumes and positive pressures`);
+    const n = Math.log(a.y / c.y) / Math.log(c.x / a.x);
+    if (isotherm && Math.abs(n - 1) > 0.05) return failure(`isothermal path ${path.from} to ${path.to}: P·V differs between its states, so they are not on one isotherm`);
+    if (adiabat && !(n > 1.02 && n < 2)) return failure(`adiabatic path ${path.from} to ${path.to}: its states imply P·V^${n.toFixed(2)} = constant, not an adiabat`);
+    return Array.from({ length: 49 }, (_, i) => {
+      const v = a.x + ((c.x - a.x) * i) / 48;
+      return { x: mapX(v), y: mapY(a.y * (a.x / v) ** n) };
+    });
+  };
   const used = new Set<string>();
   const pathIds: string[] = [];
+  const curves = new Map<string, Point[]>();
   for (const path of paths) {
     const from = at.get(path.from)!;
     const to = at.get(path.to)!;
     const id = uniqueId(`path-${path.from}-${path.to}`, used);
     pathIds.push(id);
+    const curve = processCurve(path);
+    if (curve && 'ok' in curve) return curve;
     // Arrows stop short of the state dots so every state stays visible.
+    if (curve) {
+      const start = curve.findIndex((p) => Math.hypot(p.x - from.x, p.y - from.y) >= 5);
+      const end = curve.findLastIndex((p) => Math.hypot(p.x - to.x, p.y - to.y) >= 5.5);
+      curves.set(id, curve);
+      b.polyline(id, curve.slice(start, end + 1).flatMap((p) => [p.x, p.y]), { color: 'accent', role: 'connector', markerEnd: true, width: 1.6, fill: 'none' });
+      continue;
+    }
     const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
     const u = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
     b.line(id, from.x + u.x * 5, from.y + u.y * 5, to.x - u.x * 5.5, to.y - u.y * 5.5, { color: 'accent', role: 'connector', markerEnd: true, width: 1.6 });
@@ -2197,7 +2260,9 @@ function drawThermodynamicGraph(b: SceneBuilder, spec: SpecDoc, w: number, h: nu
     const size = measureText(path.kind, FONT_MIN);
     const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
     let n = { x: -(to.y - from.y) / length, y: (to.x - from.x) / length };
-    const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+    // A curved process is labelled beside the curve itself, not beside its chord.
+    const curve = curves.get(id);
+    const mid = curve ? curve[Math.floor(curve.length / 2)]! : { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
     if ((mid.x - centre.x) * n.x + (mid.y - centre.y) * n.y < 0 || (Math.abs((mid.x - centre.x) * n.x + (mid.y - centre.y) * n.y) < 1e-6 && n.y > 0)) n = { x: -n.x, y: -n.y };
     // Outside the loop first; on the inner side of its own path only when the outside has no room.
     const spots = [n, { x: -n.x, y: -n.y }].flatMap((side) => {

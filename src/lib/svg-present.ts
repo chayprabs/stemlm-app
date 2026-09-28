@@ -47,6 +47,15 @@ const NAMED_COLORS: Record<string, string> = {
   purple: '#800080',
 };
 
+/** True when the figure already draws `caption` in its own text (tables and some templates do). */
+export function svgDrawsCaption(svg: string, caption: string): boolean {
+  const normal = (text: string) => text.replace(/\s+/g, ' ').trim();
+  const drawn = normal([...svg.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)]
+    .map((match) => match[1]!.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&'))
+    .join(' '));
+  return Boolean(normal(caption)) && drawn.includes(normal(caption));
+}
+
 /** Decode common LaTeX fragments inside SVG <text> nodes. */
 export function decodeSvgText(text: string): string {
   let s = text;

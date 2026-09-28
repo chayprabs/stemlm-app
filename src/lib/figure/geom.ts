@@ -429,12 +429,90 @@ function lineWidth(text: string, katex: boolean): number {
   return width;
 }
 
+const TEX_RELATIONS = new Set(['le', 'leq', 'ge', 'geq', 'ne', 'neq', 'approx', 'to', 'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow', 'leftrightarrow', 'rightleftharpoons', 'propto', 'equiv', 'sim', 'simeq', 'longrightarrow', 'mapsto']);
+const TEX_BINARY = new Set(['cdot', 'times', 'pm', 'mp', 'div', 'circ', 'cup', 'cap']);
+const TEX_SPACE: Record<string, number> = { quad: 1, qquad: 2, ',': 0.17, ';': 0.28, ':': 0.22, '!': -0.17, ' ': 0.33 };
+/** Named operators KaTeX sets as upright words followed by a thin space. */
+const TEX_OPERATORS = /^(?:arc)?(?:sin|cos|tan|sec|csc|cot)h?$|^(?:log|lg|ln|exp|lim|liminf|limsup|max|min|sup|inf|det|dim|ker|deg|gcd|arg|Pr|hom|coth)$/;
+
+/** The `{…}` group (or single character) starting at `start`, and the index after it. */
+function texGroup(tex: string, start: number): { body: string; end: number } | null {
+  let i = start;
+  while (tex[i] === ' ') i++;
+  if (i >= tex.length) return null;
+  if (tex[i] !== '{') return { body: tex[i]!, end: i + 1 };
+  let depth = 0;
+  for (let k = i; k < tex.length; k++) {
+    if (tex[k] === '{') depth++;
+    else if (tex[k] === '}' && --depth === 0) return { body: tex.slice(i + 1, k), end: k + 1 };
+  }
+  return { body: tex.slice(i + 1), end: tex.length };
+}
+
+/**
+ * Inline KaTeX width in em, measured against rendered figure overlays (live round 2): glyph advances plus
+ * TeX's spacing around relations (≈0.56em) and binary operators (≈0.44em); fractions stack at script size.
+ */
+function texWidth(tex: string, scale = 1): number {
+  let width = 0;
+  let prevOrd = false;
+  const ord = (advance: number) => { width += advance * scale; prevOrd = true; };
+  for (let i = 0; i < tex.length;) {
+    const ch = tex[i]!;
+    if (ch === '\\') {
+      const name = /^\\([A-Za-z]+|.)/.exec(tex.slice(i))?.[1] ?? '';
+      let end = i + 1 + name.length;
+      if (/^[dt]?frac$/.test(name)) {
+        const num = texGroup(tex, end);
+        const den = num && texGroup(tex, num.end);
+        if (num && den) { ord(Math.max(texWidth(num.body, 0.7), texWidth(den.body, 0.7)) + 0.24); i = den.end; continue; }
+      }
+      if (/^(text|mathrm|textrm|textbf|mathbf|operatorname|ce|mathit|vec|hat|bar|overline|dot)$/.test(name)) {
+        const group = texGroup(tex, end);
+        if (group) {
+          ord(/^(text|textrm|textbf|operatorname|ce)$/.test(name) ? [...group.body].reduce((sum, c) => sum + glyphAdvance(c), 0) * 0.92 : texWidth(group.body));
+          i = group.end;
+          continue;
+        }
+      }
+      if (name === 'sqrt') { const group = texGroup(tex, end); if (group) { ord(texWidth(group.body) + 0.85); i = group.end; continue; } }
+      if (TEX_OPERATORS.test(name)) ord([...name].reduce((sum, c) => sum + glyphAdvance(c), 0) * 0.92 + 0.17);
+      else if (TEX_SPACE[name] !== undefined) width += TEX_SPACE[name]! * scale;
+      else if (TEX_RELATIONS.has(name)) { width += 1.33 * scale; prevOrd = false; }
+      else if (TEX_BINARY.has(name)) { width += (prevOrd ? 1.22 : 0.78) * scale; prevOrd = false; }
+      else if (name !== 'left' && name !== 'right' && name !== 'displaystyle') ord(/^[A-Z]/.test(name) ? 0.75 : 0.6);
+      i = end;
+      continue;
+    }
+    if (ch === '^' || ch === '_') {
+      const group = texGroup(tex, i + 1);
+      if (group) { width += texWidth(group.body, scale * 0.7); i = group.end; prevOrd = true; continue; }
+    }
+    if (ch === '{' || ch === '}' || ch === ' ') { i++; continue; }
+    if (/[=<>≈≤≥≠→⇌∝≡:]/.test(ch)) { width += 1.33 * scale; prevOrd = false; }
+    else if (/[+\-−×·±*]/.test(ch)) { width += (prevOrd ? 1.22 : 0.78) * scale; prevOrd = false; }
+    else if (/[,;]/.test(ch)) { width += 0.45 * scale; prevOrd = false; }
+    else if (/[()]/.test(ch)) { width += 0.39 * scale; prevOrd = ch === ')'; }
+    else if (/[[\]|.]/.test(ch)) ord(0.28);
+    else if (/[0-9]/.test(ch)) ord(0.5);
+    else if (/[A-Z]/.test(ch)) ord(0.72);
+    else if (/[a-z]/.test(ch)) ord(0.52);
+    else ord(0.6);
+    i++;
+  }
+  return width;
+}
+
 export function measureText(text: string, fontSize: number, katex = false): { w: number; h: number } {
   const lines = text.split(/\r?\n/);
-  const emWidth = Math.max(...lines.map((line) => lineWidth(line, katex)), 0.8);
-  const w = emWidth * fontSize * (katex ? 0.88 : 1);
-  const h = Math.max(1, lines.length) * fontSize * (katex ? 1.35 : 1.15);
-  return { w, h };
+  if (katex) {
+    const emWidth = Math.max(...lines.map((line) => texWidth(line)), 0.8);
+    // An inline fraction stacks two script rows: about twice the height of a plain line.
+    // 6% over the measured median plus a 0.4em side pad, so a label never renders wider than its placed box.
+    return { w: emWidth * fontSize * 1.06 + 0.4 * fontSize, h: Math.max(1, lines.length) * fontSize * (/\\[dt]?frac/.test(text) ? 2 : 1.35) };
+  }
+  const emWidth = Math.max(...lines.map((line) => lineWidth(line, false)), 0.8);
+  return { w: emWidth * fontSize, h: Math.max(1, lines.length) * fontSize * 1.15 };
 }
 
 export { LABEL_GAP };

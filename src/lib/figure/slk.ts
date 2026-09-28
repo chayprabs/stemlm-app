@@ -243,9 +243,11 @@ function layoutAtFontSize(scene: Scene, fontSize: number): LayoutResult | Compil
   const placed: PlacedLabel[] = [];
   const occupied: Box[] = [];
   const priorityOrder = { required: 0, preferred: 1, optional: 2 } as const;
+  // Fixed (protected) labels claim their asserted spots before movable labels search for free space;
+  // otherwise a movable label placed first can take the spot of an axis title drawn later.
   const labels = [...scene.labels].sort((a, b) => {
     const priority = priorityOrder[labelPriority(a)] - priorityOrder[labelPriority(b)];
-    return priority || (a.katex ? 1 : 0) - (b.katex ? 1 : 0);
+    return priority || (a.protected ? 0 : 1) - (b.protected ? 0 : 1) || (a.katex ? 1 : 0) - (b.katex ? 1 : 0);
   });
 
   const placeOne = (lab: SceneLabel): boolean => {
@@ -332,6 +334,7 @@ export function overlaysFromLayout(layout: LayoutResult): Overlay[] {
       baseline: 'middle' as const,
       width: p.w,
       height: p.h,
+      fontSize: layout.fontSize,
     }));
 }
 

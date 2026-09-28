@@ -257,10 +257,14 @@ function splitInlineEndMarker(line: string, endMarker: string): { text: string; 
   return { text: line.slice(0, cut).trimEnd(), closed: true };
 }
 
-/** Read lines until `endMarker` or any structural marker (tolerant close). */
-function readBlock(c: Cursor, endMarker: string): string {
+/**
+ * Read lines until `endMarker` or any structural marker (tolerant close). Blank lines are dropped, except
+ * with `paragraphs`: then one blank line survives between paragraphs (never inside `$$` display math).
+ */
+function readBlock(c: Cursor, endMarker: string, paragraphs = false): string {
   const out: string[] = [];
   const markers = endMarkersFor(endMarker);
+  let inDisplay = false;
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
@@ -271,7 +275,12 @@ function readBlock(c: Cursor, endMarker: string): string {
     if (isStructural(line)) break; // implicit close, leave marker for caller
 
     const inline = splitInlineEndMarker(line, endMarker);
-    if (inline.text) out.push(inline.text);
+    if (paragraphs && !inline.text.trim()) {
+      if (!inDisplay && out.length && out[out.length - 1] !== '') out.push('');
+    } else if (inline.text) {
+      out.push(inline.text);
+      if ((inline.text.match(/\$\$/g)?.length ?? 0) % 2) inDisplay = !inDisplay;
+    }
     c.i++;
     if (inline.closed) break;
   }
@@ -487,7 +496,7 @@ function parseStep(
     }
     if (t === '@body') {
       c.i++;
-      step.body = readBlock(c, '@endbody');
+      step.body = readBlock(c, '@endbody', true);
       continue;
     }
     if (/^@diagram\b/.test(t)) {

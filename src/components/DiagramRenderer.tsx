@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Diagram } from '@/src/protocol/types';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import {
@@ -6,7 +6,7 @@ import {
   presentCompiledDiagram,
   type CompiledDiagram,
 } from '@/src/lib/resolve-diagram';
-import { overlayStyle, renderOverlayHtml } from '@/src/lib/figure/overlay';
+import { overlayMathSize, overlayStyle, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { canonicalizeDiagramType } from '@/src/lib/figure/catalog';
 import type { CompileFailCode, Overlay } from '@/src/lib/figure/types';
 import { useStore } from '@/src/state/store';
@@ -14,6 +14,7 @@ import { CONTENT_SCALE_DIAGRAM_FACTOR } from '@/src/lib/settings';
 import { MAX_DIAGRAM_UPSCALE } from '@/src/lib/diagram-bounds';
 import { FigureLightbox, type LightboxOrigin } from './FigureLightbox';
 import { IconExpand } from './icons';
+import { svgDrawsCaption } from '@/src/lib/svg-present';
 
 export interface DiagramCompileFailure {
   family: string;
@@ -118,7 +119,8 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
         <div
           ref={frameRef}
           className="slm-diagram-frame"
-          style={frameWidth ? { width: frameWidth } : undefined}
+          // A size container, so math labels can size themselves by the frame's rendered width.
+          style={frameWidth ? { width: frameWidth, containerType: 'inline-size' } : undefined}
           onClick={section ? openLightbox : undefined}
         >
           <div
@@ -127,7 +129,10 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
           />
           {renderOverlays(overlays)}
         </div>
-      {diagram.caption && <figcaption id={captionId}>{diagram.caption}</figcaption>}
+      {diagram.caption && (
+        // A caption the figure already draws stays for screen readers only, so it is not shown twice.
+        <figcaption id={captionId} className={svgDrawsCaption(svg, diagram.caption) ? 'slm-sr-only' : undefined}>{diagram.caption}</figcaption>
+      )}
     </figure>
   );
   if (!section) return figure;
@@ -169,6 +174,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
   function renderOverlays(list: Overlay[]) {
     return list.map((overlay) => {
       const pos = overlayStyle(overlay, viewBox, size);
+      const mathSize = frameWidth && bounds ? overlayMathSize(overlay, bounds[2]!) : undefined;
       return (
         <div
           key={overlay.id}
@@ -181,6 +187,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
             transform: pos.transform,
             pointerEvents: 'none',
             whiteSpace: 'nowrap',
+            ...(mathSize ? { '--slm-math-size': mathSize } as CSSProperties : {}),
           }}
           dangerouslySetInnerHTML={{ __html: renderOverlayHtml(overlay) }}
         />

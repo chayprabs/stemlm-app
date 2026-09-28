@@ -1539,6 +1539,8 @@
   white-space: nowrap;
   color: var(--slm-fg);
   line-height: 1;
+  /* The label kernel's size in frame-width units (set per label); inherited when absent. */
+  font-size: var(--slm-math-size);
 }
 .slm-diagram-svg svg {
   display: block;

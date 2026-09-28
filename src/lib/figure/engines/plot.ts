@@ -306,6 +306,30 @@ function parsePoleValues(spec: SpecDoc): number[] {
   });
 }
 
+const MATH_WORDS = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'sinh', 'cosh', 'tanh', 'log', 'exp', 'max', 'min', 'lim', 'det']);
+
+/** Words in an equation label ("no inhibitor: v=…") are text; bare in KaTeX they read as italic products. */
+function proseAsText(equation: string): string {
+  return equation.replace(/(?<![\\A-Za-z_^{])[A-Za-z]{2,}(?:\s+[A-Za-z]{2,})*(?![A-Za-z{])/g, (run, offset: number) => {
+    const words = run.split(/\s+/);
+    const prose = words.length > 1 || (run.length >= 4 && !MATH_WORDS.has(run.toLowerCase()) && equation[offset + run.length] !== '(');
+    return prose ? `\\text{${run}}` : run;
+  });
+}
+
+/** Two balanced lines for an axis title wider than `width`; null when even that does not fit. */
+function wrapTitle(text: string, width: number): string[] | null {
+  const words = text.trim().split(/\s+/);
+  let best: string[] | null = null;
+  let bestWidth = Infinity;
+  for (let k = 1; k < words.length; k++) {
+    const lines = [words.slice(0, k).join(' '), words.slice(k).join(' ')];
+    const widest = Math.max(...lines.map((line) => measureText(line, FONT_MIN).w));
+    if (widest <= width && widest < bestWidth) { best = lines; bestWidth = widest; }
+  }
+  return best;
+}
+
 function parseEqSlot(spec: SpecDoc): EqSlot {
   const raw = specGet(spec, 'eq_slot');
   const slot = (raw ?? 'NE').trim().toUpperCase();
@@ -353,13 +377,25 @@ function panelSeries(panel: { role: string }, index: number, panels: Array<{ rol
   return selected;
 }
 
-function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: number; w: number; h: number; prefix: string }, series: Series[], allSeries: Series[], spec: SpecDoc, domain: { min: number; max: number }, scale: { x: Scale; y: Scale }, kind: string, referenceIds: Set<string>, panelTitle: boolean, eqSlot: EqSlot): void {
+/** Space between the lines of a wrapped axis title: touching boxes read as an overlap to the label kernel. */
+const TITLE_GAP = 1;
+
+function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: number; w: number; h: number; prefix: string }, series: Series[], allSeries: Series[], spec: SpecDoc, domain: { min: number; max: number }, scale: { x: Scale; y: Scale }, kind: string, referenceIds: Set<string>, panelTitle: boolean, eqSlot: EqSlot, legend = false, pointKey = false): void {
   const labels = !panel.prefix ? specGetAll(spec, 'label').map(assignments) : [];
   const xlabel = !panel.prefix ? specGet(spec, 'xlabel') ?? labels.find((entry) => entry.kind === 'axis' && entry.target?.toLowerCase() === 'x')?.value : undefined;
   const ylabel = !panel.prefix ? specGet(spec, 'ylabel') ?? labels.find((entry) => entry.kind === 'axis' && entry.target?.toLowerCase() === 'y')?.value : undefined;
   const xlabelSize = xlabel ? measureText(xlabel, FONT_MIN) : { w: 0, h: 0 };
   const ylabelSize = ylabel ? measureText(ylabel, FONT_MIN) : { w: 0, h: 0 };
+  // A y title wider than ~30% of the frame takes two balanced lines, still left of the axis, so it
+  // does not squeeze the plot into a sliver.
+  const yTitle = ylabel && !panelTitle && ylabelSize.w + 10 > panel.w * 0.3 ? wrapTitle(ylabel, ylabelSize.w) ?? [ylabel] : ylabel ? [ylabel] : [];
+  const yTitleW = Math.max(0, ...yTitle.map((line) => measureText(line, FONT_MIN).w));
   const tickH = measureText('0', FONT_MIN).h;
+  // Legend rows (one per equation) sit in a band above the axes: a colour swatch, then the equation.
+  const legendEqs = legend && !panel.prefix ? specGetAll(spec, 'eq').map(proseAsText) : [];
+  const legendSizes = legendEqs.map((equation) => measureText(equation, FONT_MIN, true));
+  const legendRowH = legendSizes.map((size) => size.h + 3);
+  const legendW = Math.max(0, ...legendSizes.map((size) => size.w));
   const assertedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^(?:open|closed|point)\s*=/i.test(raw)).map((raw) => raw.replace(/^(?:open|closed|point)\s*=\s*/i, ''))].map((raw) => strictPair(raw));
   if (assertedPoints.some((point) => !point)) fail('malformed', 'point marker needs x,y');
   const yValues = [...series.flatMap((entry) => entry.ys), ...(assertedPoints as Point[]).map((point) => point.y)].filter((value) => scale.y === 'linear' || value > 0);
@@ -373,22 +409,25 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
   if (scale.x === 'log' && !(domain.min > 0)) fail('malformed', 'log x scale needs a positive domain');
   // Vertical budget: the y title sits above the top tick label, the x title under the plot area
   // (below the tick row when the axis is the frame bottom).
-  const captionRow = spec.caption && !panel.prefix ? tickH + 2 : 0;
+  // The band keeps the kernel's 4-unit frame margin above its first row.
+  const legendBand = legendRowH.length ? 4 + legendRowH.reduce((sum, rowH) => sum + rowH, 0) : 0;
+  let frameH = panel.h;
   // Axis budget. A superscript (10^5, m^3) sits above its line and a subscript (V_NaOH) below it, so
-  // their labels reserve that extra height; the plan runs again once the tick texts are known.
-  const planAxes = (raiseTop: number, raiseBottom: number) => {
-    const padT = captionRow + (panelTitle ? 18 : ylabel ? Math.ceil(ylabelSize.h + tickH / 2 + 5 + raiseTop + dropped(ylabel)) : 14 + raiseTop);
-    const titleRow = xlabel ? xlabelSize.h + 7 + raised(xlabel) : 6;
+  // their labels reserve that extra height; the plan runs again once the tick texts are known. An x title
+  // wider than the plot wraps onto `titleLines` lines.
+  const planAxes = (raiseTop: number, raiseBottom: number, titleLines = 1) => {
+    const padT = legendBand + (panelTitle ? 18 : ylabel ? Math.ceil(yTitle.length * ylabelSize.h + (yTitle.length - 1) * TITLE_GAP + tickH / 2 + 5 + raiseTop + dropped(ylabel)) : 14 + raiseTop);
+    const titleRow = xlabel ? titleLines * xlabelSize.h + (titleLines - 1) * TITLE_GAP + 7 + raised(xlabel) : 6;
     let padB = axisAtZero ? titleRow : tickH + 4 + raiseBottom + titleRow;
-    let plotH = panel.h - padT - padB;
+    let plotH = frameH - padT - padB;
     const yScale = scale.y === 'log'
       ? logTicks(dataYMin, dataYMax, true)
       : niceTicks(dataYMin, dataYMax, true, (ticks) => plotH / (ticks.length - 1) >= tickH + 2.5);
     // A zero axis close to the frame bottom needs room for its tick row below the plot area.
     const zeroDepth = ((0 - yScale.lo) / (yScale.hi - yScale.lo)) * plotH;
-    if (axisAtZero && zeroDepth < tickH + 5 + raiseBottom) { padB += tickH + 5 + raiseBottom - zeroDepth; plotH = panel.h - padT - padB; }
+    if (axisAtZero && zeroDepth < tickH + 5 + raiseBottom) { padB += tickH + 5 + raiseBottom - zeroDepth; plotH = frameH - padT - padB; }
     const yTickText = scale.y === 'log' ? yScale.ticks.map((tick) => formatLogTick(tick, yScale.ticks)) : formatTicks(yScale.ticks);
-    const padL = Math.max(38, ...yTickText.map((text) => measureText(text, FONT_MIN).w + 10), ylabel ? ylabelSize.w + 10 : 0);
+    const padL = Math.max(38, ...yTickText.map((text) => measureText(text, FONT_MIN).w + 10), ylabel ? yTitleW + 10 : 0);
     let plotW = panel.w - padL - 11;
     const xTexts = (ticks: number[]) => (scale.x === 'log' ? ticks.map((tick) => formatLogTick(tick, ticks)) : formatTicks(ticks));
     const xFits = (ticks: number[], span: number) => plotW * (scale.x === 'log' ? 1 / Math.max(1, ticks.length - 1) : (ticks[1]! - ticks[0]!) / span)
@@ -404,10 +443,19 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
   const raiseTop = Math.max(...plan.yTickText.map(raised));
   const raiseBottom = Math.max(...plan.xTickText.map(raised));
   if (raiseTop || raiseBottom) plan = planAxes(raiseTop, raiseBottom);
+  const xTitle = !xlabel || xlabelSize.w <= plan.plotW - 8 ? (xlabel ? [xlabel] : []) : wrapTitle(xlabel, plan.plotW - 8);
+  if (!xTitle) fail('malformed', 'unsupported: plot x-axis label cannot remain in frame');
+  if (xTitle.length > 1) plan = planAxes(raiseTop, raiseBottom, xTitle.length);
+  // A legend band never squeezes the plot below a readable height; the frame grows instead.
+  if (legendBand && plan.plotH < 60) {
+    frameH += 60 - plan.plotH;
+    plan = planAxes(raiseTop, raiseBottom, Math.max(1, xTitle.length));
+    b.height = Math.max(b.height, panel.y + frameH);
+  }
   const { padT, plotH, yScale, yTickText, padL, plotW, xTicks, xTickText } = plan;
   const { lo: yMin, hi: yMax } = yScale;
   if (!(plotW > 35 && plotH > 28)) fail('malformed', 'unsupported: plot panel cannot retain a readable plotting area');
-  if (xlabel && xlabelSize.w > plotW - 8) fail('malformed', 'unsupported: plot x-axis label cannot remain in frame');
+  if (xTitle.some((line) => measureText(line, FONT_MIN).w > plotW - 8)) fail('malformed', 'unsupported: plot x-axis label cannot remain in frame');
   const x0 = panel.x + padL;
   const plotTop = panel.y + padT;
   const y0 = plotTop + plotH;
@@ -430,7 +478,8 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
   // One "0" labels the origin when both axes pass through it.
   const sharedOrigin = scale.x === 'linear' && domain.min === 0 && yScale.ticks.includes(0) && Math.abs(mapY(0) - xAxisY) < 0.5;
   if (panelTitle) b.label(id('panel-title'), panel.role, panel.x + panel.w / 2, panel.y + 8, { protected: true, priority: 'required' });
-  if (ylabel) b.label('ylabel', ylabel, x0 - 6 - ylabelSize.w / 2, plotTop - tickH / 2 - plan.raiseTop - 1 - dropped(ylabel) - ylabelSize.h / 2, { protected: true, priority: 'required' });
+  // Right-aligned against the axis; the last line sits just above the top tick label.
+  yTitle.forEach((line, lineIndex) => b.label(lineIndex ? `ylabel${lineIndex + 1}` : 'ylabel', line, x0 - 6 - measureText(line, FONT_MIN).w / 2, plotTop - tickH / 2 - plan.raiseTop - 1 - dropped(ylabel!) - (ylabelSize.h + TITLE_GAP) * (yTitle.length - lineIndex - 1) - ylabelSize.h / 2, { protected: true, priority: 'required' }));
   const seriesStart = b.strokes.length;
   const colors: Array<'accent' | 'muted' | 'danger'> = ['accent', 'muted', 'danger'];
   const panelKind = /step/.test(panel.role.toLowerCase()) ? 'step' : /discrete|sample/.test(panel.role.toLowerCase()) ? 'discrete' : kind;
@@ -446,14 +495,31 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
     }
     const label = specGetAll(spec, 'label').map(assignments).find((entryLabel) => entryLabel.kind === 'curve' && entryLabel.target?.toLowerCase() === entry.id.toLowerCase());
     if (label?.value) { const point = seriesPoint(entry, 0.72); const labelY = mapY(point.y); b.label(id(`label-${entry.id}`), label.value, mapX(point.x), labelY, { slot: 'N', priority: 'required', anchorId: id(entry.id) }); }
-    const equation = specGetAll(spec, 'eq')[seriesIndex];
-    if (equation) { const point = seriesPoint(entry, 0.28); b.label(id(`eq${seriesIndex || ''}`), equation, mapX(point.x), mapY(point.y), { katex: true, slot: eqSlot, anchorId: id(entry.id), priority: 'required' }); }
+    const equation = legendEqs.length ? undefined : specGetAll(spec, 'eq')[seriesIndex];
+    if (equation) { const point = seriesPoint(entry, 0.28); b.label(id(`eq${seriesIndex || ''}`), proseAsText(equation), mapX(point.x), mapY(point.y), { katex: true, slot: eqSlot, anchorId: id(entry.id), priority: 'required' }); }
+  });
+  // Every row starts at one x: the y axis when the widest equation fits after it, else the frame edge.
+  const legendStart = x0 + 22 + legendW <= panel.x + panel.w - 4 ? x0 : panel.x + 4;
+  if (legendStart + 22 + legendW > panel.x + panel.w - 4) fail('malformed', 'unsupported: plot equation label is wider than the figure');
+  legendEqs.forEach((equation, index) => {
+    const entry = series[index];
+    const y = panel.y + 4 + legendRowH.slice(0, index).reduce((sum, rowH) => sum + rowH, 0) + legendRowH[index]! / 2;
+    b.line(`legend-swatch${index}`, legendStart, y, legendStart + 16, y, { color: colors[index % colors.length], width: 2, dash: entry ? referenceIds.has(entry.id.toLowerCase()) : false, role: 'annotation', protected: true });
+    b.label(`eq${index || ''}`, equation, legendStart + 22 + legendSizes[index]!.w / 2, y, { katex: true, protected: true, priority: 'required' });
   });
   const addPointMarker = (markerKind: 'open' | 'closed' | 'point', raw: string, markerIndex: number) => { const point = strictPair(raw); if (!point) fail('malformed', `${markerKind} marker needs x,y`); if (point.x < domain.min || point.x > domain.max) fail('malformed', 'marker lies outside plot domain'); b.circle(id(`marker-${markerKind}${markerIndex}`), mapX(point.x), mapY(point.y), 3.5, { color: markerKind === 'open' ? 'muted' : 'accent', fill: markerKind === 'open' ? 'none' : markerKind === 'closed' ? 'accent' : 'ink', role: 'annotation' }); };
   const markerCounts = { open: 0, closed: 0, point: 0 };
   for (const raw of specGetAll(spec, 'marker')) { const match = /^(open|closed|point)\s*=\s*(.*)$/i.exec(raw); if (match) { const markerKind = match[1]!.toLowerCase() as 'open' | 'closed' | 'point'; addPointMarker(markerKind, match[2]!, markerCounts[markerKind]++); } }
   for (const raw of specGetAll(spec, 'point')) addPointMarker('point', raw, markerCounts.point++);
-  specGetAll(spec, 'point').forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const pointLabel = specGetAll(spec, 'point_label')[pointIndex] ?? specGet(spec, 'point_label'); if (pointLabel) b.label(id(`pointl${pointIndex}`), pointLabel, mapX(point.x), mapY(point.y), { slot: pointLabelSlot(series, point, mapX, mapY), priority: 'required' }); });
+  // `point_label`s name the points in order: `point:` records, then `marker: point=` records. A label with no
+  // point to name is refused rather than dropped.
+  const namedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^point\s*=/i.test(raw)).map((raw) => raw.replace(/^point\s*=\s*/i, ''))];
+  const labelTexts = specGetAll(spec, 'point_label');
+  if (labelTexts.length > namedPoints.length) fail('malformed', 'point_label has no point to name');
+  const pointLabels = namedPoints.map((_, pointIndex) => labelTexts[pointIndex] ?? (pointIndex < specGetAll(spec, 'point').length ? specGet(spec, 'point_label') : undefined));
+  // With `pointKey`, each point carries its label's number and the key under the axes states the label once.
+  const keyTexts = pointKey ? [...new Set(pointLabels.filter((text): text is string => Boolean(text)))] : [];
+  namedPoints.forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const pointLabel = pointLabels[pointIndex]; if (pointLabel) b.label(id(`pointl${pointIndex}`), pointKey ? String(keyTexts.indexOf(pointLabel) + 1) : pointLabel, mapX(point.x), mapY(point.y), { slot: pointLabelSlot(series, point, mapX, mapY), priority: 'required' }); });
   const drop = parseDropMode(spec);
   const markedPoints = [...specGetAll(spec, 'point'), ...specGetAll(spec, 'marker').filter((raw) => /^point\s*=/i.test(raw)).map((raw) => raw.replace(/^point\s*=\s*/i, ''))];
   markedPoints.forEach((raw, pointIndex) => { const point = strictPair(raw); if (!point) fail('malformed', 'point marker needs x,y'); const px = mapX(point.x); const py = mapY(point.y); if (drop === 'both' || drop === 'x') b.line(id(`dropx${pointIndex}`), px, py, px, xAxisY, { dash: true, color: 'guide', role: 'guide' }); if (drop === 'both' || drop === 'y') b.line(id(`dropy${pointIndex}`), px, py, x0, py, { dash: true, color: 'guide', role: 'guide' }); });
@@ -511,10 +577,32 @@ function drawPlotPanel(b: SceneBuilder, panel: { role: string; x: number; y: num
     b.label(id(`xtickl${entry.tickIndex}`), entry.text, at.x, at.y, { protected: true, priority: 'required' });
     tickRowBottom = Math.max(tickRowBottom, at.y + entry.h / 2);
   }
-  if (xlabel) b.label('xlabel', xlabel, x0 + plotW / 2, Math.max(y0, tickRowBottom) + 2 + raised(xlabel) + xlabelSize.h / 2, { protected: true, priority: 'required' });
+  xTitle.forEach((line, lineIndex) => b.label(lineIndex ? `xlabel${lineIndex + 1}` : 'xlabel', line, x0 + plotW / 2, Math.max(y0, tickRowBottom) + 2 + raised(xlabel!) + (xlabelSize.h + TITLE_GAP) * lineIndex + xlabelSize.h / 2, { protected: true, priority: 'required' }));
+  if (keyTexts.length) {
+    // Key rows under the x title (one or two columns, read down each column); the frame grows to hold them.
+    const titleBottom = Math.max(y0, tickRowBottom) + (xTitle.length ? 2 + raised(xlabel!) + xlabelSize.h * xTitle.length + (xTitle.length - 1) * TITLE_GAP : 0);
+    const numW = measureText(String(keyTexts.length), FONT_MIN).w;
+    const sizes = keyTexts.map((text) => measureText(text, FONT_MIN));
+    const entryW = numW + 6 + Math.max(...sizes.map((size) => size.w));
+    if (entryW > panel.w - 8) fail('malformed', 'unsupported: plot point label is wider than the figure');
+    const columns = 2 * entryW + 14 <= panel.w - 8 ? 2 : 1;
+    const rows = Math.ceil(keyTexts.length / columns);
+    const rowH = Math.max(...sizes.map((size) => size.h)) + 2;
+    const keyW = columns * entryW + (columns - 1) * 14;
+    const keyX = x0 + keyW <= panel.x + panel.w - 4 ? x0 : panel.x + 4;
+    const keyTop = titleBottom + 6;
+    keyTexts.forEach((text, k) => {
+      const x = keyX + Math.floor(k / rows) * (entryW + 14);
+      const y = keyTop + (k % rows) * rowH + rowH / 2;
+      b.label(id(`pointkey-n${k}`), String(k + 1), x + numW / 2, y, { protected: true, priority: 'required' });
+      b.label(id(`pointkey${k}`), text, x + numW + 6 + sizes[k]!.w / 2, y, { protected: true, priority: 'required' });
+    });
+    b.height = Math.max(b.height, keyTop + rows * rowH + 4);
+  }
 }
 
-export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
+/** `legend`: equations in a legend band above the axes — always for two or more (curve-side labels crowd). */
+export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx, legend = specGetAll(spec, 'eq').length > 1, pointKey = false): Scene {
   validatePlotDeclarations(spec);
   const emptyDeclaration = spec.emptyDeclarations.keys().next().value as string | undefined;
   if (emptyDeclaration) fail('malformed', `plot declaration ${emptyDeclaration} must not be empty`);
@@ -538,15 +626,27 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx): Scene {
   const panels = parsePanels(spec); const { w, h } = frameSize(ctx.profile); const b = new SceneBuilder('plot', w, h); b.hl(spec.highlight); const panelGap = 8; const panelHeight = panels.length ? (h - panelGap * (panels.length - 1)) / panels.length : h; const allSeries = [...functions, ...data]; validateLabelAssignments(spec, allSeries); parseDropMode(spec); const referenceIds = new Set<string>(); const eqSlot = parseEqSlot(spec);
   for (const raw of specGetAll(spec, 'guide')) { const reference = /^\s*reference\s*=\s*([A-Za-z][A-Za-z0-9_.-]*)\s*$/i.exec(raw); if (reference) { const target = targetSeries(allSeries, reference[1]!); if (!target) fail('malformed', `guide reference ${reference[1]} is missing`); referenceIds.add(reference[1]!.trim().toLowerCase()); } else if (/^\s*reference\s*=/i.test(raw)) fail('malformed', `invalid guide reference ${raw}`); }
   panels.forEach((panelSpec, index) => { const y = index * (panelHeight + panelGap); const panel = { role: panelSpec.role, x: 0, y, w, h: panelHeight, prefix: `${panelSpec.id}-` }; b.panel(panelSpec.id, panelSpec.role, 0, y, w, panelHeight); drawPlotPanel(b, panel, panelSeries(panelSpec, index, panels, functions, data), allSeries, spec, domain, scale, kind, referenceIds, true, eqSlot); });
-  if (!panels.length) drawPlotPanel(b, { role: kind, x: 0, y: 0, w, h, prefix: '' }, allSeries, allSeries, spec, domain, scale, kind, referenceIds, false, eqSlot);
-  if (spec.caption && !panels.length) b.label('caption', spec.caption, w / 2, 9, { protected: true, priority: 'required' });
+  if (!panels.length) drawPlotPanel(b, { role: kind, x: 0, y: 0, w, h, prefix: '' }, allSeries, allSeries, spec, domain, scale, kind, referenceIds, false, eqSlot, legend, pointKey);
+  // `caption:` is set under the figure by the panel and the report (wrapped text), not inside the plot.
   return b.scene();
 }
 
 export function compilePlot(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   try {
-    const scene = buildPlotScene(spec, ctx);
-    const layout = layoutScene(scene);
+    let legend = specGetAll(spec, 'eq').length > 1;
+    let pointKey = false;
+    let scene = buildPlotScene(spec, ctx, legend, pointKey);
+    let layout = layoutScene(scene);
+    // A label with no free slot moves out of the drawing rather than hiding the plot: an equation to the
+    // legend band, point labels to a numbered key.
+    for (let retry = 0; retry < 2 && !specHas(spec, 'panel'); retry++) {
+      if (layout.ok) break;
+      if (!legend && /label eq\d*$/.test(layout.reason)) legend = true;
+      else if (!pointKey && /label pointl\d+$/.test(layout.reason)) pointKey = true;
+      else break;
+      scene = buildPlotScene(spec, ctx, legend, pointKey);
+      layout = layoutScene(scene);
+    }
     if (!layout.ok) return layout;
     if (!strokeBoundsCertificate(scene, layout)) return { ok: false, code: 'unsatisfiable', reason: 'plot stroke bounds exceed the frame' };
     return { ok: true, svg: emitSvg(scene, layout), overlays: overlaysFromLayout(layout), scene };

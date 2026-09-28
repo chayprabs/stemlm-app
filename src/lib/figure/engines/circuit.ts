@@ -5,7 +5,8 @@ import { emitSvg } from '../emit';
 import { layoutScene, overlaysFromLayout, strokeSegments } from '../slk';
 import { boxHitsAny, boxesOverlap, measureText } from '../geom';
 import { deviceHalf, displayDeviceValue, drawGlyph } from './circuit-glyphs';
-import { compileStageCircuit } from './circuit-stage';
+import { compileStageCircuit, portName, probeNeedsLabel } from './circuit-stage';
+import { compileOpampStage } from './circuit-opamp';
 
 export interface Device {
   id: string;
@@ -495,9 +496,47 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   if (devices.some((device) => device.transistor)) {
     return compileStageCircuit({ ...parsed, isGround: isGnd, std: (specGet(spec, 'std') ?? 'ieee').toLowerCase(), highlight: spec.highlight });
   }
-  if (hasUnsupportedAmplifierFeedback(devices)) {
-    return { ok: false, code: 'unsatisfiable', reason: 'feedback around a three-terminal amplifier needs a feedback-aware layout' };
+  // An op-amp with feedback (or a follower) gets the textbook feedback layout; other feedback topologies
+  // around an amplifier are refused.
+  const feedback = hasUnsupportedAmplifierFeedback(devices);
+  if (feedback || devices.some((d) => d.kind === 'a' && d.n3 && d.n2 === d.n3)) {
+    const stage = compileOpampStage({ ...parsed, isGround: isGnd, std: (specGet(spec, 'std') ?? 'ieee').toLowerCase(), highlight: spec.highlight });
+    if (stage) return stage;
+    if (feedback) return { ok: false, code: 'unsatisfiable', reason: 'feedback around a three-terminal amplifier needs a feedback-aware layout' };
   }
+  // The single-row layout keeps its drawing when no wire or junction runs through another symbol and no two
+  // symbols overlap (a shunt whose lead started inside a series resistor read as a tap into it). Otherwise, or
+  // when it cannot lay the circuit out, the verified row/column stage layout draws it when it can.
+  const row = layoutRowCircuit(spec, ctx, parsed);
+  if (row.ok && !symbolCrossing(row.scene, devices)) return row;
+  const staged = compileStageCircuit({ ...parsed, isGround: isGnd, std: (specGet(spec, 'std') ?? 'ieee').toLowerCase(), highlight: spec.highlight });
+  return staged.ok ? staged : row;
+}
+
+/** Why the drawing is wrong (a wire through a symbol, or two symbols on each other), or null. */
+function symbolCrossing(scene: Scene, devices: Device[]): string | null {
+  const glyphBox = (d: Device) => {
+    const own = scene.strokes.filter((s) => (s.id === d.id || s.id.startsWith(`${d.id}-`)) && !/-n[123]$/.test(s.id));
+    const segs = strokeSegments({ ...scene, strokes: own.map((s) => ({ ...s, protected: false })) });
+    if (!segs.length) return null;
+    const xs = segs.flatMap((g) => [g.x1, g.x2]);
+    const ys = segs.flatMap((g) => [g.y1, g.y2]);
+    return { x1: Math.min(...xs) + 1.5, y1: Math.min(...ys) + 1.5, x2: Math.max(...xs) - 1.5, y2: Math.max(...ys) - 1.5 };
+  };
+  const boxes = devices.map((d) => ({ d, box: glyphBox(d) })).filter((entry): entry is { d: Device; box: NonNullable<ReturnType<typeof glyphBox>> } => Boolean(entry.box));
+  for (const [i, a] of boxes.entries()) {
+    for (const c of boxes.slice(i + 1)) if (boxesOverlap(a.box, c.box, 0)) return `symbols ${a.d.id} and ${c.d.id} overlap`;
+    const foreign = scene.strokes.filter((s) => (s.role === 'connector' || s.role === 'guide') && s.id !== a.d.id && !s.id.startsWith(`${a.d.id}-`) && !s.id.startsWith(`j:${a.d.id}:`));
+    for (const g of strokeSegments({ ...scene, strokes: foreign.map((s) => ({ ...s, protected: false })) })) {
+      const inside = Math.max(g.x1, g.x2) > a.box.x1 && Math.min(g.x1, g.x2) < a.box.x2 && Math.max(g.y1, g.y2) > a.box.y1 && Math.min(g.y1, g.y2) < a.box.y2;
+      if (inside) return `a wire would pass through ${a.d.id}`;
+    }
+  }
+  return null;
+}
+
+function layoutRowCircuit(spec: SpecDoc, ctx: CompileCtx, parsed: ParsedCircuit): CompileResult {
+  const devices = parsed.devices;
   const { w, h } = frameSize(ctx.profile);
   const b = new SceneBuilder('circuit', w, h);
   b.hl(spec.highlight);
@@ -740,10 +779,11 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     b.node(`port:${port.node}`, x - 3, y - 3, 6, 6, 'port');
     b.circle(`port:${port.node}:dot`, x, y, 3, { color: 'accent', role: 'connector', fill: 'none' });
     // The name sits beside the terminal on its outer side, or above it when the frame edge is too close.
-    const size = measureText(port.node, 12, false);
+    const name = portName(port.node, parsed.probes);
+    const size = measureText(name, 12, false);
     const besideX = x + (port.role === 'input' ? -1 : 1) * (7 + size.w / 2);
     const beside = besideX - size.w / 2 >= 4 && besideX + size.w / 2 <= w - 4;
-    b.label(`port:${port.node}:label`, port.node, beside ? besideX : x, beside ? y : y - 7 - size.h / 2, { protected: true, priority: 'required', anchorId: `port:${port.node}`, slot: port.role === 'input' ? 'W' : 'E' });
+    b.label(`port:${port.node}:label`, name, beside ? besideX : x, beside ? y : y - 7 - size.h / 2, { protected: true, priority: 'required', anchorId: `port:${port.node}`, slot: port.role === 'input' ? 'W' : 'E' });
   }
   for (const label of parsed.labels) {
     const device = devices.find((entry) => entry.id.toLowerCase() === label.target.toLowerCase());
@@ -758,6 +798,7 @@ export function compileCircuit(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     b.label(label.id, label.text, x, y, { anchorId: device?.id ?? targetNode ?? `port:${port!.node}`, priority: 'preferred', slot: device ? 'NE' : 'W' });
   }
   for (const probe of parsed.probes) {
+    if (!probeNeedsLabel(probe, { ports: parsed.ports, devices, isGround: isGnd })) continue;
     b.label(probe.id, probe.name, xOf(probe.node), yOf.get(probe.node)!, { slot: 'NE', anchorId: `n:${probe.node}` });
   }
   return compileCircuitScene(b);

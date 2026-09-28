@@ -6,6 +6,18 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** KaTeX's `.katex` rule draws at 1.21em of its container. */
+const KATEX_EM = 1.21;
+
+/**
+ * The overlay's own font size as a share of its frame's width (`cqw`), so a math label draws at the size
+ * the label kernel placed it at and scales with the SVG like the figure's own text.
+ */
+export function overlayMathSize(overlay: Overlay, viewBoxWidth: number): string | undefined {
+  if (overlay.kind !== 'katex' || !overlay.fontSize || !(viewBoxWidth > 0)) return undefined;
+  return `${Number(((overlay.fontSize / KATEX_EM) * (100 / viewBoxWidth)).toFixed(4))}cqw`;
+}
+
 /** Overlay source is always KaTeX-rendered or escaped text — never raw model innerHTML. */
 export function renderOverlayHtml(overlay: Overlay, strict = false): string {
   if (overlay.kind === 'katex') {

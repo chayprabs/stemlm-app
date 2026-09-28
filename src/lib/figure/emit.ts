@@ -18,8 +18,11 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function colorOf(scene: Scene, id: string, semantic: SemanticColor): string {
-  const hi = scene.highlights.some((h) => h.toLowerCase() === id.toLowerCase());
+/** A highlighted id colours its own stroke and the other drawn parts of that symbol (`<id>-…` geometry, e.g. a
+ * capacitor's second plate), never its leads or wires. */
+function colorOf(scene: Scene, id: string, semantic: SemanticColor, role?: string): string {
+  const key = id.toLowerCase();
+  const hi = scene.highlights.some((h) => key === h.toLowerCase() || (role === 'geometry' && key.startsWith(`${h.toLowerCase()}-`)));
   return COLOR[hi ? 'accent' : semantic];
 }
 
@@ -44,7 +47,7 @@ export function emitSvg(scene: Scene, layout: LayoutResult): string {
   }
 
   for (const s of scene.strokes) {
-    const stroke = colorOf(scene, s.id, s.semanticColor);
+    const stroke = colorOf(scene, s.id, s.semanticColor, s.role);
     const w = s.width ?? 1.6;
     const dash = s.dash || s.semanticColor === 'guide' ? ' stroke-dasharray="4 3"' : '';
     const fill = s.pattern

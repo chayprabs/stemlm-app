@@ -159,7 +159,7 @@ export const DIAGRAM_SPEC_CATALOG = [
   'DIAGRAMS: compiler draws. You name ids. Never <svg>, viewBox, path d=, text x= y=, markers.',
   'type=plot     fn: | data: | poles: | peaks:  xlabel: ylabel: units  eq:  domain:',
   'type=scene    kind=fbd|ray|geom|field  named parts, relations (incline_deg, f, do) — no pixels',
-  'type=field    catalog: dipole|parallel-plate|wire|solenoid|TE10  core: B: H:',
+  'type=field    catalog: dipole|parallel-plate|wire|solenoid|TE10|charges  core: B: H: charge:',
   'type=graph    node: id label   edge: a b kind   decision:/terminal: (flowchart)  start:/accept: (automaton)',
   'type=table    kind=ice|dp|punnett|matrix  row lines',
   'type=circuit  SPICE-like  id n1 n2 value  std=ieee  highlight:',
@@ -177,7 +177,7 @@ export function getDiagramRequirement(subject: Subject): string {
     Chemistry:
       'CRITICAL — chemistry/visual problems MUST include @diagram specs. chem.smiles / newman / mo / table kind=ice / type=echem. NEVER SMILES-as-Newman. Every named species is a spec id.',
     Physics:
-      'CRITICAL — physics visual problems MUST include @diagram specs. FREE-BODY: type=scene kind=fbd; isolate ONE body; name forces N,T,f,mg,F; axes separate. OPTICS: type=ray or scene kind=ray with f, do. FIELDS: type=field catalog: solenoid|dipole|parallel-plate|wire|TE10 with core:/B:/H: keys — never a prose paragraph.',
+      'CRITICAL — physics visual problems MUST include @diagram specs. FREE-BODY: type=scene kind=fbd; isolate ONE body; name forces N,T,f,mg,F; axes separate. OPTICS: type=ray or scene kind=ray with f, do. FIELDS: type=field catalog: solenoid|dipole|parallel-plate|wire|TE10|charges with core:/B:/H:/charge: keys — never a prose paragraph.',
     Math: 'CRITICAL — math visual problems MUST include @diagram type=plot (or scene/table/graph) for graphs, regions, geometry. Omit on purely symbolic algebra.',
     Biology:
       'CRITICAL — biology visual problems MUST include @diagram specs. Punnett: table. Pedigree/pathway: graph (pointed=activation, blunt=inhibition).',

@@ -23,3 +23,14 @@ docs/history/blind-*.json
 .playwright-cli/
 test-results/
 tmp/
+
+# Internal development notes, agent instructions and evaluation tooling: kept locally,
+# not part of the published extension or its source.
+AGENTS.md
+CLAUDE.md
+ANALYTICS_PLAN.md
+docs/history/
+docs/diagram-compiler-research.md
+docs/eval-rubric.md
+docs/protocol-gap-inventory.md
+scripts/eval/

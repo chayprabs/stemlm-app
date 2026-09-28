@@ -170,7 +170,7 @@ When the caller supplies a fixed queue family, use it only when it can represent
 For broad topics, match the named source class before choosing a related special case. Expose its defining construction, not a nearby special case. Topic-only: structure over peripheral question; causal curves show balance; other routes preserve axes/curves/data; no apparatus fallback.
 Use recurring reference constructions, not one experiment.
 When no fixed queue family is supplied, choose the first subject-row engine family that can express the defining construction.
-Typed specs: schema, never a prose paragraph. field=dipole|parallel-plate|wire|solenoid|TE10; SFD=V/M. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec. Optics is type=scene kind: ray with f, do, ho.
+Typed specs: schema, never a prose paragraph. field=dipole|parallel-plate|wire|solenoid|TE10|charges; SFD=V/M. Copy @meta locale circuit=IEEE|IEC into std: ieee|iec. Optics is type=scene kind: ray with f, do, ho.
 For fbd: body: id; support: pin|roller|fixed target (type first, target second); member: kind from to (body ids); force: id [magnitude units] D on body. Bare D is up|down|left|right|up_left|up_right|down_left|down_right|up_incline|down_incline|normal+|weight (horizontal|vertical are angle references only), or at n deg from x|y|horizontal|vertical|incline|surface|force; incline_deg: slopes. Include every known force magnitude with its unit; normalize comparable forces to the same unit. Force arrows primarily show directions and bodies of application. Labels marked schematic must not be measured for magnitude; retain the stated values. Use a quantitative plot when exact vector-length ratios are required.
 Every type=scene block begins with exactly one kind: line.
 Geometry: relation kind from to; cycle needs one; exactly one from, kind, and to. IDs use letters, digits, or underscores. Allowed kinds: tangent|projects|joins|lies-on|perpendicular|perpendicular-to|normal|normal-to. point: id x y; segment: id from to; relation: kind from to (one token); forbid: from kind to; angle: id vertex value; dimension: id from to label (known endpoints); angles require deg|°; never emit scaffold:. Physical: part id role; relation from action to.
@@ -266,6 +266,7 @@ SCHEMA scene.field key=catalog :: dipole|parallel-plate|wire|solenoid|TE10.
 SCHEMA scene.field key=core :: for solenoid, mu_r=<relative permeability>; other catalog declarations must not claim unsupported semantics.
 SCHEMA scene.field key=b :: <magnetic flux density value and units> | ?; solenoid only.
 SCHEMA scene.field key=h :: <magnetic field strength value and units> | ?; solenoid only.
+SCHEMA field key=charge :: <name> <signed value> [unit] at <x>,<y>; catalog: charges, 1-4 charges, one length unit. Lines are traced: use it for unequal or like charges.
 SCHEMA graph key=node :: <id> [label words]; repeat; ids must be unique or definitions identical.
 SCHEMA graph key=edge :: <from-id> <to-id> [relation words]; repeat; undeclared endpoints become nodes.
 SCHEMA graph key=rankdir :: LR|TB|TD; the compiler may rotate a layout that cannot fit.

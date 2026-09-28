@@ -51,7 +51,7 @@ export function FigureLightbox({ origin, aspect, label, caption, theme, onClose,
           <IconClose width={18} height={18} />
         </button>
         <figure className="slm-diagram slm-lightbox-figure">
-          <div className="slm-diagram-frame slm-lightbox-frame" style={{ width, fontSize }}>
+          <div className="slm-diagram-frame slm-lightbox-frame" style={{ width, fontSize, containerType: 'inline-size' }}>
             {children}
           </div>
           {caption && <figcaption>{caption}</figcaption>}

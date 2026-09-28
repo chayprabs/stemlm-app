@@ -234,6 +234,7 @@ body{font:11pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-adj
 .slm-diagram-frame{position:relative;display:inline-block;line-height:0;max-width:100%;overflow:visible;}
 .slm-diagram-svg{display:inline-block;line-height:0;max-width:100%;}
 .slm-report-diagram svg{display:block;width:auto;max-width:100%;height:auto;max-height:${PRINT_DIAGRAM_MM.maxH}mm;}
+.slm-report-diagram-caption{max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:3px auto 0;text-align:center;font-size:8.5pt;line-height:1.4;color:${T.fgSubtle};}
 .slm-diagram-overlay{position:absolute;pointer-events:none;white-space:nowrap;color:${T.fg};font-size:9.5pt;line-height:1;}
 .slm-diagram-overlay .katex{font-size:1em;}
 .slm-report-foot{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:8px;border-top:0.5px solid ${T.border};font-size:8.5pt;color:${T.fgSubtle};break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}

@@ -59,8 +59,25 @@ function terminalOrder(kind: Transistor): { upper: 'n1' | 'n3'; lower: 'n1' | 'n
 
 const onSeg = (x: number, y: number, s: Segment) => distPointSeg(x, y, s) < 0.75;
 /** Two conductors are joined where one ends on the other; a crossing is not a joint. */
-const joined = (a: Segment, c: Segment) =>
+export const joined = (a: Segment, c: Segment) =>
   onSeg(a.x1, a.y1, c) || onSeg(a.x2, a.y2, c) || onSeg(c.x1, c.y1, a) || onSeg(c.x2, c.y2, a);
+
+type Probe = StageInput['probes'][number];
+
+/** A port's terminal shows the probe that names its node, else the node's own name. */
+export function portName(node: string, probes: readonly Probe[], same: (a: string, b: string) => boolean = (a, b) => a === b): string {
+  return probes.find((probe) => same(probe.node, node))?.name ?? node;
+}
+
+/**
+ * A probe gets its own label unless a port terminal already shows it, or it only restates the designator of
+ * a two-terminal device between its node and ground (probe V_in on the node the source V_in drives).
+ */
+export function probeNeedsLabel(probe: Probe, input: Pick<StageInput, 'ports' | 'devices' | 'isGround'>, same: (a: string, b: string) => boolean = (a, b) => a === b): boolean {
+  if (input.ports.some((port) => same(port.node, probe.node))) return false;
+  return !input.devices.some((d) => d.id === probe.name && !d.n3 &&
+    ((same(d.n1, probe.node) && input.isGround(d.n2)) || (same(d.n2, probe.node) && input.isGround(d.n1))));
+}
 
 export function compileStageCircuit(input: StageInput): CompileResult {
   // Nets: explicit wires join nodes; every ground spelling is one net.
@@ -250,9 +267,14 @@ export function compileStageCircuit(input: StageInput): CompileResult {
   const inputs = input.ports.filter((p) => p.role === 'input');
   queue.push(...inputs.map((p) => find(p.node)));
   for (const p of parts) if (/^ac(?:\s|$)/i.test(p.device.value ?? '') && (p.device.kind === 'v' || p.device.kind === 'i')) enqueue(p.a, p.b);
-  if (!queue.length) {
+  if (!queue.length && stages.length) {
     const first = stages.find((t) => !stages.some((s) => s !== t && (s.u === t.k || s.l === t.k))) ?? stages[0]!;
     enqueue(first.k, first.u, first.l);
+  }
+  // A passive network starts at its source (else its first part), so the drawing reads left to right from it.
+  if (!queue.length) {
+    const start = parts.find((p) => p.device.kind === 'v' || p.device.kind === 'i') ?? parts[0];
+    if (start) enqueue(start.a, start.b);
   }
   const seen = new Set<string>();
   // A net's hanging devices come before the flat device that carries the signal on, so the net's
@@ -521,6 +543,10 @@ export function compileStageCircuit(input: StageInput): CompileResult {
       anchors.push((size) => ({ x: p.x + 5 + size.w / 2, y: p.y - 5 - size.h / 2 }), (size) => ({ x: p.x - 5 - size.w / 2, y: p.y - 5 - size.h / 2 }),
         (size) => ({ x: p.x + 5 + size.w / 2, y: p.y + 5 + size.h / 2 }), (size) => ({ x: p.x - 5 - size.w / 2, y: p.y + 5 + size.h / 2 }));
     }
+    // Straight above or below a pin: the gap between two in-line symbols (their labels sit over each one).
+    for (const p of pins.get(net) ?? []) {
+      anchors.push((size) => ({ x: p.x, y: p.y - 8 - size.h / 2 }), (size) => ({ x: p.x, y: p.y + 8 + size.h / 2 }));
+    }
     return anchors;
   };
   for (const rail of rails) {
@@ -532,7 +558,9 @@ export function compileStageCircuit(input: StageInput): CompileResult {
     ? [0.02, 0.5, 0.98].map((t) => (size: { w: number; h: number }) => ({ x: Math.min(Math.max(groundWire.x1 + (groundWire.x2 - groundWire.x1) * t, groundWire.x1 + size.w / 2), groundWire.x2 - size.w / 2), y: groundWire.y1 + 5 + size.h / 2 }))
     : [];
   if (!place([{ id: 'gndl', text: 'GND' }], [...groundCandidates, ...netAnchors(gnd)])) return fail('no clear place for the GND label');
+  const sameNet = (a: string, c: string) => find(a) === find(c);
   for (const probe of input.probes) {
+    if (!probeNeedsLabel(probe, input, sameNet)) continue;
     const net = find(probe.node);
     if (!place([{ id: probe.id, text: probe.name }], netAnchors(net), { anchorId: `n:${probe.node}` })) return fail(`no clear place for probe ${probe.name}`);
   }
@@ -548,7 +576,7 @@ export function compileStageCircuit(input: StageInput): CompileResult {
     const dot = b.strokes.find((s) => s.id === `port:${port.node}:dot`)!;
     const [px, py] = dot.points as [number, number];
     const box = { x1: px - 3, y1: py - 3, x2: px + 3, y2: py + 3 };
-    if (!place([{ id: `port:${port.node}:label`, text: port.node }], around(box, port.role === 'input' ? ['W', 'N', 'S'] : ['E', 'N', 'S']))) {
+    if (!place([{ id: `port:${port.node}:label`, text: portName(port.node, input.probes, sameNet) }], around(box, port.role === 'input' ? ['W', 'N', 'S'] : ['E', 'N', 'S']))) {
       return fail(`no clear place for port ${port.node}`);
     }
   }
@@ -565,7 +593,7 @@ function segmentsCross(a: Segment, c: Segment): boolean {
  * Conductors connect only where one ends on another (a crossing is not a joint). Every net must form
  * one connected piece and no piece may hold two nets; returns why not, or null.
  */
-function verifyConnectivity(conductors: ReadonlyArray<{ seg: Segment; net: string }>): string | null {
+export function verifyConnectivity(conductors: ReadonlyArray<{ seg: Segment; net: string }>): string | null {
   const parent = conductors.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
   conductors.forEach((a, i) => conductors.forEach((c, j) => {

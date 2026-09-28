@@ -10,6 +10,7 @@ import type { Overlay } from '@/src/lib/figure/types';
 import { overlayPrintStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
+import { svgDrawsCaption } from '@/src/lib/svg-present';
 
 export function diagramKey(scope: string, i: number, prefix = ''): string {
   return `${prefix}${scope}-${i}`;
@@ -23,9 +24,11 @@ export function entryPrefix(i: number): string {
 function ResolvedDiagram({
   svg,
   overlays,
+  caption,
 }: {
   svg?: string;
   overlays?: Overlay[];
+  caption?: string;
 }) {
   if (svg && svgMarkupHasGraphicShapes(svg)) {
     const vb = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1];
@@ -46,6 +49,7 @@ function ResolvedDiagram({
           ))}
         </div>
         </div>
+        {caption && !svgDrawsCaption(svg, caption) && <p className="slm-report-diagram-caption">{caption}</p>}
       </div>
     );
   }
@@ -125,6 +129,7 @@ function ReportStep({
           <ResolvedDiagram
             svg={diagramSvg[diagramKey('step', step.index, prefix)]}
             overlays={diagramOverlays[diagramKey('step', step.index, prefix)]}
+            caption={step.diagram.caption}
           />
       )}
 
@@ -205,6 +210,7 @@ export function ReportEntry({
                       key={`d-${i}`}
                       svg={diagramSvg[diagramKey('sol', idx, prefix)]}
                       overlays={diagramOverlays[diagramKey('sol', idx, prefix)]}
+                      caption={solutionDiagrams[idx]!.caption}
                     />
                 ) : null;
               }

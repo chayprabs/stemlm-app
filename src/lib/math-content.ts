@@ -40,6 +40,8 @@ const MATH_FUNS = new Set([
   'min', 'max', 'sup', 'inf', 'lim', 'arg', 'deg', 'abs', 're', 'im', 'tr',
   'span', 'rank', 'mod', 'sgn', 'erf', 'var',
 ]);
+/** Lowercase unit names of four or more letters (shorter ones never read as prose words). */
+const UNIT_WORDS = new Set(['mmol', 'kmol', 'nmol', 'pmol', 'umol', 'mbar', 'kcal']);
 
 /** Sentence openers common in @quickcheck / @body prose (not raw formulas). */
 const ENGLISH_STARTERS =
@@ -446,12 +448,17 @@ export function prefersDisplayMath(text: string): boolean {
   );
 }
 
+/** In TeX a bare `%` starts a comment that swallows the rest of the formula; in an answer it is a percent. */
+function escapeMathPercent(math: string): string {
+  return math.replace(/(?<!\\)%/g, '\\%');
+}
+
 function wrapAsMath(inner: string, display: boolean): string {
   const trimmed = inner.trim();
   if (!trimmed) return inner;
   if (isAlreadyDelimitedMath(trimmed)) return inner;
   // Keep display math on one line so re-processing does not split $$ across lines.
-  return display ? `$$${trimmed}$$` : `$${trimmed}$`;
+  return display ? `$$${escapeMathPercent(trimmed)}$$` : `$${escapeMathPercent(trimmed)}$`;
 }
 
 function isAlreadyDelimitedMath(text: string): boolean {
@@ -582,7 +589,7 @@ function parseSubSup(src: string, i: number): number {
       const close = findMatching(src, k + 1, '(', ')');
       if (close === -1) break;
       k = close + 1;
-    } else if (next && !/\s/.test(next)) {
+    } else if (next && /[\p{L}\p{N}+\-−*'′]/u.test(next)) {
       // Plain text: 10^-5 and 10^12 raise the whole signed number.
       k += 1 + (src.slice(k + 1).match(/^[+\-−]?\d+(?:\.\d+)?/)?.[0].length || 1);
     } else {
@@ -726,6 +733,8 @@ function parseIdentSubSup(src: string, i: number): number {
   const k = i + m[0].length;
   if (src[k] !== '_' && src[k] !== '^') return i;
   const end = parseSubSup(src, k);
+  // A script mark with nothing to raise ("R_Y_" in genetics) is notation, not math.
+  if (src[end] === '_' || src[end] === '^') return i;
   return end === k ? i : end;
 }
 
@@ -825,6 +834,8 @@ function innerIsMath(inner: string): boolean {
   const t = inner.trim();
   if (!t) return true;
   if (countEnglishWords(t) >= 2) return false;
+  // A real word next to a number makes a parenthesis prose: "(below 180°)", not b·e·l·o·w.
+  if (/\d/.test(t) && (t.match(/\b[a-z]{4,}\b/g) ?? []).some((word) => !MATH_FUNS.has(word) && !UNIT_WORDS.has(word))) return false;
   let i = 0;
   let sawAtom = false;
   while (i < t.length) {
@@ -1135,7 +1146,7 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
         // remark-math ends inline math at any `$`, even an escaped one.
         if (segment.math) {
           return segment.text.startsWith('$')
-            ? segment.text.replace(/(?<!\\)\\\$/g, '\\text{\\textdollar}')
+            ? escapeMathPercent(segment.text.replace(/(?<!\\)\\\$/g, '\\text{\\textdollar}'))
             : segment.text;
         }
         if (segment.text === '$') return markdown ? '\\$' : '$';

@@ -60,7 +60,7 @@ src/platforms/      supported chat-site adapters
 entrypoints/        MV3 background, content, study panel, popup, options, library, PDF and welcome pages
 assets/             CSS tokens, shipped styles, bundled IBM Plex fonts
 public/             icons and welcome-page screenshots
-scripts/            icon generation, external-input evaluation, the study-panel build split
+scripts/            icon generation and the study-panel build split
 ```
 
 ## Adding a diagram family

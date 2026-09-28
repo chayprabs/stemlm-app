@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconCopy, IconReply } from './icons';
+import { MathMarkdown } from './MathMarkdown';
 import { getController } from '@/src/content/controller';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import {
@@ -135,7 +136,7 @@ export function FollowupBar({
     <div className={`slm-followup ${isAsk ? 'slm-followup--ask' : 'slm-followup--deeper'}`}>
       <div className="slm-followup-copyblock">
         <span className="slm-followup-label">{isAsk ? 'Ask in chat' : 'Dig deeper'}</span>
-        {displayFollowup && <p className="slm-followup-text">{displayFollowup}</p>}
+        {displayFollowup && <p className="slm-followup-text"><MathMarkdown content={displayFollowup} inline /></p>}
       </div>
       <div className="slm-followup-actions">
         <button
