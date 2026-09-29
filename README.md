@@ -52,7 +52,7 @@ It covers physics, chemistry, maths, biology, computer science, and electrical, 
 
 | Chat service | Address |
 | --- | --- |
-| ChatGPT | chatgpt.com or chat.openai.com |
+| ChatGPT | chatgpt.com |
 | Claude | claude.ai |
 | Gemini | gemini.google.com |
 | Grok | grok.com |
@@ -60,6 +60,8 @@ It covers physics, chemistry, maths, biology, computer science, and electrical, 
 stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It does not run on phones or tablets. You use your own account with the chat service, so that service's plan, usage limits and terms still apply.
 
 ## Install
+
+**From GitHub (v2.0.0).** Download `stemlm-2.0.0-chrome.zip` from the [latest release](https://github.com/chayprabs/stemlm-app/releases/latest), extract it, and load the folder containing `manifest.json` with **Load unpacked** at `chrome://extensions` or `edge://extensions` (enable **Developer mode** first). See [INSTALL.md](INSTALL.md) for installation, updating without losing saved work, and checksum verification. [Read what's new in v2.0.0](docs/releases/v2.0.0.md).
 
 **From the Chrome Web Store.** Open the [Chrome Web Store](https://chromewebstore.google.com/search/stemLM), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the orange **+** appears beside the chat box. Refresh any chat tab that was already open.
 
@@ -69,7 +71,7 @@ stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It
 
 - **No stemLM account.** No login, subscription or payment details.
 - **Your study library stays in your browser.** stemLM reads the question and answer on the chat page to build the study view on your computer. It has no server that receives your questions, answers or saved solutions.
-- **Analytics you control.** The extension uses PostHog for usage analytics, which never includes your questions, answers or saved solutions. Turn it off in **Settings**.
+- **No extension telemetry in v2.0.0.** This build disables analytics and ships no telemetry endpoint or credential. It has no analytics toggle. The published privacy policy also describes behavior in other releases.
 - **You press Send.** The **+** prepares instructions in your chat; stemLM never sends a message for you. Your chat provider receives what you send, under its own policies.
 - **Open source.** Every line of the extension is in this repository under the MIT licence.
 
@@ -114,7 +116,7 @@ The figure compiler goes **catalog → engine → Scene IR → layout kernel →
 | Computer science | flowcharts, state machines and automata, arrays, linked lists, stacks, hash tables, Gantt charts |
 | Tables | matrices, dynamic-programming tables, ICE tables, Punnett squares |
 
-**Figures fail closed.** When a spec is incomplete or cannot be drawn faithfully, the panel shows the spec's source instead of a picture, and some figure types are refused outright until an engine can draw them correctly. A wrong drawing is worse than none.
+**Figures fail closed.** When a spec is incomplete, unsupported, or fails validation, the entire figure section is hidden while the explanation stays readable. The panel does not display raw specs or a figure-repair button. Validation checks supported drawing structure; it cannot guarantee that the model understood the question correctly.
 
 ## Development
 
@@ -150,9 +152,12 @@ After rebuilding an unpacked install, press the extension's **Reload** control. 
 | `pnpm test:watch` | Run Vitest in watch mode |
 | `pnpm verify` | Type-check, test and build: run this before opening a pull request |
 | `pnpm zip` | Package the build for the Chrome Web Store |
+| `pnpm release:chrome` | Type-check, test, build and create the release ZIP |
 | `npx vitest run src/lib/figure` | Run only the figure-compiler tests |
 
 `pnpm dev:firefox` and `pnpm build:firefox` exist, but Firefox is not tested or supported.
+
+See [RELEASING.md](RELEASING.md) for the release process and [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ### Project layout
 
