@@ -2310,3 +2310,63 @@ describe('StemController generic patch routing', () => {
     expect(useStore.getState().status).toBe('error');
   });
 });
+
+describe('AUTO-OPEN-01 the answer-started hook fires only for an answer stemLM asked for', () => {
+  class PageAdapter extends MockAdapter {
+    blocks = 0;
+    getAssistantBlocks(): never[] {
+      return Array.from({ length: this.blocks }, () => document.createElement('div')) as never[];
+    }
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 500));
+  // Watch a <main> of our own so stray body mutations cannot keep re-arming the debounce.
+  const mutate = () => document.querySelector('main')!.append(document.createElement('span'));
+
+  beforeEach(() => {
+    resetStore();
+    document.body.innerHTML = '<main></main>';
+    vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
+  });
+
+  it('stays quiet when a restored or shared tab starts watching a finished chat', async () => {
+    const adapter = new PageAdapter();
+    adapter.blocks = 2;
+    adapter.capsules = [FENCED_ELECTRICAL];
+    const c = new StemController(adapter);
+    const onStarted = vi.fn();
+    c.setOnAnswerStarted(onStarted);
+    c.startWatching();
+    await settle();
+    expect(onStarted).not.toHaveBeenCalled();
+
+    // An ordinary chat answer the student did not route through stemLM.
+    adapter.blocks = 3;
+    adapter.streaming = true;
+    mutate();
+    await settle();
+    expect(onStarted).not.toHaveBeenCalled();
+    c.stopWatching();
+  });
+
+  it('waits for the new answer when the chat already shows an earlier stemLM answer', async () => {
+    const adapter = new PageAdapter();
+    adapter.blocks = 1;
+    adapter.capsules = [FENCED_ELECTRICAL];
+    adapter.editorText = 'Find the current through a 6 ohm resistor on a 12 V supply.';
+    const c = new StemController(adapter);
+    const onStarted = vi.fn();
+    c.setOnAnswerStarted(onStarted);
+    expect(await c.inject()).toBe(true);
+    mutate();
+    await settle();
+    expect(onStarted).not.toHaveBeenCalled();
+
+    adapter.editorText = '';
+    adapter.blocks = 2;
+    adapter.streaming = true;
+    mutate();
+    await settle();
+    expect(onStarted).toHaveBeenCalledTimes(1);
+    c.stopWatching();
+  });
+});

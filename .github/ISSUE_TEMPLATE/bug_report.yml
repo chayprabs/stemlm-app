@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in stemLM doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Issues are public: leave out personal information, private chats and account details.
+        For a figure that is drawn wrong, use the **Figure problem** template instead. For a security issue, email founders@stemlm.app.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open claude.ai and type a question
+        2. Press the stemLM +
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: chat-site
+    attributes:
+      label: Chat site
+      options:
+        - Claude (claude.ai)
+        - Gemini (gemini.google.com)
+        - Grok (grok.com)
+        - ChatGPT (chatgpt.com)
+        - Not specific to one site
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 131, Edge 131, ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: stemLM version
+      description: Shown on the extension's card in chrome://extensions. For a local build, give the commit.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or console output
+      description: Optional. Crop out anything personal.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed personal information, private chat content and account details from this report.
+          required: true

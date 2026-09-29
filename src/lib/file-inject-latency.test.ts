@@ -31,6 +31,28 @@ describe('Claude named file-input delivery', () => {
     expect(root.textContent).toContain('question.png');
   });
 
+  // Live ChatGPT 2026-09-29: with a problem photo attached, the guide chip showed a spinner for
+  // more than 4 s and stemlm reported a failed attach while the upload went on to finish.
+  it('waits for a named guide preview that is still uploading beside a problem photo', async () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<form><div data-composer-attachments><span class="composer-attachment-surface">problem.png</span></div><input type="file" multiple><div class="ProseMirror" contenteditable="true"></div></form>';
+    const root = document.querySelector('form')!;
+    const input = document.querySelector('input')!;
+    const tray = root.querySelector('[data-composer-attachments]')!;
+    let changes = 0;
+    input.addEventListener('change', () => {
+      changes++;
+      input.value = '';
+      tray.insertAdjacentHTML('beforeend', `<span class="composer-attachment-surface">${PROTOCOL_ATTACHMENT_NAME}<span role="progressbar"></span></span>`);
+      setTimeout(() => root.querySelector('[role="progressbar"]')?.remove(), 6_000);
+    });
+    const pending = attachTextFile('reference', { root, requireConfirmation: true, inputIsAdditive: true, preserveExisting: true });
+    await vi.runAllTimersAsync();
+    expect(await pending).toEqual({ ok: true, method: 'input' });
+    expect(changes).toBe(1);
+    expect(root.textContent).toContain('problem.png');
+  });
+
   it('never retries another transport while a native upload remains unconfirmed', async () => {
     vi.useFakeTimers();
     document.body.innerHTML = '<form><input type="file"><div class="ProseMirror" contenteditable="true"></div></form>';

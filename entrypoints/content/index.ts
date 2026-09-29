@@ -204,7 +204,8 @@ export default defineContentScript({
         if (state.sessions !== previous.sessions || state.status !== previous.status ||
             state.buttonInjected !== previous.buttonInjected) actionGeneration++;
         if (state.settings.shareAcrossTabs && state.sessions !== previous.sessions) {
-          void mirrorActiveSessions(state.sessions);
+          const kept = new Set(state.sessions.map((s) => s.id));
+          void mirrorActiveSessions(state.sessions, previous.sessions.filter((s) => !kept.has(s.id)).map((s) => s.id));
         }
         if (state.sessions !== previous.sessions || state.activeSessionId !== previous.activeSessionId ||
             state.activeStepIndex !== previous.activeStepIndex) {
@@ -223,22 +224,31 @@ export default defineContentScript({
           const admitted = restorableSessions(shared);
           const current = useStore.getState();
           const merged = mergeMirroredSessions(current.sessions, admitted.sessions);
+          // This tab knows answers (or removals) the shared copy lacks: write them back so a
+          // tab opened next sees the same workspace, not whichever tab wrote last.
+          if (!admitted.rejected &&
+              sessionsMirrorFingerprint(merged) !== sessionsMirrorFingerprint(admitted.sessions)) {
+            void mirrorActiveSessions(merged);
+          }
           if (sessionsMirrorFingerprint(merged) === sessionsMirrorFingerprint(current.sessions)) {
             if (admitted.rejected) restoreError(admitted.rejected);
             return;
           }
 
-          const activeSessionId =
-            merged.find((s) => s.id === current.activeSessionId)?.id ??
-            merged[merged.length - 1]?.id ??
-            current.activeSessionId;
-          const activeSession = merged.find((s) => s.id === activeSessionId);
+          const kept = merged.find((s) => s.id === current.activeSessionId);
+          const activeSession = kept ?? merged[merged.length - 1];
           const maxStep = Math.max(0, (activeSession?.capsule?.steps?.length ?? 1) - 1);
-          const activeStepIndex = Math.max(0, Math.min(current.activeStepIndex, maxStep));
+          const activeStepIndex = kept ? Math.max(0, Math.min(current.activeStepIndex, maxStep)) : 0;
 
           hydrating = true;
           try {
-            useStore.setState({ sessions: merged, activeSessionId, activeStepIndex });
+            useStore.setState({
+              sessions: merged,
+              activeSessionId: activeSession?.id,
+              activeStepIndex,
+              // A different answer opening here opens on the student's chosen view.
+              ...(kept ? {} : { view: current.settings.defaultView }),
+            });
             if (admitted.rejected) restoreError(admitted.rejected);
           } finally {
             hydrating = false;
@@ -287,6 +297,8 @@ export default defineContentScript({
           if (canRestore()) {
             const sharedRecords = restorableSessions(shared);
             const backupRecords = restorableSessions(backup?.sessions ?? []);
+            // Never bring back an answer another tab removed from the shared workspace.
+            if (settings.shareAcrossTabs) backupRecords.sessions = mergeMirroredSessions([], backupRecords.sessions);
             const rejected = sharedRecords.rejected + backupRecords.rejected;
             const sessions = settings.shareAcrossTabs && sharedRecords.sessions.length ? sharedRecords.sessions : backupRecords.sessions;
             if (sessions.length && initial.sessions.length === 0) {

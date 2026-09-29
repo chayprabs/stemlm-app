@@ -42,6 +42,7 @@ export const COMPOSER_ATTACHMENT_SELECTORS = [
   '[data-testid*="file-thumbnail" i]',
   '[data-testid="file-attachment"]',
   '[data-testid*="attachment-chip" i]',
+  '[data-composer-attachments] [class*="composer-attachment"]',
 ];
 
 const DEFAULT_DROP_TARGETS = [
@@ -172,15 +173,11 @@ function isShownChip(el: Element): boolean {
 }
 
 /** Provider acknowledgement, excluding a FileList we assigned ourselves. */
+const PREVIEW_SELECTORS = [...COMPOSER_ATTACHMENT_SELECTORS, '[class*="chip"]', '[class*="preview"]', '[class*="attachment"]'];
+
 export function hasConfirmedAttachment(filename: string, root: ParentNode = document): boolean {
-  const selectors = [
-    ...COMPOSER_ATTACHMENT_SELECTORS,
-    '[class*="chip"]',
-    '[class*="preview"]',
-    '[class*="attachment"]',
-  ];
-  const previewSelector = selectors.join(', ');
-  for (const selector of selectors) {
+  const previewSelector = PREVIEW_SELECTORS.join(', ');
+  for (const selector of PREVIEW_SELECTORS) {
     for (const el of root.querySelectorAll(selector)) {
       if (!isShownChip(el) || !elementMentionsFilename(el, filename)) continue;
       // Filename labels can themselves match a preview selector. Inspect their
@@ -386,9 +383,16 @@ function sleep(ms: number): Promise<void> {
 /** Gemini has taken ~18 s to name an uploaded text file. */
 const STARTED_UPLOAD_MS = 30_000;
 
+/** A visible preview names `filename`, whether or not its upload has finished. */
+function hasShownNamedPreview(filename: string, root: ParentNode): boolean {
+  return [...root.querySelectorAll(PREVIEW_SELECTORS.join(', '))].some((el) => isShownChip(el) && elementMentionsFilename(el, filename));
+}
+
 /**
  * Wait for `filename` after one attempt. When that attempt visibly started an upload (a preview
- * appeared where there was none), wait for it instead of answering it with a second upload.
+ * appeared where there was none, or one already names the file), wait for it instead of answering
+ * it with a second upload. ChatGPT names the guide at once but can take several seconds to finish,
+ * and a problem photo attached first means a preview was already there.
  */
 async function waitForUpload(
   opt: WaitAttachmentOptions,
@@ -397,7 +401,9 @@ async function waitForUpload(
   hadPreview: boolean,
 ): Promise<'confirmed' | 'started' | 'none'> {
   if (await waitForAttachment({ ...opt, filename, timeoutMs })) return 'confirmed';
-  if (hadPreview || !hasAnyAttachment(opt.root ?? document)) return 'none';
+  const root = opt.root ?? document;
+  const started = hasShownNamedPreview(filename, root) || (!hadPreview && hasAnyAttachment(root));
+  if (!started) return 'none';
   return (await waitForAttachment({ ...opt, filename, timeoutMs: STARTED_UPLOAD_MS })) ? 'confirmed' : 'started';
 }
 

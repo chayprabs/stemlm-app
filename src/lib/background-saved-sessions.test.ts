@@ -34,7 +34,7 @@ describe('background saved-session routing', () => {
   const request = { type: 'stemlm:saved-session-mutation', action: 'delete', id: 'saved-1' };
 
   it.each([
-    'https://claude.ai/chat/example',
+    'https://chatgpt.com/c/example', 'https://claude.ai/chat/example',
     'https://gemini.google.com/app/example', 'https://grok.com/c/example',
     'chrome-extension://stemlm-test/saved-library.html',
   ])('keeps the channel open and replies to the shared writer for %s', async (url) => {
@@ -46,7 +46,6 @@ describe('background saved-session routing', () => {
   });
 
   it.each([
-    { id: 'stemlm-test', url: 'https://chatgpt.com/c/example' },
     { id: 'another-extension', url: 'https://chatgpt.com/' },
     { id: 'stemlm-test', url: 'https://chatgpt.com.attacker.test/' },
     { id: 'stemlm-test', url: 'http://chatgpt.com/' },

@@ -8,7 +8,7 @@ import { CHAT_HOST_LAUNCH } from '@/src/platforms/hosts';
 /** Real screenshots of the extension, taken with the Playwright harness (ONBOARD-01). */
 const STEPS = [
   {
-    title: 'Ask in Claude, Gemini, or Grok',
+    title: 'Ask in ChatGPT, Claude, Gemini, or Grok',
     text: 'Type your question, then click the stemlm + button beside the chat box. It attaches the stemlm guide to your message.',
     image: '/welcome/attach.webp',
     size: [774, 144],

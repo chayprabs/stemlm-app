@@ -1,15 +1,9 @@
 /** Chat hosts stemLM actually ships adapters for. */
-export const PLATFORM_IDS = ['claude', 'gemini', 'grok'] as const;
-export type SupportedPlatformId = (typeof PLATFORM_IDS)[number];
-/** The retired identifier remains readable in existing saved study records. */
-export type PlatformId = SupportedPlatformId | 'chatgpt';
-
-export function isSupportedPlatformId(value: unknown): value is SupportedPlatformId {
-  return typeof value === 'string' && (PLATFORM_IDS as readonly string[]).includes(value);
-}
+export const PLATFORM_IDS = ['chatgpt', 'claude', 'gemini', 'grok'] as const;
+export type PlatformId = (typeof PLATFORM_IDS)[number];
 
 export function isPlatformId(value: unknown): value is PlatformId {
-  return value === 'chatgpt' || isSupportedPlatformId(value);
+  return typeof value === 'string' && (PLATFORM_IDS as readonly string[]).includes(value);
 }
 
 /**
@@ -35,6 +29,13 @@ export interface ComposerLayout {
 /** Where the inject control should live relative to the host composer. */
 export type ComposerDock = 'before-plus' | 'outside-shell';
 
+/**
+ * How an outside-shell control docks inside the composer when there is no room beside it:
+ * `insert` puts the slot before the +; `inset` leaves the host tree untouched, shifts the + with a
+ * stylesheet rule and floats the slot over the space.
+ */
+export type InsideDock = 'insert' | 'inset';
+
 export interface PlatformAdapter {
   readonly id: PlatformId;
   readonly label: string;
@@ -45,6 +46,12 @@ export interface PlatformAdapter {
    * (test doubles / older adapters).
    */
   readonly composerDock?: ComposerDock;
+  /** Inside dock for an outside-shell control without room beside the composer; `insert` when omitted. */
+  readonly insideDock?: InsideDock;
+  /** Hidden file inputs that take the guide; shared defaults when omitted. */
+  readonly fileInput?: string[];
+  /** The host adds each file set on its input to its attachment list instead of replacing it. */
+  readonly additiveFileInput?: boolean;
   /** Selectors for page containers to shrink when splitting the screen. */
   readonly layoutRoots: string[];
 
@@ -117,6 +124,18 @@ export interface AdapterConfig {
    * so host grid/overflow/React reconciliation cannot hide or shift the control.
    */
   composerDock?: ComposerDock;
+  /**
+   * `inset` for hosts whose startup takeover of their server-rendered composer breaks on a foreign
+   * node inside it (logged-out ChatGPT blanks and reloads).
+   */
+  insideDock?: InsideDock;
+  /**
+   * Hidden file inputs that take the guide, tried in order. Needed where the first
+   * input in the composer only accepts images (ChatGPT).
+   */
+  fileInput?: string[];
+  /** The host input appends to its attachment list (Claude, ChatGPT), so assign directly. */
+  additiveFileInput?: boolean;
   /** Editor selectors, tried in order. */
   editor: string[];
   /** Outer composer container — tried in order. */
@@ -133,6 +152,8 @@ export interface AdapterConfig {
   assistant: string[];
   /** Code-block selectors within an assistant message. */
   codeBlock: string[];
+  /** Citation tokens the host prints raw inside code blocks (ChatGPT cites the attached guide); removed from answers. */
+  citationMarkers?: RegExp[];
   /** Selectors that, if present, indicate generation is in progress (e.g. stop button). */
   streaming: string[];
   /** Brand palette for the overlay button. */

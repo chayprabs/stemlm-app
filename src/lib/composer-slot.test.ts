@@ -6,6 +6,7 @@ import {
   COMPOSER_SLOT_STYLE_ID,
   INJECT_SIGNAL,
   INJECT_RADIUS,
+  ROOM_ATTR,
   ensureComposerSlot,
   isolateStemLmPointer,
   removeComposerSlot,
@@ -302,16 +303,24 @@ describe('landing-page composer markup', () => {
     vi.spyOn(pill, 'getBoundingClientRect').mockReturnValue({
       x: 12, y: 520, width: 366, height: 52, top: 520, left: 12, bottom: 572, right: 378, toJSON() {},
     } as DOMRect);
-    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
-      x: 20, y: 528, width: 32, height: 32, top: 528, left: 20, bottom: 560, right: 52, toJSON() {},
-    } as DOMRect);
+    // The stylesheet shift moves the + right by one control plus the 8 px gap once it is marked.
+    vi.spyOn(plus, 'getBoundingClientRect').mockImplementation(() => {
+      const left = plus.hasAttribute(ROOM_ATTR) ? 20 + 32 + 8 : 20;
+      return { x: left, y: 528, width: 32, height: 32, top: 528, left, bottom: 560, right: left + 32, toJSON() {} } as DOMRect;
+    });
     const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
-    // No room left of the pill: inside it, never pinned over its own + or over the heading.
-    expect(slot.dataset.dock).toBe('before-plus');
-    expect(slot.parentElement).toBe(pill);
-    expect(slot.nextElementSibling).toBe(plus);
-    expect(slot.style.position).toBe('');
-    expect(slot.style.left).toBe('');
+    // No room left of the pill: inside it, never pinned over its own + or over the heading. ChatGPT
+    // gets no node in its tree: the + shifts by a stylesheet rule and the control takes its old place.
+    expect(slot.dataset.dock).toBe('inset');
+    expect(slot.parentElement).toBe(document.documentElement);
+    expect(pill.contains(slot)).toBe(false);
+    expect(plus.hasAttribute(ROOM_ATTR)).toBe(true);
+    expect(document.getElementById('stemlm-composer-room-styles')?.textContent).toContain('margin-left:40px');
+    expect(Number.parseFloat(slot.style.left)).toBe(20);
+    expect(Number.parseFloat(slot.style.top)).toBe(528);
+    removeComposerSlot();
+    expect(plus.hasAttribute(ROOM_ATTR)).toBe(false);
+    expect(document.getElementById('stemlm-composer-room-styles')).toBeNull();
   });
 
   it('docks inside a bottom-docked narrow composer instead of floating above it (D37)', () => {
@@ -335,11 +344,79 @@ describe('landing-page composer markup', () => {
       x: 20, y: 788, width: 32, height: 32, top: 788, left: 20, bottom: 820, right: 52, toJSON() {},
     } as DOMRect);
     const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
-    expect(slot.dataset.dock).toBe('before-plus');
-    expect(slot.parentElement).toBe(pill);
-    expect(slot.nextElementSibling).toBe(plus);
-    expect(slot.style.position).toBe('');
-    expect(slot.style.top).toBe('');
+    expect(slot.dataset.dock).toBe('inset');
+    expect(pill.contains(slot)).toBe(false);
+    expect(plus.hasAttribute(ROOM_ATTR)).toBe(true);
+    expect(Number.parseFloat(slot.style.top)).toBe(788);
+    expect(Number.parseFloat(slot.style.top)).toBeGreaterThan(700);
+  });
+
+  // Live 2026-09-29: logged-out ChatGPT blanks and reloads when a node appears inside its composer
+  // before it takes over the server-rendered page. Signed in, the + sits in a display:contents span.
+  it('never adds a node to the live ChatGPT composer; a narrow window shifts the + instead', () => {
+    mountHostComposer(HOST_FIXTURES.find((spec) => spec.id === 'chatgpt')!, { capsule: false });
+    const form = document.querySelector('form')!;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    expect(plus.getAttribute('data-composer-navigation-target')).toBe('add-context');
+    vi.spyOn(form, 'getBoundingClientRect').mockReturnValue({
+      x: 12, y: 700, width: 366, height: 52, top: 700, left: 12, bottom: 752, right: 378, toJSON() {},
+    } as DOMRect);
+    vi.spyOn(plus, 'getBoundingClientRect').mockReturnValue({
+      x: 20, y: 708, width: 36, height: 36, top: 708, left: 20, bottom: 744, right: 56, toJSON() {},
+    } as DOMRect);
+    const before = form.innerHTML;
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(slot.dataset.dock).toBe('inset');
+    expect(form.contains(slot)).toBe(false);
+    expect(plus.hasAttribute(ROOM_ATTR)).toBe(true);
+    plus.removeAttribute(ROOM_ATTR);
+    expect(form.innerHTML).toBe(before);
+  });
+
+  // Live 2026-09-29, ChatGPT beside the open panel (780 px window): the shifted + slid under the
+  // model picker, so a row without spare width floats the control above the composer instead.
+  it('floats above a ChatGPT composer whose row has no room for the shift', () => {
+    mountHostComposer(HOST_FIXTURES.find((spec) => spec.id === 'chatgpt')!, { capsule: false });
+    const form = document.querySelector('form')!;
+    const plus = chatgptAdapter.getComposerLeadingAnchor()!;
+    const rect = (left: number, width: number, top = 552, height = 36) =>
+      ({ x: left, y: top, width, height, top, left, bottom: top + height, right: left + width, toJSON() {} }) as DOMRect;
+    vi.spyOn(form, 'getBoundingClientRect').mockReturnValue(rect(12, 238, 500, 100));
+    vi.spyOn(plus, 'getBoundingClientRect').mockImplementation(() => rect(plus.hasAttribute(ROOM_ATTR) ? 64 : 20, 36));
+    const at = (label: string, left: number, width: number) =>
+      vi.spyOn(form.querySelector(`button[aria-label="${label}"]`)!, 'getBoundingClientRect').mockReturnValue(rect(left, width));
+    at('Select ChatGPT model', 70, 90);
+    at('Dictate', 164, 36);
+    at('Send', 204, 36);
+    const slot = ensureComposerSlot(chatgptAdapter, 'dark')!;
+    expect(slot.dataset.dock).toBe('above');
+    expect(plus.hasAttribute(ROOM_ATTR)).toBe(false);
+    expect(form.contains(slot)).toBe(false);
+    expect(Number.parseFloat(slot.style.top)).toBe(500 - 36 - 8);
+    expect(Number.parseFloat(slot.style.left)).toBe(12);
+  });
+
+  it('shifts the logged-out ChatGPT + field, not the + inside its one-column grid', () => {
+    document.body.innerHTML = `
+      <form data-landing data-logged-out data-mobile-composer>
+        <div data-composer-wrap-inner style="display:flex">
+          <div data-mobile-composer-action-field style="display:grid;grid-template-columns:36px">
+            <button type="button" aria-label="Add files and more">+</button>
+          </div>
+          <div data-mobile-composer-primary><textarea id="mobile-composer-prompt" placeholder="Ask ChatGPT"></textarea></div>
+        </div>
+      </form>
+    `;
+    const form = document.querySelector('form')!;
+    const field = document.querySelector('[data-mobile-composer-action-field]') as HTMLElement;
+    vi.spyOn(form, 'getBoundingClientRect').mockReturnValue({
+      x: 12, y: 412, width: 366, height: 56, top: 412, left: 12, bottom: 468, right: 378, toJSON() {},
+    } as DOMRect);
+    const slot = ensureComposerSlot(chatgptAdapter, 'light')!;
+    expect(slot.dataset.dock).toBe('inset');
+    expect(form.contains(slot)).toBe(false);
+    expect(field.hasAttribute(ROOM_ATTR)).toBe(true);
+    expect(field.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
   });
 
   it('prefers the inner pill over a page-sized wrapper that also contains a stray +', () => {

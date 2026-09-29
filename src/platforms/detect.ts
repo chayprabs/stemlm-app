@@ -1,11 +1,13 @@
 import type { PlatformAdapter, PlatformId } from './types';
+import { chatgptAdapter } from './chatgpt';
 import { claudeAdapter } from './claude';
 import { geminiAdapter } from './gemini';
 import { grokAdapter } from './grok';
 import { injectControlEnabled } from './routes';
 
-/** Shipped chat adapters — Claude, Gemini, Grok. */
+/** Shipped chat adapters — ChatGPT, Claude, Gemini, Grok. */
 export const ADAPTERS: PlatformAdapter[] = [
+  chatgptAdapter,
   claudeAdapter,
   geminiAdapter,
   grokAdapter,

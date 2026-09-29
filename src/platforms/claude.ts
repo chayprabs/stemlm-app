@@ -11,6 +11,7 @@ const config: AdapterConfig = {
   label: 'Claude',
   hosts: /^(?:www\.)?claude\.ai$/i,
   composerDock: 'before-plus',
+  additiveFileInput: true,
   editor: [
     'fieldset div.ProseMirror[contenteditable="true"]',
     'div.ProseMirror[contenteditable="true"]',

@@ -1,0 +1,52 @@
+name: Figure problem
+description: A figure is drawn wrong, looks broken, or is missing.
+labels: [figure]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong figure is the most serious kind of bug in stemLM, so thank you for reporting it.
+        When a figure can't be drawn, the panel shows its spec instead. Copy that spec below; it is the most useful thing you can send.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem is it?
+      options:
+        - The figure is drawn, but it is wrong (wrong values, directions, labels or connections)
+        - The figure is drawn, but it is hard to read (overlapping or clipped labels, bad layout)
+        - The figure is missing, and the panel shows its spec instead
+    validations:
+      required: true
+  - type: input
+    id: type
+    attributes:
+      label: Figure type
+      description: The `type=` value on the spec's `@diagram` line.
+      placeholder: circuit, plot, scene, graph, table, ...
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: Figure spec
+      description: Everything between `@diagram` and `@enddiagram`.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should the figure show?
+      description: Describe the correct figure, or sketch it and attach an image.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: A screenshot of the figure in the panel. Crop out anything personal.
+  - type: input
+    id: version
+    attributes:
+      label: stemLM version
+      description: Shown on the extension's card in chrome://extensions. For a local build, give the commit.

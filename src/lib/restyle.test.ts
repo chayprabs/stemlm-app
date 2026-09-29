@@ -205,7 +205,7 @@ describe('restyle: IBM Plex + Claude-dark tokens', () => {
     expect(emptyState).not.toContain('Open Gemini');
     for (const source of [wxt, hosts]) {
       expect(source).not.toContain('*://');
-      expect(source).not.toContain('https://chatgpt.com/*');
+      expect(source).toContain('https://chatgpt.com/*');
       expect(source).not.toContain('https://chat.openai.com/*');
       expect(source).toContain('https://claude.ai/*');
       expect(source).toContain('https://gemini.google.com/*');

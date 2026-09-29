@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an idea or a subject stemLM should handle better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the study task or problem, not just the feature. For example, "I revise circuits the night before exams and want to..."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you imagine stemLM could solve it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today?
+      description: Optional. Workarounds or other tools you use.

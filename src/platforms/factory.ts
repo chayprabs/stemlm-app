@@ -112,7 +112,16 @@ function sharesComposer(el: HTMLElement, editor: HTMLElement | null, shell: HTML
   return false;
 }
 
-/** First match that is not inside the stemLM inject slot (avoids our own button). */
+function hasBox(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0;
+}
+
+/**
+ * First match that is not inside the stemLM inject slot (avoids our own button). Among the matches
+ * of one selector a laid-out one wins: after an in-app new chat ChatGPT keeps the old thread's
+ * composer in the DOM at zero size, ahead of the live one.
+ */
 function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     try {
@@ -120,11 +129,14 @@ function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document)
         const hit = outsideComposerSlot(root);
         if (hit && !isHiddenComposerNode(hit)) return hit;
       }
-      const list = root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`);
-      for (const el of list) {
+      let first: HTMLElement | null = null;
+      for (const el of root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`)) {
         const hit = outsideComposerSlot(el);
-        if (hit && !isHiddenComposerNode(hit)) return hit;
+        if (!hit || isHiddenComposerNode(hit)) continue;
+        if (hasBox(hit)) return hit;
+        first ??= hit;
       }
+      if (first) return first;
     } catch {
       /* invalid selector — skip */
     }
@@ -378,7 +390,13 @@ export function focusComposerQuestionSlot(editor: HTMLElement | null): void {
     } else {
       let offset = idx + FOLLOWUP_QUESTION_MARKER.length;
       while (offset < text.length && (text[offset] === '\n' || text[offset] === '\r')) offset++;
-      range.setStart(node, offset);
+      const lineBreak = offset === text.length ? node.nextSibling : null;
+      if (lineBreak instanceof HTMLBRElement && (!lineBreak.nextSibling || lineBreak.nextSibling instanceof HTMLBRElement)) {
+        // Line-break editors (ChatGPT keeps a paste in one paragraph): the blank line under the label.
+        range.setStartAfter(lineBreak);
+      } else {
+        range.setStart(node, offset);
+      }
       range.collapse(true);
     }
     selectRange(range);
@@ -500,11 +518,17 @@ function guessLeadingComposerButton(root: HTMLElement): HTMLElement | null {
 }
 
 export function createAdapter(config: AdapterConfig): PlatformAdapter {
+  const withoutCitations = (text: string) =>
+    (config.citationMarkers ?? []).reduce((out, marker) => out.replace(marker, ''), text);
+
   return {
     id: config.id,
     label: config.label,
     brand: config.brand,
     composerDock: config.composerDock ?? 'before-plus',
+    insideDock: config.insideDock ?? 'insert',
+    fileInput: config.fileInput,
+    additiveFileInput: config.additiveFileInput ?? false,
     layoutRoots: [...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS],
 
     matches(host = location.hostname) {
@@ -636,7 +660,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     getLatestAssistantText() {
       const blocks = assistantBlocks(config.assistant);
       const last = blocks[blocks.length - 1];
-      return last ? (last.innerText ?? last.textContent ?? '') : '';
+      return last ? withoutCitations(last.innerText ?? last.textContent ?? '') : '';
     },
 
     extractCapsules() {
@@ -648,7 +672,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
         const seenText = new Set<string>();
         const blockCapsules: string[] = [];
         for (const code of codes) {
-          const text = code.textContent ?? '';
+          const text = withoutCitations(code.textContent ?? '');
           if (text.includes('@meta') && !seenText.has(text)) {
             seenText.add(text);
             blockCapsules.push(text);
@@ -660,7 +684,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       // If the model dropped the fence, fall back to scanning message text.
       if (capsules.length === 0) {
         for (const block of assistantBlocks(config.assistant)) {
-          const text = block.innerText ?? block.textContent ?? '';
+          const text = withoutCitations(block.innerText ?? block.textContent ?? '');
           if (text.includes('@meta')) capsules.push(text);
         }
       }
@@ -672,7 +696,7 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
         for (const root of roots.length ? roots : [document.body]) {
           const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], root));
           for (const code of codes) {
-            const text = code.textContent ?? '';
+            const text = withoutCitations(code.textContent ?? '');
             if (text.includes('@meta') && !seen.has(text)) {
               seen.add(text);
               capsules.push(text);

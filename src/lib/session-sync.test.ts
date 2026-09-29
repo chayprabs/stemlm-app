@@ -55,3 +55,19 @@ describe('mergeMirroredSessions', () => {
     expect(merged[0]?.updatedAt).toBe(99);
   });
 });
+
+describe('SHARE-01 removals propagate across tabs', () => {
+  it('drops a session another tab removed and never merges it back', () => {
+    const removed = new Set(['a']);
+    const merged = mergeMirroredSessions([makeSession('a'), makeSession('b')], [makeSession('b')], removed);
+    expect(merged.map((s) => s.id)).toEqual(['b']);
+    expect(mergeMirroredSessions([makeSession('b')], [makeSession('a')], removed).map((s) => s.id)).toEqual(['b']);
+  });
+
+  it('orders ties the same way in every tab so tabs agree', () => {
+    const x = makeSession('x');
+    const y = makeSession('y');
+    expect(mergeMirroredSessions([y], [x]).map((s) => s.id)).toEqual(['x', 'y']);
+    expect(mergeMirroredSessions([x], [y]).map((s) => s.id)).toEqual(['x', 'y']);
+  });
+});

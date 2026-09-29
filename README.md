@@ -1,80 +1,195 @@
-# stemLM
+<p align="center">
+  <a href="https://stemlm.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="temp-icon/stemlm-logo-dark.svg">
+      <img alt="stemLM" src="temp-icon/stemlm-logo.svg" width="220">
+    </picture>
+  </a>
+</p>
 
-stemLM is a browser extension that turns answers from Claude, Gemini, and Grok into a structured study view beside the chat. It parses one fenced `stemlm` capsule into steps, formulas, checks, and figures.
+<h3 align="center">Learn STEM. Step by step.</h3>
 
-## The idea
+<p align="center">
+  A free, open-source browser extension that turns answers from ChatGPT, Claude, Gemini, and Grok<br>
+  into numbered steps, formulas, diagrams and quick checks, right beside your chat.
+</p>
 
-The model emits typed diagram specs such as `type: plot` or `type: scene`; the extension compiles those specs to SVG locally. There is no LLM in the render path: layout, validation, sanitization, and display happen in the extension.
+<p align="center">
+  <a href="https://stemlm.app">Website</a> ·
+  <a href="https://chromewebstore.google.com/search/stemLM">Chrome Web Store</a> ·
+  <a href="PRIVACY.md">Privacy</a> ·
+  <a href="TERMS.md">Terms</a> ·
+  <a href="mailto:founders@stemlm.app">Contact</a>
+</p>
 
-## What works today
+<p align="center">
+  <a href="https://github.com/chayprabs/stemlm-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/chayprabs/stemlm-app/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-orange"></a>
+  <img alt="Chrome 116+ and Edge" src="https://img.shields.io/badge/Chrome%20116%2B%20%C2%B7%20Edge-supported-4285F4">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-555">
+</p>
 
-- **Figures the guide teaches** (each has a compiling specimen in the guide and rule-level tests): plots, free-body diagrams, geometry, thermodynamic and gas-state scenes, ray optics, apparatus and molecular-biology scenes, tables (matrix, dynamic programming, ICE, Punnett), circuits including BJT and MOSFET stages, graphs for flowcharts, state machines and automata, skeletal structures from SMILES, and the template families array, list, stack, hash, K-map, Gantt, timing, truss, shear/moment (SFD/BMD), Mohr's circle, VSEPR, MO and crystal-field levels, NMR splitting, Newman and Fischer projections, phasors, fields, cycles, and gels.
-- **Fail closed**: a spec that cannot be drawn faithfully is hidden rather than drawn wrong. Mermaid diagrams are not rendered.
-- **Study panel**: step-by-step or full-solution view, KaTeX math, quick checks, "Ask in chat" follow-ups anchored to a step, saved-question library, PDF download, light and dark themes, five content sizes, and a narrow-window mode (below 600 px the panel covers the chat instead of squeezing it).
-- **Cost on chat pages**: the content script is about 0.5 MB; the panel itself (markdown, KaTeX, figure engines) loads the first time you open it.
+<p align="center">
+  <img src="public/welcome/steps.webp" width="720" alt="The stemLM study panel: a numbered step with a typeset formula, the working, and a free-body diagram of a block on a 30 degree incline.">
+</p>
 
-Model answers and diagram specs still need checking against the original problem.
+## What stemLM does
 
-## Install and develop
+Chat assistants explain STEM problems well, but the explanation arrives as one long reply. stemLM puts the study work beside the chat:
 
-```bash
-pnpm install --ignore-scripts
-pnpm exec wxt prepare
-pnpm dev              # Chrome development build with HMR
-pnpm build            # production build
-```
+1. **Ask.** Type a question or attach a photo or PDF in your AI chat. Press the orange stemLM **+** beside the chat box, then send.
+2. **Study.** Read numbered steps with working, formulas and diagrams beside your chat. Open **Solution** to see them all at once.
+3. **Check.** Try a quick check, then reveal the answer. **Ask in chat** adds the step's context to your follow-up question.
+4. **Save.** Save a solution with one click. Search **Saved questions** by subject or date to reopen it.
+5. **Export.** Download the full solution as a PDF, with formulas and diagrams, or merge saved questions into one revision file.
 
-`--ignore-scripts` keeps dependency installation non-executable; `wxt prepare` is the only required project preparation step.
+It covers physics, chemistry, maths, biology, computer science, and electrical, mechanical, civil and chemical engineering. The AI works out the subject from your question.
 
-For a local install, run `pnpm build`, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `.output/chrome-mv3`. A "How to use stemLM" page opens after the first install.
+> [!IMPORTANT]
+> The steps come from your AI model, and models make mistakes. stemLM makes reasoning easier to follow, but it does not verify it. Check important results, and check diagrams against the problem.
 
-Chrome and Edge (116 or later) are the supported browsers. In Edge, use `edge://extensions`. After updating an unpacked install, click its **Reload** control; open chat tabs receive the new version automatically, and a tab that does not show the stemLM **+** only needs a refresh. An update closes a study panel that was open (Chrome clears the extension's session storage); open the panel and choose **Load conversation** to bring the answer back. Keep the existing extension installed to retain its saved questions. `pnpm dev:firefox` exists but Firefox is untested.
+## Works with
 
-## Using the study panel
+| Chat service | Address |
+| --- | --- |
+| ChatGPT | chatgpt.com or chat.openai.com |
+| Claude | claude.ai |
+| Gemini | gemini.google.com |
+| Grok | grok.com |
 
-Type a question or attach its image/PDF in a supported chatbot, then click the stemLM **+**. It attaches the study guide as `stemLM Guide.txt` and adds a short line below the question; the complete answer and diagram instructions live in that file. Wait for the chatbot's file preview, then send the question normally. If the upload cannot be confirmed, stemLM keeps your draft and says so instead of pasting the guide into the chat box.
+stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It does not run on phones or tablets. You use your own account with the chat service, so that service's plan, usage limits and terms still apply.
 
-When the answer arrives, the panel opens beside the chat with Steps and Solution views. Save keeps a snapshot in the saved-question library, which can reopen, download, or merge saved answers into one PDF. PDF export saves the file straight to Downloads, named after the topic and date. A successful local build cannot verify changes to the chatbots' own upload interfaces.
+## Install
 
-The extension has no stemLM backend or login. It runs on the supported chat sites and keeps study state in browser extension storage; see [PRIVACY.md](PRIVACY.md) for what each permission is used for.
+**From the Chrome Web Store.** Open the [Chrome Web Store](https://chromewebstore.google.com/search/stemLM), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the orange **+** appears beside the chat box. Refresh any chat tab that was already open.
 
-## Tests
+**From source.** See [Development](#development) to build the extension and load it unpacked.
 
-```bash
-pnpm compile
-pnpm test
-pnpm build
-npx vitest run src/lib/figure
-```
+## Privacy at a glance
 
-Analytics is disabled in the release build. Do not add telemetry credentials to
-the extension bundle; see [Privacy](PRIVACY.md).
+- **No stemLM account.** No login, subscription or payment details.
+- **Your study library stays in your browser.** stemLM reads the question and answer on the chat page to build the study view on your computer. It has no server that receives your questions, answers or saved solutions.
+- **Analytics you control.** The extension uses PostHog for usage analytics, which never includes your questions, answers or saved solutions. Turn it off in **Settings**.
+- **You press Send.** The **+** prepares instructions in your chat; stemLM never sends a message for you. Your chat provider receives what you send, under its own policies.
+- **Open source.** Every line of the extension is in this repository under the MIT licence.
 
-## Project layout
+The full [Privacy Policy](PRIVACY.md) and [Terms and Conditions](TERMS.md) are Markdown copies of the versions published at [stemlm.app/privacy](https://stemlm.app/privacy/) and [stemlm.app/terms](https://stemlm.app/terms/). The website versions apply if the two ever differ.
+
+## How it works
+
+Pressing the **+** attaches a plain-text instruction file to your message. It teaches the model one answer format: a single fenced `stemlm` capsule holding the steps, formulas, quick checks and takeaways. Figures inside the capsule are not pictures. They are short, typed `key: value` specs in a small language, for example:
 
 ```text
-src/protocol/       capsule grammar, subject playbooks, diagram instructions
-src/lib/figure/     catalog, engines, Scene IR, layout, SVG compilation
-src/components/     study panel, steps, figures, PDF report
-src/platforms/      supported chat-site adapters
-entrypoints/        MV3 background, content, study panel, popup, options, library, PDF and welcome pages
-assets/             CSS tokens, shipped styles, bundled IBM Plex fonts
-public/             icons and welcome-page screenshots
-scripts/            icon generation and the study-panel build split
+@diagram id=f1 type=plot
+fn: x^2 - 4
+domain: -3 3
+xlabel: x
+ylabel: y
+eq: y=x^2-4
+@enddiagram
 ```
 
-## Adding a diagram family
+The extension parses the capsule and compiles every figure spec to SVG in your browser. **There is no language model in the render path:** layout, validation, sanitization and drawing all happen locally and deterministically.
 
-Add a real, spec-driven engine under `src/lib/figure/engines/`, register its vocabulary and required keys in `src/lib/figure/catalog.ts`, and add a rule-level test under `src/lib/figure/`. Build through `SceneBuilder` and `layoutAndCompile`; do not emit SVG strings in an engine. Update protocol text only for vocabulary the engine actually renders. Generalize across figure classes, never special-case a question, value, or corpus image, and fail closed when the spec is incomplete.
+```mermaid
+flowchart LR
+  A["Chat page<br/>(ChatGPT, Claude, Gemini, Grok)"] -->|answer text| B["Content script<br/>platform adapter"]
+  B --> C["Capsule parser<br/>src/protocol"]
+  C --> D["Study panel<br/>React in a shadow root"]
+  C -->|figure specs| E["Figure compiler<br/>src/lib/figure"]
+  E -->|sanitized SVG| D
+  D --> F["Saved questions<br/>extension storage"]
+  D --> G["PDF export"]
+```
 
-## Analytics
+The figure compiler goes **catalog → engine → Scene IR → layout kernel → SVG**. Five core engines (plots, scenes, graphs, tables and circuits) sit beside about 60 template families. Examples:
 
-Client analytics is disabled in this release. No telemetry secret or network sink is compiled into the MV3 bundle, and the existing event call sites are no-ops. Details are in [PRIVACY.md](PRIVACY.md).
+| Area | Figures |
+| --- | --- |
+| Physics and mechanics | free-body diagrams, ray optics, fields around point charges, gas-state and thermodynamic diagrams, trusses, shear and moment diagrams, Mohr's circle, cams |
+| Electrical and computing | circuits with BJT, MOSFET and op-amp stages, hybrid-π models, two-ports, transmission lines, transformers, motors, phasors, Smith charts, PWM and timing diagrams, K-maps, datapaths and pipelines |
+| Chemistry | skeletal structures from SMILES, VSEPR shapes, Newman, Fischer and Haworth projections, MO, crystal-field and Jablonski diagrams, NMR splitting trees, electrochemical cells |
+| Chemical and civil engineering | McCabe–Thiele diagrams, reactors, heat exchangers, process flow diagrams, soil phase diagrams, retaining walls, frames |
+| Biology | membranes, gel electrophoresis, operons, PCR, neurons, cell division, Ramachandran plots, phylogenetic trees |
+| Computer science | flowcharts, state machines and automata, arrays, linked lists, stacks, hash tables, Gantt charts |
+| Tables | matrices, dynamic-programming tables, ICE tables, Punnett squares |
 
-## License and third-party materials
+**Figures fail closed.** When a spec is incomplete or cannot be drawn faithfully, the panel shows the spec's source instead of a picture, and some figure types are refused outright until an engine can draw them correctly. A wrong drawing is worse than none.
 
-The project code and original stemLM assets are [MIT](LICENSE). No corpus image or textbook figure is included. IBM Plex Sans and IBM Plex Mono are bundled as Latin-1 woff2 subsets from IBM's official release, under the SIL Open Font License 1.1 ([`assets/fonts/ibm-plex/OFL.txt`](assets/fonts/ibm-plex/OFL.txt), shipped beside the fonts in builds). Production builds include the woff2 font files of the MIT-licensed `katex` package. No font is requested from a CDN. Host marks in the UI identify compatible services and remain the property of their respective owners; stemLM is not affiliated with them.
+## Development
 
-A 2026-09-27 re-check (`pnpm licenses list --prod`) found no copyleft runtime dependency requiring a different distribution license: `dompurify` offers Apache-2.0 alongside MPL-2.0, and `chroma-js` is BSD-3-Clause AND Apache-2.0; everything else is MIT, ISC, 0BSD, BSD or Apache-2.0. Dev-only copyleft or dual-license entries are `fx-runner`, `lightningcss`, `lightningcss-win32-x64-msvc`, and `web-ext-run` (MPL-2.0); `@img/sharp-win32-x64` (Apache-2.0 AND LGPL-3.0-or-later); and `node-forge` / `jszip` (BSD/MIT options alongside GPL options). Verify with `pnpm licenses list`.
+### Prerequisites
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [Terms of Use](docs/legal/TERMS.md).
+- [Node.js](https://nodejs.org/) 20.19 or newer (22 LTS or later recommended)
+- [pnpm](https://pnpm.io/) 11
+- Google Chrome 116+ or Microsoft Edge
+
+### Build and load
+
+```bash
+git clone https://github.com/chayprabs/stemlm-app.git
+cd stemlm-app
+pnpm install
+pnpm build            # production build in .output/chrome-mv3
+```
+
+Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, choose **Load unpacked**, and select `.output/chrome-mv3`. A "How to use stemLM" page opens after the first install.
+
+For day-to-day work, `pnpm dev` starts a development build with hot reload in a separate browser profile.
+
+After rebuilding an unpacked install, press the extension's **Reload** control. Open chat tabs pick up the new version automatically; refresh any tab that does not show the **+**. Reloading closes an open study panel; choose **Load conversation** in the panel to bring the answer back. Keep the extension installed between builds to keep its saved questions.
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Development build with hot reload (Chrome) |
+| `pnpm build` | Production build in `.output/chrome-mv3` |
+| `pnpm compile` | Type-check with `tsc --noEmit` |
+| `pnpm test` | Run the full Vitest suite (happy-dom) |
+| `pnpm test:watch` | Run Vitest in watch mode |
+| `pnpm verify` | Type-check, test and build: run this before opening a pull request |
+| `pnpm zip` | Package the build for the Chrome Web Store |
+| `npx vitest run src/lib/figure` | Run only the figure-compiler tests |
+
+`pnpm dev:firefox` and `pnpm build:firefox` exist, but Firefox is not tested or supported.
+
+### Project layout
+
+```text
+entrypoints/          MV3 entry points: background worker, content script, study panel,
+                      toolbar popup, settings, saved-questions library, PDF export, welcome page
+src/platforms/        one adapter per chat site: find the composer, attach, read answers
+src/content/          the controller that runs in the chat tab and drives the panel
+src/protocol/         the instruction file, capsule parser, subject playbooks, quality checks
+src/lib/figure/       figure catalog, engines, Scene IR, layout kernel, SVG compiler
+src/lib/              storage, settings, PDF export, math rendering, tab and session plumbing
+src/components/       study panel UI: steps, solution view, figures, quick checks, reports
+src/state/            the panel's state store
+assets/               design tokens, shipped styles, bundled IBM Plex fonts
+public/               extension icons and welcome-page images
+scripts/              icon generation and the study-panel bundle split
+temp-icon/            source artwork for the logo and toolbar icons
+```
+
+The content script stays small on chat pages. The study panel, with Markdown, KaTeX and the figure engines, is a separate bundle that loads the first time you open the panel. Fonts ship inside the extension; nothing is fetched from a font CDN.
+
+## Contributing
+
+Bug reports, wrong figures, chat-site breakages and pull requests are all welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before you start: it covers setup, the project's rules for figures and protocol changes, and how to test. Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Found a security issue? Please don't open a public issue; follow [SECURITY.md](SECURITY.md).
+
+## Licence and credits
+
+stemLM's code and original assets are released under the [MIT licence](LICENSE).
+
+- IBM Plex Sans and IBM Plex Mono are bundled under the SIL Open Font License 1.1 ([`assets/fonts/ibm-plex/OFL.txt`](assets/fonts/ibm-plex/OFL.txt)).
+- KaTeX and its fonts are MIT-licensed. Every runtime dependency uses a permissive licence (MIT, ISC, BSD, Apache-2.0, Zlib or 0BSD; DOMPurify is dual-licensed MPL-2.0 or Apache-2.0). Run `pnpm licenses list --prod` to check.
+- No textbook figure or corpus image is included in this repository.
+
+ChatGPT, Claude, Gemini and Grok are trademarks of OpenAI, Anthropic, Google and xAI, respectively. Their marks are used only to show compatibility. stemLM is an independent project and is not affiliated with or endorsed by them.
+
+## Team
+
+stemLM is built by [Chaitanya Prabuddha](https://github.com/chayprabs), [Rohit Gupta](https://github.com/rohitt-19) and [Abhishek Dogra](https://github.com/ahhbhishek). Feedback, a bug, or a subject we handle badly? Email [founders@stemlm.app](mailto:founders@stemlm.app). We read everything.

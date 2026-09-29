@@ -3,24 +3,25 @@
  * a content script runs; these paths turn the control off on image-only SPA
  * surfaces (Grok Imagine, and any dedicated image-gen routes on other hosts).
  */
-import { isSupportedPlatformId, type PlatformId, type SupportedPlatformId } from './types';
+import type { PlatformId } from './types';
 
-/** Dedicated image-generation pathnames per shipped host. Nested paths match. */
-export const IMAGE_GEN_PATHS: Record<SupportedPlatformId, readonly RegExp[]> = {
+/** Dedicated image-generation (and other non-chat) pathnames per shipped host. Nested paths match. */
+export const IMAGE_GEN_PATHS: Record<PlatformId, readonly RegExp[]> = {
+  // ChatGPT Images reuses the chat composer; Codex is a separate coding product.
+  chatgpt: [/^\/images(?:\/|$)/i, /^\/codex(?:\/|$)/i],
   grok: [/^\/imagine(?:\/|$)/i],
   gemini: [/^\/imagen(?:\/|$)/i, /^\/image(?:s|gen)?(?:\/|$)/i],
   claude: [/^\/imagine(?:\/|$)/i],
 };
 
 export function isImageGenPath(id: PlatformId, pathname: string): boolean {
-  if (!isSupportedPlatformId(id)) return false;
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return IMAGE_GEN_PATHS[id].some((re) => re.test(path));
 }
 
 /** True when the inject control should mount on this host + pathname. */
 export function injectControlEnabled(id: PlatformId, pathname: string): boolean {
-  return isSupportedPlatformId(id) && !isImageGenPath(id, pathname);
+  return !isImageGenPath(id, pathname);
 }
 
 type RouteListener = () => void;

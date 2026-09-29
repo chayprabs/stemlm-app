@@ -7,6 +7,7 @@
 import { useStore } from '@/src/state/store';
 import { resolveTheme } from '@/src/lib/theme';
 import {
+  clearMirroredSessions,
   loadMirroredSessions,
   mergeMirroredSessions,
   mirrorActiveSessions,
@@ -34,16 +35,20 @@ export function applyLiveSettings(next: Settings, prev: Settings = useStore.getS
         generation !== shareSyncGeneration ||
         !useStore.getState().settings.shareAcrossTabs
       ) return;
-      const local = useStore.getState().sessions;
+      const { sessions: local, activeSessionId } = useStore.getState();
       const merged = mergeMirroredSessions(local, shared);
       if (sessionsMirrorFingerprint(merged) !== sessionsMirrorFingerprint(local)) {
-        useStore.getState().setSessions(merged);
+        // Keep the answer and step this tab is reading; only a tab with none opens the newest.
+        if (merged.some((s) => s.id === activeSessionId)) useStore.setState({ sessions: merged });
+        else useStore.getState().setSessions(merged);
       }
-      if (merged.length) void mirrorActiveSessions(merged);
+      if (sessionsMirrorFingerprint(merged) !== sessionsMirrorFingerprint(shared)) {
+        void mirrorActiveSessions(merged);
+      }
     });
   } else if (!next.shareAcrossTabs && prev.shareAcrossTabs) {
     // Invalidate any in-flight enable/load continuation before clearing the
     // mirror, so opting out cannot be undone by stale async work.
-    void mirrorActiveSessions([]);
+    void clearMirroredSessions();
   }
 }

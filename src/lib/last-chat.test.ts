@@ -30,7 +30,7 @@ describe('last chat persistence', () => {
     for (const key of Object.keys(localStore)) delete localStore[key];
   });
 
-  it('accepts the three shipped chat URLs and rejects retired or unsupported hosts', () => {
+  it('accepts the four shipped chat URLs and rejects mismatched or unsupported hosts', () => {
     expect(
       isLastChatRecord({
         url: 'https://gemini.google.com/app/abc',
@@ -38,7 +38,10 @@ describe('last chat persistence', () => {
         savedAt: 1,
       }),
     ).toBe(true);
-    expect(lastChatFromUrl('https://chatgpt.com/c/1', 'chatgpt')).toBeNull();
+    expect(lastChatFromUrl('https://chatgpt.com/c/1', 'chatgpt')).toMatchObject({
+      platform: 'chatgpt',
+    });
+    expect(lastChatFromUrl('https://chat.openai.com/c/1', 'chatgpt')).toBeNull();
     expect(lastChatFromUrl('https://claude.ai/chat/1', 'claude')).toMatchObject({
       platform: 'claude',
     });

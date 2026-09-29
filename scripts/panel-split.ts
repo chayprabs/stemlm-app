@@ -1,7 +1,7 @@
 /**
  * PERF-03: the study panel is not part of the content script.
  *
- * The content script is parsed and run on every Claude / Gemini / Grok page
+ * The content script is parsed and run on every ChatGPT / Claude / Gemini / Grok page
  * load, whether or not the panel is ever opened. The panel subtree (markdown +
  * KaTeX, the figure engines, SMILES and graph layout, animation) is built as
  * `study-panel.js` and imported into the content-script world the first time

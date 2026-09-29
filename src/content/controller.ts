@@ -232,6 +232,8 @@ export class StemController {
   // Answer-started detection (used to open the panel only once the assistant
   // actually begins responding, rather than the moment we inject).
   private answerStarted = false;
+  /** True once an inject / follow-up armed detection; restored and shared tabs watch unarmed. */
+  private answerArmed = false;
   private baselineBlocks = 0;
   private baselineAssistantText = '';
   private onAnswerStartedCb: (() => void) | null = null;
@@ -328,7 +330,8 @@ export class StemController {
 
     const attached = await attachTextFile(payload.fileContent, {
       filename: PROTOCOL_FILENAME,
-      inputIsAdditive: this.adapter.id === 'claude',
+      fileInputSelectors: this.adapter.fileInput,
+      inputIsAdditive: this.adapter.additiveFileInput === true,
       preserveExisting: hasImageAttachment,
       requireConfirmation: this.delivery === 'file',
       root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
@@ -462,7 +465,8 @@ export class StemController {
     const operation = this.beginComposerOperation();
     const attached = await attachTextFile(payload.fileContent, {
       filename: PROTOCOL_FILENAME,
-      inputIsAdditive: this.adapter.id === 'claude',
+      fileInputSelectors: this.adapter.fileInput,
+      inputIsAdditive: this.adapter.additiveFileInput === true,
       requireConfirmation: this.delivery === 'file',
       root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
     });
@@ -628,6 +632,7 @@ export class StemController {
   /** Reset answer-started detection and snapshot the current message count. */
   private armAnswerDetection(): void {
     this.answerStarted = false;
+    this.answerArmed = true;
     this.baselineAssistantText = this.adapter.getLatestAssistantText();
     this.stableText = '';
     this.stableSince = 0;
@@ -922,8 +927,14 @@ export class StemController {
       /* ignore */
     }
     const text = this.adapter.getLatestAssistantText();
-    const started =
-      blocks > this.baselineBlocks || this.adapter.isStreaming() || text.includes('@meta');
+    // An earlier stemLM answer already on the page is not this answer starting.
+    const started = this.answerArmed
+      ? blocks > this.baselineBlocks || this.adapter.isStreaming() ||
+        (text !== this.baselineAssistantText && text.includes('@meta'))
+      : this.adapter.isStreaming();
+    // Watching without a question (restored / shared answers, Load conversation): what the page
+    // already shows is history, so settle rather than wait for an answer nobody asked stemLM for.
+    if (!started && !this.answerArmed) this.answerStarted = true;
     if (started) {
       this.answerStarted = true;
       // DISABLED-01: switched off mid-answer, stemLM must not pop its panel open.

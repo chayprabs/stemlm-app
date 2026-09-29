@@ -194,12 +194,12 @@ describe('popup chrome', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders Open study panel, Saved questions, and only the three retained host logos', async () => {
+  it('renders Open study panel, Saved questions, and the four shipped host logos', async () => {
     const { container, unmount } = await renderPopup();
     const text = container.textContent ?? '';
     expect(text).toContain(OPEN_STUDY_PANEL_LABEL);
     expect(text).toContain(SAVED_QUESTIONS_LABEL);
-    expect(text).not.toContain('ChatGPT');
+    expect(text).toContain('ChatGPT');
     expect(text).not.toMatch(/Solve with stemlm/i);
     expect(text).toContain('Claude');
     expect(text).toContain('Gemini');
@@ -212,13 +212,16 @@ describe('popup chrome', () => {
     expect(text).not.toContain('Open all saved questions');
     expect(container.querySelector('.slm-launch-grid')).toBeNull();
     expect(container.querySelector('.slm-popup-actions')).toBeTruthy();
-    expect(container.querySelectorAll('[data-host]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-host]')).toHaveLength(4);
     for (const host of CHAT_HOST_LAUNCH) {
       const btn = container.querySelector(`[data-host="${host.id}"]`);
       expect(btn?.querySelector('svg')).toBeTruthy();
       expect(btn?.textContent).toContain(host.label);
     }
-    expect(container.querySelector('[data-host="chatgpt"]')).toBeNull();
+    expect([...container.querySelectorAll('[data-host]')].map((btn) => btn.getAttribute('data-host'))).toEqual(
+      ['chatgpt', 'claude', 'gemini', 'grok'],
+    );
+    expect(container.querySelector('[data-host="chatgpt"]')?.innerHTML).toContain('M22.2819 9.8211');
     expect(container.querySelector('[data-launch="solve-with-stemlm"]')).toBeNull();
     expect(container.querySelector('[data-host="claude"]')?.innerHTML).toContain('#D97757');
     expect(container.querySelector('[data-host="gemini"]')?.innerHTML).toContain('linearGradient');
@@ -314,8 +317,20 @@ describe('popup chrome', () => {
     third.unmount();
   });
 
-  it('rejects retired ChatGPT tabs while keeping Claude and Grok available for Open study panel', async () => {
+  it('opens the study panel on ChatGPT, Claude and Grok tabs and rejects unsupported tabs', async () => {
     tabsSendMessage.mockClear();
+    activeTab = { id: 20, url: 'https://example.com/' };
+    const rejected = await renderPopup();
+    await act(async () => {
+      clickLaunch(rejected.container, 'open-study-panel');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(tabsSendMessage).not.toHaveBeenCalled();
+    expect(rejected.container.querySelector('[role="alert"]')?.textContent).toContain('ChatGPT, Claude, Gemini, Grok');
+    expect(window.close).not.toHaveBeenCalled();
+    rejected.unmount();
+
     activeTab = { id: 21, url: 'https://chatgpt.com/c/abc' };
     const first = await renderPopup();
     await act(async () => {
@@ -323,9 +338,7 @@ describe('popup chrome', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(tabsSendMessage).not.toHaveBeenCalled();
-    expect(first.container.querySelector('[role="alert"]')?.textContent).toContain('Claude, Gemini, Grok');
-    expect(window.close).not.toHaveBeenCalled();
+    expect(tabsSendMessage).toHaveBeenCalledWith(21, { type: 'stemlm:open-panel' });
     first.unmount();
 
     activeTab = { id: 22, url: 'https://claude.ai/new' };

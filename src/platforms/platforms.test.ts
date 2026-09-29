@@ -22,6 +22,7 @@ import {
   HOST_FIXTURES,
   addNamedChip,
   mountHostComposer,
+  pushAssistantCapsule,
 } from './host-fixtures';
 
 const CAPSULE_BODY = [
@@ -47,9 +48,9 @@ describe('detectAdapter', () => {
     expect(detectAdapter('www.gemini.google.com')?.id).toBe('gemini');
   });
 
-  it('rejects retired ChatGPT hosts and matches Claude and Grok', () => {
-    expect(detectAdapter('chatgpt.com')).toBeNull();
-    expect(detectAdapter('www.chatgpt.com')).toBeNull();
+  it('matches ChatGPT, Claude and Grok by host; chat.openai.com only redirects', () => {
+    expect(detectAdapter('chatgpt.com')?.id).toBe('chatgpt');
+    expect(detectAdapter('www.chatgpt.com')?.id).toBe('chatgpt');
     expect(detectAdapter('chat.openai.com')).toBeNull();
     expect(detectAdapter('claude.ai')?.id).toBe('claude');
     expect(detectAdapter('www.claude.ai')?.id).toBe('claude');
@@ -80,21 +81,23 @@ describe('detectAdapter', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
   });
 
-  it('docks Grok outside the composer, Claude and Gemini beside the +, and omits ChatGPT', () => {
-    expect(adapterById('chatgpt')).toBeUndefined();
+  it('docks ChatGPT and Grok outside the composer, Claude and Gemini beside the +', () => {
+    expect(adapterById('chatgpt')!.composerDock).toBe('outside-shell');
     expect(adapterById('grok')!.composerDock).toBe('outside-shell');
     expect(adapterById('gemini')!.composerDock).toBe('before-plus');
     expect(adapterById('claude')!.composerDock).toBe('before-plus');
   });
 
-  it('resolves adapters from page URLs and lists the three shipped hosts', () => {
+  it('resolves adapters from page URLs and lists the four shipped hosts', () => {
     expect(adapterForUrl('https://claude.ai/chat/abc')?.id).toBe('claude');
-    expect(adapterForUrl('https://chatgpt.com/c/abc')).toBeNull();
+    expect(adapterForUrl('https://chatgpt.com/c/abc')?.id).toBe('chatgpt');
+    expect(adapterForUrl('http://chatgpt.com/c/abc')).toBeNull();
     expect(adapterForUrl('https://chat.openai.com/')).toBeNull();
     expect(adapterForUrl('https://gemini.google.com/app')?.id).toBe('gemini');
     expect(adapterForUrl('https://grok.com/')?.id).toBe('grok');
     expect(isSupportedChatUrl('https://gemini.google.com/app/abc')).toBe(true);
-    expect(isSupportedChatUrl('https://chatgpt.com/c/1')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/c/1')).toBe(true);
+    expect(isSupportedChatUrl('https://chatgpt.com/g/g-abc/c/1')).toBe(true);
     expect(isSupportedChatUrl('https://claude.ai/new')).toBe(true);
     expect(isSupportedChatUrl('https://grok.com/chat')).toBe(true);
     expect(isSupportedChatUrl('https://example.com')).toBe(false);
@@ -102,10 +105,12 @@ describe('detectAdapter', () => {
     expect(isSupportedChatUrl('https://grok.com/imagine')).toBe(false);
     expect(isSupportedChatUrl('https://grok.com/imagine/foo')).toBe(false);
     expect(isSupportedChatUrl('https://chatgpt.com/images')).toBe(false);
-    expect(isSupportedChatUrl('https://chatgpt.com/sora/new')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/images/abc')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/codex')).toBe(false);
     expect(isSupportedChatUrl('https://gemini.google.com/imagen')).toBe(false);
     expect(isSupportedChatUrl('https://claude.ai/imagine')).toBe(false);
-    expect(isSupportedChatUrl('https://chatgpt.com/')).toBe(false);
+    expect(isSupportedChatUrl('https://chatgpt.com/')).toBe(true);
+    expect(isSupportedChatUrl('https://chatgpt.com/?temporary-chat=true')).toBe(true);
     expect(isSupportedChatUrl('https://claude.ai/chat/abc')).toBe(true);
     expect(isSupportedChatUrl('https://gemini.google.com/app')).toBe(true);
     expect(isSupportedChatUrl('https://grok.com/')).toBe(true);
@@ -114,8 +119,9 @@ describe('detectAdapter', () => {
     expect(isSupportedChatUrl('https://evil.gemini.google.com/app/1')).toBe(false);
     expect(isSupportedChatUrl('https://evil.grok.com/chat/1')).toBe(false);
     expect(adapterForUrl('https://evil.chatgpt.com/c/1')).toBeNull();
-    expect(supportedChatLabels()).toEqual(['Claude', 'Gemini', 'Grok']);
-    expect(CHAT_CONTENT_MATCHES.join('\n')).not.toMatch(/chatgpt\.com|chat\.openai\.com/);
+    expect(supportedChatLabels()).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/chatgpt\.com/);
+    expect(CHAT_CONTENT_MATCHES.join('\n')).not.toMatch(/chat\.openai\.com/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/claude\.ai/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/gemini\.google\.com/);
     expect(CHAT_CONTENT_MATCHES.join('\n')).toMatch(/grok\.com/);
@@ -128,9 +134,13 @@ describe('detectAdapter', () => {
     expect(injectControlEnabled('grok', '/')).toBe(true);
     expect(isImageGenPath('grok', '/imagine')).toBe(true);
     expect(isImageGenPath('chatgpt', '/c/abc')).toBe(false);
-    expect(injectControlEnabled('chatgpt', '/c/abc')).toBe(false);
+    expect(isImageGenPath('chatgpt', '/images')).toBe(true);
+    expect(injectControlEnabled('chatgpt', '/c/abc')).toBe(true);
+    expect(injectControlEnabled('chatgpt', '/')).toBe(true);
     expect(injectControlEnabled('chatgpt', '/images')).toBe(false);
-    expect(injectControlEnabled('chatgpt', '/sora/new')).toBe(false);
+    expect(injectControlEnabled('chatgpt', '/images/')).toBe(false);
+    expect(injectControlEnabled('chatgpt', '/codex/tasks')).toBe(false);
+    expect(injectControlEnabled('chatgpt', '/imagesque')).toBe(true);
     expect(injectControlEnabled('gemini', '/app')).toBe(true);
     expect(injectControlEnabled('gemini', '/imagen')).toBe(false);
     expect(injectControlEnabled('claude', '/chat/xyz')).toBe(true);
@@ -397,6 +407,19 @@ describe('setEditorText on textarea', () => {
     const markerPos = getEditorTextOf(el).indexOf('Ask your question here:');
     expect(sel?.anchorOffset).toBeGreaterThan(markerPos);
   });
+
+  // Live ChatGPT 2026-09-29: a paste stays one paragraph whose lines are <br>s; typing after the
+  // label's colon glued the question to it.
+  it('puts the caret on the blank line under the label in line-break editors', () => {
+    setBody('<div id="ed" contenteditable="true"><p><span>Ask your question here:<br><br><br>--- stemLM follow-up context ---<br>Follow the guide.</span></p></div>');
+    const el = document.getElementById('ed')!;
+    const span = el.querySelector('span')!;
+    focusComposerQuestionSlot(el);
+    const sel = window.getSelection()!;
+    expect(sel.anchorNode).toBe(span);
+    expect(sel.anchorOffset).toBe(2);
+    expect(span.childNodes[1]!.nodeName).toBe('BR');
+  });
 });
 
 describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) => {
@@ -488,6 +511,43 @@ describe('editorReflectsText', () => {
     expect(editorReflectsText(el, stub)).toBe(true);
     expect(getEditorTextOf(el)).not.toContain('stemLM instructions');
     expect(getEditorTextOf(el)).not.toContain('OUTPUT:');
+  });
+});
+
+describe('ChatGPT composer after an in-app new chat', () => {
+  // Live 2026-09-29: the old thread's composer stays in the DOM at zero size, ahead of the new one.
+  it('uses the laid-out composer, not the collapsed one left from the previous chat', () => {
+    const composer = (placement: string) => `
+      <form data-chatgpt-composer data-composer-placement="${placement}">
+        <div data-composer-footer-responsive>
+          <div><span style="display:contents"><button type="button" aria-label="Add files and more" data-composer-navigation-target="add-context">+</button></span></div>
+          <div><div class="ProseMirror" contenteditable="true" role="textbox"></div></div>
+        </div>
+      </form>`;
+    setBody(`<div style="height:0;overflow:hidden">${composer('thread')}</div>${composer('home')}`);
+    const [, live] = document.querySelectorAll('form');
+    for (const el of live!.querySelectorAll<HTMLElement>('form, button, [contenteditable]')) {
+      vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({ x: 1, y: 1, width: 40, height: 40, top: 1, left: 1, right: 41, bottom: 41, toJSON() {} } as DOMRect);
+    }
+    vi.spyOn(live!, 'getBoundingClientRect').mockReturnValue({ x: 300, y: 260, width: 768, height: 52, top: 260, left: 300, right: 1068, bottom: 312, toJSON() {} } as DOMRect);
+    expect(chatgptAdapter.getComposerShell()).toBe(live);
+    expect(live!.contains(chatgptAdapter.findEditor())).toBe(true);
+    expect(live!.contains(chatgptAdapter.getComposerLeadingAnchor())).toBe(true);
+  });
+});
+
+describe('ChatGPT answers', () => {
+  // Live 2026-09-29: ChatGPT cited the attached guide inside the capsule's code block.
+  it('drops citation tokens ChatGPT leaves in the capsule', () => {
+    mountHostComposer(HOST_FIXTURES.find((spec) => spec.id === 'chatgpt')!, { capsule: false });
+    pushAssistantCapsule('chatgpt', HOST_CAPSULE.replace(
+      '\nb\n',
+      '\nb follows the attached guide. :chatgpt-content-reference{index="0"} 【4:0†stemLM Guide.txt】\n',
+    ));
+    const [capsule] = chatgptAdapter.extractCapsules();
+    expect(capsule).toContain('b follows the attached guide.\n');
+    expect(capsule).not.toMatch(/content-reference|†/);
+    expect(chatgptAdapter.getLatestAssistantText()).not.toMatch(/content-reference/);
   });
 });
 

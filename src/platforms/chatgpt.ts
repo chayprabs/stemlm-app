@@ -2,106 +2,80 @@ import { createAdapter } from './factory';
 import type { AdapterConfig } from './types';
 
 /**
- * Retired adapter fixture, retained only for shared DOM regression coverage.
- * It is not registered by detect.ts or included in production entry points.
- * ChatGPT (chatgpt.com, chat.openai.com).
- * Composer is `#prompt-textarea` (contenteditable ProseMirror, historically a
- * textarea). The leading + opens an attach menu — do not click it; attach via
- * the hidden file input / drop / paste, same as Gemini.
- *
- * The inject control docks just outside the visual pill. ChatGPT’s composer
- * uses a tight grid + overflow:hidden and React will strip unknown in-row
- * nodes, which is why an in-pill mount disappears.
+ * ChatGPT (chatgpt.com; chat.openai.com only redirects there).
+ * Composer is a ProseMirror field inside `form[data-chatgpt-composer]`; the
+ * rounded pill switches between a single-line and a multiline layout as the
+ * draft grows, so the inject control docks just outside the form (like Grok).
+ * Never add a node inside the composer: logged-out ChatGPT takes over its
+ * server-rendered DOM about 2 s after load and blanks the page when it meets
+ * one. Without room beside the form the control floats in a gap made by CSS,
+ * or above the form when even the + row has no spare width.
+ * The leading + opens a menu. Attach via the hidden file input: its first
+ * inputs only take images/video, so the guide goes to the one without `accept`,
+ * which appends to ChatGPT's attachment list.
+ * Logged out, ChatGPT serves `textarea#mobile-composer-prompt` (it cannot take
+ * uploads, so stemlm reports that). `#prompt-textarea` and the data-testid
+ * hooks are ChatGPT's earlier markup.
  */
 const config: AdapterConfig = {
   id: 'chatgpt',
   label: 'ChatGPT',
-  hosts: /^(?:www\.)?(chatgpt\.com|chat\.openai\.com)$/i,
+  hosts: /^(?:www\.)?chatgpt\.com$/i,
   composerDock: 'outside-shell',
+  insideDock: 'inset',
+  fileInput: ['input[type="file"]:not([accept])'],
+  additiveFileInput: true,
   editor: [
+    'form[data-chatgpt-composer] div.ProseMirror[contenteditable="true"]',
+    'form[data-chatgpt-composer] [contenteditable="true"][role="textbox"]',
     '#prompt-textarea',
-    '[data-testid="prompt-textarea"]',
-    '#mobile-composer-prompt',
     'textarea#mobile-composer-prompt',
-    'div#prompt-textarea[contenteditable="true"]',
-    'div[contenteditable="true"][data-id="root"]',
-    '[data-placeholder*="Ask anything" i]',
-    '[placeholder*="Ask anything" i]',
-    '[data-placeholder*="Ask ChatGPT" i]',
-    '[placeholder*="Ask ChatGPT" i]',
-    'textarea[placeholder*="Ask ChatGPT" i]',
-    'textarea[aria-label*="Chat with ChatGPT" i]',
-    '[contenteditable="true"][data-lexical-editor="true"]',
-    'form.wm-composer-composer [contenteditable="true"]',
-    'form.wm-composer-composer textarea',
-    'form:has([data-testid="composer-plus-btn"]) [contenteditable="true"]',
-    'form:has([data-testid="send-button"]) [contenteditable="true"]',
-    'form:has(#prompt-textarea) [contenteditable="true"]',
-    'form:has(#mobile-composer-prompt) textarea',
   ],
   composerBox: [
-    'form.wm-composer-composer',
-    'form[data-landing]',
-    'form:has(#mobile-composer-prompt)',
+    'form[data-chatgpt-composer]',
     'form:has(#prompt-textarea)',
-    'form:has([data-testid="prompt-textarea"])',
-    '[data-testid*="composer" i]:not(button)',
-    'form:has([data-testid="composer-plus-btn"])',
-    'form:has([data-testid="send-button"])',
+    'form:has(#mobile-composer-prompt)',
   ],
   composerActionRow: [
-    '[data-testid="composer-footer-actions"]',
+    'form[data-chatgpt-composer] button[type="submit"]',
     '[data-testid="send-button"]',
-    'button[data-testid="send-button"]',
   ],
   composerAnchor: [
+    'form[data-chatgpt-composer] button[type="submit"]',
+    'form[data-chatgpt-composer] button[aria-label*="Voice" i]',
     'button[data-testid="send-button"]',
-    '[data-testid="send-button"]',
-    'button[aria-label*="Send prompt" i]',
-    'button[aria-label*="Send" i]',
   ],
   composerLeading: [
+    'form[data-chatgpt-composer] button[data-composer-navigation-target="add-context"]',
+    'form[data-chatgpt-composer] button[aria-label*="files and more" i]',
     'button[data-testid="composer-plus-btn"]',
-    '[data-testid="composer-plus-btn"]',
-    'button[aria-label*="Add photos" i]',
-    'button[aria-label*="Add files" i]',
-    'button[aria-label*="Add file" i]',
     'button[aria-label*="files and more" i]',
-    'button[aria-label*="photos & files" i]',
-    'button[aria-label*="photos, files" i]',
-    'button[aria-label*="Attach files" i]',
-    'button[aria-label*="Attach photos" i]',
-    'button[aria-label*="Attach" i]',
-    'button[aria-label*="Upload" i]',
-    'button[aria-label*="composer menu" i]',
-    'form button[aria-haspopup]:first-of-type',
-    'form:has(#prompt-textarea) button:first-of-type',
-    'form:has([data-testid="prompt-textarea"]) button:first-of-type',
   ],
   composerShell: [
-    'form.wm-composer-composer',
-    'form[data-landing]',
-    'form:has(#mobile-composer-prompt)',
-    'form div:has(#prompt-textarea):has(button)',
+    'form[data-chatgpt-composer]',
     'form:has(#prompt-textarea)',
-    'form:has([data-testid="prompt-textarea"])',
-    'form:has([data-testid="composer-plus-btn"])',
-    'form:has([data-testid="send-button"])',
-    'div:has(> #prompt-textarea)',
+    'form:has(#mobile-composer-prompt)',
   ],
   assistant: [
+    '[data-markdown-text-style="assistant-message"]',
+    '[data-content-search-unit-key$=":assistant"]',
     '[data-message-author-role="assistant"]',
-    '[data-testid^="conversation-turn-"][data-turn="assistant"]',
-    '[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
   ],
-  codeBlock: ['pre code', 'pre', 'code'],
+  // Code blocks render without <pre>: a header naming the language, then <code>.
+  codeBlock: ['[data-markdown-copy="code-block"] code', 'pre code', 'code'],
+  // Citations of the attached guide stay raw in code blocks, e.g. `:chatgpt-content-reference{index="0"}`.
+  citationMarkers: [
+    /[ \t]*:(?:chatgpt-content-reference\{[^}\n]*\}|contentReference\[[^\]\n]*\]\{[^}\n]*\})/g,
+    /[ \t]*【[^】\n]*†[^】\n]*】/g,
+  ],
   streaming: [
+    'form[data-chatgpt-composer] button[aria-label="Stop"]',
     'button[data-testid="stop-button"]',
-    'button[aria-label*="Stop generating" i]',
-    'button[aria-label*="Stop" i]',
   ],
   brand: { accent: '#10A37F', accentFg: '#ffffff', neutral: true },
-  layoutRoots: ['main', '#__next', '[role="main"]', '.composer-parent'],
+  // The app shell is sized by the viewport, so the split clamps it too; clamping `main` alone left
+  // it starting after the sidebar rail and running under the panel.
+  layoutRoots: ['main', '[data-app-shell-frame]', '[data-app-shell-workspace-row]', '[role="main"]'],
 };
 
 export const chatgptAdapter = createAdapter(config);

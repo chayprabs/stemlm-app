@@ -138,6 +138,8 @@ export default defineConfig({
     // scripting: after install/update, stemLM reaches chat tabs that were already open (D13).
     permissions: ['storage', 'unlimitedStorage', 'tabs', 'downloads', 'scripting'],
     host_permissions: [
+      'https://chatgpt.com/*',
+      'https://www.chatgpt.com/*',
       'https://claude.ai/*',
       'https://www.claude.ai/*',
       'https://gemini.google.com/*',
@@ -154,6 +156,8 @@ export default defineConfig({
         // content script imports the study panel on first open (PERF-03).
         resources: ['fonts/katex/*.woff2', 'fonts/ibm-plex/*.woff2', 'study-panel.js'],
         matches: [
+          'https://chatgpt.com/*',
+          'https://www.chatgpt.com/*',
           'https://claude.ai/*',
           'https://www.claude.ai/*',
           'https://gemini.google.com/*',
