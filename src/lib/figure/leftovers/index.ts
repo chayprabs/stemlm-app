@@ -69,6 +69,7 @@ import {
   compileEchem,
 } from './rest-cs';
 import { compileGeneric } from './rest-misc';
+import { FAMILY_COMPILERS } from '../families/compilers';
 
 type LeftoverFn = (spec: SpecDoc, ctx: CompileCtx) => CompileResult | Promise<CompileResult>;
 
@@ -183,6 +184,7 @@ const TABLE: Record<string, LeftoverFn> = {
   linkage: refuseUnfaithful,
   cam: compileCam,
   gear: refuseUnfaithful,
+  ...FAMILY_COMPILERS,
 };
 
 export function leftoverRegistered(type: string): boolean {
