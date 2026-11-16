@@ -3,6 +3,8 @@
  * Parser, compiler dispatch, and completeness tests all read this table.
  */
 
+import { FAMILY_MANIFESTS } from './families/manifest';
+
 export type FamilyKind = 'hatch' | 'engine' | 'leftover' | 'refuse';
 
 export interface FamilyVariant {
@@ -215,10 +217,25 @@ const ALIASES: Record<string, string> = {
   smiles: 'chem.smiles',
 };
 
+/** Families added as packs (src/lib/figure/families); they dispatch like any other template family. */
+const EXTENSION_FAMILIES: Record<string, FamilyDef> = Object.fromEntries(
+  FAMILY_MANIFESTS.map((manifest) => [manifest.token, {
+    kind: 'leftover' as const,
+    engine: manifest.token,
+    ...(manifest.required?.length ? { required: manifest.required } : {}),
+    ...(manifest.requiredAny?.length ? { requiredAny: manifest.requiredAny } : {}),
+    ...(manifest.aliases?.length ? { aliases: manifest.aliases } : {}),
+  }]),
+);
+for (const manifest of FAMILY_MANIFESTS) {
+  for (const alias of manifest.aliases ?? []) ALIASES[alias.toLowerCase()] = manifest.token;
+}
+
 export const FAMILY_CATALOG: Record<string, FamilyDef> = {
   ...HATCH_FAMILIES,
   ...ENGINE_FAMILIES,
   ...LEFTOVER_FAMILIES,
+  ...EXTENSION_FAMILIES,
   ...REFUSE_FAMILIES,
 };
 
