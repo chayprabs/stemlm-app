@@ -6,6 +6,7 @@ import { readPanelSelection } from '@/src/lib/followup-selection';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
+import { MOTION_DUR, MOTION_EASE_OUT } from './step-motion';
 
 interface Sel {
   text: string;
@@ -111,10 +112,10 @@ export function SelectionPopover({
         <motion.div
           className="slm-selpop"
           style={{ left, top }}
-          initial={{ opacity: 0, y: -4, scale: 0.96 }}
+          initial={reducedMotion ? false : { opacity: 0, y: -4, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.96 }}
-          transition={reducedMotion ? { duration: 0 } : { duration: 0.14 }}
+          exit={reducedMotion ? undefined : { opacity: 0, scale: 0.96 }}
+          transition={reducedMotion ? { duration: 0 } : { duration: MOTION_DUR[1], ease: MOTION_EASE_OUT }}
           onMouseDown={(e) => e.preventDefault() /* keep the text selection */}
         >
           <button

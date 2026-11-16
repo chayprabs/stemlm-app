@@ -140,7 +140,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
     <div className="slm-step-diagram">
       <div className="slm-step-diagram-head">
         <span className="slm-step-diagram-label">Diagram</span>
-        <button type="button" className="slm-icon-btn slm-diagram-enlarge" aria-label="Enlarge diagram" aria-haspopup="dialog" onClick={openLightbox}>
+        <button type="button" className="slm-icon-btn slm-diagram-enlarge" aria-label="Enlarge diagram" title="Enlarge diagram" aria-haspopup="dialog" onClick={openLightbox}>
           <IconExpand width={15} height={15} />
         </button>
       </div>

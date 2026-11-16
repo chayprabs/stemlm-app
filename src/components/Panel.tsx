@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useStore, useActiveSession } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
@@ -26,7 +26,7 @@ import { normalizeContentScale, setSettings } from '@/src/lib/settings';
 import { requestSessionPdf } from '@/src/lib/pdf-export-request';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
-import type { StepDirection } from './step-motion';
+import { panelMotion, type StepDirection } from './step-motion';
 
 function isArrowKey(key: string) {
   return key === 'ArrowLeft' || key === 'ArrowRight';
@@ -150,6 +150,24 @@ export function Panel() {
   useEffect(() => {
     readRef.current?.scrollTo?.({ top: 0 });
   }, [activeStepIndex, session?.id]);
+  // The page reserves a gutter for its scrollbar where scrollbars take room. The step strip above
+  // it has none, so it is told the width and can stay exactly on the reading column's edge.
+  const hasReadingPage = Boolean(session) && view === 'steps';
+  useLayoutEffect(() => {
+    const read = readRef.current;
+    const panel = panelRef.current;
+    if (!read || !panel) return;
+    panel.style.setProperty('--slm-scroll-gutter', `${Math.max(0, read.offsetWidth - read.clientWidth)}px`);
+  }, [hasReadingPage, panelOpen]);
+  // Where the reader is, counted in steps. A follow-up belongs to the step it was asked about,
+  // so the counter agrees with the page's own "Step n of N" and with the numerals on the strip.
+  const stepTotal = session?.capsule.steps.length ?? 0;
+  const stepPlace =
+    activeEntry?.kind === 'step'
+      ? activeEntry.stepNumber
+      : activeEntry?.kind === 'followup'
+        ? activeEntry.anchorStepIndex + 1
+        : Math.min(activeStepIndex + 1, stepTotal);
   const step =
     activeEntry?.kind === 'step'
       ? activeEntry.step
@@ -258,10 +276,7 @@ export function Panel() {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerDown={onPanelPointerDown}
-      initial={reducedMotion ? false : { x: '100%' }}
-      animate={{ x: 0 }}
-      exit={reducedMotion ? undefined : { x: '100%' }}
-      transition={reducedMotion ? { duration: 0 } : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      {...panelMotion(Boolean(reducedMotion))}
       role="complementary"
       aria-label="stemlm study panel"
     >
@@ -279,41 +294,42 @@ export function Panel() {
         onToggleSave={onToggleSave}
         onExportPdf={onExportPdf}
         onClose={closePanel}
-      />
-
-      {sessions.length > 1 && (
-        <div className="slm-session-switch">
-          {sessions.map((s, i) => (
-            <div
-              key={s.id}
-              className={`slm-session-chip ${s.id === session?.id ? 'is-active' : ''}`}
-            >
-              <button
-                type="button"
-                className={`slm-session-pill ${s.id === session?.id ? 'is-active' : ''}`}
-                onClick={() => setActiveSession(s.id)}
-                title={s.capsule.meta.topic}
+      >
+        {sessions.length > 1 && (
+          <div className="slm-session-switch" role="group" aria-label="Questions in this chat">
+            {sessions.map((s, i) => (
+              <div
+                key={s.id}
+                className={`slm-session-chip ${s.id === session?.id ? 'is-active' : ''}`}
               >
-                {i + 1}. {s.capsule.meta.topic}
-              </button>
-              <button
-                type="button"
-                className="slm-session-pill-remove"
-                title="Remove question"
-                aria-label={`Remove ${s.capsule.meta.topic}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeSession(s.id);
-                }}
-              >
-                <span className="slm-session-pill-remove-hit" aria-hidden="true">
-                  <IconClose width={12} height={12} strokeWidth={2.25} />
-                </span>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <button
+                  type="button"
+                  className={`slm-session-pill ${s.id === session?.id ? 'is-active' : ''}`}
+                  onClick={() => setActiveSession(s.id)}
+                  aria-current={s.id === session?.id ? 'true' : undefined}
+                  title={s.capsule.meta.topic}
+                >
+                  {i + 1}. {s.capsule.meta.topic}
+                </button>
+                <button
+                  type="button"
+                  className="slm-session-pill-remove"
+                  title="Remove question"
+                  aria-label={`Remove ${s.capsule.meta.topic}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeSession(s.id);
+                  }}
+                >
+                  <span className="slm-session-pill-remove-hit" aria-hidden="true">
+                    <IconClose width={12} height={12} strokeWidth={2.25} />
+                  </span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </PanelHeader>
 
       {errorMessage && <ErrorBanner message={errorMessage} tone={status === 'error' ? 'error' : 'info'} />}
 
@@ -368,8 +384,8 @@ export function Panel() {
                       <IconNavPrev /> Prev
                     </button>
                     <span className="slm-stepnav-count" aria-hidden="true">
-                      <span className="slm-stepnav-count-now">{Math.min(activeStepIndex + 1, total)}</span>
-                      <span className="slm-stepnav-count-of">/ {total}</span>
+                      <span className="slm-stepnav-count-now">{stepPlace}</span>
+                      <span className="slm-stepnav-count-of">/ {stepTotal}</span>
                     </span>
                     <button
                       type="button"

@@ -37,7 +37,7 @@
 
 Chat assistants explain STEM problems well, but the explanation arrives as one long reply. stemLM puts the study work beside the chat:
 
-1. **Ask.** Type a question or attach a photo or PDF in your AI chat. Press the orange stemLM **+** beside the chat box, then send.
+1. **Ask.** Type a question or attach a photo or PDF in your AI chat. Press the **stemLM button** beside the chat box, then send.
 2. **Study.** Read numbered steps with working, formulas and diagrams beside your chat. Open **Solution** to see them all at once.
 3. **Check.** Try a quick check, then reveal the answer. **Ask in chat** adds the step's context to your follow-up question.
 4. **Save.** Save a solution with one click. Search **Saved questions** by subject or date to reopen it.
@@ -63,7 +63,7 @@ stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It
 
 **From GitHub (v2.0.0).** Download `stemlm-2.0.0-chrome.zip` from the [latest release](https://github.com/chayprabs/stemlm-app/releases/latest), extract it, and load the folder containing `manifest.json` with **Load unpacked** at `chrome://extensions` or `edge://extensions` (enable **Developer mode** first). See [INSTALL.md](INSTALL.md) for installation, updating without losing saved work, and checksum verification. [Read what's new in v2.0.0](docs/releases/v2.0.0.md).
 
-**From the Chrome Web Store.** Open the [Chrome Web Store](https://chromewebstore.google.com/search/stemLM), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the orange **+** appears beside the chat box. Refresh any chat tab that was already open.
+**From the Chrome Web Store.** Open the [Chrome Web Store](https://chromewebstore.google.com/search/stemLM), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the **stemLM button** appears beside the chat box. Refresh any chat tab that was already open.
 
 **From source.** See [Development](#development) to build the extension and load it unpacked.
 
@@ -72,14 +72,14 @@ stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It
 - **No stemLM account.** No login, subscription or payment details.
 - **Your study library stays in your browser.** stemLM reads the question and answer on the chat page to build the study view on your computer. It has no server that receives your questions, answers or saved solutions.
 - **No extension telemetry in v2.0.0.** This build disables analytics and ships no telemetry endpoint or credential. It has no analytics toggle. The published privacy policy also describes behavior in other releases.
-- **You press Send.** The **+** prepares instructions in your chat; stemLM never sends a message for you. Your chat provider receives what you send, under its own policies.
+- **You press Send.** The **stemLM button** prepares instructions in your chat; stemLM never sends a message for you. Your chat provider receives what you send, under its own policies.
 - **Open source.** Every line of the extension is in this repository under the MIT licence.
 
 The full [Privacy Policy](PRIVACY.md) and [Terms and Conditions](TERMS.md) are Markdown copies of the versions published at [stemlm.app/privacy](https://stemlm.app/privacy/) and [stemlm.app/terms](https://stemlm.app/terms/). The website versions apply if the two ever differ.
 
 ## How it works
 
-Pressing the **+** attaches a plain-text instruction file to your message. It teaches the model one answer format: a single fenced `stemlm` capsule holding the steps, formulas, quick checks and takeaways. Figures inside the capsule are not pictures. They are short, typed `key: value` specs in a small language, for example:
+Pressing the **stemLM button** attaches a plain-text instruction file to your message. It teaches the model one answer format: a single fenced `stemlm` capsule holding the steps, formulas, quick checks and takeaways. Figures inside the capsule are not pictures. They are short, typed `key: value` specs in a small language, for example:
 
 ```text
 @diagram id=f1 type=plot
@@ -139,7 +139,7 @@ Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**,
 
 For day-to-day work, `pnpm dev` starts a development build with hot reload in a separate browser profile.
 
-After rebuilding an unpacked install, press the extension's **Reload** control. Open chat tabs pick up the new version automatically; refresh any tab that does not show the **+**. Reloading closes an open study panel; choose **Load conversation** in the panel to bring the answer back. Keep the extension installed between builds to keep its saved questions.
+After rebuilding an unpacked install, press the extension's **Reload** control. Open chat tabs pick up the new version automatically; refresh any tab that does not show the **stemLM button**. Reloading closes an open study panel; choose **Load conversation** in the panel to bring the answer back. Keep the extension installed between builds to keep its saved questions.
 
 ### Commands
 

@@ -185,8 +185,8 @@
   transition: fill var(--slm-dur-3) var(--slm-ease-out), stroke var(--slm-dur-3) var(--slm-ease-out);
 }
 .slm-icon-btn[data-active='true'] .slm-icon-save {
-  fill: var(--slm-signal);
-  stroke: var(--slm-signal);
+  fill: var(--slm-signal-ink);
+  stroke: var(--slm-signal-ink);
 }
 .slm-save-glyph {
   display: inline-flex;
@@ -240,6 +240,10 @@
   --slm-content-solution-diagram-height: 270px;
   --slm-brand-size: 22px;
   --slm-measure: 44rem;
+  /* One inner edge for everything drawn as a plate or a ruled note inside the reading column. */
+  --slm-plate-pad: 1.15rem;
+  /* Width of the page's scrollbar gutter, measured by the panel; 0 where scrollbars overlay. */
+  --slm-scroll-gutter: 0px;
   position: fixed;
   top: var(--slm-panel-inset, 8px);
   right: var(--slm-panel-inset, 8px);
@@ -599,6 +603,11 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* For the instant the header measures the whole question to decide whether to offer the toggle. */
+.slm-topic-scroll.is-measuring .slm-topic {
+  display: block;
+  -webkit-line-clamp: none;
+}
 .slm-question-toggle {
   flex-shrink: 0;
   display: inline-flex;
@@ -626,12 +635,13 @@
   transform: rotate(180deg);
 }
 
-/* ---------- session switch ---------- */
+/* ---------- session switch: this chat's questions, above the one being read ---------- */
 .slm-session-switch {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.375rem;
-  padding: 0.5rem var(--slm-pad-x);
+  /* The top padding is the room a pill's focus ring needs inside this scroller. */
+  padding: 0.25rem var(--slm-pad-x) 0.65rem;
   width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -646,6 +656,10 @@
   display: none;
   width: 0;
   height: 0;
+}
+.slm-session-switch + .slm-header-title,
+.slm-session-switch + .slm-topic-row {
+  padding-top: 0.7rem;
 }
 .slm-session-chip {
   position: relative;
@@ -805,6 +819,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  border-top: 1px solid var(--slm-border-subtle);
 }
 .slm-read {
   flex: 1;
@@ -830,32 +845,40 @@
 
 /* ---------- step strip: numbered marks in a row above the page ---------- */
 .slm-step-rail {
+  /* Room inside each button for the current mark's halo and the focus ring. */
+  --slm-rail-bleed: 4px;
   flex: 0 0 auto;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid var(--slm-border-subtle);
   scrollbar-width: none;
   scroll-behavior: smooth;
+  /* Marks leaving the strip fade out at the panel's edge instead of being sliced by it. */
+  -webkit-mask-image: linear-gradient(to right, transparent, black 0.75rem, black calc(100% - 0.75rem), transparent);
+  mask-image: linear-gradient(to right, transparent, black 0.75rem, black calc(100% - 0.75rem), transparent);
 }
 .slm-step-rail::-webkit-scrollbar {
   display: none;
 }
-/* The strip shares the reading column's left edge, and scrolls when the steps outnumber the room. */
+/* The first mark sits exactly on the reading column's left edge: the same side padding, the same
+   centring within the measure, and the same allowance for the page's scrollbar gutter. The strip
+   scrolls when the steps outnumber the room. */
 .slm-step-rail-track {
   list-style: none;
-  box-sizing: content-box;
   width: max-content;
-  min-width: min(100%, var(--slm-measure));
-  max-width: none;
-  margin: 0 auto;
-  padding: 0 var(--slm-pad-x);
+  min-width: 100%;
+  margin: 0;
+  padding-block: 0.45rem;
+  padding-right: calc(var(--slm-pad-x) + var(--slm-scroll-gutter) - var(--slm-rail-bleed));
+  padding-left: max(
+    calc(var(--slm-pad-x) - var(--slm-rail-bleed)),
+    calc((100% - var(--slm-scroll-gutter) - var(--slm-measure)) / 2 - var(--slm-rail-bleed))
+  );
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.125rem;
 }
 .slm-step-rail-item {
   margin: 0;
@@ -865,7 +888,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.2rem;
+  padding: var(--slm-rail-bleed);
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -877,8 +900,12 @@
   transform: scale(0.94);
 }
 .slm-step-rail-btn:focus-visible {
+  outline: none;
+}
+/* The ring hugs the round mark and stays inside the button, so the strip never clips it. */
+.slm-step-rail-btn:focus-visible .slm-step-rail-mark {
   outline: 2px solid var(--slm-ring);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 .slm-step-rail-mark {
   display: inline-flex;
@@ -907,17 +934,29 @@
   background: var(--slm-bg-muted);
   color: var(--slm-fg);
 }
-/* Here: the one signal on the strip. */
+/* Here: the one signal on the strip. It settles into place as the page turns. */
 .slm-step-rail-item.is-active .slm-step-rail-mark {
-  border-color: var(--slm-signal);
-  background: var(--slm-signal);
+  border-color: var(--slm-signal-strong);
+  background: var(--slm-signal-strong);
   color: #ffffff;
   box-shadow: 0 0 0 3px var(--slm-signal-soft);
+  animation: slm-mark-settle var(--slm-dur-3) var(--slm-ease-out);
+}
+@keyframes slm-mark-settle {
+  from {
+    transform: scale(0.84);
+    box-shadow: 0 0 0 0 var(--slm-signal-soft);
+  }
+  to {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px var(--slm-signal-soft);
+  }
 }
 .slm-step-rail-btn--followup .slm-step-rail-mark {
   border-style: dashed;
 }
-.slm-step-rail-item--followup.is-active .slm-step-rail-mark {
+.slm-step-rail-item--followup.is-active .slm-step-rail-mark,
+.slm-step-rail-item--followup.is-past .slm-step-rail-mark {
   border-style: solid;
 }
 .slm-steps-main {
@@ -1007,7 +1046,8 @@
 /* The key relation: the one equation this step turns on. */
 .slm-formula {
   position: relative;
-  padding: 0.85rem 1.15rem 1rem;
+  /* No border here, so one more pixel keeps its label on the plates' shared inner edge. */
+  padding: 0.85rem calc(var(--slm-plate-pad) + 1px) 0.95rem;
   border-radius: var(--radius-card);
   background: var(--slm-formula-bg);
   color: var(--slm-formula-fg);
@@ -1037,8 +1077,9 @@
 .slm-formula .slm-prose {
   font-size: calc(var(--slm-content-read-size) * 1.08);
 }
-.slm-formula .katex-display {
-  margin: 0.2rem 0 0;
+/* Prose spaces display math for running text; in the well the label and padding do that. */
+.slm-formula .slm-prose .katex-display {
+  margin: 0.3rem 0 0;
 }
 .slm-formula .katex {
   color: var(--slm-formula-fg);
@@ -1089,7 +1130,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.5rem 0.5rem 0 0.9rem;
+  padding: 0.5rem 0.5rem 0 var(--slm-plate-pad);
 }
 .slm-step-diagram-head .slm-step-diagram-label {
   display: inline-flex;
@@ -1103,19 +1144,33 @@
 .slm-step-diagram .slm-diagram-svg {
   width: 100%;
 }
+/* The frame carries the size budget. A shrink-to-fit inline-block would size itself to the SVG's
+   intrinsic width instead, which pins every figure at its compiled width and ignores the
+   reading-size setting. */
 .slm-step-diagram .slm-diagram-frame {
+  display: block;
+  width: min(100%, var(--slm-content-diagram-width));
   cursor: zoom-in;
 }
 .slm-step-diagram .slm-diagram-svg svg {
+  display: block;
+  /* The presenter writes its own pixel size inline. The SVG must fill the frame instead, as one
+     coupled aspect ratio, or a narrow panel letterboxes it and the math labels drift. */
+  width: 100% !important;
   max-width: 100%;
+  height: auto !important;
+  max-height: var(--slm-content-diagram-height);
 }
 .slm-step-diagram .slm-diagram--solution .slm-diagram-svg svg {
-  max-width: 100%;
+  max-height: var(--slm-content-solution-diagram-height);
 }
 .slm-diagram-enlarge {
   width: 1.75rem;
   height: 1.75rem;
   color: var(--slm-fg-subtle);
+}
+.slm-diagram-enlarge:focus-visible {
+  color: var(--slm-fg);
 }
 /* A figure whose notation stemLM corrected before drawing says so. */
 .slm-diagram-note {
@@ -1159,7 +1214,8 @@
   position: relative;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 32px);
-  padding: 2.75rem 1.5rem 1.25rem;
+  overflow: auto;
+  padding: 2.75rem 1.5rem 1.5rem;
   border: 1px solid var(--slm-border);
   border-radius: var(--radius-xl);
   background: var(--slm-plate);
@@ -1182,13 +1238,29 @@
   flex-direction: column;
   align-items: center;
 }
+.slm-lightbox-label {
+  position: absolute;
+  top: 1rem;
+  left: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--slm-tracking-label);
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--slm-fg-subtle);
+}
 .slm-lightbox-frame {
   position: relative;
+  display: block;
+  max-width: none;
   line-height: 0;
 }
+/* As in the plate: the SVG fills the frame the dialog sized, overriding the presenter's pixels. */
 .slm-lightbox-frame .slm-diagram-svg svg {
-  width: 100%;
-  height: auto;
+  width: 100% !important;
+  height: auto !important;
+  max-width: none;
   max-height: none;
 }
 .slm-lightbox-figure figcaption {
@@ -1212,7 +1284,8 @@
 /* The takeaway: a conclusion in the margin's voice. No box; a rule and the therefore sign. */
 .slm-takeaway {
   position: relative;
-  padding: 0.1rem 0 0.1rem 1rem;
+  /* Rule plus padding put the text on the plates' inner edge. */
+  padding: 0.1rem 0 0.1rem calc(var(--slm-plate-pad) - 1px);
   border-left: 2px solid var(--slm-signal);
   color: var(--slm-fg);
   font-size: var(--slm-content-read-size);
@@ -1234,7 +1307,7 @@
   border: 1px solid var(--slm-border);
   border-radius: var(--radius-lg);
   background: var(--slm-bg-elevated);
-  padding: 1rem 1.15rem 1.1rem;
+  padding: 1rem var(--slm-plate-pad) 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -1274,6 +1347,11 @@
 .slm-quickcheck-a {
   overflow: hidden;
 }
+/* The revealed answer takes focus when it replaces the button that was pressed; it is not a
+   control, so it draws no ring. */
+.slm-quickcheck-a-inner:focus {
+  outline: none;
+}
 .slm-quickcheck-a-inner {
   padding-top: 0.75rem;
   border-top: 1px dashed var(--slm-border-strong);
@@ -1281,10 +1359,10 @@
   line-height: 1.6;
   color: var(--slm-fg);
 }
+/* Neutral on purpose: nothing was marked, so the answer is not dressed as "correct". */
 .slm-quickcheck-a-label {
   display: block;
   margin-bottom: 0.2rem;
-  color: var(--slm-success);
 }
 .slm-quickcheck-hide {
   margin-top: 0.6rem;
@@ -1308,7 +1386,7 @@
   border: 1px solid color-mix(in srgb, var(--slm-signal) 38%, var(--slm-border));
   border-radius: var(--radius-lg);
   background: var(--slm-signal-soft);
-  padding: 0.95rem 1.15rem 1.05rem;
+  padding: 0.95rem var(--slm-plate-pad) 1.05rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -1334,8 +1412,11 @@
   margin-top: 0.6rem;
 }
 /* Assumptions and check notes the model stated, as plain small print under the answer. */
+/* The element is itself prose, whose `font-size: inherit` comes later in the sheet: the doubled
+   class keeps the small print small and on the reading-size scale. */
+.slm-answer-notes.slm-prose,
 .slm-answer-notes {
-  padding-left: 1rem;
+  padding-left: calc(var(--slm-plate-pad) - 1px);
   border-left: 2px solid var(--slm-border);
   color: var(--slm-fg-muted);
   font-size: calc(var(--slm-content-read-size) - 1.5px);
@@ -1445,17 +1526,6 @@
   font-weight: 600;
   line-height: 1.3;
 }
-.slm-followup-answer-summary {
-  padding: 0.1rem 0 0.1rem 1rem;
-  border-left: 2px solid var(--slm-signal);
-  font-size: var(--slm-content-read-size);
-  line-height: 1.55;
-}
-.slm-followup-answer-summary .slm-takeaway-label {
-  display: block;
-  margin-bottom: 0.2rem;
-  color: var(--slm-signal-ink);
-}
 .slm-solution-followup {
   display: flex;
   flex-direction: column;
@@ -1470,16 +1540,24 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* A reserved row, never part of the scrolling page, so it cannot cover the end of a step. Its
+   height is fixed so the page does not shift between steps; only the buttons take the pointer. */
 .slm-stepnav-slot {
-  flex-shrink: 0;
   position: relative;
+  flex: 0 0 3.375rem;
+  min-height: 3.375rem;
+  display: flex;
+  align-items: stretch;
   border-top: 1px solid var(--slm-border-subtle);
   background: var(--slm-bg);
+  pointer-events: none;
 }
 .slm-stepnav--overlay {
   position: relative;
+  flex: 1;
   width: auto;
-  padding: 0.55rem var(--slm-pad-x);
+  min-width: 0;
+  padding: 0 var(--slm-pad-x);
   justify-content: flex-end;
   background: var(--slm-bg);
 }
@@ -1625,10 +1703,27 @@
 .slm-loading {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.slm-loading-strip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.7rem var(--slm-pad-x);
+  padding-left: max(var(--slm-pad-x), calc((100% - var(--slm-measure)) / 2));
+  border-bottom: 1px solid var(--slm-border-subtle);
+}
+.slm-loading-page {
+  width: 100%;
+  max-width: calc(var(--slm-measure) + 2 * var(--slm-pad-x));
+  margin: 0 auto;
+  padding: 1.5rem var(--slm-pad-x) 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding: 1.5rem var(--slm-pad-x);
 }
 .slm-loading-head {
   display: flex;
@@ -1636,6 +1731,7 @@
   gap: 0.75rem;
 }
 .slm-loading-mark {
+  flex-shrink: 0;
   display: inline-flex;
   width: 2.5rem;
   height: 2.5rem;
@@ -1654,23 +1750,10 @@
 .slm-loading-sub {
   margin: 0.1rem 0 0;
   font-size: var(--slm-text-sm);
+  line-height: 1.4;
   color: var(--slm-fg-muted);
 }
-.slm-loading-layout {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 1.25rem;
-}
-.slm-loading-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding-top: 0.25rem;
-}
 .slm-skeleton-card {
-  flex: 1;
-  max-width: var(--slm-measure);
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
@@ -1695,8 +1778,8 @@
   }
 }
 .slm-sk-dot {
-  width: 1.625rem;
-  height: 1.625rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
 }
 .slm-sk-step {
@@ -1709,6 +1792,7 @@
 }
 .slm-sk-formula {
   height: 4.25rem;
+  margin-top: 0.4rem;
   border-radius: var(--radius-card);
 }
 .slm-sk-line {
@@ -2078,6 +2162,44 @@
   padding: 0.15em 0;
   scrollbar-width: thin;
 }
+/* An equation wider than the column scrolls sideways. Where scrollbars only appear on touch, a cut
+   edge would look like the end of it, so the side that has more fades out. The fade follows the
+   scroll position and does nothing for an equation that fits. */
+@supports (animation-timeline: scroll()) {
+  .slm-prose .katex-display {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--slm-fade-start),
+      black calc(100% - var(--slm-fade-end)),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--slm-fade-start),
+      black calc(100% - var(--slm-fade-end)),
+      transparent
+    );
+    animation: slm-scroll-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+@keyframes slm-scroll-fade {
+  0% {
+    --slm-fade-start: 0px;
+    --slm-fade-end: 1.5rem;
+  }
+  10%,
+  90% {
+    --slm-fade-start: 1.5rem;
+    --slm-fade-end: 1.5rem;
+  }
+  100% {
+    --slm-fade-start: 1.5rem;
+    --slm-fade-end: 0px;
+  }
+}
 .katex-mathml {
   position: absolute;
   clip: rect(1px, 1px, 1px, 1px);
@@ -2123,6 +2245,7 @@
 .slm-panel[data-width='narrow'] {
   --slm-pad-x: 0.9rem;
   --slm-title-size: 1.15rem;
+  --slm-plate-pad: 0.95rem;
 }
 .slm-panel[data-width='narrow'] .slm-header-bar,
 .slm-panel[data-width='narrow'] .slm-header-top {
@@ -2144,6 +2267,18 @@
 .slm-panel[data-width='narrow'] .slm-topic-row {
   padding-bottom: 0.7rem;
 }
+/* No room to spare beside the question: the toggle goes under it instead of taking a column. */
+.slm-panel[data-width='narrow'] .slm-question-body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+.slm-panel[data-width='narrow'] .slm-topic-scroll {
+  width: 100%;
+}
+.slm-panel[data-width='narrow'] .slm-question-toggle {
+  margin-left: -0.15rem;
+}
 .slm-panel[data-width='narrow'] .slm-tab svg {
   display: none;
 }
@@ -2157,9 +2292,6 @@
 .slm-panel[data-width='narrow'] .slm-read {
   padding-top: 1.1rem;
 }
-.slm-panel[data-width='narrow'] .slm-stepnav--overlay {
-  padding-block: 0.5rem;
-}
 .slm-panel[data-width='narrow'] .slm-followup {
   flex-direction: column;
   align-items: stretch;
@@ -2170,12 +2302,6 @@
 }
 .slm-panel[data-width='narrow'] .slm-empty {
   padding-inline: 1rem;
-}
-.slm-panel[data-width='narrow'] .slm-loading-layout {
-  gap: 0;
-}
-.slm-panel[data-width='narrow'] .slm-loading-rail {
-  display: none;
 }
 .slm-panel[data-width='mid'] {
   --slm-pad-x: 1.1rem;
@@ -2226,6 +2352,7 @@
   .slm-tab,
   .slm-tabs-thumb,
   .slm-step-rail-btn,
+  .slm-step-rail-item.is-active .slm-step-rail-mark,
   .slm-sk,
   .slm-icon-btn,
   .slm-brand-name,

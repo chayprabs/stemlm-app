@@ -271,7 +271,7 @@ export class StemController {
   private abandonAttach(operation: ComposerOperation): false {
     const store = useStore.getState();
     if (!operation.superseded() && store.settings.stemlmEnabled !== false) {
-      store.setStatus('error', 'Your chat box changed while stemlm was attaching its guide, so it stopped. Check the chat box, then click the stemlm + button again.');
+      store.setStatus('error', 'Your chat box changed while stemlm was attaching its guide, so it stopped. Check the chat box, then click the stemlm button again.');
       store.openPanel();
     }
     return false;
@@ -339,7 +339,7 @@ export class StemController {
     if (!operation.isCurrent()) return this.abandonAttach(operation);
 
     if (!attached.ok && this.delivery === 'file') {
-      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try the + button again. Your question is unchanged.');
+      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try the stemlm button again. Your question is unchanged.');
       store.openPanel();
       return false;
     }
@@ -820,7 +820,7 @@ export class StemController {
     this.resetInjection();
     useStore.getState().setStatus(
       'ready',
-      'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm + button.',
+      'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm button.',
     );
     return true;
   }
@@ -901,10 +901,10 @@ export class StemController {
     // No capsule at all is usually the chat's own error or usage-limit reply, not a garbled answer;
     // a missing @end on a stable reply means the chat stopped writing.
     const lead = code === 'no_capsule'
-      ? 'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm + button.'
+      ? 'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm button.'
       : code === 'missing_end'
-        ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemlm + button.'
-        : "stemlm couldn't read this answer. Click the stemlm + button and send your question again.";
+        ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemlm button.'
+        : "stemlm couldn't read this answer. Click the stemlm button and send your question again.";
     useStore.getState().setStatus('error', `${lead}\nParser code: ${code}.`);
     this.resetInjection();
     void trackEvent('extension_error', {
@@ -1386,7 +1386,7 @@ export class StemController {
     this.resetInjection();
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Click the stemlm + button to attach it again.');
+    useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Click the stemlm button to attach it again.');
   }
 
   resetInjection(): void {

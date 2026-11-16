@@ -18,15 +18,56 @@ const FIGURE: Record<number, string> = {
   4: 'M13.45 4.8h2.55v8.05h1.9v2.2h-1.9v4.7h-2.55v-4.7H6.7v-2.45L13.45 4.8Zm0 2.95-4.15 5.1h4.15V7.75Z',
   5: 'M8.05 4.85h8.2v2.2h-5.7v3.15c.55-.2 1.2-.3 1.95-.3 2.85 0 5 1.7 5 4.45 0 2.85-2.3 4.7-5.55 4.7-2.55 0-4.55-1.15-5.15-3.2l2.2-.85c.35 1.2 1.5 1.95 2.95 1.95 1.7 0 2.9-1.05 2.9-2.6s-1.2-2.55-2.95-2.55c-.7 0-1.3.15-1.75.45H8.05V4.85Z',
   6: 'M12.35 4.7c2.35 0 4.05 1.15 4.7 2.95l-2.2.9c-.4-1.05-1.3-1.7-2.5-1.7-2.15 0-3.55 1.85-3.7 4.55 1-.85 2.25-1.3 3.6-1.3 2.7 0 4.7 1.8 4.7 4.4 0 2.7-2.15 4.6-5.15 4.6-3.3 0-5.5-2.45-5.5-7.2 0-3.95 2.2-7.2 5.95-7.2Zm-.15 7.35c-1.4 0-2.5.95-2.5 2.35s1.1 2.35 2.5 2.35 2.5-.95 2.5-2.35-1.1-2.35-2.5-2.35Z',
-  7: 'M7.2 5.05h10.05v2.15L12.4 19.2h-2.7l4.55-9.85H7.2V5.05Z',
+  7: 'M7.2 5.05h10.05v2.15L12.4 19.2h-2.7l4.6-11.85H7.2V5.05Z',
   8: 'M12 4.55c2.35 0 4.15 1.4 4.15 3.5 0 1.15-.6 2.1-1.6 2.7 1.4.7 2.25 1.85 2.25 3.5 0 2.35-1.95 4.2-4.8 4.2s-4.8-1.85-4.8-4.2c0-1.65.85-2.8 2.25-3.5-1-.6-1.6-1.55-1.6-2.7 0-2.1 1.8-3.5 4.15-3.5Zm0 2.05c-1.05 0-1.8.65-1.8 1.5s.75 1.5 1.8 1.5 1.8-.65 1.8-1.5-.75-1.5-1.8-1.5Zm0 5.4c-1.35 0-2.3.85-2.3 2s.95 2 2.3 2 2.3-.85 2.3-2-.95-2-2.3-2Z',
-  9: 'M12.05 4.55c3.25 0 5.4 2.2 5.4 5.85 0 2.85-1.35 4.85-3.55 5.7l1.35 3.1h-2.6l-1.15-2.7c-.2 0-.4.05-.6.05-3.1 0-5.15-2.15-5.15-5.15 0-.95.25-1.8.7-2.5C7.6 6.05 9.5 4.55 12.05 4.55Zm.05 2.2c-1.7 0-2.85 1.3-2.85 3.2s1.15 3.2 2.85 3.2 2.85-1.3 2.85-3.2-1.15-3.2-2.85-3.2Z',
+  // The 6 turned half a turn about the figure's centre.
+  9: 'M11.65 19.1c-2.35 0-4.05-1.15-4.7-2.95l2.2-.9c.4 1.05 1.3 1.7 2.5 1.7 2.15 0 3.55-1.85 3.7-4.55-1 .85-2.25 1.3-3.6 1.3-2.7 0-4.7-1.8-4.7-4.4 0-2.7 2.15-4.6 5.15-4.6 3.3 0 5.5 2.45 5.5 7.2 0 3.95-2.2 7.2-5.95 7.2Zm.15-7.35c1.4 0 2.5-.95 2.5-2.35s-1.1-2.35-2.5-2.35-2.5.95-2.5 2.35 1.1 2.35 2.5 2.35Z',
 };
+
+/** Horizontal extent of each figure's ink, so a mark is centred on what is drawn, not on its box. */
+const INK: Record<number, readonly [number, number]> = {
+  0: [6.65, 17.35],
+  1: [10.2, 15.7],
+  2: [6.85, 17.35],
+  3: [7.25, 18.7],
+  4: [6.7, 17.9],
+  5: [6.8, 17.5],
+  6: [6.3, 17.05],
+  7: [7.2, 17.25],
+  8: [7.2, 16.8],
+  9: [6.95, 17.7],
+};
+const CENTRE = 12;
+/** Space between the two figures of 10 to 99, and how far they are condensed to share one mark. */
+const PAIR_GAP = 2;
+const PAIR_SQUEEZE = 0.78;
+
+const round = (value: number) => +value.toFixed(2);
 
 function Figure({ n, tx = 0 }: { n: number; tx?: number }) {
   const d = FIGURE[n];
   if (!d) return null;
-  return <path d={d} transform={tx ? `translate(${tx} 0)` : undefined} />;
+  return <path d={d} transform={tx ? `translate(${round(tx)} 0)` : undefined} />;
+}
+
+/** Shift that centres a single figure. The 1 keeps part of its offset: its flag is light. */
+function centring(n: number): number {
+  const [left, right] = INK[n] ?? [CENTRE, CENTRE];
+  const shift = CENTRE - (left + right) / 2;
+  return n === 1 ? shift / 2 : shift;
+}
+
+/** Offsets and group transform that set two figures side by side, centred as one number. */
+export function pairLayout(tens: number, ones: number): { tensShift: number; onesShift: number; origin: number } {
+  const [tensLeft, tensRight] = INK[tens] ?? [0, 0];
+  const [onesLeft, onesRight] = INK[ones] ?? [0, 0];
+  const tensWidth = tensRight - tensLeft;
+  const width = tensWidth + PAIR_GAP + (onesRight - onesLeft);
+  return {
+    tensShift: -tensLeft,
+    onesShift: tensWidth + PAIR_GAP - onesLeft,
+    origin: round(CENTRE - (PAIR_SQUEEZE * width) / 2),
+  };
 }
 
 /**
@@ -44,6 +85,16 @@ export function FollowupIndexMark({ className, ...rest }: SVGProps<SVGSVGElement
     >
       <path d="M12 4.2c4.55 0 7.9 2.85 7.9 6.7 0 3.85-3.35 6.7-7.9 6.7-.6 0-1.2-.05-1.75-.15L6.5 19.8c-.45.25-1-.1-.95-.6l.3-3.05C4.5 14.9 3.7 13 3.7 10.9c0-3.85 3.75-6.7 8.3-6.7Zm-4.1 5.55a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm4.1 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm4.1 0a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Z" />
     </svg>
+  );
+}
+
+function PairOfFigures({ tens, ones }: { tens: number; ones: number }) {
+  const { tensShift, onesShift, origin } = pairLayout(tens, ones);
+  return (
+    <g transform={`translate(${origin} 0) scale(${PAIR_SQUEEZE} 1)`}>
+      <Figure n={tens} tx={tensShift} />
+      <Figure n={ones} tx={onesShift} />
+    </g>
   );
 }
 
@@ -66,12 +117,9 @@ export function StepIndexMark({
       {...rest}
     >
       {tens === 0 ? (
-        <Figure n={ones} />
+        <Figure n={ones} tx={centring(ones)} />
       ) : (
-        <g transform="translate(0 0) scale(0.78 1) translate(-1.1 0)">
-          <Figure n={tens} tx={-0.4} />
-          <Figure n={ones} tx={9.6} />
-        </g>
+        <PairOfFigures tens={tens} ones={ones} />
       )}
     </svg>
   );

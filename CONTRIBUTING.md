@@ -8,7 +8,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 - **Report a bug.** Open a [bug report](https://github.com/chayprabs/stemlm-app/issues/new/choose) with the chat site, browser and steps to reproduce.
 - **Report a wrong figure.** A figure that is drawn incorrectly is the most serious kind of bug in stemLM. Use the **Figure problem** template and include the figure spec the panel shows.
-- **Report a chat-site change.** Claude, Gemini, Grok and ChatGPT change their pages often. If the **+** disappears or answers stop loading, tell us which site and when it started.
+- **Report a chat-site change.** Claude, Gemini, Grok and ChatGPT change their pages often. If the **stemLM button** disappears or answers stop loading, tell us which site and when it started.
 - **Improve the code or docs.** Pull requests are welcome. For anything larger than a small fix, open an issue first so we can agree on the approach.
 
 Please remove personal information, private chats and account details from anything you post. Issues are public. Security problems go through [SECURITY.md](SECURITY.md), not the issue tracker.
@@ -26,7 +26,7 @@ While working on figures, `npx vitest run src/lib/figure` runs just the compiler
 ## How the code fits together
 
 1. A **platform adapter** in `src/platforms/` knows one chat site: where its composer is, how to attach a file, and where answers appear.
-2. When you press the **+**, the content script (`entrypoints/content/`, `src/content/controller.ts`) attaches the instruction file built from `src/protocol/`. The file teaches the model to answer in a single fenced `stemlm` capsule.
+2. When you press the **stemLM button**, the content script (`entrypoints/content/`, `src/content/controller.ts`) attaches the instruction file built from `src/protocol/`. The file teaches the model to answer in a single fenced `stemlm` capsule.
 3. As the answer streams in, the controller reads it and `src/protocol/parser.ts` turns the capsule into steps, formulas, quick checks and figure specs.
 4. The **study panel** (`src/components/`, loaded on first open from `entrypoints/study-panel.ts`) renders the steps in a shadow root on the chat page.
 5. Each figure spec goes to the **figure compiler** in `src/lib/figure/`: the catalog admits the family and checks required keys, an engine builds Scene IR, the layout kernel places labels, and the compiler emits SVG. Nothing in this path calls a language model.

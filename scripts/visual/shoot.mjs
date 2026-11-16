@@ -4,6 +4,7 @@
  * surface, in light and dark, on a layout double of each chat host.
  *
  *   pnpm build && node scripts/visual/shoot.mjs [--out dir] [--only chatgpt,popup]
+ *   Panel states (narrow, many steps, sessions, banners, lightbox, ...): --only state, or --only state-narrow
  *
  * It drives the real content script, panel bundle and extension pages; only the
  * chat sites themselves are doubles (scripts/visual/hosts.mjs).
@@ -15,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOST_IDS, hostOrigin, hostPage, hostUrl } from './hosts.mjs';
 import { CIRCUIT, DIJKSTRA, INCLINE, PLAIN_MARKDOWN } from './capsules.mjs';
+import { panelStateSuites } from './panel-states.mjs';
 
 // Playwright is a machine-level tool here, not a project dependency: resolve it the CommonJS way
 // (NODE_PATH or a global install) so the harness adds nothing to the extension's lockfile.
@@ -85,6 +87,7 @@ async function sendToTab(page, type) {
 
 async function openHost(id, scheme, opt) {
   const page = await ctx.newPage();
+  if (opt?.viewport) await page.setViewportSize(opt.viewport);
   await page.emulateMedia({ colorScheme: scheme });
   await page.route(`${hostOrigin(id)}/**`, (route) =>
     route.fulfill({ contentType: 'text/html; charset=utf-8', body: hostPage(id, { scheme, ...opt }) }));
@@ -93,6 +96,10 @@ async function openHost(id, scheme, opt) {
 }
 
 const settle = (page, ms = 450) => page.waitForTimeout(ms);
+
+/** Seed or clear extension settings, as the options page would, before a page is opened. */
+const setStored = (values) => sw.evaluate((v) => chrome.storage.local.set(v), values);
+const clearStored = (keys) => sw.evaluate((k) => chrome.storage.local.remove(k), keys);
 
 async function hostSuite(id, scheme) {
   const tag = `${id}-${scheme}`;
@@ -268,6 +275,7 @@ try {
   if (want('subject')) await subjectSuite();
   if (want('plain')) await plainAnswerSuite();
   if (want('empty')) await emptyPanelSuite();
+  await panelStateSuites({ openHost, sendToTab, shot, settle, setStored, clearStored, failures, want, schemes: SCHEMES });
   await extensionPages();
 } finally {
   await ctx.close();

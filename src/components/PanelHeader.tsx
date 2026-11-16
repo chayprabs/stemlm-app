@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
@@ -30,17 +30,24 @@ function QuestionBlock({ session }: { session: Session }) {
 
   useEffect(() => setExpanded(false), [session.id]);
 
-  // Offer "Show more" only when the clamped text is actually cut.
+  // Offer "Show more" only when the clamped text is actually cut. A clamped box reports no
+  // overflow of its own, so the question is measured twice, clamped and free, before paint.
   useLayoutEffect(() => {
-    const el = textRef.current;
-    if (!el) return;
+    const wrap = textRef.current;
+    const text = wrap?.firstElementChild ?? wrap;
+    if (!wrap || !text) return;
     const measure = () => {
-      if (!expanded) setOverflows(el.scrollHeight - el.clientHeight > 2);
+      if (expanded) return;
+      const clamped = text.getBoundingClientRect().height;
+      wrap.classList.add('is-measuring');
+      const full = text.getBoundingClientRect().height;
+      wrap.classList.remove('is-measuring');
+      setOverflows(full - clamped > 2);
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
-    observer.observe(el);
+    observer.observe(wrap);
     return () => observer.disconnect();
   }, [heading, expanded]);
 
@@ -88,6 +95,7 @@ export function PanelHeader({
   onChangeContentScale,
   onExportPdf,
   onClose,
+  children,
 }: {
   session: Session | undefined;
   view: PanelView;
@@ -101,6 +109,8 @@ export function PanelHeader({
   onExportPdf: () => void;
   onClose: () => void;
   onToggleTheme: () => void;
+  /** Sits between the bar and the question: the switch between this chat's questions. */
+  children?: ReactNode;
 }) {
   const decreaseRef = useRef<HTMLButtonElement>(null);
   const increaseRef = useRef<HTMLButtonElement>(null);
@@ -251,6 +261,7 @@ export function PanelHeader({
         </div>
       </div>
 
+      {children}
       {session && <QuestionBlock session={session} />}
     </header>
   );
