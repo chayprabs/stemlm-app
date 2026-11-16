@@ -10,7 +10,9 @@
  *              their surface.
  *   Signal     the orange of the therefore-mark. It marks the one thing that matters on a view:
  *              where you are, the conclusion, the action. `--slm-signal` is the brand fill;
- *              `--slm-signal-ink` is the same hue adjusted to pass AA as text or an icon.
+ *              `--slm-signal-ink` is the same hue adjusted to pass AA as text or an icon;
+ *              `--slm-signal-strong` is the fill under a white glyph, a shade deeper so the glyph
+ *              on it and the shape against the page both clear 3:1.
  *   Solid      inverse ink for primary buttons, so orange stays rare.
  *
  * Every colour is registered with @property so a theme change interpolates the tokens once
@@ -37,7 +39,7 @@
 @property --slm-solid-fg { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
 @property --slm-amber { syntax: '<color>'; inherits: true; initial-value: #93410a; }
 @property --slm-amber-dim { syntax: '<color>'; inherits: true; initial-value: #f6eedd; }
-@property --slm-success { syntax: '<color>'; inherits: true; initial-value: #15803d; }
+@property --slm-success { syntax: '<color>'; inherits: true; initial-value: #147a3a; }
 @property --slm-success-soft { syntax: '<color>'; inherits: true; initial-value: #e6f4ea; }
 @property --slm-warning { syntax: '<color>'; inherits: true; initial-value: #b45309; }
 @property --slm-error { syntax: '<color>'; inherits: true; initial-value: #c81e1e; }
@@ -49,11 +51,15 @@
 @property --slm-ring { syntax: '<color>'; inherits: true; initial-value: #171717; }
 @property --slm-signal { syntax: '<color>'; inherits: true; initial-value: #ff6b2c; }
 @property --slm-signal-ink { syntax: '<color>'; inherits: true; initial-value: #c2410c; }
+@property --slm-signal-strong { syntax: '<color>'; inherits: true; initial-value: #f8601f; }
 @property --slm-signal-soft { syntax: '<color>'; inherits: true; initial-value: #fff1ea; }
 @property --slm-nav-shell { syntax: '<color>'; inherits: true; initial-value: #f4f4f2; }
 @property --slm-nav-line { syntax: '<color>'; inherits: true; initial-value: #e3e3df; }
 @property --slm-nav-chip { syntax: '<color>'; inherits: true; initial-value: rgba(18, 18, 18, 0.06); }
 @property --slm-nav-ink { syntax: '<color>'; inherits: true; initial-value: #121212; }
+/* How far a sideways-scrolling equation fades at each edge; driven by its scroll position. */
+@property --slm-fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --slm-fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
 
 :where([data-stemlm-theme]),
 [data-stemlm-theme],
@@ -118,7 +124,7 @@
   --slm-solid-fg: #fafafa;
   --slm-amber: #93410a;
   --slm-amber-dim: #f6eedd;
-  --slm-success: #15803d;
+  --slm-success: #147a3a;
   --slm-success-soft: #e6f4ea;
   --slm-warning: #b45309;
   --slm-error: #c81e1e;
@@ -130,6 +136,7 @@
   --slm-ring: #171717;
   --slm-signal: #ff6b2c;
   --slm-signal-ink: #c2410c;
+  --slm-signal-strong: #f8601f;
   --slm-signal-soft: #fff1ea;
   --slm-nav-shell: #f4f4f2;
   --slm-nav-line: #e3e3df;
@@ -171,6 +178,7 @@
     --slm-plate var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-ring var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-signal-ink var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-signal-strong var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-signal-soft var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-shell var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-line var(--slm-theme-duration) var(--slm-theme-ease),
@@ -214,6 +222,7 @@
   --slm-ring: #ededed;
   --slm-signal: #ff6b2c;
   --slm-signal-ink: #ff9466;
+  --slm-signal-strong: #f8601f;
   --slm-signal-soft: #33200f;
   --slm-nav-shell: #1b1b1b;
   --slm-nav-line: #2c2c2c;

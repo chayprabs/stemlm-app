@@ -258,7 +258,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
     const tick = () => {
       const text = adapter.getEditorText().trim();
       // inject()/followUp set status 'loading' with buttonInjected; empty
-      // composer must still revert to plus (host send clears the box).
+      // composer must still revert to the mark (host send clears the box).
       if (text.length === 0) {
         ctrl.resetInjection();
         return;
@@ -304,7 +304,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         await ctrl.inject();
       } catch {
         const store = useStore.getState();
-        store.setStatus('error', 'Could not finish attaching the stemlm guide. Try the + button again.');
+        store.setStatus('error', 'Could not finish attaching the stemlm guide. Try the stemlm button again.');
         store.openPanel();
       } finally {
         pastingRef.current = false;

@@ -9,10 +9,17 @@
  * own attach menu, and two of them side by side cannot be told apart.
  */
 export const INJECT_SIGNAL = '#ff6b2c';
+/** The signal as a fill under a white glyph: a shade deeper, so glyph and shape both clear 3:1. */
+export const INJECT_SIGNAL_STRONG = '#f8601f';
 export const INJECT_SIZE_PX = 32;
 export const INJECT_RADIUS = '10px';
 
+// The chat page has none of stemLM's tokens, so the curve and the three durations of
+// assets/tokens.css (--slm-ease-out, --slm-dur-1/2/3) are written out here.
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const DUR_1 = '0.12s';
+const DUR_2 = '0.18s';
+const DUR_3 = '0.26s';
 
 /**
  * @param scope selector prefix ending in a space (`'[data-stemlm-composer-slot] '`), or `''`
@@ -37,6 +44,7 @@ ${s}.slm-inject-btn {
   --slm-inject-ink: #16161a;
   --slm-inject-surface: rgba(255, 255, 255, 0.96);
   --slm-inject-line: rgba(22, 22, 26, 0.16);
+  --slm-inject-signal-ink: #c2410c;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -54,26 +62,28 @@ ${s}.slm-inject-btn {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: background 0.2s ${EASE}, border-color 0.2s ${EASE}, box-shadow 0.2s ${EASE},
-    transform 0.16s ${EASE};
+  transition: background ${DUR_2} ${EASE}, border-color ${DUR_2} ${EASE}, box-shadow ${DUR_2} ${EASE},
+    transform ${DUR_1} ${EASE};
 }
 ${dark} .slm-inject-btn {
   --slm-inject-ink: #f2f2f2;
   --slm-inject-surface: rgba(34, 34, 36, 0.92);
   --slm-inject-line: rgba(255, 255, 255, 0.16);
+  --slm-inject-signal-ink: #ff9466;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 ${light} .slm-inject-btn {
   --slm-inject-ink: #16161a;
   --slm-inject-surface: rgba(255, 255, 255, 0.96);
   --slm-inject-line: rgba(22, 22, 26, 0.16);
+  --slm-inject-signal-ink: #c2410c;
 }
 ${s}.slm-inject-btn:hover {
   border-color: ${INJECT_SIGNAL};
   box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.16), 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 ${s}.slm-inject-btn:focus-visible {
-  outline: 2px solid ${INJECT_SIGNAL};
+  outline: 2px solid var(--slm-inject-ink);
   outline-offset: 2px;
 }
 ${s}.slm-inject-btn:active {
@@ -82,16 +92,17 @@ ${s}.slm-inject-btn:active {
 ${s}.slm-inject-btn[aria-disabled="true"] {
   cursor: wait;
 }
-/* Guide attached: the control is armed and says so. */
+/* Guide attached: the control is armed and says so. The tick is the signal as ink, which reads
+   on the tinted surface in either scheme. */
 ${s}.slm-inject-btn.is-attached {
   border-color: ${INJECT_SIGNAL};
   background: color-mix(in srgb, ${INJECT_SIGNAL} 14%, var(--slm-inject-surface));
-  color: ${INJECT_SIGNAL};
+  color: var(--slm-inject-signal-ink);
 }
 /* Panel open: the control is the lit end of the panel. */
 ${s}.slm-inject-btn.is-panel-open {
-  border-color: ${INJECT_SIGNAL};
-  background: ${INJECT_SIGNAL};
+  border-color: ${INJECT_SIGNAL_STRONG};
+  background: ${INJECT_SIGNAL_STRONG};
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(255, 107, 44, 0.35);
 }
@@ -108,7 +119,7 @@ ${s}.slm-inject-glyph svg {
   height: 18px;
   display: block;
   overflow: visible;
-  transition: opacity 0.2s ${EASE}, transform 0.26s ${EASE};
+  transition: opacity ${DUR_2} ${EASE}, transform ${DUR_3} ${EASE};
 }
 ${s}.slm-inject-mark {
   opacity: 1;
@@ -121,7 +132,7 @@ ${s}.slm-inject-mark .slm-inject-apex {
   fill: ${INJECT_SIGNAL};
   transform-box: fill-box;
   transform-origin: center;
-  transition: transform 0.26s ${EASE};
+  transition: transform ${DUR_3} ${EASE};
 }
 ${s}.slm-inject-btn:hover .slm-inject-apex {
   transform: translateY(-1px) scale(1.08);

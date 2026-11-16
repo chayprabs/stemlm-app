@@ -40,10 +40,16 @@ export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme
       ))}
 
       {capsule.solution && (
-        <div className="slm-followup-answer-summary slm-selectable">
-          <span className="slm-takeaway-label">Answer</span>
-          <MathMarkdown content={capsule.solution} />
-        </div>
+        // Drawn as the answer block of a step page, so the takeaway stays the only ruled note.
+        <section className="slm-answer slm-followup-answer-summary slm-selectable" aria-label="Answer">
+          <header className="slm-answer-head">
+            <IconTherefore className="slm-answer-mark" width={14} height={14} />
+            <span className="slm-answer-label">Answer</span>
+          </header>
+          <div className="slm-answer-body">
+            <MathMarkdown content={capsule.solution} />
+          </div>
+        </section>
       )}
     </>
   );

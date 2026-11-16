@@ -4,6 +4,9 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { IconClose } from './icons';
 import { useDialogFocus } from './use-dialog-focus';
 
+/** A figure opens at most this many times its size on the page. */
+const MAX_LIGHTBOX_ZOOM = 3;
+
 export interface LightboxOrigin {
   /** Where the dialog mounts: the panel's app root (shadow DOM) or the page body. */
   container: Element;
@@ -27,9 +30,11 @@ export function FigureLightbox({ origin, aspect, label, caption, theme, onClose,
   children: ReactNode;
 }) {
   const dialogRef = useDialogFocus<HTMLDivElement>();
-  // Fit the viewport (room for the close button and caption); math labels are HTML
-  // over the SVG, so their font grows by the same factor as the frame.
-  const width = `max(160px, min(calc(100vw - 64px), 1200px, calc((100vh - 150px) * ${aspect})))`;
+  // Fit the viewport (room for the dialog's padding, close button and caption), and never blow a
+  // figure up past a few times its size on the page: a two-node sketch does not become a poster.
+  // Math labels are HTML over the SVG, so their font grows by the same factor as the frame.
+  const zoomCap = origin.width > 0 ? `${Math.round(origin.width * MAX_LIGHTBOX_ZOOM)}px, ` : '';
+  const width = `max(160px, min(${zoomCap}calc(100vw - 96px), 1200px, calc((100vh - 160px) * ${aspect})))`;
   const fontSize = origin.width > 0 ? `calc(${origin.fontSize / origin.width} * ${width})` : `${origin.fontSize}px`;
 
   return createPortal(
@@ -47,7 +52,8 @@ export function FigureLightbox({ origin, aspect, label, caption, theme, onClose,
           if (event.key === 'Escape') onClose();
         }}
       >
-        <button type="button" className="slm-icon-btn slm-lightbox-close" aria-label="Close" onClick={onClose}>
+        <span className="slm-lightbox-label" aria-hidden="true">Diagram</span>
+        <button type="button" className="slm-icon-btn slm-lightbox-close" aria-label="Close" title="Close (Esc)" onClick={onClose}>
           <IconClose width={18} height={18} />
         </button>
         <figure className="slm-diagram slm-lightbox-figure">

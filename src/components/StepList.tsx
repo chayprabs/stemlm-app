@@ -20,11 +20,17 @@ export function StepList({
   const railRef = useRef<HTMLElement>(null);
   const reducedMotion = useReducedMotion();
 
+  // Keep the current mark in the middle of the strip when the steps outnumber the room, so the
+  // reader always sees what came before and what comes next. Only the strip scrolls: the page and
+  // the chat behind the panel stay where they are.
   useEffect(() => {
     const rail = railRef.current;
-    if (!rail) return;
-    const active = rail.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
-    active?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+    const active = rail?.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
+    if (!rail || !active) return;
+    const strip = rail.getBoundingClientRect();
+    const mark = active.getBoundingClientRect();
+    const offset = mark.left + mark.width / 2 - (strip.left + strip.width / 2);
+    rail.scrollBy?.({ left: offset, behavior: reducedMotion ? 'auto' : 'smooth' });
   }, [activeIndex, entries.length, reducedMotion]);
 
   return (
