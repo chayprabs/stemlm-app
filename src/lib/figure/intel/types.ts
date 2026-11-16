@@ -91,13 +91,19 @@ export type ItemForm = 'inline' | 'list' | 'block' | 'json';
  */
 export interface Item {
   key?: string;
-  /** How the key was separated from its value; anything but `:` is tentative until the key is known. */
+  /** How the key was separated from its value. */
   sep?: ':' | '=' | '->' | ' ';
   value?: Loose;
   form: ItemForm;
   lines: string[];
+  /** The source lines, restored when a tentative reading does not hold. */
+  raw: string[];
   /** Line-level repairs that hold only if the item is kept as a declaration. */
   pending?: Repair[];
+  /** Read as a declaration only if the family knows the key (`key = value`, `key value`, a spaced key). */
+  tentative?: boolean;
+  /** The source is already the strict two-space `- item` list. */
+  strictList?: boolean;
 }
 
 export const MAX_REPAIR_PASSES = 4;

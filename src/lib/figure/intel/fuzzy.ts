@@ -70,6 +70,10 @@ export function editBudget(length: number): number {
   return 3;
 }
 
+const sortedLetters = (text: string) => [...text].sort().join('');
+/** Axis letters and digits carry meaning (`ylim` is not `xlim`, `fn2` is not `fn3`): a guess never changes them. */
+const meaningLetters = (text: string) => sortedLetters(text.replace(/[^xyz0-9]/g, ''));
+
 /**
  * The single target whose spelling is within the edit budget of `token`, or undefined when there
  * is none or when two different targets are equally close (ambiguity is never resolved by guessing).
@@ -84,7 +88,9 @@ export function closestTarget(token: string, candidates: ReadonlyMap<string, str
   for (const [spelling, value] of candidates) {
     // A short spelling absorbs any short typo; the budget follows the shorter of the two.
     const allowed = Math.min(budget, editBudget(spelling.length));
-    if (!allowed) continue;
+    if (!allowed || meaningLetters(token) !== meaningLetters(spelling)) continue;
+    // One changed letter in a short word is usually another word (`note`/`node`); swapped letters are a typo.
+    if (allowed === 1 && token.length === spelling.length && sortedLetters(token) !== sortedLetters(spelling)) continue;
     const distance = editDistance(token, spelling, Math.min(allowed, best));
     if (distance > allowed) continue;
     if (distance < best) {

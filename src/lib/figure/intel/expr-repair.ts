@@ -57,6 +57,11 @@ const LATEX_WRAPPERS = new Set(['operatorname', 'mathrm', 'mathit', 'mathbf', 't
 export const MAX_EXPR_CHARS = 512;
 const MAX_DEPTH = 48;
 
+/** A table entry by its own key only: `constructor` is a word a model may write, not a function alias. */
+function own<T>(table: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
 class Refused extends Error {}
 const refuse = (): never => { throw new Refused(); };
 
@@ -159,11 +164,11 @@ function tokenize(source: string, variable: string): Token[] {
     if ('−–‒﹣－'.includes(c)) { tokens.push({ t: 'op', text: '-' }); i++; continue; }
     if (c === '°') { tokens.push({ t: 'op', text: '°' }); i++; continue; }
     if (c === '√') { tokens.push({ t: 'root' }); i++; continue; }
-    if (GREEK[c]) { tokens.push({ t: 'id', text: GREEK[c]! }); i++; continue; }
-    if (FRACTIONS[c]) { tokens.push(...tokenize(FRACTIONS[c]!, variable)); i++; continue; }
-    if (SUPERSCRIPTS[c] !== undefined) {
+    if (own(GREEK, c)) { tokens.push({ t: 'id', text: own(GREEK, c)! }); i++; continue; }
+    if (own(FRACTIONS, c)) { tokens.push(...tokenize(own(FRACTIONS, c)!, variable)); i++; continue; }
+    if (own(SUPERSCRIPTS, c) !== undefined) {
       let text = '';
-      while (i < source.length && SUPERSCRIPTS[source[i]!] !== undefined) text += SUPERSCRIPTS[source[i++]!];
+      while (i < source.length && own(SUPERSCRIPTS, source[i]!) !== undefined) text += own(SUPERSCRIPTS, source[i++]!);
       tokens.push({ t: 'sup', text });
       continue;
     }
@@ -306,7 +311,7 @@ class Parser {
   }
 
   private isFunctionName(name: string): boolean {
-    return FUNCTIONS.has(name) || name in FUNCTION_ALIASES || name in RECIPROCALS || name === 'pow';
+    return FUNCTIONS.has(name) || own(FUNCTION_ALIASES, name) !== undefined || own(RECIPROCALS, name) !== undefined || name === 'pow';
   }
 
   /** `sinx`, `xlnx`, `pix`: a run of known names written without spaces, split longest-first. */
@@ -406,16 +411,16 @@ class Parser {
     const base = written === 'log' ? this.logBase() : undefined;
     const exponent = this.exponentAfterName();
     const args = this.eatOp('(') ? this.arguments() : [this.bareArgument()];
-    let name = FUNCTION_ALIASES[written] ?? written;
+    let name = own(FUNCTION_ALIASES, written) ?? written;
     let node: Node;
-    const inverse = exponent?.t === 'neg' && exponent.arg.t === 'num' && exponent.arg.text === '1' ? INVERSES[name] : undefined;
+    const inverse = exponent?.t === 'neg' && exponent.arg.t === 'num' && exponent.arg.text === '1' ? own(INVERSES, name) : undefined;
     if (inverse) name = inverse;
     if (name === 'pow') {
       if (args.length !== 2) refuse();
       node = { t: 'bin', op: '^', left: args[0]!, right: args[1]! };
-    } else if (name in RECIPROCALS) {
+    } else if (own(RECIPROCALS, name)) {
       if (args.length !== 1) refuse();
-      const [top, bottom] = RECIPROCALS[name]!;
+      const [top, bottom] = own(RECIPROCALS, name)!;
       node = {
         t: 'bin', op: '/',
         left: top ? { t: 'call', name: top, args } : { t: 'num', text: '1' },
@@ -527,8 +532,8 @@ function rewrite(source: string, variable: string): string | null {
     const tokens = tokenize(text, variable);
     if (!tokens.length) return null;
     return print(new Parser(tokens, variable).parse());
-  } catch (error) {
-    if (error instanceof Refused) return null;
+  } catch {
+    // Refused notation, or input too deep to parse: either way there is no rewrite.
     return null;
   }
 }
@@ -552,10 +557,10 @@ export function repairExpression(source: string, variable = 'x'): string | null 
  */
 export function inferVariable(source: string): string | null {
   if (typeof source !== 'string' || source.length > MAX_EXPR_CHARS) return null;
-  const words = new Set((unwrapMath(source).toLowerCase().match(/[a-z]+|[θφϕωαβγλμρσ]/g) ?? []).map((word) => GREEK[word] ?? word));
+  const words = new Set((unwrapMath(source).toLowerCase().match(/[a-z]+|[θφϕωαβγλμρσ]/g) ?? []).map((word) => own(GREEK, word) ?? word));
   const candidates = new Set<string>();
   for (const word of words) {
-    if (FUNCTIONS.has(word) || CONSTANTS.has(word) || word in FUNCTION_ALIASES || word in RECIPROCALS) continue;
+    if (FUNCTIONS.has(word) || CONSTANTS.has(word) || own(FUNCTION_ALIASES, word) !== undefined || own(RECIPROCALS, word) !== undefined) continue;
     if (GREEK_NAMES.has(word)) candidates.add(word);
     for (const letter of word) if (letter !== 'e') candidates.add(letter);
   }
