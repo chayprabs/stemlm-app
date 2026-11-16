@@ -5,6 +5,9 @@
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { FONT_SANS } from '@/src/lib/fonts';
+import { INJECT_RADIUS, INJECT_SIGNAL, INJECT_SIZE_PX, injectControlCss } from '@/src/lib/inject-control-css';
+
+export { INJECT_RADIUS, INJECT_SIGNAL, INJECT_SIZE_PX };
 
 const SLOT_ATTR = 'data-stemlm-composer-slot';
 export const COMPOSER_SLOT_SELECTOR = `[${SLOT_ATTR}]`;
@@ -15,9 +18,6 @@ export const ROOM_ATTR = 'data-stemlm-composer-room';
 export const COMPOSER_SLOT_STYLE_ID = 'stemlm-composer-slot-styles';
 const COMPOSER_ROOM_STYLE_ID = 'stemlm-composer-room-styles';
 const SLOT_GAP_PX = 8;
-export const INJECT_SIGNAL = '#ff6b2c';
-export const INJECT_SIZE_PX = 32;
-export const INJECT_RADIUS = '9px';
 
 const UNFLEXABLE = new Set(['BODY', 'HTML', 'MAIN', 'FORM', 'FIELDSET']);
 
@@ -55,123 +55,6 @@ const SLOT_CSS = `
   z-index: 2147483640;
   margin-right: 0;
 }
-[data-stemlm-composer-slot] .slm-fab-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-}
-[data-stemlm-composer-slot] .slm-inject-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
-  height: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
-  padding: 0;
-  border: 1.5px solid ${INJECT_SIGNAL};
-  border-radius: ${INJECT_RADIUS};
-  background: transparent;
-  color: ${INJECT_SIGNAL};
-  cursor: pointer;
-  box-sizing: border-box;
-  overflow: visible;
-  touch-action: manipulation;
-  transition: background 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-[data-stemlm-composer-slot] .slm-inject-btn:hover {
-  background: rgba(255, 107, 44, 0.12);
-}
-[data-stemlm-composer-slot] .slm-inject-btn:active {
-  transform: scale(0.94);
-}
-[data-stemlm-composer-slot] .slm-inject-btn[aria-disabled="true"] {
-  cursor: wait;
-}
-[data-stemlm-composer-slot] .slm-inject-btn.is-attached,
-[data-stemlm-composer-slot] .slm-inject-btn.is-panel-open {
-  border-color: ${INJECT_SIGNAL};
-  color: ${INJECT_SIGNAL};
-  background: rgba(255, 107, 44, 0.16);
-}
-[data-stemlm-composer-slot] .slm-inject-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
-  height: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
-  color: ${INJECT_SIGNAL};
-}
-[data-stemlm-composer-slot] .slm-inject-spinner {
-  animation: slm-spin 0.9s linear infinite;
-}
-[data-stemlm-composer-slot] .slm-inject-live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] .slm-inject-btn {
-  background: rgba(20, 20, 20, 0.72);
-  border-color: ${INJECT_SIGNAL};
-  color: ${INJECT_SIGNAL};
-}
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] .slm-inject-btn:hover,
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] .slm-inject-btn.is-attached,
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="dark"] .slm-inject-btn.is-panel-open {
-  background: rgba(255, 107, 44, 0.18);
-}
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="light"] .slm-inject-btn {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: ${INJECT_SIGNAL};
-  color: ${INJECT_SIGNAL};
-}
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="light"] .slm-inject-btn:hover,
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="light"] .slm-inject-btn.is-attached,
-[data-stemlm-composer-slot][data-neutral="true"][data-scheme="light"] .slm-inject-btn.is-panel-open {
-  background: rgba(255, 107, 44, 0.12);
-}
-[data-stemlm-composer-slot] .slm-inject-glyph {
-  position: relative;
-  display: block;
-  width: 16px;
-  height: 16px;
-}
-[data-stemlm-composer-slot] .slm-inject-glyph svg {
-  position: absolute;
-  inset: 0;
-  width: 16px;
-  height: 16px;
-  display: block;
-  transition: opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-[data-stemlm-composer-slot] .slm-inject-plus {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
-[data-stemlm-composer-slot] .slm-inject-tick {
-  opacity: 0;
-  transform: rotate(-45deg) scale(0.4);
-}
-[data-stemlm-composer-slot] .slm-inject-btn.is-attached .slm-inject-plus,
-[data-stemlm-composer-slot] .slm-inject-btn.is-panel-open .slm-inject-plus {
-  opacity: 0;
-  transform: rotate(90deg) scale(0.4);
-}
-[data-stemlm-composer-slot] .slm-inject-btn.is-attached .slm-inject-tick,
-[data-stemlm-composer-slot] .slm-inject-btn.is-panel-open .slm-inject-tick {
-  opacity: 1;
-  transform: rotate(0deg) scale(1);
-}
 [data-stemlm-composer-row] {
   display: flex !important;
   flex-direction: row !important;
@@ -180,21 +63,7 @@ const SLOT_CSS = `
 [data-stemlm-composer-host] {
   position: relative;
 }
-@keyframes slm-spin {
-  to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-stemlm-composer-slot] .slm-inject-btn,
-  [data-stemlm-composer-slot] .slm-inject-glyph svg {
-    transition: none !important;
-  }
-  [data-stemlm-composer-slot] .slm-inject-btn:active {
-    transform: none;
-  }
-  [data-stemlm-composer-slot] .slm-inject-spinner {
-    animation: none;
-  }
-}
+${injectControlCss('[data-stemlm-composer-slot] ', (scheme) => `[data-stemlm-composer-slot][data-scheme="${scheme}"]`)}
 `;
 
 function ensureStyles() {

@@ -13,6 +13,8 @@ import { FollowupBar } from './FollowupBar';
 import { FollowupAnswerBody } from './FollowupCard';
 import { SOLUTION_ANCHOR_ID, solutionFollowups } from '@/src/lib/step-entries';
 import { buildSolutionFollowupSelection } from '@/src/lib/followup-selection';
+import { AnswerBlock } from './AnswerBlock';
+import { IconTherefore } from './icons';
 
 function SolutionStep({
   step,
@@ -45,7 +47,7 @@ function SolutionStep({
 
       {step.takeaway && (
         <div className="slm-takeaway slm-selectable">
-          <span className="slm-takeaway-label">Takeaway</span>
+          <span className="slm-takeaway-label"><IconTherefore width={12} height={12} />Takeaway</span>
           <MathMarkdown content={step.takeaway} />
         </div>
       )}
@@ -54,8 +56,8 @@ function SolutionStep({
 }
 
 /**
- * Complete study answer: stacked steps (with diagrams). The @solution
- * narrative is omitted when steps exist — this tab is the full solution.
+ * The whole answer as one document: the conclusion first, then every step in order with its
+ * figures. An answer that has no steps is its solution text alone.
  */
 export function SolutionView({ session, theme }: { session: Session; theme: ResolvedTheme }) {
   const { steps, solution, solutionDiagrams } = session.capsule;
@@ -78,6 +80,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
   return (
     <div className="slm-solution">
       <CapsuleSignals capsule={session.capsule} />
+      {hasSteps && <AnswerBlock capsule={session.capsule} theme={theme} figures />}
       {hasSteps && (
         <section className="slm-solution-steps" aria-label="Solution steps">
           {steps.map((step, i) => (

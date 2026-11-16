@@ -11,6 +11,7 @@ import {
 } from '@/src/protocol/builder';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { detectHostScheme } from '@/src/lib/theme';
+import { injectControlCss } from '@/src/lib/inject-control-css';
 import {
   ensureComposerSlot,
   isolateStemLmPointer,
@@ -21,6 +22,8 @@ import {
 } from '@/src/lib/composer-slot';
 
 const BTN_SIZE = 32;
+/** The control's rules for the shadow root, where it lives when no composer slot can be docked. */
+const SHADOW_CONTROL_CSS = injectControlCss('', (scheme) => `.slm-fab-wrap--${scheme}`);
 const DOCK_RETRY_MS = 400;
 const FIXED_FALLBACK_MS = 900;
 
@@ -190,42 +193,37 @@ function useInjectMount(
   return mount;
 }
 
+/** The therefore-mark at glyph size: two premises on the baseline, the conclusion above them. */
+const MARK_SHAPES = (
+  <>
+    <circle className="slm-inject-dot" cx="5.4" cy="17.4" r="3.3" />
+    <circle className="slm-inject-dot" cx="18.6" cy="17.4" r="3.3" />
+    <rect className="slm-inject-apex" x="8.6" y="3.2" width="6.8" height="6.8" rx="2.05" />
+  </>
+);
+
+/** While the guide is being attached the three shapes rise in turn. */
 function InjectSpinner() {
   return (
-    <svg className="slm-inject-spinner" width={14} height={14} viewBox="0 0 24 24" aria-hidden="true">
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray="28 56"
-      />
+    <svg className="slm-inject-spinner" width={18} height={18} viewBox="0 0 24 24" aria-hidden="true">
+      {MARK_SHAPES}
     </svg>
   );
 }
 
-/** Plus (idle) morphs to a tick when the protocol is attached. */
+/** The mark (idle) gives way to a tick once the guide is attached. */
 export function InjectGlyph({ attached }: { attached: boolean }) {
   return (
-    <span className={`slm-inject-glyph ${attached ? 'is-tick' : 'is-plus'}`} aria-hidden="true">
-      <svg className="slm-inject-plus" viewBox="0 0 24 24" width={16} height={16}>
-        <path
-          d="M12 5v14M5 12h14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
+    <span className={`slm-inject-glyph ${attached ? 'is-tick' : 'is-mark'}`} aria-hidden="true">
+      <svg className="slm-inject-mark" viewBox="0 0 24 24" width={18} height={18}>
+        {MARK_SHAPES}
       </svg>
-      <svg className="slm-inject-tick" viewBox="0 0 24 24" width={16} height={16}>
+      <svg className="slm-inject-tick" viewBox="0 0 24 24" width={18} height={18}>
         <path
-          d="M20 6 9 17l-5-5"
+          d="M19.5 6.5 9.6 17 4.5 11.9"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.4"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -352,7 +350,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
       ? panelOpen
         ? 'stemlm panel open'
         : 'stemlm guide attached. Open the panel'
-      : 'Attach the stemlm guide';
+      : 'Study with stemlm: attach the guide to this question';
 
   const content = (
     <>
@@ -360,7 +358,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         type="button"
         className={`slm-inject-btn ${pasting ? 'is-loading' : ''} ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
         data-stemlm-inject="true"
-        data-glyph={injected ? 'tick' : 'plus'}
+        data-glyph={injected ? 'tick' : 'mark'}
         onClick={(e) => {
           e.stopPropagation();
           if (armedRef.current || pastingRef.current) return;
@@ -401,6 +399,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
 
   return (
     <div ref={wrapRef} className={wrapClass} style={{ top, left }}>
+      <style>{SHADOW_CONTROL_CSS}</style>
       {content}
     </div>
   );

@@ -10,6 +10,9 @@ import { StepWork } from './StepWork';
 import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { AnswerBlock } from './AnswerBlock';
+import { IconTherefore } from './icons';
+import { stepMotion, type StepDirection } from './step-motion';
 
 function learnerFacingFollowupHint(raw: string | undefined): string {
   const cleaned = raw ? stripProtocolMarkers(raw).trim() : '';
@@ -30,10 +33,13 @@ export function StepCard({
   session,
   index,
   theme,
+  direction = 1,
 }: {
   session: Session;
   index: number;
   theme: ResolvedTheme;
+  /** Which way the reader is travelling, so the page arrives from that side. */
+  direction?: StepDirection;
 }) {
   const reducedMotion = useReducedMotion();
   const step = session.capsule.steps[index];
@@ -46,18 +52,20 @@ export function StepCard({
   const suggested = learnerFacingFollowupHint(step.followup);
   // Answer-level flags open the answer; its checks and assumptions close it.
   // Printing either inside every step makes them read as that step's work.
+  const total = session.capsule.steps.length;
   const isFirst = index === 0;
-  const isLast = index === session.capsule.steps.length - 1;
+  const isLast = index === total - 1;
   return (
     <motion.article
       key={step.id}
       className="slm-card"
-      initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
-      transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+      {...stepMotion(Boolean(reducedMotion), direction)}
     >
       <header className="slm-card-head">
+        <p className="slm-card-kicker">
+          <span className="slm-card-kicker-step">Step {index + 1}</span>
+          <span className="slm-card-kicker-of">of {total}</span>
+        </p>
         <h2 className="slm-card-title"><MathMarkdown content={step.title} inline /></h2>
       </header>
       {isFirst && <CapsuleSignals capsule={session.capsule} />}
@@ -77,16 +85,17 @@ export function StepCard({
 
       {step.takeaway && (
         <div className="slm-takeaway slm-selectable">
-          <span className="slm-takeaway-label">Takeaway</span>
+          <span className="slm-takeaway-label"><IconTherefore width={12} height={12} />Takeaway</span>
           <MathMarkdown content={step.takeaway} />
         </div>
       )}
 
-      {isLast && <StudentAnswerNotes capsule={session.capsule} />}
-
       {step.quickCheck && (
         <QuickCheck check={step.quickCheck} platform={session.platform} checkNumber={step.index} />
       )}
+
+      {isLast && <AnswerBlock capsule={session.capsule} theme={theme} />}
+      {isLast && <StudentAnswerNotes capsule={session.capsule} />}
 
       <FollowupBar
         followup={followupSelection}

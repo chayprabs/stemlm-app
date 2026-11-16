@@ -1,5 +1,7 @@
 node_modules/
 .output/
+.output-*/
+.visual/
 .wxt/
 stats.html
 *.log

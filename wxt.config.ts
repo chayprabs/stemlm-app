@@ -86,6 +86,8 @@ function bundledFontsOnly(): BundlePlugin {
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   srcDir: '.',
+  // A second output directory lets the visual harness build while another build is in use.
+  outDir: process.env.STEMLM_OUT_DIR || '.output',
   imports: false, // we use explicit imports for clarity / testability
   zip: {
     // Extension artifact zips are built from .output/ only; these patterns apply to

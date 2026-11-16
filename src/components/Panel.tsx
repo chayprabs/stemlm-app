@@ -26,6 +26,7 @@ import { normalizeContentScale, setSettings } from '@/src/lib/settings';
 import { requestSessionPdf } from '@/src/lib/pdf-export-request';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
+import type { StepDirection } from './step-motion';
 
 function isArrowKey(key: string) {
   return key === 'ArrowLeft' || key === 'ArrowRight';
@@ -137,6 +138,18 @@ export function Panel() {
   const entries = useMemo(() => buildStepEntries(session), [session]);
   const total = entries.length;
   const activeEntry = entries[activeStepIndex];
+  // Which way the reader last moved; a page arrives from that side. Derived during render so the
+  // very first animation after a move already knows its direction.
+  const travel = useRef<{ index: number; direction: StepDirection }>({ index: activeStepIndex, direction: 1 });
+  if (travel.current.index !== activeStepIndex) {
+    travel.current = { index: activeStepIndex, direction: activeStepIndex > travel.current.index ? 1 : -1 };
+  }
+  const direction = travel.current.direction;
+  const readRef = useRef<HTMLDivElement>(null);
+  // A new step starts at its top, wherever the previous one was scrolled to.
+  useEffect(() => {
+    readRef.current?.scrollTo?.({ top: 0 });
+  }, [activeStepIndex, session?.id]);
   const step =
     activeEntry?.kind === 'step'
       ? activeEntry.step
@@ -318,14 +331,15 @@ export function Panel() {
                 onSelect={setActiveStep}
               />
               <div className="slm-steps-detail">
-                <div className="slm-read">
-                  <AnimatePresence mode="wait">
+                <div className="slm-read" ref={readRef}>
+                  <AnimatePresence mode="wait" custom={direction} initial={false}>
                     {activeEntry?.kind === 'step' && (
                       <StepCard
                         key={activeEntry.key}
                         session={session}
                         index={activeEntry.stepIndex}
                         theme={theme}
+                        direction={direction}
                       />
                     )}
                     {activeEntry?.kind === 'followup' && (
@@ -336,6 +350,7 @@ export function Panel() {
                         anchorStepNumber={activeEntry.anchorStepIndex + 1}
                         ordinal={activeEntry.ordinal}
                         theme={theme}
+                        direction={direction}
                       />
                     )}
                   </AnimatePresence>
@@ -352,9 +367,13 @@ export function Panel() {
                     >
                       <IconNavPrev /> Prev
                     </button>
+                    <span className="slm-stepnav-count" aria-hidden="true">
+                      <span className="slm-stepnav-count-now">{Math.min(activeStepIndex + 1, total)}</span>
+                      <span className="slm-stepnav-count-of">/ {total}</span>
+                    </span>
                     <button
                       type="button"
-                      className="slm-stepnav-btn"
+                      className="slm-stepnav-btn slm-stepnav-btn--next"
                       onClick={nextStep}
                       disabled={activeStepIndex >= total - 1}
                       aria-label="Next step"
