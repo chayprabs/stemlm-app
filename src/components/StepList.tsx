@@ -4,8 +4,9 @@ import type { StepEntry } from '@/src/lib/step-entries';
 import { StepIndexMark, FollowupIndexMark } from './step-index';
 
 /**
- * Compact step pager — numbered tiles for solution steps, chat-bubble tiles
- * for inline Ask-in-chat answers anchored between them (1, 2, 3, ●, 4).
+ * The step strip: one numbered mark per step in a row above the page, with Ask-in-chat answers
+ * sitting after the step they belong to (1, 2, 3, ●, 4). Marks only, no titles: the page below
+ * carries the title, and a mark's tooltip names its step.
  */
 export function StepList({
   entries,
@@ -23,7 +24,7 @@ export function StepList({
     const rail = railRef.current;
     if (!rail) return;
     const active = rail.querySelector<HTMLElement>('.slm-step-rail-item.is-active');
-    active?.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
   }, [activeIndex, entries.length, reducedMotion]);
 
   return (
@@ -32,6 +33,7 @@ export function StepList({
         {entries.map((entry, i) => {
           const active = i === activeIndex;
           const isFollowup = entry.kind === 'followup';
+          const title = isFollowup ? entry.followup.question || 'Follow-up answer' : entry.step.title;
           const label = isFollowup
             ? `Follow-up answer after step ${entry.anchorStepIndex + 1}${
                 entry.followup.question ? `: ${entry.followup.question}` : ''
@@ -45,6 +47,7 @@ export function StepList({
                 'slm-step-rail-item',
                 isFollowup ? 'slm-step-rail-item--followup' : '',
                 active ? 'is-active' : '',
+                i < activeIndex ? 'is-past' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -60,7 +63,7 @@ export function StepList({
                 onClick={() => onSelect(i)}
                 aria-current={active ? 'step' : undefined}
                 aria-label={label}
-                title={isFollowup ? entry.followup.question || 'Follow-up answer' : entry.step.title}
+                title={title}
               >
                 <span className="slm-step-rail-mark" aria-hidden="true">
                   {isFollowup ? <FollowupIndexMark /> : <StepIndexMark n={entry.stepNumber} />}

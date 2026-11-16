@@ -8,6 +8,8 @@ import { FollowupBar } from './FollowupBar';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { buildFollowupChainSelection } from '@/src/lib/followup-selection';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { IconTherefore } from './icons';
+import { stepMotion, type StepDirection } from './step-motion';
 
 /** Body of an Ask-in-chat answer capsule — shared by step and solution views. */
 export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme: ResolvedTheme }) {
@@ -30,7 +32,7 @@ export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme
           )}
           {step.takeaway && (
             <div className="slm-takeaway slm-selectable">
-              <span className="slm-takeaway-label">Takeaway</span>
+              <span className="slm-takeaway-label"><IconTherefore width={12} height={12} />Takeaway</span>
               <MathMarkdown content={step.takeaway} />
             </div>
           )}
@@ -58,12 +60,14 @@ export function FollowupCard({
   anchorStepNumber,
   ordinal,
   theme,
+  direction = 1,
 }: {
   session: Session;
   followup: StepFollowup;
   anchorStepNumber: number;
   ordinal: number;
   theme: ResolvedTheme;
+  direction?: StepDirection;
 }) {
   const reducedMotion = useReducedMotion();
   const anchorStep = session.capsule.steps.find((s) => s.id === followup.anchorStepId);
@@ -83,10 +87,7 @@ export function FollowupCard({
     <motion.article
       key={followup.id}
       className="slm-card slm-card--followup"
-      initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={reducedMotion ? undefined : { opacity: 0, y: -6 }}
-      transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+      {...stepMotion(Boolean(reducedMotion), direction)}
     >
       <header className="slm-card-head">
         <span className="slm-followup-card-kicker">

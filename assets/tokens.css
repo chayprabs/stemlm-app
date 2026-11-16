@@ -1,94 +1,145 @@
 /*
- * stemLM surfaces — host-neutral chatbot/artifact language.
- * Sits beside Claude, Gemini, and Grok without copying a vendor skin.
- * Light: cool paper + ink. Dark: Claude-canvas #151515 + inverse ink.
- * --slm-accent is brand-only (logo, wordmark, inject). Panel chrome uses --slm-solid.
- * --slm-signal is the therefore-mark orange (save fill, brand apex).
+ * stemLM design tokens.
+ *
+ * The study panel is a typeset working page docked beside someone else's product, so it must look
+ * settled next to ChatGPT, Claude, Gemini and Grok without borrowing any of their skins.
+ *
+ *   Surfaces   near-white paper / near-black canvas; elevation is a hairline plus a soft shadow,
+ *              never a grey slab.
+ *   Ink        one text colour in three strengths (fg, fg-muted, fg-subtle); all pass WCAG AA on
+ *              their surface.
+ *   Signal     the orange of the therefore-mark. It marks the one thing that matters on a view:
+ *              where you are, the conclusion, the action. `--slm-signal` is the brand fill;
+ *              `--slm-signal-ink` is the same hue adjusted to pass AA as text or an icon.
+ *   Solid      inverse ink for primary buttons, so orange stays rare.
+ *
+ * Every colour is registered with @property so a theme change interpolates the tokens once
+ * instead of transitioning every element that uses them.
  */
 
-@property --slm-bg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
-@property --slm-bg-subtle { syntax: '<color>'; inherits: true; initial-value: #efefef; }
+@property --slm-bg { syntax: '<color>'; inherits: true; initial-value: #fbfbfa; }
+@property --slm-bg-subtle { syntax: '<color>'; inherits: true; initial-value: #f4f4f2; }
 @property --slm-bg-elevated { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
-@property --slm-bg-muted { syntax: '<color>'; inherits: true; initial-value: #e8e8e8; }
-@property --slm-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
-@property --slm-border-subtle { syntax: '<color>'; inherits: true; initial-value: #ebebed; }
+@property --slm-bg-muted { syntax: '<color>'; inherits: true; initial-value: #ebebe8; }
+@property --slm-border { syntax: '<color>'; inherits: true; initial-value: #e3e3df; }
+@property --slm-border-subtle { syntax: '<color>'; inherits: true; initial-value: #ededea; }
+@property --slm-border-strong { syntax: '<color>'; inherits: true; initial-value: #cfcfc9; }
 @property --slm-fg { syntax: '<color>'; inherits: true; initial-value: #121212; }
-@property --slm-fg-muted { syntax: '<color>'; inherits: true; initial-value: #5c5c63; }
-@property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #6b6b73; }
-@property --slm-accent { syntax: '<color>'; inherits: true; initial-value: #0e7c76; }
-@property --slm-accent-hover { syntax: '<color>'; inherits: true; initial-value: #0b6863; }
-@property --slm-accent-fg { syntax: '<color>'; inherits: true; initial-value: #f5f5f5; }
-@property --slm-accent-soft { syntax: '<color>'; inherits: true; initial-value: #e6f3f2; }
-@property --slm-accent-dim { syntax: '<color>'; inherits: true; initial-value: #e6f3f2; }
+@property --slm-fg-muted { syntax: '<color>'; inherits: true; initial-value: #55555c; }
+@property --slm-fg-subtle { syntax: '<color>'; inherits: true; initial-value: #6f6f76; }
+@property --slm-accent { syntax: '<color>'; inherits: true; initial-value: #c2410c; }
+@property --slm-accent-hover { syntax: '<color>'; inherits: true; initial-value: #9a3412; }
+@property --slm-accent-fg { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --slm-accent-soft { syntax: '<color>'; inherits: true; initial-value: #fff1ea; }
+@property --slm-accent-dim { syntax: '<color>'; inherits: true; initial-value: #fff1ea; }
 @property --slm-solid { syntax: '<color>'; inherits: true; initial-value: #171717; }
 @property --slm-solid-hover { syntax: '<color>'; inherits: true; initial-value: #2c2c2c; }
 @property --slm-solid-fg { syntax: '<color>'; inherits: true; initial-value: #fafafa; }
 @property --slm-amber { syntax: '<color>'; inherits: true; initial-value: #93410a; }
-@property --slm-amber-dim { syntax: '<color>'; inherits: true; initial-value: #f3eadb; }
-@property --slm-success { syntax: '<color>'; inherits: true; initial-value: #17803d; }
-@property --slm-success-soft { syntax: '<color>'; inherits: true; initial-value: #e4f3e9; }
+@property --slm-amber-dim { syntax: '<color>'; inherits: true; initial-value: #f6eedd; }
+@property --slm-success { syntax: '<color>'; inherits: true; initial-value: #15803d; }
+@property --slm-success-soft { syntax: '<color>'; inherits: true; initial-value: #e6f4ea; }
 @property --slm-warning { syntax: '<color>'; inherits: true; initial-value: #b45309; }
-@property --slm-error { syntax: '<color>'; inherits: true; initial-value: #dc2626; }
-@property --slm-formula-bg { syntax: '<color>'; inherits: true; initial-value: #efefef; }
-@property --slm-formula-border { syntax: '<color>'; inherits: true; initial-value: #e2e2e4; }
+@property --slm-error { syntax: '<color>'; inherits: true; initial-value: #c81e1e; }
+@property --slm-error-soft { syntax: '<color>'; inherits: true; initial-value: #fdecec; }
+@property --slm-formula-bg { syntax: '<color>'; inherits: true; initial-value: #f4f4f2; }
+@property --slm-formula-border { syntax: '<color>'; inherits: true; initial-value: #e3e3df; }
 @property --slm-formula-fg { syntax: '<color>'; inherits: true; initial-value: #121212; }
+@property --slm-plate { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
 @property --slm-ring { syntax: '<color>'; inherits: true; initial-value: #171717; }
 @property --slm-signal { syntax: '<color>'; inherits: true; initial-value: #ff6b2c; }
-@property --slm-nav-shell { syntax: '<color>'; inherits: true; initial-value: #e3e3e6; }
-@property --slm-nav-line { syntax: '<color>'; inherits: true; initial-value: #cfcfd2; }
+@property --slm-signal-ink { syntax: '<color>'; inherits: true; initial-value: #c2410c; }
+@property --slm-signal-soft { syntax: '<color>'; inherits: true; initial-value: #fff1ea; }
+@property --slm-nav-shell { syntax: '<color>'; inherits: true; initial-value: #f4f4f2; }
+@property --slm-nav-line { syntax: '<color>'; inherits: true; initial-value: #e3e3df; }
 @property --slm-nav-chip { syntax: '<color>'; inherits: true; initial-value: rgba(18, 18, 18, 0.06); }
 @property --slm-nav-ink { syntax: '<color>'; inherits: true; initial-value: #121212; }
 
 :where([data-stemlm-theme]),
 [data-stemlm-theme],
 :host([data-stemlm-theme]) {
+  /* Type. Plex Sans for reading, Plex Mono for the instrument voice: labels, counters, keys. */
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --slm-text-2xs: 10.5px;
+  --slm-text-xs: 11.5px;
+  --slm-text-sm: 13px;
+  --slm-text-md: 14px;
+  --slm-text-base: 15px;
+  --slm-text-lg: 17px;
+  --slm-text-xl: 20px;
+  --slm-text-2xl: 24px;
+  --slm-text-3xl: 32px;
+  --slm-leading-tight: 1.25;
+  --slm-leading-snug: 1.4;
+  --slm-leading-read: 1.62;
+  --slm-tracking-label: 0.07em;
+
+  /* Shape. 4px grid; radii step with the size of the thing they round. */
+  --radius-xs: 5px;
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-card: 12px;
   --radius-pill: 999px;
-
   --slm-panel-inset: 8px;
-  --slm-panel-radius: 12px;
+  --slm-panel-radius: 14px;
 
-  --slm-bg: #f5f5f5;
-  --slm-bg-subtle: #efefef;
+  /* Motion. One curve for things arriving, one for things that move and stay on screen. */
+  --slm-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --slm-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --slm-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --slm-dur-1: 120ms;
+  --slm-dur-2: 180ms;
+  --slm-dur-3: 260ms;
+  --slm-dur-4: 420ms;
+  --slm-theme-ease: var(--slm-ease-out);
+  --slm-theme-duration: 160ms;
+
+  /* Light: paper and ink. */
+  --slm-bg: #fbfbfa;
+  --slm-bg-subtle: #f4f4f2;
   --slm-bg-elevated: #ffffff;
-  --slm-bg-muted: #e8e8e8;
-  --slm-border: #e2e2e4;
-  --slm-border-subtle: #ebebed;
+  --slm-bg-muted: #ebebe8;
+  --slm-border: #e3e3df;
+  --slm-border-subtle: #ededea;
+  --slm-border-strong: #cfcfc9;
   --slm-fg: #121212;
-  --slm-fg-muted: #5c5c63;
-  --slm-fg-subtle: #6b6b73;
-  --slm-accent: #0e7c76;
-  --slm-accent-hover: #0b6863;
-  --slm-accent-fg: #f5f5f5;
-  --slm-accent-soft: #0e7c7614;
-  --slm-accent-dim: #0e7c7614;
+  --slm-fg-muted: #55555c;
+  --slm-fg-subtle: #6f6f76;
+  --slm-accent: #c2410c;
+  --slm-accent-hover: #9a3412;
+  --slm-accent-fg: #ffffff;
+  --slm-accent-soft: #fff1ea;
+  --slm-accent-dim: #fff1ea;
   --slm-solid: #171717;
   --slm-solid-hover: #2c2c2c;
   --slm-solid-fg: #fafafa;
   --slm-amber: #93410a;
-  --slm-amber-dim: #b4530914;
-  --slm-success: #17803d;
-  --slm-success-soft: #17803d16;
+  --slm-amber-dim: #f6eedd;
+  --slm-success: #15803d;
+  --slm-success-soft: #e6f4ea;
   --slm-warning: #b45309;
-  --slm-error: #dc2626;
-  --slm-formula-bg: #efefef;
-  --slm-formula-border: #e2e2e4;
+  --slm-error: #c81e1e;
+  --slm-error-soft: #fdecec;
+  --slm-formula-bg: #f4f4f2;
+  --slm-formula-border: #e3e3df;
   --slm-formula-fg: #121212;
+  --slm-plate: #ffffff;
   --slm-ring: #171717;
   --slm-signal: #ff6b2c;
-  --slm-nav-shell: #e3e3e6;
-  --slm-nav-line: #cfcfd2;
+  --slm-signal-ink: #c2410c;
+  --slm-signal-soft: #fff1ea;
+  --slm-nav-shell: #f4f4f2;
+  --slm-nav-line: #e3e3df;
   --slm-nav-chip: rgba(18, 18, 18, 0.06);
   --slm-nav-ink: #121212;
-  --slm-shadow: 0 8px 28px rgba(15, 15, 18, 0.12);
-  --slm-theme-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --slm-theme-duration: 160ms;
+  --slm-shadow-1: 0 1px 2px rgba(16, 16, 18, 0.05), 0 1px 1px rgba(16, 16, 18, 0.03);
+  --slm-shadow-2: 0 4px 14px rgba(16, 16, 18, 0.07), 0 1px 3px rgba(16, 16, 18, 0.05);
+  --slm-shadow: 0 18px 48px rgba(16, 16, 18, 0.14), 0 3px 10px rgba(16, 16, 18, 0.06);
+  --slm-scrim: rgba(18, 18, 18, 0.36);
+
   transition:
     --slm-bg var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-bg-subtle var(--slm-theme-duration) var(--slm-theme-ease),
@@ -96,6 +147,7 @@
     --slm-bg-muted var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-border var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-border-subtle var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-border-strong var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-fg var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-fg-muted var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-fg-subtle var(--slm-theme-duration) var(--slm-theme-ease),
@@ -111,49 +163,66 @@
     --slm-amber-dim var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-success var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-success-soft var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-error var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-error-soft var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-bg var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-border var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-fg var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-plate var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-ring var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-signal-ink var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-signal-soft var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-shell var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-line var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-chip var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-nav-ink var(--slm-theme-duration) var(--slm-theme-ease);
 }
 
+/* Dark: a neutral canvas a shade deeper than the hosts' own dark surfaces, so the panel reads as
+   its own sheet on ChatGPT (#212121), Claude (#262624), Gemini (#1b1c1d) and Grok (#141414). */
 [data-stemlm-theme='dark'],
 :host([data-stemlm-theme='dark']) {
   --slm-bg: #151515;
-  --slm-bg-subtle: #1a1a1a;
-  --slm-bg-elevated: #1c1c1c;
-  --slm-bg-muted: #222222;
-  --slm-border: #2a2a2a;
+  --slm-bg-subtle: #1b1b1b;
+  --slm-bg-elevated: #1e1e1e;
+  --slm-bg-muted: #262626;
+  --slm-border: #2c2c2c;
   --slm-border-subtle: #242424;
+  --slm-border-strong: #3d3d3d;
   --slm-fg: #ededed;
-  --slm-fg-muted: #a3a3a3;
-  --slm-fg-subtle: #858585;
-  --slm-accent: #3dcdc4;
-  --slm-accent-hover: #5ed9d1;
-  --slm-accent-fg: #141416;
-  --slm-accent-soft: #3dcdc428;
-  --slm-accent-dim: #3dcdc418;
+  --slm-fg-muted: #a8a8a8;
+  --slm-fg-subtle: #8c8c8c;
+  --slm-accent: #ff9466;
+  --slm-accent-hover: #ffad88;
+  --slm-accent-fg: #171717;
+  --slm-accent-soft: #33200f;
+  --slm-accent-dim: #2a1b0e;
   --slm-solid: #ededed;
-  --slm-solid-hover: #e4e4e7;
+  --slm-solid-hover: #ffffff;
   --slm-solid-fg: #171717;
   --slm-amber: #f5b942;
-  --slm-amber-dim: #f5b9421c;
+  --slm-amber-dim: #2e2513;
   --slm-success: #4ade80;
-  --slm-success-soft: #4ade8020;
-  --slm-formula-bg: #1a1a1a;
-  --slm-formula-border: #2a2a2a;
+  --slm-success-soft: #14281b;
+  --slm-warning: #f5b942;
+  --slm-error: #f87171;
+  --slm-error-soft: #2e1616;
+  --slm-formula-bg: #1b1b1b;
+  --slm-formula-border: #2c2c2c;
   --slm-formula-fg: #ededed;
+  --slm-plate: #1b1b1b;
   --slm-ring: #ededed;
   --slm-signal: #ff6b2c;
-  --slm-nav-shell: #1a1a1a;
+  --slm-signal-ink: #ff9466;
+  --slm-signal-soft: #33200f;
+  --slm-nav-shell: #1b1b1b;
   --slm-nav-line: #2c2c2c;
   --slm-nav-chip: rgba(237, 237, 237, 0.08);
   --slm-nav-ink: #ededed;
-  --slm-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+  --slm-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --slm-shadow-2: 0 6px 18px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --slm-shadow: 0 22px 56px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --slm-scrim: rgba(0, 0, 0, 0.56);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -161,5 +230,9 @@
   [data-stemlm-theme],
   :host([data-stemlm-theme]) {
     transition: none;
+    --slm-dur-1: 0ms;
+    --slm-dur-2: 0ms;
+    --slm-dur-3: 0ms;
+    --slm-dur-4: 0ms;
   }
 }

@@ -233,3 +233,68 @@ export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5 12h14" />
   </svg>
 );
+
+/** Reading size: a small and a large capital A. Clearer than a bare minus and plus beside other icons. */
+export const IconTextSmaller = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="m7.5 17 4.5-10 4.5 10" />
+    <path d="M9.1 13.6h5.8" />
+  </svg>
+);
+
+export const IconTextLarger = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M5 19 12 4l7 15" />
+    <path d="M7.6 13.5h8.8" />
+  </svg>
+);
+
+/** The therefore sign as an icon: marks a conclusion (takeaways, final answers). */
+export const IconTherefore = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ ...p, fill: 'currentColor', stroke: 'none' })}>
+    <circle cx="12" cy="6.5" r="2.4" />
+    <circle cx="6" cy="17" r="2.4" />
+    <circle cx="18" cy="17" r="2.4" />
+  </svg>
+);
+
+/** A wand with sparks: marks a figure whose notation stemLM corrected before drawing it. */
+export const IconWand = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="m4 20 11-11" />
+    <path d="m14 6 4 4" />
+    <path d="M18 3v3M16.5 4.5h3M6 5v2M5 6h2M19 14v2M18 15h2" />
+  </svg>
+);
+
+/** Lucide Arrow up-right: leaves the panel for the chat. */
+export const IconArrowUpRight = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M7 17 17 7" />
+    <path d="M8 7h9v9" />
+  </svg>
+);
+
+/** Lucide List — the outline of steps. */
+export const IconList = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M8 6h13M8 12h13M8 18h13" />
+    <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+  </svg>
+);
+
+/** Lucide Info. */
+export const IconInfo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M12 11v5.5M12 7.6h.01" />
+  </svg>
+);
+
+/** Lucide Alert triangle. */
+export const IconAlert = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ strokeWidth: 1.75, ...p })}>
+    <path d="M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    <path d="M12 9.5v4.2M12 17h.01" />
+  </svg>
+);

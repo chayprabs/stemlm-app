@@ -1,4 +1,4 @@
-/** Geometric step-index marks 1–12. Filled numerals, not typeset digits. */
+/** Geometric step-index marks 1–99. Filled numerals, not typeset digits. */
 import type { SVGProps } from 'react';
 
 const BOX = {
@@ -52,7 +52,8 @@ export function StepIndexMark({
   className,
   ...rest
 }: { n: number } & SVGProps<SVGSVGElement>) {
-  const clamped = Math.max(1, Math.min(12, Math.round(n)));
+  // A capsule may carry up to 20 steps; two figures cover every number the rail can show.
+  const clamped = Math.max(1, Math.min(99, Math.round(n)));
   const tens = Math.floor(clamped / 10);
   const ones = clamped % 10;
 
