@@ -19,7 +19,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
-const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+// Plain path arithmetic: under a DOM test environment the global URL is not Node's.
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const figureDir = resolve(root, 'src/lib/figure');
 const OUTPUT = resolve(figureDir, 'intel/vocabulary.generated.ts');
 
