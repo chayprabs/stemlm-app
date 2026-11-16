@@ -18,7 +18,7 @@ function sameCurve(a: string, b: string, variable = 'x'): boolean {
 
 describe('repairExpression', () => {
   it('leaves an expression the evaluator already reads exactly as written', () => {
-    for (const source of ['x^2', '2x', '2(x+1)', 'sin(x)', 'e^x', 'x**2', '-x^2 + 3x - 1', '2sin(x)', 'exp(-x/2)*cos(3*x)', 'sqrt(abs(x))', '1/2x', 'pi*x', 'max(x, 0)', '2^-x']) {
+    for (const source of ['x^2', '2x', '2(x+1)', 'sin(x)', 'e^x', 'x**2', '-x^2 + 3x - 1', '2sin(x)', 'exp(-x/2)*cos(3*x)', 'sqrt(abs(x))', '1/2x', 'pi*x', 'max(x, 0)', '2^-x', '(x+1)(x-1)']) {
       expect(repairExpression(source), source).toBe(source);
     }
   });
@@ -38,7 +38,7 @@ describe('repairExpression', () => {
     ['3·x', '3*x'],
     ['3×x÷2', '3*x/2'],
     ['x(x-1)', 'x*(x - 1)'],
-    ['(x+1)(x-1)', '(x + 1)*(x - 1)'],
+    ['(x+1)(x−1)', '(x + 1)*(x - 1)'],
     ['2 pi x', '2*pi*x'],
     ['2πx', '2*pi*x'],
     ['sin x', 'sin(x)'],

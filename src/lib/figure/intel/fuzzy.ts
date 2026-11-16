@@ -8,7 +8,7 @@ export const MAX_TOKEN_CHARS = 48;
 
 /**
  * Fold a key to its comparison form: `x_label`, `x-label`, `xLabel`, `X Label` -> `xlabel`.
- * A parenthesised argument (`f(x)`) and a trailing ordinal (`row 2`, `row_2`) are not part of the name.
+ * A parenthesised argument (`f(x)`) is not part of the name.
  */
 export function foldKey(key: string): string {
   return key
