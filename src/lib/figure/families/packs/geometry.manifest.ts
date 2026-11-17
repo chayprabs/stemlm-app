@@ -1,3 +1,58 @@
 import type { FamilyManifest } from '../types';
 
-export const GEOMETRY_MANIFESTS: FamilyManifest[] = [];
+export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
+  {
+    token: 'triangle',
+    aliases: ['tri', 'right-triangle'],
+    requiredAny: ['sides', 'angles'],
+    keys: ['sides', 'angles', 'vertices', 'show', 'altitude', 'unit', 'case'],
+    subjects: ['Math', 'Physics'],
+    grammar: 'triangle: sides: a=3, b=4 (any subset; side a is opposite vertex A) | angles: C=90 (degrees, any subset) | vertices: P, Q, R | show: given|solved (solved also labels every computed side and angle) | altitude: C | unit: cm | case: acute|obtuse (only for two sides and a non-included angle that fit two triangles); the triangle is solved and drawn to scale, give only what the problem gives',
+    specimen: 'sides: a=7, b=10\nangles: C=40\nshow: solved\nunit: cm',
+  },
+  {
+    token: 'coord',
+    aliases: ['coordinate-plane', 'cartesian', 'xy-plane', 'analytic-geometry'],
+    requiredAny: ['point', 'line', 'circle', 'polygon'],
+    keys: ['point', 'segment', 'line', 'circle', 'polygon', 'window', 'show'],
+    subjects: ['Math'],
+    grammar: 'coord: point: A 1 2 (repeat) | segment: A B | line: y = 2x + 1 (any linear equation: x = 3, 2x + 3y = 6; or two point names) | circle: C 2 (centre point or 0,0, then radius; or an equation (x-1)^2 + (y+2)^2 = 9) | polygon: A B C D | window: xmin xmax ymin ymax | show: distance A B, midpoint A B, slope A B (computed and printed); drawn to scale on a grid',
+    specimen: 'point: A 1 2\npoint: B 5 5\nsegment: A B\nline: y = -x + 3\nshow: distance A B, midpoint A B',
+  },
+  {
+    token: 'vectors',
+    aliases: ['vector', 'vector-addition', 'vector-sum'],
+    required: ['vec'],
+    keys: ['vec', 'mode', 'sum', 'unit'],
+    subjects: ['Physics', 'Math', 'Mechanical'],
+    grammar: 'vectors: vec: A 3 4 (components x y; repeat) or vec: B 5∠30 (magnitude∠degrees from +x) | mode: tip-to-tail|origin|components | sum: R (draws the resultant; its components, magnitude and direction are computed and printed, never supply them) | unit: N; drawn to scale on a grid',
+    specimen: 'vec: A 3 4\nvec: B 5∠30\nsum: R\nunit: N',
+  },
+  {
+    token: 'unitcircle',
+    aliases: ['unit-circle', 'trig-circle'],
+    required: ['angle'],
+    keys: ['angle', 'show'],
+    subjects: ['Math'],
+    grammar: 'unitcircle: angle: 150 (repeat; degrees, or 5pi/6, or 2.618 rad) | show: coords, triangle (coords: the point (cos, sin), exact at multiples of 15 degrees and computed here, never supply it; triangle: the reference triangle)',
+    specimen: 'angle: 150\nshow: coords, triangle',
+  },
+  {
+    token: 'slopefield',
+    aliases: ['slope-field', 'direction-field'],
+    required: ['dydx'],
+    keys: ['dydx', 'x', 'y', 'through'],
+    subjects: ['Math'],
+    grammar: 'slopefield: dydx: x - y (expression in x and y) | x: -3 3 | y: -3 3 (the window) | through: 0,1 (repeat; the solution curve through each point is integrated here, never supply its points)',
+    specimen: 'dydx: x - y\nx: -3 3\ny: -3 3\nthrough: 0,1',
+  },
+  {
+    token: 'curve',
+    aliases: ['parametric', 'polar', 'polar-plot', 'parametric-plot'],
+    requiredAny: ['r', 'x'],
+    keys: ['kind', 'r', 'x', 'y', 't'],
+    subjects: ['Math'],
+    grammar: 'curve: kind: polar with r: 1 + cos(theta), or kind: parametric with x: cos(t) and y: sin(2*t) | t: 0 2*pi (parameter range, 0 to 2π unless given); y as a function of x belongs to plot',
+    specimen: 'kind: polar\nr: 1 + cos(theta)\nt: 0 2*pi',
+  },
+];
