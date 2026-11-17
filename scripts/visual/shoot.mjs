@@ -10,7 +10,7 @@
  * It drives the real content script, panel bundle and extension pages; only the
  * chat sites themselves are doubles (scripts/visual/hosts.mjs).
  */
-import { createRequire } from 'node:module';
+import { BROWSER, chromium } from './browser.mjs';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -19,10 +19,6 @@ import { HOST_IDS, hostOrigin, hostPage, hostUrl } from './hosts.mjs';
 import { CIRCUIT, DIJKSTRA, INCLINE } from './capsules.mjs';
 import { panelStateSuites } from './panel-states.mjs';
 import { plainSuites } from './plain-suite.mjs';
-
-// Playwright is a machine-level tool here, not a project dependency: resolve it the CommonJS way
-// (NODE_PATH or a global install) so the harness adds nothing to the extension's lockfile.
-const { chromium } = createRequire(import.meta.url)('playwright');
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const args = process.argv.slice(2);
@@ -41,8 +37,7 @@ const profile = mkdtempSync(join(tmpdir(), 'stemlm-visual-'));
 const log = (...a) => console.log('[visual]', ...a);
 
 const ctx = await chromium.launchPersistentContext(profile, {
-  headless: true,
-  channel: 'chromium',
+  ...BROWSER,
   args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-sandbox'],
   viewport: { width: 1440, height: 900 },
   deviceScaleFactor: 2,

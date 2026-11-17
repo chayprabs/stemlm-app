@@ -8,6 +8,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { it } from 'vitest';
 import { compileDiagram, presentCompiledDiagram } from '@/src/lib/resolve-diagram';
 import { overlayMathSize, renderOverlayHtml } from '@/src/lib/figure/overlay';
@@ -53,8 +54,8 @@ it('writes the figure gallery', async () => {
   }
 
   const fonts = fontFaceCss((path) => path.startsWith('/fonts/katex/')
-    ? `file://${root}/node_modules/katex/dist/fonts/${path.split('/').pop()}`
-    : `file://${root}/assets/fonts/ibm-plex/${path.split('/').pop()}`);
+    ? pathToFileURL(resolve(root, 'node_modules/katex/dist/fonts', path.split('/').pop()!)).href
+    : pathToFileURL(resolve(root, 'assets/fonts/ibm-plex', path.split('/').pop()!)).href);
   // KaTeX's stylesheet minus its own @font-face rules: the faces come from fontFaceCss above.
   const katexCss = readFileSync(resolve(root, 'node_modules/katex/dist/katex.min.css'), 'utf8')
     .replace(/@font-face\s*\{[^}]*\}/g, '');
