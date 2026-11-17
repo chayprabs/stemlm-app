@@ -95,6 +95,25 @@ describe.each(LIVE_COMPOSERS)('$name: the control has one place, beside the atta
   });
 });
 
+describe('a menu of the chat that reaches over the place of the control', () => {
+  it('hides the control and keeps the row as it is, though the attach button itself is clear', () => {
+    const spec = live('gemini');
+    const { attach } = mount(spec);
+    placed(locateControl(spec.adapter));
+    expect(attach.getAttribute(ROOM_ATTR)).toBe('after');
+    // A popover from elsewhere on the page (the model picker's menu) reaches over the slot only.
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    document.body.append(menu);
+    restore?.();
+    restore = fakeLayout([...liveBoxes(spec, () => 36), [menu, { left: 628, top: 200, width: 240, height: 170 }]]);
+    expect(locateControl(spec.adapter)).toBe('covered');
+    expect(attach.getAttribute(ROOM_ATTR)).toBe('after');
+    menu.remove();
+    expect(placed(locateControl(spec.adapter)).left).toBe(594 + 32 + CONTROL_GAP_PX);
+  });
+});
+
 describe('room in the row', () => {
   it('writes one rule, sized to the control and its gap', () => {
     mount(live('gemini'));

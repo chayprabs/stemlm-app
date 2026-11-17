@@ -43,6 +43,8 @@ export interface ControlPlacement {
   radius: string;
   ink: string;
   scheme: 'light' | 'dark';
+  /** The row runs right to left: the control is on the button's left. */
+  rtl: boolean;
 }
 
 type Side = 'after' | 'before';
@@ -225,6 +227,7 @@ function placementFor(button: HTMLElement, rtl: boolean): ControlPlacement {
     ink: isClear(ink) ? '' : ink,
     // Light ink means a dark composer, whatever the rest of the page is doing.
     scheme: light == null || isClear(ink) ? detectHostScheme() : light > 0.5 ? 'dark' : 'light',
+    rtl,
   };
 }
 
@@ -249,6 +252,10 @@ export function locateControl(adapter: PlatformAdapter): ControlPlacement | 'cov
   if (apart > NEIGHBOUR_PX || e.height > window.innerHeight * 0.85) return null;
   if (!isUncovered(button, b)) return 'covered';
   const rtl = getComputedStyle(button).direction === 'rtl';
+  // A menu or popover of the chat's that reaches over the control's place, from outside the composer.
+  const slot = slotOf(b, rtl);
+  const over = hostElementsAt(slot.left + slot.size / 2, slot.top + slot.size / 2)[0];
+  if (over && !root.contains(over) && !over.contains(button)) return 'covered';
   if (!ensureRoom(button, root, editor, rtl)) return null;
   const placement = placementFor(button, rtl);
   // Beside the button but past the composer's edge is not in its row.
@@ -302,8 +309,9 @@ export function trackComposerControl(
       dirty = false;
       nextLocate = now + LOCATE_EVERY_MS;
       found = locateControl(adapter);
-    } else if (anchor?.isConnected) {
-      found = placementFor(anchor, getComputedStyle(anchor).direction === 'rtl');
+    } else if (found && typeof found === 'object' && found.anchor.isConnected) {
+      // Between looks only the button's box is read: one measurement a frame while it moves.
+      found = { ...found, ...slotOf(found.anchor.getBoundingClientRect(), found.rtl) };
     }
     if (found === null) clearComposerRoom();
     // What this pass wrote to the page (a room mark tried, kept or taken off, its rule) is not
