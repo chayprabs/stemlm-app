@@ -213,13 +213,6 @@
   transform: rotate(90deg);
 }
 
-/* ---------- composer control, fixed fallback ---------- */
-.slm-fab-wrap--fixed {
-  position: fixed;
-  z-index: 2147483640;
-  pointer-events: auto;
-}
-
 /* ---------- panel shell ---------- */
 /* The panel takes focus when it opens; only its controls show a ring (UI-FOCUS-01). */
 .slm-panel:focus {
@@ -244,22 +237,22 @@
   --slm-plate-pad: 1.15rem;
   /* Width of the page's scrollbar gutter, measured by the panel; 0 where scrollbars overlay. */
   --slm-scroll-gutter: 0px;
+  /* Docked: a full-height column flush with the window's right edge. The chat page is narrowed
+     by exactly this width (src/lib/split-screen.ts), so the two meet on the hairline. */
   position: fixed;
-  top: var(--slm-panel-inset, 8px);
-  right: var(--slm-panel-inset, 8px);
-  bottom: var(--slm-panel-inset, 8px);
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2147483630;
   height: auto;
   width: 68vw;
-  min-width: min(280px, calc(100vw - (2 * var(--slm-panel-inset, 8px))));
-  max-width: calc(100vw - (2 * var(--slm-panel-inset, 8px)));
+  min-width: min(280px, 100%);
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   background: var(--slm-bg);
   color: var(--slm-fg);
-  border: 1px solid var(--slm-border);
-  border-radius: var(--slm-panel-radius, 14px);
-  box-shadow: var(--slm-shadow);
+  border-left: 1px solid var(--slm-border);
   overflow: hidden;
   color-scheme: inherit;
   /* Layout below answers to the panel's own width, not the window's: the reader drags it. */
@@ -762,12 +755,44 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.6rem var(--slm-pad-x) 0.6rem calc(var(--slm-pad-x) + 0.75rem);
+  /* The right side keeps clear of the dismiss control, and of Undo when the notice offers it. */
+  padding: 0.6rem calc(var(--slm-pad-x) + 2rem) 0.6rem calc(var(--slm-pad-x) + 0.75rem);
   position: relative;
   font-size: var(--slm-text-sm);
   line-height: 1.45;
   border-bottom: 1px solid var(--slm-border-subtle);
   animation: slm-rise var(--slm-dur-3) var(--slm-ease-out);
+}
+.slm-banner:has(.slm-banner-undo) {
+  padding-right: calc(var(--slm-pad-x) + 5.5rem);
+}
+/* Centred on the first line of the message, so a one-line status keeps its height. */
+.slm-banner-actions {
+  position: absolute;
+  top: 3px;
+  right: calc(var(--slm-pad-x) - 0.5rem);
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+.slm-banner-undo {
+  height: 2rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--slm-fg);
+  font-family: inherit;
+  font-size: var(--slm-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.slm-banner-undo:hover {
+  background: var(--slm-nav-chip);
+}
+.slm-banner-undo:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
 }
 .slm-banner::before {
   content: '';

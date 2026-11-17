@@ -15,15 +15,18 @@ import {
   buildInjectionAppendix,
   buildInjectionPayload,
   buildInjectionPrompt,
-  buildFollowupAskInChatPrompt,
-  buildFollowupPayload,
+  buildFollowupCopyText,
   buildComposerAppendix,
   buildComposerPointer,
+  composerExpectsGuideFile,
+  composerHasInlineGuide,
   composerTextHasProtocol,
+  GUIDE_PASTED_NOTICE,
+  guideNeeded,
   pageThreadHasProtocol,
+  sentStudentMessages,
   shouldReinjectOnNewQuestion,
   isEmptyFollowupSelection,
-  FOLLOWUP_QUESTION_SLOT,
   normalizeFollowupSelection,
   FOLLOWUP_CONTEXT_HEADER,
   PROTOCOL_FILENAME,
@@ -123,6 +126,20 @@ const ROOT_CHECK_MS = 2_000;
 
 /** A guide chip must stay gone this long before it counts as removed (a send also moves it). */
 const GUIDE_REMOVED_CONFIRM_MS = 1_000;
+
+/**
+ * One press of the stemlm button ends within this, whatever the chat does. The slowest honest
+ * path is an upload the chat began and never finished (about 50 s); past that something hung.
+ */
+const ATTACH_DEADLINE_MS = 75_000;
+
+/** One short line for the student, shown at the stemlm button after a press. */
+export interface AttachNotice {
+  tone: 'info' | 'error';
+  text: string;
+}
+const NOTICE_INLINE: AttachNotice = { tone: 'info', text: 'This chat did not take a file, so the guide is in your message as text.' };
+const NOTICE_FAILED: AttachNotice = { tone: 'error', text: 'stemlm could not add its guide. Check the chat box and try again.' };
 
 /**
  * Closing blocks a finished full answer may lack (D11): its steps are still
@@ -258,6 +275,9 @@ export class StemController {
   private captureEpoch = 0;
   private composerGeneration = 0;
   private preparedComposer: ComposerOperation | null = null;
+  /** The press of the stemlm button that is still working, if any. */
+  private injecting: Promise<boolean> | null = null;
+  private attachNotice: AttachNotice | null = null;
 
   // Answer-started detection (used to open the panel only once the assistant
   // actually begins responding, rather than the moment we inject).
@@ -269,6 +289,12 @@ export class StemController {
   /** The assistant messages already on the page when the guide was attached: never the awaited answer. */
   private baselineBlockSet = new WeakSet<Element>();
   private onAnswerStartedCb: (() => void) | null = null;
+  /** How many of the student's messages the thread held when the guide was attached. */
+  private sentBaseline = 0;
+  /** The chat was still writing an earlier answer when the guide was attached. */
+  private streamingAtArm = false;
+  /** The question was in the chat box before the stemlm button was pressed. */
+  private typedFirst = false;
   /**
    * True from a successful inject until an answer is stored. The panel only shows "loading" when
    * the question was typed first; this also covers the guide attached to an empty chat box.
@@ -308,12 +334,13 @@ export class StemController {
   /**
    * INJ-01: the draft, chat, editor or on/off switch changed while the guide was
    * attaching. Say so instead of doing nothing; a newer attempt speaks for itself.
+   * A press of the stemlm button never opens the panel, whether it works or not: the student is
+   * still writing, and the button itself shows what happened.
    */
   private abandonAttach(operation: ComposerOperation): false {
     const store = useStore.getState();
     if (!operation.superseded() && store.settings.stemlmEnabled !== false) {
       store.setStatus('error', 'Your chat box changed while stemlm was attaching its guide, so it stopped. Check the chat box, then click the stemlm button again.');
-      store.openPanel();
     }
     return false;
   }
@@ -322,7 +349,7 @@ export class StemController {
     return this.adapter.id;
   }
 
-  /** Register a callback fired once, when the assistant starts answering. */
+  /** Register a callback fired once per question: when it is sent, or at the latest when the reply begins. */
   setOnAnswerStarted(cb: (() => void) | null): void {
     this.onAnswerStartedCb = cb;
   }
@@ -335,8 +362,84 @@ export class StemController {
     return this.adapter.composerHasAttachments();
   }
 
-  /** Attach stemlm-protocol.txt and a short stub — never dump the protocol as chat text. */
-  async inject(): Promise<boolean> {
+  /**
+   * One press of the stemlm button. A second press while the first is still working (a double
+   * click, or the toolbar asking at the same moment) joins it, so the guide is never attached
+   * twice; a press that hangs is ended and says so, so the button is never left busy.
+   */
+  inject(): Promise<boolean> {
+    if (this.injecting) return this.injecting;
+    this.attachNotice = null;
+    let failed = false;
+    const stopListening = useStore.subscribe((state) => {
+      if (state.status === 'error') failed = true;
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => {
+        // Whatever the stalled attempt does later, it is no longer the current one.
+        this.composerGeneration += 1;
+        useStore.getState().setStatus('error', 'stemlm took too long to add its guide and stopped. Check the chat box, then click the stemlm button again.');
+        resolve(false);
+      }, ATTACH_DEADLINE_MS);
+    });
+    const run = Promise.race([this.injectNow(), deadline]).then((ok) => {
+      if (ok && composerHasInlineGuide(this.adapter.getEditorText())) this.attachNotice = NOTICE_INLINE;
+      else if (!ok && failed) this.attachNotice = NOTICE_FAILED;
+      return ok;
+    }).finally(() => {
+      clearTimeout(timer);
+      stopListening();
+      this.injecting = null;
+    });
+    this.injecting = run;
+    return run;
+  }
+
+  /** What the last press needs the student to know; the stemlm button reads it once. */
+  takeAttachNotice(): AttachNotice | null {
+    const notice = this.attachNotice;
+    this.attachNotice = null;
+    return notice;
+  }
+
+  /**
+   * Where the composer shows its file chips: the box the adapter declares when that holds the
+   * attach button, else the composer found by structure (Claude's card is neither form nor fieldset).
+   */
+  private attachScope(): ParentNode {
+    const declared = this.adapter.getComposerBox() ?? this.adapter.getComposerShell();
+    const attach = this.adapter.getComposerLeadingAnchor();
+    if (declared && (!attach || declared.contains(attach))) return declared;
+    return this.adapter.getComposerRoot?.() ?? declared ?? document;
+  }
+
+  /**
+   * Upload the guide and wait for the chat's own chip to confirm it. Where the chat takes a file
+   * through its one input, that is tried once more when nothing happened (elsewhere the upload is
+   * already a series of tries: a drop, a paste, each drop target). Never when an upload visibly
+   * began (a second one would attach the file twice), and not at all on a composer known to
+   * refuse files (it would raise the chat's login wall).
+   */
+  private async attachGuideFile(content: string, hasImageAttachment: boolean, operation: ComposerOperation): Promise<{ ok: boolean }> {
+    if (this.adapter.acceptsFiles?.() === false) return { ok: false };
+    const root = this.attachScope();
+    const attempt = () => attachTextFile(content, {
+      filename: PROTOCOL_FILENAME,
+      fileInputSelectors: this.adapter.fileInput,
+      inputIsAdditive: this.adapter.additiveFileInput === true,
+      preserveExisting: hasImageAttachment,
+      requireConfirmation: this.delivery === 'file',
+      root,
+      inputNearRoot: true,
+    });
+    const first = await attempt();
+    if (first.ok || first.started || this.adapter.additiveFileInput !== true || !operation.isCurrent()) return first;
+    return attempt();
+  }
+
+  /** Add the answer-format reminder under the question, and the guide when this chat needs it. */
+  private async injectNow(): Promise<boolean> {
     const store = useStore.getState();
     const existing = this.adapter.getEditorText().trim();
     const hasImageAttachment = this.adapter.composerHasAttachments();
@@ -369,21 +472,17 @@ export class StemController {
     let ok = false;
     let injectionMethod: 'text' | 'file' = 'text';
 
-    const attached = await attachTextFile(payload.fileContent, {
-      filename: PROTOCOL_FILENAME,
-      fileInputSelectors: this.adapter.fileInput,
-      inputIsAdditive: this.adapter.additiveFileInput === true,
-      preserveExisting: hasImageAttachment,
-      requireConfirmation: this.delivery === 'file',
-      root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
-    });
+    // Every message carries the answer shape; the guide file goes with it only when this chat
+    // has none, the last answer missed the format, or the question needs figures it lacks.
+    const attachGuide = guideNeeded(
+      question,
+      sentStudentMessages(document, this.adapter.findEditor()),
+      store.status !== 'error' && store.sessions[store.sessions.length - 1]?.origin !== 'ingest',
+    );
+    const attached = attachGuide
+      ? await this.attachGuideFile(payload.fileContent, hasImageAttachment, operation)
+      : { ok: false as const };
     if (!operation.isCurrent()) return this.abandonAttach(operation);
-
-    if (!attached.ok && this.delivery === 'file') {
-      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try the stemlm button again. Your question is unchanged.');
-      store.openPanel();
-      return false;
-    }
 
     if (attached.ok) {
       await new Promise((r) => setTimeout(r, 80));
@@ -402,24 +501,18 @@ export class StemController {
       const mode = hasUserContent || alreadyInThread ? 'append' : 'replace';
       ok = await this.insertVerifiedPrompt(stub, mode, {
         fileAttach: true,
-        attachmentConfirmed: attached.ok,
         operation,
       });
       if (ok) injectionMethod = 'file';
-      // File already on the composer — never dump the protocol wall as well.
-    } else if (alreadyInThread || hasImageAttachment) {
-      const pointerOptions = {
-        hasImageAttachment,
-        hasQuestion: question.length > 0,
-      };
-      const stub = hasImageAttachment
-        ? buildComposerAppendix(pointerOptions)
-        : buildComposerPointer(pointerOptions);
+      // File already on the composer — never paste the guide as well.
+    } else if (!attachGuide) {
+      const stub = buildComposerPointer({ hasImageAttachment, hasQuestion: question.length > 0 });
       ok = await this.insertVerifiedPrompt(stub, hasUserContent ? 'append' : 'replace', {
         fileAttach: true,
         operation,
       });
       injectionMethod = 'text';
+      // The host took no upload (signed out, or its uploader failed): the guide goes in as text.
     } else if (hasUserContent) {
       const built = buildInjectionAppendix(question, buildOpt);
       ok = await this.insertVerifiedPrompt(built.prompt, 'append', { operation });
@@ -436,19 +529,22 @@ export class StemController {
         'error',
         'Could not add the stemlm study guide to the chat box. Click in the input and try stemlm again.',
       );
-      store.openPanel();
       return false;
     }
 
     this.preparedComposer = operation;
     this.lastQuestion = question;
     store.setButtonInjected(true);
-    if (!hasUserContent && attached.ok) {
+    // A failed upload is never silent: the student is told the guide went in as text instead.
+    const pasted = attachGuide && !attached.ok ? GUIDE_PASTED_NOTICE : undefined;
+    if (!hasUserContent) {
       this.adapter.focusComposerQuestionSlot();
-      store.setStatus('idle', 'Instructions attached. Type your question above the stemlm line, then send when ready.');
+      store.setStatus('idle', `${pasted ?? 'Instructions attached.'} Type your question above the stemlm line, then send when ready.`);
     } else {
-      store.setStatus('loading');
+      // Not "loading": nothing is on its way until the student sends (maybeQuestionSent).
+      store.setStatus(useStore.getState().sessions.length ? 'ready' : 'idle', pasted);
     }
+    this.typedFirst = hasUserContent;
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
     this.awaitingAnswer = true;
@@ -503,37 +599,14 @@ export class StemController {
       stepTitle,
       subject,
       intent: opt?.intent,
+      qid: store.sessions.find((s) => s.id === opt?.anchor?.sessionId)?.capsule.meta.qid,
     };
-    const payload = buildFollowupPayload(followOpt);
     const operation = this.beginComposerOperation();
-    const attached = await attachTextFile(payload.fileContent, {
-      filename: PROTOCOL_FILENAME,
-      fileInputSelectors: this.adapter.fileInput,
-      inputIsAdditive: this.adapter.additiveFileInput === true,
-      requireConfirmation: this.delivery === 'file',
-      root: this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document,
+    // The follow-up text carries its own answer shape, so no file is uploaded with it.
+    const ok = await this.insertVerifiedPrompt(buildFollowupCopyText(followOpt), 'replace', {
+      followUp: true,
+      operation,
     });
-    if (!operation.isCurrent()) return this.abandonAttach(operation);
-    if (!attached.ok && this.delivery === 'file') {
-      store.setStatus('error', 'Could not attach the stemlm guide. If the chat asks you to sign in to upload files, sign in first; otherwise wait for uploads to finish. Then try Ask in chat again. Your draft is unchanged.');
-      return false;
-    }
-    let ok: boolean;
-    if (attached.ok) {
-      // Brief pause so Gemini's uploader finishes before we replace composer text.
-      await new Promise((r) => setTimeout(r, 150));
-      ok = await this.insertVerifiedPrompt(`${FOLLOWUP_QUESTION_SLOT}${payload.composerText}`, 'replace', {
-        fileAttach: true,
-        attachmentConfirmed: attached.ok,
-        followUp: true,
-        operation,
-      });
-    } else {
-      ok = await this.insertVerifiedPrompt(buildFollowupAskInChatPrompt(followOpt), 'replace', {
-        followUp: true,
-        operation,
-      });
-    }
 
     if (!operation.isCurrent()) return this.abandonAttach(operation);
     if (!ok) {
@@ -590,12 +663,12 @@ export class StemController {
 
   /**
    * Write `prompt` into the composer and confirm it landed.
-   * File-attach stubs are short; inline fallback still carries the full protocol.
+   * A reminder is short; a guide pasted as text must have arrived whole.
    */
   private async insertVerifiedPrompt(
     prompt: string,
     mode: 'replace' | 'append' = 'replace',
-    opt?: { fileAttach?: boolean; followUp?: boolean; attachmentConfirmed?: boolean; operation?: ComposerOperation },
+    opt?: { fileAttach?: boolean; followUp?: boolean; operation?: ComposerOperation },
   ): Promise<boolean> {
     const looksComplete = (text: string) => this.promptLooksComplete(text, opt);
 
@@ -609,39 +682,15 @@ export class StemController {
 
     if (tryOnce()) return true;
     await new Promise((r) => setTimeout(r, opt?.followUp ? 250 : 120));
-    if (tryOnce()) return true;
-    if (opt?.followUp && opt?.fileAttach) {
-      await new Promise((r) => setTimeout(r, 250));
-      return tryOnce();
-    }
-    return false;
+    return tryOnce();
   }
 
   private promptLooksComplete(
     text: string,
-    opt?: { fileAttach?: boolean; followUp?: boolean; attachmentConfirmed?: boolean },
+    opt?: { fileAttach?: boolean; followUp?: boolean },
   ): boolean {
-    if (opt?.followUp) {
-      const hasContext =
-        text.includes(FOLLOWUP_CONTEXT_HEADER) || text.includes('stemLM follow-up context');
-      if (!hasContext) return false;
-      if (opt.fileAttach) {
-        return composerTextHasProtocol(text) || Boolean(opt.attachmentConfirmed);
-      }
-      return (
-        text.includes('stemLM instructions') &&
-        text.includes('OUTPUT:') &&
-        !text.includes(PROTOCOL_FILENAME)
-      );
-    }
-    if (opt?.fileAttach) {
-      return composerTextHasProtocol(text);
-    }
-    return (
-      text.includes('stemLM instructions') &&
-      text.includes('OUTPUT:') &&
-      !text.includes(PROTOCOL_FILENAME)
-    );
+    if (opt?.followUp) return text.includes(FOLLOWUP_CONTEXT_HEADER);
+    return opt?.fileAttach ? composerTextHasProtocol(text) : composerHasInlineGuide(text);
   }
 
   /** Prefer the chat conversation root over all of document.body. */
@@ -673,10 +722,21 @@ export class StemController {
     return document.body;
   }
 
+  /** The student's messages already in the thread, as the chat shows them. */
+  private sentMessages(): string[] {
+    try {
+      return sentStudentMessages(document, this.adapter.findEditor());
+    } catch {
+      return [];
+    }
+  }
+
   /** Reset answer-started detection and snapshot the current message count. */
   private armAnswerDetection(): void {
     this.answerStarted = false;
     this.answerArmed = true;
+    this.sentBaseline = this.sentMessages().length;
+    this.streamingAtArm = this.adapter.isStreaming();
     this.baselineAssistantText = this.adapter.getLatestAssistantText();
     this.stableText = '';
     this.stableSince = 0;
@@ -769,6 +829,7 @@ export class StemController {
   private checkForCapsule(): void {
     if (!this.watching) return;
     this.checkGuideStillAttached();
+    this.maybeQuestionSent();
     this.maybeAnswerStarted();
 
     const capsules = this.adapter.extractCapsules();
@@ -1050,6 +1111,42 @@ export class StemController {
     });
   }
 
+  /** stemLM's lines are no longer in the chat box: the prepared draft was sent, or thrown away. */
+  private draftLeftChatBox(): boolean {
+    return !composerTextHasProtocol(this.adapter.getEditorText());
+  }
+
+  /**
+   * The prepared question was sent: it has left the chat box, and a new message of the
+   * student's, carrying stemLM's lines, is in the thread. Only now is an answer on its way.
+   */
+  private maybeQuestionSent(): void {
+    if (this.answerStarted || !this.awaitingAnswer || !this.draftLeftChatBox()) return;
+    const sent = this.sentMessages();
+    const newest = sent[sent.length - 1];
+    if (sent.length > this.sentBaseline && newest !== undefined && composerTextHasProtocol(newest)) this.questionUnderWay(true);
+  }
+
+  /**
+   * Once per question, when it is sent or, where the chat's own messages cannot be read, when
+   * the reply begins: the panel starts waiting for the answer, and opens if the student wants it
+   * to. A guide that is attached and never sent gets here never: nothing opens, nothing loads.
+   * `withGuide`: the message was seen to carry stemLM's lines. Without that, the panel waits only
+   * for a question that was typed before the button was pressed (it cannot have been sent bare).
+   */
+  private questionUnderWay(withGuide: boolean): void {
+    this.answerStarted = true;
+    const store = useStore.getState();
+    // DISABLED-01: switched off mid-answer, stemLM must not pop its panel open.
+    if (store.settings.stemlmEnabled === false) return;
+    if (this.awaitingAnswer && (withGuide || this.typedFirst) && store.status !== 'loading') store.setStatus('loading');
+    try {
+      this.onAnswerStartedCb?.();
+    } catch {
+      /* ignore */
+    }
+  }
+
   /** Detect (once) that the assistant has started answering, and notify. */
   private maybeAnswerStarted(): void {
     if (this.answerStarted) return;
@@ -1060,24 +1157,19 @@ export class StemController {
       /* ignore */
     }
     const text = this.adapter.getLatestAssistantText();
-    // An earlier stemLM answer already on the page is not this answer starting.
+    const streaming = this.adapter.isStreaming();
+    // An answer that was still being written when the guide was attached is not this one starting.
+    if (!streaming) this.streamingAtArm = false;
+    // An earlier stemLM answer already on the page is not this answer starting, and nothing is
+    // this answer while the question still sits in the chat box.
     const started = this.answerArmed
-      ? blocks > this.baselineBlocks || this.adapter.isStreaming() ||
-        (text !== this.baselineAssistantText && text.includes('@meta'))
-      : this.adapter.isStreaming();
+      ? this.draftLeftChatBox() && (blocks > this.baselineBlocks || (streaming && !this.streamingAtArm) ||
+        (text !== this.baselineAssistantText && text.trim() !== ''))
+      : streaming;
     // Watching without a question (restored / shared answers, Load conversation): what the page
     // already shows is history, so settle rather than wait for an answer nobody asked stemLM for.
     if (!started && !this.answerArmed) this.answerStarted = true;
-    if (started) {
-      this.answerStarted = true;
-      // DISABLED-01: switched off mid-answer, stemLM must not pop its panel open.
-      if (useStore.getState().settings.stemlmEnabled === false) return;
-      try {
-        this.onAnswerStartedCb?.();
-      } catch {
-        /* ignore */
-      }
-    }
+    if (started) this.questionUnderWay(false);
   }
 
   /**
@@ -1622,8 +1714,8 @@ export class StemController {
    */
   private checkGuideStillAttached(): void {
     const removed = useStore.getState().buttonInjected && this.delivery === 'file' &&
-      composerTextHasProtocol(this.adapter.getEditorText()) &&
-      !hasConfirmedAttachment(PROTOCOL_FILENAME, this.adapter.getComposerBox() ?? this.adapter.getComposerShell() ?? document);
+      composerExpectsGuideFile(this.adapter.getEditorText()) &&
+      !hasConfirmedAttachment(PROTOCOL_FILENAME, this.attachScope());
     if (!removed) {
       this.guideMissingSince = 0;
       return;
@@ -1640,6 +1732,8 @@ export class StemController {
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
     this.awaitingAnswer = false;
+    // Nothing of stemLM's is on its way any more: the next reply is not one to open the panel for.
+    this.answerStarted = true;
     useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Click the stemlm button to attach it again.');
   }
 

@@ -4,15 +4,15 @@ import { join, resolve } from 'node:path';
 import { compileDiagramSpec } from './compile';
 import type { Diagram } from '@/src/protocol/types';
 import type { Scene } from './types';
-import { renderDiagramRegistry } from '@/src/protocol/registries';
+import { FIGURE_FORMS } from '@/src/protocol/protocol';
 
 it('SUS-02 enforces the existing central point-load grammar; beam is not advertised (D2)', async () => {
   for (const load of ['load: udl 5 kN/m', 'w: 5', 'loads: udl@4']) {
     const result = await compileDiagramSpec({ type: 'beam', content: `L: 8\nsupports: pin@0, roller@8\n${load}` });
     expect(result.ok, load).toBe(false);
   }
-  expect(renderDiagramRegistry()).not.toMatch(/^beam\t/m);
-  expect(renderDiagramRegistry()).not.toContain('loads: point LABEL down@x');
+  expect(FIGURE_FORMS.map((form) => form.id)).not.toContain('beam');
+  expect(FIGURE_FORMS.map((form) => form.grammar).join('\n')).not.toContain('loads: point LABEL down@x');
 });
 
 function diagram(type: string, content: string): Diagram {

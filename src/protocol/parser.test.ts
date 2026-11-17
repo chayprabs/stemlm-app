@@ -806,6 +806,45 @@ describe('parser warnings for omitted selling-point blocks', () => {
     expect(r.warningCodes).toContain('missing_verify');
     expect(r.warningCodes).toContain('missing_uncertainty');
   });
+
+  describe('a check and assumptions written without their keys', () => {
+    const steps = ['s1', 's2', 's3'].map((id) => `@step id=${id}\ntitle: Move ${id}\n@body\nBecause of the rule, $x = 2\\ \\text{m}$.\n@endbody\n@endstep`).join('\n');
+    const closing = (verify: string, uncertainty = 'assumption: none') =>
+      parse(mini(`${steps}\n@verify\n${verify}\n@endverify\n@uncertainty\n${uncertainty}\n@enduncertainty`));
+
+    it('reads a check in the model\'s own words as the notes of a passed check', () => {
+      const r = closing('The four boxes add to 4, and tt is the only box with no T, so the short fraction is 1 of 4 = 1/4.\nThis matches the 3:1 ratio.');
+      expect(r.warningCodes).not.toContain('malformed_verify');
+      expect(r.capsule?.verification).toEqual({
+        methods: [],
+        status: 'pass',
+        notes: 'The four boxes add to 4, and tt is the only box with no T, so the short fraction is 1 of 4 = 1/4. This matches the 3:1 ratio.',
+      });
+    });
+
+    it('still refuses a wordy check that shows no working', () => {
+      const r = closing('Everything was checked carefully and is correct.');
+      expect(r.warningCodes).toContain('malformed_verify');
+      expect(r.capsule?.verification?.status).toBe('fail');
+    });
+
+    it('still requires a status and a method once the block uses its keys', () => {
+      expect(closing('notes: 2 + 2 = 4').warningCodes).toContain('malformed_verify');
+      expect(closing('methods: backsub\nnotes: 2 + 2 = 4').warningCodes).toContain('malformed_verify');
+      expect(closing('methods: backsub\nstatus: pass\nnotes: 2 + 2 = 4').warningCodes).not.toContain('malformed_verify');
+    });
+
+    it('takes loose lines under a keyed check as its notes only when it has none', () => {
+      expect(closing('methods: backsub\nstatus: pass\n2 + 2 = 4, as the question says').capsule?.verification?.notes).toBe('2 + 2 = 4, as the question says');
+      expect(closing('methods: backsub\nstatus: pass\nnotes: 2 + 2 = 4\nan extra remark').capsule?.verification?.notes).toBe('2 + 2 = 4');
+    });
+
+    it('reads an assumption stated as a plain sentence, and leaves unknown keys out', () => {
+      const r = closing('methods: alt\nstatus: pass\nnotes: 2 + 2 = 4', 'It assumes complete dominance and random fertilisation.\nassumptions: g = 9.81 m/s²\nlevel: low');
+      expect(r.capsule?.uncertainty?.assumptions).toEqual(['It assumes complete dominance and random fertilisation.', 'g = 9.81 m/s²']);
+    });
+  });
+
   it('warns when a step/formula/diagram omits id= but salvages step-N', () => {
     const r = parse(
       mini(

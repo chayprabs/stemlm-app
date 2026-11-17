@@ -165,7 +165,10 @@ describe('popup launch helpers', () => {
       }),
     );
     expect(LIBRARY_WINDOW_WIDTH_PX).toBeLessThanOrEqual(740);
-    expect(LIBRARY_WINDOW_HEIGHT_PX).toBeLessThanOrEqual(500);
+    // Tall enough for five rows under the 150px of header, search and chips; short enough to sit
+    // on a 768px-high laptop screen (about 728px usable) below the 72px drop from the browser's top.
+    expect(LIBRARY_WINDOW_HEIGHT_PX).toBeGreaterThanOrEqual(560);
+    expect(LIBRARY_WINDOW_HEIGHT_PX + 72).toBeLessThanOrEqual(728);
   });
 
   it('opens saved questions in a sized window off a chat tab, not a new tab', async () => {
@@ -200,9 +203,12 @@ describe('popup launch helpers', () => {
         focused: true,
       }),
     );
-    expect(SETTINGS_WINDOW_WIDTH_PX).toBeLessThanOrEqual(740);
-    expect(SETTINGS_WINDOW_HEIGHT_PX).toBeLessThanOrEqual(460);
-    expect(SETTINGS_WINDOW_WIDTH_PX).toBeGreaterThan(SETTINGS_WINDOW_HEIGHT_PX);
+    // The sheet is one portrait column and the window is then fitted to it (440 to 480px wide):
+    // it opens inside those bounds so the fit never visibly resizes it, and on a 768px-high screen.
+    expect(SETTINGS_WINDOW_WIDTH_PX).toBeGreaterThanOrEqual(440);
+    expect(SETTINGS_WINDOW_WIDTH_PX).toBeLessThanOrEqual(480);
+    expect(SETTINGS_WINDOW_HEIGHT_PX).toBeGreaterThan(SETTINGS_WINDOW_WIDTH_PX);
+    expect(SETTINGS_WINDOW_HEIGHT_PX + 72).toBeLessThanOrEqual(728);
   });
 
   it('opens settings in a sized window off a chat tab, not a new tab', async () => {

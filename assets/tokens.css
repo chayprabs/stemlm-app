@@ -89,8 +89,6 @@
   --radius-xl: 18px;
   --radius-card: 12px;
   --radius-pill: 999px;
-  --slm-panel-inset: 8px;
-  --slm-panel-radius: 14px;
 
   /* Motion. One curve for things arriving, one for things that move and stay on screen. */
   --slm-ease-out: cubic-bezier(0.22, 1, 0.36, 1);

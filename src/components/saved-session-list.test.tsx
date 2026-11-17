@@ -29,6 +29,7 @@ vi.mock('wxt/browser', () => ({
   browser: {
     storage: {
       local: mockLocalStorage,
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     },
     tabs: {
       create: tabsCreateMock,

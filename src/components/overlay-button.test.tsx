@@ -13,12 +13,14 @@ const getLastQuestion = vi.fn(() => 'Old circuit question');
 const resetInjection = vi.fn(() => {
   useStore.getState().setButtonInjected(false);
 });
+const takeAttachNotice = vi.fn<() => { tone: 'info' | 'error'; text: string } | null>(() => null);
 
 vi.mock('@/src/content/controller', () => ({
   getController: () => ({
     inject,
     getLastQuestion,
     resetInjection,
+    takeAttachNotice,
   }),
 }));
 
@@ -34,14 +36,12 @@ vi.mock('@/src/platforms/detect', () => ({
   }),
 }));
 
-vi.mock('@/src/lib/composer-slot', () => ({
-  ensureComposerSlot: () => null,
-  removeComposerSlot: () => {},
-  syncComposerSlotGeometry: () => {},
-  isolateStemLmPointer: () => () => {},
-  resolveComposerFrame: () => document.body,
-  outsideShellCoords: () => ({ top: 100, left: 24 }),
-  _composerSlotGap: 8,
+// The control exists only beside a measured attach button; here it is always given one.
+vi.mock('@/src/lib/composer-anchor', () => ({
+  trackComposerControl: (_adapter: unknown, _enabled: unknown, show: (place: unknown) => void) => {
+    show({ anchor: document.body, left: 100, top: 200, size: 32, radius: '999px', ink: '', scheme: 'light' });
+    return () => {};
+  },
 }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -54,6 +54,8 @@ describe('OverlayButton re-inject vs panel toggle', () => {
   beforeEach(() => {
     inject.mockClear();
     resetInjection.mockClear();
+    takeAttachNotice.mockReset();
+    takeAttachNotice.mockReturnValue(null);
     document.body.innerHTML = '';
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -131,8 +133,12 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(html).not.toContain('slm-extension-logo');
     // The glyph is decoration: the control's name says what pressing it does.
     expect(btn.querySelector('.slm-inject-glyph')?.getAttribute('aria-hidden')).toBe('true');
-    expect(btn.getAttribute('aria-label')).toBe('Study with stemlm: attach the guide to this question');
+    expect(btn.getAttribute('aria-label')).toBe('Add the stemlm guide to this question');
     expect(btn.getAttribute('aria-pressed')).toBe('false');
+    expect(btn.getAttribute('data-state')).toBe('idle');
+    // The same words are beside the control for a pointer or the keyboard; no native title doubles them.
+    expect(container.querySelector('.slm-inject-tip')?.textContent).toBe('Add the stemlm guide to this question');
+    expect(btn.hasAttribute('title')).toBe(false);
   });
 
   it('attached glyph is a tick; emptying the composer returns to the mark', async () => {
@@ -153,6 +159,8 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(btn.querySelector('.slm-inject-glyph')?.classList.contains('is-tick')).toBe(true);
     expect(btn.querySelector('.slm-inject-tick path')).toBeTruthy();
     expect(btn.getAttribute('aria-pressed')).toBe('true');
+    expect(btn.getAttribute('data-state')).toBe('attached');
+    expect(btn.getAttribute('aria-label')).toBe('stemlm is on for this question. Open the panel');
 
     ed.textContent = '';
     await act(async () => {
@@ -185,16 +193,22 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     vi.useRealTimers();
   });
 
-  it('carries its own stylesheet into the shadow root: a rounded square on the brand signal', () => {
+  it('carries its own stylesheet into the shadow root, and is laid out at the place it was given', () => {
     useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle' });
     act(() => {
       root = createRoot(container);
       root.render(<OverlayButton />);
     });
-    // Not docked here, so the control is the fixed fallback and brings its rules with it.
-    const css = container.querySelector('.slm-fab-wrap--fixed > style')?.textContent ?? '';
+    const wrap = container.querySelector('.slm-fab-wrap') as HTMLElement;
+    // Its box is the measured one: beside the chat's attach button, at that button's size and corner.
+    expect(wrap.style.left).toBe('100px');
+    expect(wrap.style.top).toBe('200px');
+    expect(wrap.style.getPropertyValue('--slm-inject-size')).toBe('32px');
+    expect(wrap.style.getPropertyValue('--slm-inject-radius')).toBe('999px');
+    expect(wrap.dataset.scheme).toBe('light');
+    const css = wrap.querySelector(':scope > style')?.textContent ?? '';
     const base = css.slice(css.indexOf('.slm-inject-btn {'), css.indexOf('.slm-inject-btn:hover'));
-    expect(base).toContain(`border-radius: ${INJECT_RADIUS}`);
+    expect(base).toContain(`border-radius: var(--slm-inject-radius, ${INJECT_RADIUS})`);
     expect(base).not.toContain('border-radius: 50%');
     expect(css).toContain(INJECT_SIGNAL);
     expect(css).not.toMatch(/--slm-accent|teal/);
@@ -245,8 +259,59 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     await act(async () => { container.querySelector('button')!.click(); });
     expect(useStore.getState().status).toBe('error');
     expect(useStore.getState().errorMessage).toMatch(/try.*again/i);
-    expect(useStore.getState().panelOpen).toBe(true);
+    // A press never opens the panel, even to report a failure: the student is still writing.
+    expect(useStore.getState().panelOpen).toBe(false);
     expect(container.querySelector('.slm-inject-btn')).not.toBeNull();
     expect(container.querySelector('.slm-inject-status')).toBeNull();
+    // The control says so itself, in place: an error state and one short line beside it.
+    const btn = container.querySelector('.slm-inject-btn')!;
+    expect(btn.getAttribute('data-state')).toBe('error');
+    expect(btn.getAttribute('data-glyph')).toBe('alert');
+    expect(container.querySelector('.slm-inject-tip.is-open')?.textContent).toMatch(/try again/i);
+    expect(container.querySelector('[role="status"]')?.textContent).toMatch(/try again/i);
+  });
+
+  it('shows the line the controller left about the last press, then lets it go', async () => {
+    vi.useFakeTimers();
+    takeAttachNotice.mockReturnValueOnce({ tone: 'info', text: 'This chat did not take a file, so the guide is in your message as text.' });
+    inject.mockImplementationOnce(async () => {
+      useStore.getState().setButtonInjected(true);
+      return true;
+    });
+    useStore.setState({ buttonInjected: false, status: 'idle' });
+    document.getElementById('ed')!.textContent = 'A question';
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    await act(async () => { container.querySelector('button')!.click(); });
+    const btn = container.querySelector('.slm-inject-btn')!;
+    // The guide went in as text: stemlm is on for the question, and the line says how.
+    expect(btn.getAttribute('data-state')).toBe('attached');
+    expect(container.querySelector('.slm-inject-tip.is-open')?.textContent).toMatch(/as text/);
+    expect(container.querySelector('[role="status"]')?.textContent).toMatch(/as text/);
+    await act(async () => { vi.advanceTimersByTime(7100); });
+    expect(container.querySelector('.slm-inject-tip.is-open')).toBeNull();
+    expect(container.querySelector('.slm-inject-btn')?.getAttribute('data-state')).toBe('attached');
+  });
+
+  it('keeps a press on the control from the chat page\'s own listeners', async () => {
+    useStore.setState({ buttonInjected: false, status: 'idle' });
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    const seen = vi.fn();
+    for (const type of ['click', 'pointerdown', 'mousedown', 'keydown']) document.addEventListener(type, seen);
+    const btn = container.querySelector('button')!;
+    await act(async () => {
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      btn.click();
+    });
+    for (const type of ['click', 'pointerdown', 'mousedown', 'keydown']) document.removeEventListener(type, seen);
+    expect(inject).toHaveBeenCalledTimes(1);
+    expect(seen).not.toHaveBeenCalled();
   });
 });

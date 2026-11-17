@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { INJECT_RADIUS, INJECT_SIGNAL, INJECT_SIGNAL_STRONG, INJECT_SIZE_PX, injectControlCss } from './inject-control-css';
-import { _slotCss } from './composer-slot';
 
-const SLOT = '[data-stemlm-composer-slot] ';
-/** The control docked in the chat page's own DOM. */
-const pageCss = injectControlCss(SLOT, (scheme) => `[data-stemlm-composer-slot][data-scheme="${scheme}"]`);
-/** The control fixed inside stemLM's shadow root. */
-const shadowCss = injectControlCss('', (scheme) => `.slm-fab-wrap--${scheme}`);
+const SCOPE = '.slm-welcome ';
+/** The control as a crop on the welcome page. */
+const pageCss = injectControlCss(SCOPE, (scheme) => `[data-stemlm-theme="${scheme}"]`);
+/** The control in stemLM's shadow root on a chat page: the scheme is the measured one, on its wrapper. */
+const shadowCss = injectControlCss('', (scheme) => `.slm-fab-wrap[data-scheme="${scheme}"]`);
 
 /** Every selector of every style rule, including those inside @media; keyframe steps are skipped. */
 function selectors(css: string): string[] {
@@ -15,6 +14,13 @@ function selectors(css: string): string[] {
     .flatMap((m) => m[1]!.split(','))
     .map((selector) => selector.trim())
     .filter(Boolean);
+}
+
+/** The declarations of the first rule whose selector list is exactly `selector`. */
+function rule(css: string, selector: string): string {
+  const at = css.indexOf(`\n${selector} {`);
+  expect(at, `no rule for ${selector}`).toBeGreaterThanOrEqual(0);
+  return css.slice(at, css.indexOf('}', at));
 }
 
 function luminance(hex: string): number {
@@ -31,36 +37,22 @@ function contrast(a: string, b: string): number {
 }
 
 describe('composer control stylesheet', () => {
-  it('scopes every rule to the composer slot when it is written into the chat page', () => {
+  it('scopes every rule when it is written into a page', () => {
     const all = selectors(pageCss);
     expect(all.length).toBeGreaterThan(20);
-    // Nothing here may reach an element of the host page: each selector starts at the slot.
     for (const selector of all) {
-      expect(selector.startsWith('[data-stemlm-composer-slot]'), selector).toBe(true);
+      expect(selector.startsWith('.slm-welcome ') || selector.startsWith('[data-stemlm-theme="dark"] '), selector).toBe(true);
       expect(selector, selector).toMatch(/\.slm-/);
     }
-    // The page's light or dark scheme is read from the slot itself.
-    expect(pageCss).toContain('[data-stemlm-composer-slot][data-scheme="dark"] .slm-inject-btn {');
-    expect(pageCss).toContain('[data-stemlm-composer-slot][data-scheme="light"] .slm-inject-btn {');
-    // The slot's own stylesheet carries exactly these rules.
-    expect(_slotCss).toContain(pageCss);
   });
 
-  it('needs no scope inside the shadow root, where the scheme is a class on the wrapper', () => {
-    const all = selectors(shadowCss);
-    for (const selector of all) {
-      expect(selector.startsWith('.slm-'), selector).toBe(true);
-      expect(selector, selector).not.toContain('data-stemlm-composer-slot');
-    }
-    expect(shadowCss).toContain('.slm-fab-wrap--dark .slm-inject-btn {');
-    expect(shadowCss).toContain('.slm-fab-wrap--light .slm-inject-btn {');
+  it('needs no scope inside the shadow root, where the scheme is on the wrapper', () => {
+    for (const selector of selectors(shadowCss)) expect(selector.startsWith('.slm-'), selector).toBe(true);
+    expect(shadowCss).toContain('.slm-fab-wrap[data-scheme="dark"] .slm-inject-btn {');
   });
 
   it('draws the same control in both worlds: the two sheets differ only by their scope', () => {
-    const unscoped = pageCss
-      .replaceAll('[data-stemlm-composer-slot][data-scheme="dark"]', '.slm-fab-wrap--dark')
-      .replaceAll('[data-stemlm-composer-slot][data-scheme="light"]', '.slm-fab-wrap--light')
-      .replaceAll(SLOT, '');
+    const unscoped = pageCss.replaceAll('[data-stemlm-theme="dark"]', '.slm-fab-wrap[data-scheme="dark"]').replaceAll(SCOPE, '');
     expect(unscoped).toBe(shadowCss);
   });
 
@@ -76,33 +68,78 @@ describe('composer control stylesheet', () => {
     }
   });
 
-  it('is a rounded square at a comfortable hit size, showing the mark and not a plus', () => {
-    const base = shadowCss.slice(shadowCss.indexOf('.slm-inject-btn {'), shadowCss.indexOf('.slm-fab-wrap--dark'));
+  it('is the neighbour of the chat\'s attach button: its size, corner and ink, and no surface at rest', () => {
+    const base = rule(shadowCss, '.slm-inject-btn');
+    // Measured from the attach button at run time; the fallbacks draw the welcome page's crops.
     expect(base).toContain(`width: var(--slm-inject-size, ${INJECT_SIZE_PX}px)`);
     expect(base).toContain(`height: var(--slm-inject-size, ${INJECT_SIZE_PX}px)`);
-    expect(INJECT_SIZE_PX).toBeGreaterThanOrEqual(32);
-    expect(base).toContain(`border-radius: ${INJECT_RADIUS}`);
-    expect(base).not.toContain('border-radius: 50%');
+    expect(base).toContain(`border-radius: var(--slm-inject-radius, ${INJECT_RADIUS})`);
+    expect(base).toContain('--slm-inject-ink: var(--slm-inject-host-ink, #16161a)');
+    expect(rule(shadowCss, '.slm-fab-wrap[data-scheme="dark"] .slm-inject-btn')).toContain('--slm-inject-ink: var(--slm-inject-host-ink, #f2f2f2)');
+    // A ghost button, like the chat's own: nothing painted until it is pointed at.
+    expect(base).toMatch(/background:\s*transparent/);
+    expect(base).toMatch(/border:\s*0/);
+    expect(base).not.toMatch(/box-shadow/);
+    expect(rule(shadowCss, '.slm-inject-btn:hover')).toMatch(/background:\s*color-mix\(in srgb, var\(--slm-inject-ink\) \d+%, transparent\)/);
+    // No glow anywhere, in any state.
+    expect(shadowCss).not.toMatch(/box-shadow:\s*0 0 0/);
+    // Its box is placed by measurement, with no easing that could trail the composer.
+    const wrap = rule(shadowCss, '.slm-fab-wrap');
+    expect(wrap).toMatch(/position:\s*fixed/);
+    expect(wrap).not.toMatch(/transition|z-index/);
+  });
+
+  it('shows the mark, not a plus, and swaps it for a tick or a stop mark in the same box', () => {
     expect(shadowCss).toContain('.slm-inject-mark .slm-inject-apex');
     expect(shadowCss).not.toContain('slm-inject-plus');
-    // Idle shows the mark; attached and panel-open swap it for the tick.
-    expect(shadowCss).toMatch(/\.slm-inject-btn\.is-attached \.slm-inject-mark,\s*\.slm-inject-btn\.is-panel-open \.slm-inject-mark\s*\{[^}]*opacity:\s*0/);
-    expect(shadowCss).toMatch(/\.slm-inject-btn\.is-attached \.slm-inject-tick,\s*\.slm-inject-btn\.is-panel-open \.slm-inject-tick\s*\{[^}]*opacity:\s*1/);
+    expect(rule(shadowCss, '.slm-inject-glyph svg')).toMatch(/opacity:\s*0/);
+    const visible = shadowCss.slice(shadowCss.indexOf('.slm-inject-glyph.is-mark .slm-inject-mark'));
+    expect(visible).toMatch(/^\.slm-inject-glyph\.is-mark \.slm-inject-mark,\s*\.slm-inject-glyph\.is-tick \.slm-inject-tick,\s*\.slm-inject-glyph\.is-alert \.slm-inject-alert\s*\{[^}]*opacity:\s*1/);
+    // Every glyph fills the one glyph box: nothing about the control's size depends on its state.
+    expect(rule(shadowCss, '.slm-inject-glyph svg')).toMatch(/inset:\s*0/);
+    for (const state of ['is-attached', 'is-panel-open', 'is-error', 'is-loading']) {
+      const stateRules = [...shadowCss.matchAll(new RegExp(`\\.slm-inject-btn\\.${state}[^{]*\\{([^}]*)\\}`, 'g'))].map((m) => m[1]!).join('');
+      expect(stateRules, state).not.toMatch(/width|height|padding|margin|border(?!-radius)/);
+    }
   });
 
   it('keeps its states legible in both schemes and its focus ring visible', () => {
     expect(INJECT_SIGNAL.toLowerCase()).toBe('#ff6b2c');
     // Panel open: a white tick on the strong signal fill.
-    expect(shadowCss).toMatch(new RegExp(`\\.slm-inject-btn\\.is-panel-open\\s*\\{[^}]*background:\\s*${INJECT_SIGNAL_STRONG};[^}]*color:\\s*#ffffff`));
+    expect(shadowCss).toMatch(new RegExp(`\\.slm-inject-btn\\.is-panel-open:hover\\s*\\{[^}]*background:\\s*${INJECT_SIGNAL_STRONG};[^}]*color:\\s*#ffffff`));
     expect(contrast('#ffffff', INJECT_SIGNAL_STRONG)).toBeGreaterThanOrEqual(3);
-    // Attached: the tick is the signal as ink, chosen per scheme against that scheme's surface.
-    const ink = (scheme: 'light' | 'dark') =>
-      new RegExp(`\\.slm-fab-wrap--${scheme} \\.slm-inject-btn\\s*\\{[^}]*--slm-inject-signal-ink:\\s*(#[0-9a-f]{6})`).exec(shadowCss)?.[1];
-    expect(shadowCss).toMatch(/\.slm-inject-btn\.is-attached\s*\{[^}]*color:\s*var\(--slm-inject-signal-ink\)/);
-    expect(contrast(ink('light')!, '#ffffff')).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(ink('dark')!, '#222224')).toBeGreaterThanOrEqual(4.5);
+    // On for this question: the tick is the signal as ink; could not be: the error ink. Each is
+    // chosen per scheme against the lightest and darkest composer it lands on.
+    const ink = (scheme: 'light' | 'dark', name: string) => {
+      const block = scheme === 'dark' ? rule(shadowCss, '.slm-fab-wrap[data-scheme="dark"] .slm-inject-btn') : rule(shadowCss, '.slm-inject-btn');
+      return new RegExp(`--slm-inject-${name}:\\s*(#[0-9a-f]{6})`).exec(block)?.[1];
+    };
+    expect(rule(shadowCss, '.slm-inject-btn.is-attached')).toMatch(/color:\s*var\(--slm-inject-signal-ink\)/);
+    expect(rule(shadowCss, '.slm-inject-btn.is-error')).toMatch(/color:\s*var\(--slm-inject-error\)/);
+    for (const name of ['signal-ink', 'error']) {
+      expect(contrast(ink('light', name)!, '#ffffff'), name).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(ink('light', name)!, '#f0f4f9'), name).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(ink('dark', name)!, '#303030'), name).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(ink('dark', name)!, '#1f1f1f'), name).toBeGreaterThanOrEqual(4.5);
+    }
     // The ring is ink, not orange, so it shows on any chat page behind it.
     expect(shadowCss).toMatch(/\.slm-inject-btn:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--slm-inject-ink\);[^}]*outline-offset:\s*2px/);
+  });
+
+  it('says what it does beside itself, without taking the pointer', () => {
+    const tip = rule(shadowCss, '.slm-inject-tip');
+    expect(tip).toMatch(/pointer-events:\s*none/);
+    expect(tip).toMatch(/opacity:\s*0/);
+    expect(tip).toMatch(/position:\s*absolute/);
+    // Shown on hover after a beat, at once for the keyboard and after a press.
+    expect(rule(shadowCss, '.slm-inject-btn:hover + .slm-inject-tip')).toMatch(/opacity:\s*1;[^}]*transition-delay:\s*0\.4s/);
+    expect(shadowCss).toMatch(/\.slm-inject-btn:focus-visible \+ \.slm-inject-tip,\s*\.slm-inject-tip\.is-open\s*\{[^}]*opacity:\s*1/);
+    // Light text on a dark slip in a light chat, the reverse in a dark one.
+    const colours = (block: string) => [/--slm-inject-tip-bg:\s*(#[0-9a-f]{6})/, /--slm-inject-tip-fg:\s*(#[0-9a-f]{6})/].map((re) => re.exec(block)![1]!);
+    for (const block of [tip, rule(shadowCss, '.slm-fab-wrap[data-scheme="dark"] .slm-inject-tip')]) {
+      const [bg, fg] = colours(block);
+      expect(contrast(bg!, fg!)).toBeGreaterThanOrEqual(7);
+    }
   });
 
   it('moves only while attaching, and not at all under reduced motion', () => {

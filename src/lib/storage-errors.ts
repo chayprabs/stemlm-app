@@ -1,6 +1,6 @@
 /** Thrown when extension storage.local exceeds its quota. */
 export class StorageQuotaError extends Error {
-  constructor(message = 'Browser storage is full. Delete old saved sessions and try again.') {
+  constructor(message = 'Browser storage is full. Delete saved questions you no longer need, then try again.') {
     super(message);
     this.name = 'StorageQuotaError';
   }

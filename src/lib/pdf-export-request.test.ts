@@ -72,6 +72,23 @@ describe('PDF export hand-off (content script → pdf.html)', () => {
     expect(await requestSessionPdf(session())).toBe(false);
   });
 
+  it('opens one export window when asked twice before the first request is answered', async () => {
+    let answer: (response: { ok: boolean }) => void = () => undefined;
+    sendMessage.mockImplementationOnce(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const first = requestSessionPdf(session());
+    const second = requestSessionPdf(session());
+    answer({ ok: true });
+    expect(await Promise.all([first, second])).toEqual([true, true]);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    // Once it has been answered, a new request is a new export.
+    sendMessage.mockResolvedValueOnce({ ok: true });
+    expect(await requestSessionPdf(session())).toBe(true);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+  });
+
   it('recognises only well-formed export messages', () => {
     expect(isPdfExportMessage({ type: PDF_EXPORT_MESSAGE, session: session() })).toBe(true);
     expect(isPdfExportMessage({ type: PDF_EXPORT_MESSAGE })).toBe(false);

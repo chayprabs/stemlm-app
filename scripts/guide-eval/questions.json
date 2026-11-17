@@ -1,0 +1,169 @@
+[
+  {
+    "id": "q01-chart",
+    "wants": "chart",
+    "question": "A class survey asked 50 students for their favourite sport: football 14, cricket 21, tennis 6, hockey 9. Show the results as a bar chart and work out what percentage of the class chose cricket."
+  },
+  {
+    "id": "q02-dist",
+    "wants": "dist",
+    "question": "The heights of adult men are normally distributed with mean 175 cm and standard deviation 7 cm. What percentage of men are taller than 189 cm? Show it on the curve."
+  },
+  {
+    "id": "q03-triangle",
+    "wants": "triangle",
+    "question": "In triangle ABC, side a = 8 cm, side b = 5 cm and the angle between them, C, is 60°. Find side c and angles A and B."
+  },
+  {
+    "id": "q04-truth",
+    "wants": "truth",
+    "question": "Write the truth table for F = (A + B)·C' and list its minterms."
+  },
+  {
+    "id": "q05-energy",
+    "wants": "energy",
+    "question": "The reaction X + Y → Z has an activation energy of 120 kJ/mol and ΔH = +35 kJ/mol. Draw the reaction energy profile and explain what a catalyst would change."
+  },
+  {
+    "id": "q06-probtree",
+    "wants": "probtree",
+    "question": "A bag holds 4 green and 6 yellow sweets. Two sweets are taken one after the other without replacement. What is the probability that the two are different colours? Use a tree diagram."
+  },
+  {
+    "id": "q07-nofigure",
+    "wants": "none",
+    "question": "Differentiate f(x) = x² · e^(3x) and simplify the result."
+  },
+  {
+    "id": "q08-nonstem",
+    "wants": "none",
+    "question": "Who wrote Pride and Prejudice, and what is the novel about?"
+  },
+  {
+    "id": "q09-incline",
+    "wants": "scene",
+    "question": "A 5.0 kg block is released from rest on a 30° incline. The coefficient of kinetic friction is 0.20. Find its acceleration down the incline."
+  },
+  {
+    "id": "q10-circuit",
+    "wants": "circuit",
+    "question": "A 12 V battery is connected to a 4 Ω resistor in series with a parallel pair of 6 Ω and 3 Ω resistors. Find the total current and the current through each resistor."
+  },
+  {
+    "id": "q11-long-plot",
+    "wants": "plot",
+    "question": "Sketch the graph of y = x² − 4x + 3 and find its roots and vertex.",
+    "history": [
+      ["student", "A car accelerates uniformly from rest to 24 m/s in 8.0 s. How far does it travel in that time?\n\n{{FIRST_STUB}}\n[attached file: stemLM Guide.txt]"],
+      ["assistant", "```stemlm\n@meta\nsubject: Physics\ntopic: Distance under constant acceleration\nquestion: A car accelerates uniformly from rest to 24 m/s in 8.0 s. How far does it travel in that time?\n@endmeta\n@step id=s1\ntitle: Find the acceleration\n@formula id=e1\n$$a=\\frac{v-u}{t}$$\n@endformula\n@body\nThe car starts from rest, so $u=0$. Acceleration is the change in velocity each second: $a=\\frac{24-0}{8.0}=3.0\\ \\text{m/s}^2$.\n@endbody\n@endstep\n@step id=s2\ntitle: Use the distance equation for constant acceleration\n@formula id=e2\n$$s=ut+\\tfrac12 at^2$$\n@endformula\n@body\nWith $u=0$ the first term vanishes, so $s=\\tfrac12(3.0)(8.0)^2=96\\ \\text{m}$.\n@endbody\n@takeaway\nFrom rest, distance grows with the square of the time.\n@endtakeaway\n@endstep\n@step id=s3\ntitle: Check with the average velocity\n@body\nFor constant acceleration the average velocity is $\\frac{0+24}{2}=12\\ \\text{m/s}$. Over 8.0 s that gives $12\\times 8.0=96\\ \\text{m}$, the same distance.\n@endbody\n@endstep\n@verify\nmethods: alt\nstatus: pass\nnotes: average velocity 12 m/s x 8.0 s = 96 m agrees with s = 96 m\n@endverify\n@solution\nThe car travels $96\\ \\text{m}$ while it speeds up at $3.0\\ \\text{m/s}^2$.\n@endsolution\n@end\n```"],
+      ["student", "thanks. is acceleration always constant in these problems?"],
+      ["assistant", "No. School kinematics problems usually say \"uniform\" or \"constant\" acceleration because that is the case the standard equations cover. When acceleration changes with time you need calculus: velocity is the integral of acceleration and position is the integral of velocity. If a problem does not say the acceleration is constant, check whether it gives a formula or a graph for it."],
+      ["student", "what is the difference between speed and velocity again"],
+      ["assistant", "Speed is how fast something moves and has no direction. Velocity is speed with a direction, so it can be negative or change when the object turns even if the speed stays the same. A car going round a roundabout at a steady 30 km/h has constant speed but a changing velocity."],
+      ["student", "my teacher said displacement can be negative, how?"],
+      ["assistant", "Displacement is measured from a starting point along a direction you choose as positive. If the object ends up on the other side of the start, its displacement is negative. Walk 5 m east and then 8 m west with east as positive: the distance covered is 13 m, but the displacement is −3 m."],
+      ["student", "ok and what does the area under a velocity-time graph mean"],
+      ["assistant", "It is the displacement. Each thin strip under the graph has height equal to velocity and width equal to a small time, and velocity times time is distance moved. Area below the time axis counts as negative displacement, because the velocity there is negative."],
+      ["student", "can you give me a quick tip to remember the suvat equations"],
+      ["assistant", "Notice that each equation leaves out exactly one of s, u, v, a and t. List what the problem gives you and what it asks for, then pick the equation that does not contain the one quantity you neither know nor need. That is quicker than memorising them as five separate formulas."],
+      ["student", "we have a test on friday, which topics should I revise for kinematics"],
+      ["assistant", "Revise the five constant-acceleration equations and when each applies, reading displacement-time and velocity-time graphs (gradient and area), free fall with g, and projectile motion split into horizontal and vertical parts. Practise choosing a positive direction and sticking to it, because most lost marks come from sign errors."],
+      ["student", "what is a vector in one sentence"],
+      ["assistant", "A vector is a quantity that has both a size and a direction, such as velocity, force or displacement."],
+      ["student", "is g 9.8 or 9.81"],
+      ["assistant", "Both are rounded values of the same thing: the standard value is 9.80665 m/s². Use whichever your course or the question gives. If it gives neither, 9.81 m/s² is the common choice, and say that you assumed it."],
+      ["student", "ok one more, why do heavier things not fall faster"],
+      ["assistant", "A heavier object is pulled down harder, but it also has more inertia, and the two effects cancel exactly: the force is mg and the acceleration is force divided by m, which leaves g for every mass. In air, a feather falls slowly only because air resistance matters much more for it than for a hammer."],
+      ["student", "got it, thanks. switching to maths now"],
+      ["assistant", "Sure. Send the maths question whenever you are ready."]
+    ]
+  },
+  {
+    "id": "q12-long-punnett",
+    "wants": "table",
+    "question": "In pea plants, tall (T) is dominant over short (t). Two heterozygous plants are crossed. What fraction of the offspring are short? Show the Punnett square.",
+    "history": [
+      ["note", "The earlier part of this conversation is no longer shown."],
+      ["student", "what is a gene vs an allele"],
+      ["assistant", "A gene is a stretch of DNA that codes for a trait, such as flower colour. An allele is one version of that gene, such as the purple version or the white version. You inherit two alleles of each gene, one from each parent."],
+      ["student", "and genotype vs phenotype?"],
+      ["assistant", "The genotype is the pair of alleles an organism carries, written with letters such as Aa. The phenotype is what you can observe as a result, such as purple flowers. Two different genotypes, AA and Aa, can give the same phenotype when A is dominant."],
+      ["student", "what does heterozygous mean"],
+      ["assistant", "Heterozygous means the two alleles of a gene are different, as in Aa. Homozygous means they are the same, as in AA or aa."],
+      ["student", "is blood type an example of codominance"],
+      ["assistant", "Yes, partly. The A and B alleles are codominant: a person with one of each has type AB, and both markers appear on the red blood cells. The O allele is recessive to both, so the ABO system shows codominance and ordinary dominance together."],
+      ["student", "thanks, how many chromosomes do humans have"],
+      ["assistant", "Humans have 46 chromosomes in most body cells, arranged as 23 pairs. Egg and sperm cells carry 23, one from each pair."]
+    ]
+  },
+  {
+    "id": "c1-venn",
+    "wants": "venn",
+    "question": "In a class of 60 biology students, 35 study genetics, 28 study ecology and 12 study both. How many study neither? Show it on a diagram of the two groups."
+  },
+  {
+    "id": "c2-smiles",
+    "wants": "chem.smiles",
+    "question": "Draw the structure of ethanol and explain why it passes through a cell membrane more easily than glucose does."
+  },
+  {
+    "id": "c3-poisson",
+    "wants": "dist",
+    "question": "In a radioactive decay experiment a detector records on average 4 counts in each 10 s interval. How likely is it to record 2 or fewer counts in one interval? Show this on a graph."
+  },
+  {
+    "id": "c4-runtime",
+    "wants": "chart",
+    "question": "The running times of an algorithm on inputs of size 100, 200, 400 and 800 were 2, 8, 33 and 130 ms. Plot time against input size and say what the time complexity is."
+  },
+  {
+    "id": "c5-hashtree",
+    "wants": "probtree",
+    "question": "A hash table has 4 buckets and a hash function that picks each bucket equally often. Two keys are inserted one after the other. Draw a diagram of the possible outcomes with their chances and find the chance of a collision."
+  },
+  {
+    "id": "c6-capacitor",
+    "wants": "dist",
+    "question": "A capacitor batch has capacitance values that follow a bell-shaped (normal) curve with mean 100 nF and standard deviation 2 nF. What fraction of the capacitors lies between 97 nF and 103 nF? Shade that fraction on the curve."
+  },
+  {
+    "id": "c7-detector",
+    "wants": "graph",
+    "question": "Design a detector circuit with flip-flops that outputs 1 whenever the last three input bits were 101 (overlapping allowed). Draw its state diagram and explain each state."
+  },
+  {
+    "id": "c8-yield",
+    "wants": "chart",
+    "question": "Tensile tests on five steel bars gave yield strengths of 248, 252, 255, 249 and 261 MPa. Show the results as a chart and find the mean yield strength."
+  },
+  {
+    "id": "t12-guide-above",
+    "wants": "projectile",
+    "question": "A ball is thrown at 18 m/s at 40° above the horizontal from ground level. Find how far away it lands and its greatest height.",
+    "guideAbove": true,
+    "history": [
+      ["student", "A car accelerates uniformly from rest to 24 m/s in 8.0 s. How far does it travel in that time?\n\n{{FIRST_STUB}}\n[attached file: stemLM Guide.txt]"],
+      ["assistant", "```stemlm\n@meta\nsubject: Physics\ntopic: Distance under constant acceleration\nquestion: A car accelerates uniformly from rest to 24 m/s in 8.0 s. How far does it travel in that time?\n@endmeta\n@step id=s1\ntitle: Find the acceleration\n@formula id=e1\n$$a=\\frac{v-u}{t}$$\n@endformula\n@body\nThe car starts from rest, so $u=0$. Acceleration is the change in velocity each second: $a=\\frac{24-0}{8.0}=3.0\\ \\text{m/s}^2$.\n@endbody\n@endstep\n@step id=s2\ntitle: Use the distance equation for constant acceleration\n@formula id=e2\n$$s=ut+\\tfrac12 at^2$$\n@endformula\n@body\nWith $u=0$ the first term vanishes, so $s=\\tfrac12(3.0)(8.0)^2=96\\ \\text{m}$.\n@endbody\n@takeaway\nFrom rest, distance grows with the square of the time.\n@endtakeaway\n@endstep\n@step id=s3\ntitle: Check with the average velocity\n@body\nFor constant acceleration the average velocity is $\\frac{0+24}{2}=12\\ \\text{m/s}$. Over 8.0 s that gives $12\\times 8.0=96\\ \\text{m}$, the same distance.\n@endbody\n@endstep\n@verify\nmethods: alt\nstatus: pass\nnotes: average velocity 12 m/s x 8.0 s = 96 m agrees with s = 96 m\n@endverify\n@solution\nThe car travels $96\\ \\text{m}$ while it speeds up at $3.0\\ \\text{m/s}^2$.\n@endsolution\n@end\n```"],
+      ["student", "thanks. is acceleration always constant in these problems?"],
+      ["assistant", "No. School kinematics problems usually say \"uniform\" or \"constant\" acceleration because that is the case the standard equations cover. When acceleration changes with time you need calculus: velocity is the integral of acceleration and position is the integral of velocity. If a problem does not say the acceleration is constant, check whether it gives a formula or a graph for it."],
+      ["student", "what is the difference between speed and velocity again"],
+      ["assistant", "Speed is how fast something moves and has no direction. Velocity is speed with a direction, so it can be negative or change when the object turns even if the speed stays the same. A car going round a roundabout at a steady 30 km/h has constant speed but a changing velocity."],
+      ["student", "my teacher said displacement can be negative, how?"],
+      ["assistant", "Displacement is measured from a starting point along a direction you choose as positive. If the object ends up on the other side of the start, its displacement is negative. Walk 5 m east and then 8 m west with east as positive: the distance covered is 13 m, but the displacement is −3 m."],
+      ["student", "ok and what does the area under a velocity-time graph mean"],
+      ["assistant", "It is the displacement. Each thin strip under the graph has height equal to velocity and width equal to a small time, and velocity times time is distance moved. Area below the time axis counts as negative displacement, because the velocity there is negative."],
+      ["student", "can you give me a quick tip to remember the suvat equations"],
+      ["assistant", "Notice that each equation leaves out exactly one of s, u, v, a and t. List what the problem gives you and what it asks for, then pick the equation that does not contain the one quantity you neither know nor need. That is quicker than memorising them as five separate formulas."],
+      ["student", "we have a test on friday, which topics should I revise for kinematics"],
+      ["assistant", "Revise the five constant-acceleration equations and when each applies, reading displacement-time and velocity-time graphs (gradient and area), free fall with g, and projectile motion split into horizontal and vertical parts. Practise choosing a positive direction and sticking to it, because most lost marks come from sign errors."],
+      ["student", "what is a vector in one sentence"],
+      ["assistant", "A vector is a quantity that has both a size and a direction, such as velocity, force or displacement."],
+      ["student", "is g 9.8 or 9.81"],
+      ["assistant", "Both are rounded values of the same thing: the standard value is 9.80665 m/s². Use whichever your course or the question gives. If it gives neither, 9.81 m/s² is the common choice, and say that you assumed it."],
+      ["student", "ok one more, why do heavier things not fall faster"],
+      ["assistant", "A heavier object is pulled down harder, but it also has more inertia, and the two effects cancel exactly: the force is mg and the acceleration is force divided by m, which leaves g for every mass. In air, a feather falls slowly only because air resistance matters much more for it than for a hammer."],
+      ["student", "got it, thanks. switching to maths now"],
+      ["assistant", "Sure. Send the maths question whenever you are ready."]
+    ]
+  }
+]

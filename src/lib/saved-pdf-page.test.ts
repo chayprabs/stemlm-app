@@ -142,6 +142,74 @@ describe('saved-pdf page', () => {
   });
 });
 
+describe('what the export window shows and offers', () => {
+  const app = () => document.getElementById('app') as HTMLElement;
+  const buttons = () => [...app().querySelectorAll<HTMLButtonElement>('button')];
+
+  beforeEach(() => {
+    getSavedSession.mockReset();
+    downloadSessionPdf.mockClear();
+    takePdfExportJob.mockReset();
+    document.body.innerHTML = '<main id="app" role="status"></main>';
+    vi.spyOn(window, 'close').mockImplementation(() => undefined);
+  });
+
+  it('draws how far the build has got, and nothing of the kind once it is over', async () => {
+    takePdfExportJob.mockResolvedValue(handedOver());
+    downloadSessionPdf.mockImplementationOnce(async (...args: unknown[]) => {
+      const fill = () => app().querySelector<HTMLElement>('.slm-saved-pdf-progress-fill');
+      expect(fill()?.style.width).toBe('0%');
+      (args[1] as { onProgress: (p: { page: number; total: number }) => void }).onProgress({ page: 3, total: 4 });
+      expect(fill()?.style.width).toBe('75%');
+      expect(app().getAttribute('role')).toBe('status');
+      return { ok: true, method: 'download' };
+    });
+    await runSavedPdfPage('job=job-12345678&mode=download');
+    expect(app().dataset.state).toBe('done');
+    expect(app().querySelector('.slm-saved-pdf-progress')).toBeNull();
+    expect(buttons()).toHaveLength(0);
+    expect(document.title).toBe('PDF saved - stemlm');
+  });
+
+  it('a failed build interrupts, can be run again from the same window, and can be closed', async () => {
+    takePdfExportJob.mockResolvedValueOnce(handedOver());
+    downloadSessionPdf.mockResolvedValueOnce({ ok: false, method: 'failed', reason: 'timeout' });
+    await runSavedPdfPage('job=job-12345678&mode=download');
+    expect(app().getAttribute('role')).toBe('alert');
+    expect(app().dataset.state).toBe('error');
+    // One question was being exported: the advice is not the library's "merge fewer".
+    expect(app().textContent).toContain('Rendering took too long. Try again.');
+    expect(buttons().map((b) => b.textContent)).toEqual(['Try again', 'Close window']);
+    expect(document.activeElement).toBe(buttons()[0]);
+
+    // The session was handed over once; trying again must not ask for it a second time.
+    buttons()[0]!.click();
+    await vi.waitFor(() => expect(app().dataset.state).toBe('done'));
+    expect(downloadSessionPdf).toHaveBeenCalledTimes(2);
+    expect((downloadSessionPdf.mock.calls[1] as unknown[])[0]).toMatchObject({ id: 'tab-session' });
+    expect(takePdfExportJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('says in plain words what is missing, and always leaves a way out', async () => {
+    const cases: Array<[string, RegExp]> = [
+      ['', /opened without a question/],
+      ['id=gone', /no longer in your saved questions/],
+      ['job=job-12345678&mode=download', /expired/],
+    ];
+    takePdfExportJob.mockResolvedValue(null);
+    getSavedSession.mockResolvedValue(undefined);
+    for (const [search, words] of cases) {
+      expect((await runSavedPdfPage(search)).ok, search).toBe(false);
+      expect(app().textContent, search).toMatch(words);
+      expect(app().textContent, search).not.toMatch(/session|capsule|protocol|!/i);
+      expect(app().getAttribute('role'), search).toBe('alert');
+      expect(buttons().map((b) => b.textContent), search).toEqual(['Close window']);
+    }
+    buttons()[0]!.click();
+    expect(window.close).toHaveBeenCalledOnce();
+  });
+});
+
 function savedSnapshot() {
   return {
     id: 'lib-1',

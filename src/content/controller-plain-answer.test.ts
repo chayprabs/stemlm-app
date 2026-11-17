@@ -452,9 +452,13 @@ async function sendWithGuide(question: string): Promise<void> {
   const injected = c.inject();
   await vi.advanceTimersByTimeAsync(100);
   expect(await injected).toBe(true);
-  expect(useStore.getState().status).toBe('loading');
+  // Attached, not sent: the panel does not wait for an answer yet.
+  expect(useStore.getState().status).not.toBe('loading');
   ask(`${question}\n${STUB}`);
   adapter.editorText = '';
+  // Sent: the student's message, carrying stemLM's lines, is in the thread.
+  await vi.advanceTimersByTimeAsync(400);
+  expect(useStore.getState().status).toBe('loading');
 }
 
 describe('capture fallback: the chat answered a stemLM question in its own words', () => {
@@ -690,15 +694,20 @@ describe('capture fallback when the guide was attached to an empty chat box', ()
     expect(useStore.getState().status).toBe('idle');
   });
 
-  it('reports nothing for a reply that is not an answer: the panel was not waiting on one', async () => {
+  // The panel used not to wait in this flow, because it could not tell when the question was
+  // sent. It can now (the message carrying stemLM's lines appears), so it waits, and reports a
+  // reply that is not an answer exactly as it does for a question typed first.
+  it('reports a reply that is not an answer, once the question was sent with the guide', async () => {
     await attachFirst();
     ask(`Find the range.\n${STUB}`);
     adapter.editorText = '';
+    await vi.advanceTimersByTimeAsync(400);
+    expect(useStore.getState().status).toBe('loading');
     reply(`<p>${REFUSAL}</p>`);
     await vi.advanceTimersByTimeAsync(11_000);
     expect(sessions()).toHaveLength(0);
-    expect(useStore.getState().status).toBe('idle');
-    expect(useStore.getState().errorMessage ?? '').not.toMatch(/no stemlm answer/i);
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage ?? '').toMatch(/no stemlm answer/i);
   });
 });
 

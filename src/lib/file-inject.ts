@@ -103,6 +103,8 @@ function opensUploadMenu(el: HTMLElement): boolean {
     .toLowerCase();
   if (label.includes('menu')) return true;
   if (label.includes('and more')) return true;
+  // A button that reports expanded/collapsed opens something of the chat's own (Gemini's "Upload & tools").
+  if (el.hasAttribute('aria-expanded')) return true;
   const popup = (el.getAttribute('aria-haspopup') ?? '').toLowerCase();
   if (popup === 'menu' || popup === 'true' || popup === 'dialog' || popup === 'listbox') {
     return true;
@@ -185,10 +187,7 @@ export function hasConfirmedAttachment(filename: string, root: ParentNode = docu
       let preview = el;
       let blocked = Boolean(el.closest('[aria-busy="true"]'));
       while (!blocked) {
-        // A composer box can itself look like a preview (Gemini: "with-file-preview"); the stemlm +
-        // docked in it is busy while attaching and is no host upload.
-        blocked = [...preview.querySelectorAll('[aria-busy="true"], [role="progressbar"]')]
-          .some((busy) => !busy.closest('[data-stemlm-composer-slot]')) ||
+        blocked = preview.querySelector('[aria-busy="true"], [role="progressbar"]') !== null ||
           /upload failed|failed to upload|file not supported|unsupported file|upload error|couldn.t upload/i.test(preview.textContent ?? '');
         const parent = preview.parentElement?.closest(previewSelector);
         if (!parent || parent === root || !root.contains(parent)) break;
@@ -313,12 +312,25 @@ export function tryPasteFile(target: HTMLElement, file: File): boolean {
   }
 }
 
+/**
+ * The nearest wrapper of the composer that holds a file input: some chats keep the composer's
+ * input beside its card, not inside it (Claude). The composer itself when no input exists yet.
+ */
+function fileInputScope(root: ParentNode, selectors: string[]): ParentNode {
+  for (let node: ParentNode | null = root; node; node = node instanceof Element ? node.parentElement : null) {
+    if (queryFirst(selectors, node)) return node;
+  }
+  return root;
+}
+
 export interface FindFileInputOptions {
   fileInputSelectors?: string[];
   uploadButtonSelectors?: string[];
   waitMs?: number;
   /** The active composer, so stale thread attachments and other editors cannot win. */
   root?: ParentNode;
+  /** Take the file input nearest `root` when the chat keeps none inside it. Chips are still read in `root` only. */
+  inputNearRoot?: boolean;
 }
 
 /**
@@ -332,11 +344,11 @@ export async function findFileInput(opt: FindFileInputOptions = {}): Promise<HTM
   const waitMs = opt.waitMs ?? 2500;
   const deadline = Date.now() + waitMs;
 
-  const root = opt.root ?? document;
+  const root = opt.inputNearRoot ? fileInputScope(opt.root ?? document, fileSels) : (opt.root ?? document);
   let input = queryFirst(fileSels, root);
   if (input) return input;
 
-  const btn = queryButton(btnSels, root);
+  const btn = queryButton(btnSels, opt.root ?? root);
   if (btn) {
     btn.click();
     while (Date.now() < deadline) {
@@ -456,6 +468,13 @@ async function tryAdditiveAttach(
   return null;
 }
 
+export interface AttachResult {
+  ok: boolean;
+  method: 'input' | 'drop' | 'paste' | 'existing' | 'none';
+  /** Not ok, but the host visibly began an upload: trying again would attach the file twice. */
+  started?: boolean;
+}
+
 /**
  * Full attach pipeline: prefer additive drop/paste so existing images/PDFs
  * stay, then (only when the composer is empty of files) assign to the input.
@@ -463,7 +482,7 @@ async function tryAdditiveAttach(
 export async function attachTextFile(
   content: string,
   opt: AttachTextFileOptions = {},
-): Promise<{ ok: boolean; method: 'input' | 'drop' | 'paste' | 'existing' | 'none' }> {
+): Promise<AttachResult> {
   const filename = opt.filename ?? PROTOCOL_ATTACHMENT_NAME;
   const root = opt.root ?? document;
   const existing = opt.requireConfirmation
@@ -484,7 +503,7 @@ export async function attachTextFile(
   if (opt.inputIsAdditive && !directInput) return { ok: false, method: 'none' };
   if (!directInput) {
     const additive = await tryAdditiveAttach(file, filename, dropTargets, additiveTimeoutMs, opt);
-    if (additive === 'started') return { ok: false, method: 'none' };
+    if (additive === 'started') return { ok: false, method: 'none', started: true };
     if (additive) return { ok: true, method: additive };
   }
 
@@ -503,7 +522,8 @@ export async function attachTextFile(
 
   if (opt.requireConfirmation) {
     const outcome = await waitForUpload(opt, filename, opt.timeoutMs ?? 4000, hadPreview);
-    return outcome === 'confirmed' ? { ok: true, method: 'input' } : { ok: false, method: 'none' };
+    if (outcome === 'confirmed') return { ok: true, method: 'input' };
+    return outcome === 'started' ? { ok: false, method: 'none', started: true } : { ok: false, method: 'none' };
   }
 
   const files = input.files ? Array.from(input.files) : [];

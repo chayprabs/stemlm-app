@@ -24,6 +24,7 @@ import { BrandWordmark, themeToBrandVariant } from './brand';
 import { IconClose, IconTextLarger, IconTextSmaller } from './icons';
 import { SETTINGS_LABEL } from '@/src/lib/saved-library';
 import { useDialogFocus } from './use-dialog-focus';
+import { moveFocus } from './move-focus';
 
 /** Footer links. Plain anchors so they open a tab from the panel and the settings page alike. */
 export const SETTINGS_LEGAL_LINKS = [
@@ -88,6 +89,7 @@ function Segmented<T extends string>({
       role="group"
       aria-label={label}
       style={{ '--slm-seg-count': options.length, '--slm-seg-index': index } as CSSProperties}
+      onKeyDown={(e) => moveFocus(e, [...e.currentTarget.querySelectorAll('button')], 'ArrowLeft', 'ArrowRight')}
     >
       <span className="slm-set-seg-thumb" aria-hidden="true" />
       {options.map((option) => (
@@ -316,6 +318,13 @@ export function SettingsOverlay({
               checked={settings.autoOpenOnAnswer}
               onChange={(autoOpenOnAnswer) =>
                 void update({ autoOpenOnAnswer }, `Open the panel automatically: ${autoOpenOnAnswer ? 'on' : 'off'}`)}
+            />
+            <Toggle
+              label="Collapse the chat's sidebar while the panel is open"
+              hint="Gives the chat its room beside the panel. The sidebar comes back when the panel closes."
+              checked={settings.collapseHostSidebar}
+              onChange={(collapseHostSidebar) =>
+                void update({ collapseHostSidebar }, `Collapse the chat's sidebar while the panel is open: ${collapseHostSidebar ? 'on' : 'off'}`)}
             />
           </section>
         </div>

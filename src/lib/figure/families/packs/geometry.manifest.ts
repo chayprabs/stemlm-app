@@ -7,7 +7,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     requiredAny: ['sides', 'angles'],
     keys: ['sides', 'angles', 'vertices', 'show', 'altitude', 'unit', 'case'],
     subjects: ['Math', 'Physics'],
-    grammar: 'triangle: sides: a=3, b=4 (any subset; side a is opposite vertex A) | angles: C=90 (degrees, any subset) | vertices: P, Q, R | show: given|solved (solved also labels every computed side and angle) | altitude: C | unit: cm | case: acute|obtuse (only for two sides and a non-included angle that fit two triangles); the triangle is solved and drawn to scale, give only what the problem gives',
+    grammar: 'triangle: a triangle solved from what is given and drawn to scale. sides: a=3, b=4 (side a is opposite vertex A) | angles: C=90 (degrees) | vertices: P, Q, R | show: given|solved (solved labels every side and angle it works out) | altitude: C | unit: cm | case: acute|obtuse (two sides and an angle not between them, when two triangles fit). Give only what the question gives',
     specimen: 'sides: a=7, b=10\nangles: C=40\nshow: solved\nunit: cm',
   },
   {
@@ -16,7 +16,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     requiredAny: ['point', 'line', 'circle', 'polygon'],
     keys: ['point', 'segment', 'line', 'circle', 'polygon', 'window', 'show'],
     subjects: ['Math'],
-    grammar: 'coord: point: A 1 2 (repeat) | segment: A B | line: y = 2x + 1 (any linear equation: x = 3, 2x + 3y = 6; or two point names) | circle: C 2 (centre point or 0,0, then radius; or an equation (x-1)^2 + (y+2)^2 = 9) | polygon: A B C D | window: xmin xmax ymin ymax | show: distance A B, midpoint A B, slope A B (computed and printed); drawn to scale on a grid',
+    grammar: 'coord: points, lines and circles on a coordinate grid. point: A 1 2 (repeat) | segment: A B | line: y = 2x + 1 (any straight-line equation, or two point names) | circle: C 2 (centre point or 0,0, then radius; or an equation) | polygon: A B C D | window: xmin xmax ymin ymax | show: distance A B, midpoint A B, slope A B (worked out and printed)',
     specimen: 'point: A 1 2\npoint: B 5 5\nsegment: A B\nline: y = -x + 3\nshow: distance A B, midpoint A B',
   },
   {
@@ -25,7 +25,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     required: ['vec'],
     keys: ['vec', 'mode', 'sum', 'unit'],
     subjects: ['Physics', 'Math', 'Mechanical'],
-    grammar: 'vectors: vec: A 3 4 (components x y; repeat) or vec: B 5∠30 (magnitude∠degrees from +x) | mode: tip-to-tail|origin|components | sum: R (draws the resultant; its components, magnitude and direction are computed and printed, never supply them) | unit: N; drawn to scale on a grid',
+    grammar: 'vectors: vectors drawn to scale, with their sum. vec: A 3 4 (components x y; repeat) or vec: B 5∠30 (size∠degrees from +x) | mode: tip-to-tail|origin|components | sum: R (the resultant is worked out and printed; never give it) | unit: N',
     specimen: 'vec: A 3 4\nvec: B 5∠30\nsum: R\nunit: N',
   },
   {
@@ -34,7 +34,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     required: ['angle'],
     keys: ['angle', 'show'],
     subjects: ['Math'],
-    grammar: 'unitcircle: angle: 150 (repeat; degrees, or 5pi/6, or 2.618 rad) | show: coords, triangle (coords: the point (cos, sin), exact at multiples of 15 degrees and computed here, never supply it; triangle: the reference triangle)',
+    grammar: 'unitcircle: angles on the unit circle. angle: 150 (repeat; degrees, or 5pi/6, or 2.618 rad) | show: coords, triangle (the point (cos, sin) and the reference triangle, worked out here)',
     specimen: 'angle: 150\nshow: coords, triangle',
   },
   {
@@ -43,7 +43,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     required: ['dydx'],
     keys: ['dydx', 'x', 'y', 'through'],
     subjects: ['Math'],
-    grammar: 'slopefield: dydx: x - y (expression in x and y) | x: -3 3 | y: -3 3 (the window) | through: 0,1 (repeat; the solution curve through each point is integrated here, never supply its points)',
+    grammar: 'slopefield: the slope field of a differential equation. dydx: x - y (in x and y) | x: -3 3 | y: -3 3 (the window) | through: 0,1 (repeat; the solution curve through that point is worked out)',
     specimen: 'dydx: x - y\nx: -3 3\ny: -3 3\nthrough: 0,1',
   },
   {
@@ -52,7 +52,7 @@ export const GEOMETRY_MANIFESTS: FamilyManifest[] = [
     requiredAny: ['r', 'x'],
     keys: ['kind', 'r', 'x', 'y', 't'],
     subjects: ['Math'],
-    grammar: 'curve: kind: polar with r: 1 + cos(theta), or kind: parametric with x: cos(t) and y: sin(2*t) | t: 0 2*pi (parameter range, 0 to 2π unless given); y as a function of x belongs to plot',
+    grammar: 'curve: a polar or parametric curve. kind: polar with r: 1 + cos(theta), or kind: parametric with x: cos(t) and y: sin(2*t) | t: 0 2*pi (range of theta or t). A plain y = f(x) curve is a plot',
     specimen: 'kind: polar\nr: 1 + cos(theta)\nt: 0 2*pi',
   },
 ];

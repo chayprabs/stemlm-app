@@ -1,8 +1,8 @@
 /**
  * Stand-in pages for the four chat hosts.
  *
- * Each page reproduces the composer and message markup the adapters in
- * src/platforms look for, dressed to resemble the host closely enough to judge
+ * Each page reproduces the message markup the adapters in src/platforms look for and the composer
+ * the real site serves (host-composers.mjs), dressed to resemble the host closely enough to judge
  * how stemLM's controls sit beside it. They are layout doubles, not copies of
  * any site: no host assets, fonts or logos are used.
  *
@@ -12,6 +12,8 @@
  */
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { SEARCH_BOX, composerCss, composerHtml, composerScript, consentOverlay } from './host-composers.mjs';
+import { hostSidebar } from './host-sidebars.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('katex');
@@ -55,72 +57,6 @@ const SKINS = {
 export const HOST_IDS = Object.keys(SKINS);
 export const hostUrl = (id) => SKINS[id].url;
 export const hostOrigin = (id) => new URL(SKINS[id].url).origin;
-
-const PLUS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-const UP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
-
-function composer(id) {
-  if (id === 'chatgpt') {
-    return `
-    <form data-chatgpt-composer data-composer-placement="thread" class="box">
-      <div role="presentation" data-composer-radius-variant="default" data-composer-layout="single-line" style="display:flex;width:100%">
-        <div style="display:flex;flex-direction:column;width:100%">
-          <input type="file" accept="image/*,video/*" aria-label="Attach photos or videos" multiple hidden />
-          <input type="file" accept="image/*" aria-label="Attach photos" multiple hidden />
-          <input type="file" aria-label="Attach files" multiple hidden />
-          <div data-composer-body data-composer-layout="single-line" style="display:flex;flex-direction:column">
-            <div data-composer-attachments><div class="chips"></div></div>
-            <div data-composer-footer-responsive data-composer-layout="single-line" class="row" style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px">
-              <div><div style="display:flex"><div style="display:flex"><span data-state="closed" style="display:contents">
-                <button type="button" class="ic" aria-label="Add files and more" aria-expanded="false" data-composer-navigation-target="add-context" data-state="closed">${PLUS}</button>
-              </span></div></div></div>
-              <div><div class="ProseMirror editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Ask ChatGPT" data-placeholder="Ask anything"></div></div>
-              <div style="display:flex;gap:6px;align-items:center">
-                <button type="submit" class="send" aria-label="Send">${UP}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </form>`;
-  }
-  if (id === 'claude') {
-    return `
-    <fieldset class="box" style="flex-direction:column;align-items:stretch">
-      <div class="chips"></div>
-      <div class="ProseMirror editor" contenteditable="true" role="textbox" data-placeholder="Reply to Claude..."></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
-        <div class="composer-footer" style="display:flex;align-items:center;flex-direction:row;gap:6px">
-          <button type="button" class="ic bordered" aria-label="Open attachment menu" aria-haspopup="menu">${PLUS}</button>
-          <input type="file" multiple hidden />
-        </div>
-        <button type="button" class="send square" aria-label="Send Message">${UP}</button>
-      </div>
-    </fieldset>`;
-  }
-  if (id === 'grok') {
-    return `
-    <div class="composer-wrap" style="display:flex;flex-direction:column;align-items:center;width:100%">
-      <form class="chat-input box" style="position:relative;display:flex;align-items:center;flex-direction:row;width:100%;gap:6px">
-        <button type="button" class="ic" aria-label="Upload a file" aria-haspopup="menu">${PLUS}</button>
-        <input type="file" multiple hidden />
-        <textarea class="editor" rows="1" aria-label="Ask Grok anything" placeholder="What do you want to know?"></textarea>
-        <button type="button" class="send" aria-label="Submit">${UP}</button>
-      </form>
-    </div>`;
-  }
-  return `
-    <input-area-v2 class="input-area box" style="flex-direction:column;align-items:stretch">
-      <images-files-uploader><input type="file" multiple hidden /><div class="chips"></div></images-files-uploader>
-      <rich-textarea><div class="ql-editor editor" contenteditable="true" role="textbox" data-placeholder="Ask Gemini"></div></rich-textarea>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
-        <div class="leading-actions" style="display:flex;align-items:center;flex-direction:row;gap:6px">
-          <button type="button" class="ic" aria-label="Open upload file menu">${PLUS}</button>
-        </div>
-        <div class="send-button-container"><button type="button" class="send" aria-label="Send message">${UP}</button></div>
-      </div>
-    </input-area-v2>`;
-}
 
 function assistant(id, { capsule, html }) {
   const inner = capsule != null
@@ -221,13 +157,17 @@ export function plainAssistant(id, markdown) {
 
 /**
  * @param {'chatgpt'|'claude'|'gemini'|'grok'} id
- * @param {{ scheme?: 'light'|'dark', question?: string, capsule?: string, html?: string, markdown?: string, empty?: boolean }} opt
+ * @param {{ scheme?: 'light'|'dark', question?: string, capsule?: string, html?: string, markdown?: string, empty?: boolean, variant?: 'in'|'out', consent?: boolean, uploadMs?: number, refuse?: boolean, fickle?: boolean }} opt
  *   `capsule`: a stemLM answer. `html`: a reply as raw HTML. `markdown`: a plain answer, rendered
- *   the way the host would (typeset math, code toolbars, reply chrome).
+ *   the way the host would (typeset math, code toolbars, reply chrome). `empty`: a new chat, with
+ *   the composer mid-page. `variant: 'out'`: logged-out ChatGPT. `consent`: Gemini's first-run
+ *   screen over the page. `uploadMs`, `refuse`, `fickle`: how the host answers a file (host-composers.mjs).
+ *   `sidebar`: `false` for a page without one, `'folded'` for one already folded (host-sidebars.mjs).
  */
 export function hostPage(id, opt = {}) {
   const skin = SKINS[id];
   const c = skin[opt.scheme ?? 'light'];
+  const variant = opt.variant ?? 'in';
   const thread = opt.empty
     ? `<div class="hero">How can I help today?</div>`
     : `${userTurn(id, opt.question ?? 'Solve this step by step.')}
@@ -241,10 +181,6 @@ export function hostPage(id, opt = {}) {
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body { background: ${c.bg}; color: ${c.fg}; font: 16px/1.6 ${skin.font}; display: flex; }
-  aside.nav { width: 260px; flex: none; background: ${c.side}; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; }
-  aside.nav .item { height: 34px; border-radius: 9px; padding: 0 10px; display: flex; align-items: center; color: ${c.muted}; font-size: 14px; }
-  aside.nav .item.on { background: ${c.bubble}; color: ${c.fg}; }
-  aside.nav .gap { height: 14px; }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%; }
   header.top { height: 52px; flex: none; display: flex; align-items: center; padding: 0 18px; color: ${c.muted}; font-size: 15px; font-weight: 600; }
   .scroll { flex: 1; overflow: auto; }
@@ -261,12 +197,6 @@ export function hostPage(id, opt = {}) {
   .editor:empty::before { content: attr(data-placeholder); color: ${c.muted}; }
   textarea.editor::placeholder { color: ${c.muted}; }
   button { font: inherit; cursor: pointer; }
-  .ic { width: 34px; height: 34px; border-radius: 999px; border: 0; background: transparent; color: ${c.fg}; display: inline-flex; align-items: center; justify-content: center; }
-  .ic.bordered { border: 1px solid ${c.boxBorder}; border-radius: 9px; width: 32px; height: 32px; }
-  .send { width: 34px; height: 34px; border-radius: 999px; border: 0; background: ${c.send}; color: ${c.sendFg}; display: inline-flex; align-items: center; justify-content: center; }
-  .send.square { border-radius: 9px; width: 32px; height: 32px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .attachment-chip { font-size: 12px; padding: 6px 10px; border-radius: 10px; background: ${c.bubble}; margin-bottom: 8px; }
   .markdown h3 { font-size: 18px; margin: 20px 0 6px; }
   .markdown p { margin: 0 0 12px; }
   .markdown ol, .markdown ul { margin: 0 0 12px; padding-left: 24px; }
@@ -278,47 +208,19 @@ export function hostPage(id, opt = {}) {
   .actions { display: flex; gap: 4px; margin: 2px 0 6px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   ${opt.markdown != null || opt.katex ? KATEX_CSS : ''}
+  ${composerCss(id, c)}
   .foot { text-align: center; color: ${c.muted}; font-size: 12px; padding-top: 8px; }
 </style>
 </head>
 <body>
-  <aside class="nav">
-    <div class="item on">New chat</div><div class="item">Search</div><div class="gap"></div>
-    <div class="item">Incline with friction</div><div class="item">Voltage divider</div><div class="item">Dijkstra walkthrough</div>
-  </aside>
-  <main>
-    <header class="top">${id === 'chatgpt' ? 'ChatGPT' : id === 'claude' ? 'Claude' : id === 'gemini' ? 'Gemini' : 'Grok'}</header>
+  ${hostSidebar(id, c, opt)}
+  <main${opt.empty ? ' class="landing"' : ''}>
+    <header class="top">${id === 'chatgpt' ? 'ChatGPT' : id === 'claude' ? 'Claude' : id === 'gemini' ? 'Gemini' : 'Grok'}${SEARCH_BOX}</header>
     <div class="scroll"><div class="thread" id="thread">${thread}</div></div>
-    <div class="dock"><div class="dock-inner">${composer(id)}</div><div class="foot">Layout double for stemLM visual checks</div></div>
+    <div class="dock"><div class="dock-inner">${composerHtml(id, variant)}</div><div class="foot">Layout double for stemLM visual checks</div></div>
   </main>
-  <script>
-    // The host accepts an attached file by listing it; the adapters confirm delivery from that chip.
-    // Like the real sites, it takes a file from its input, from a drop on the composer or from a paste:
-    // which of the three stemLM uses differs by host.
-    const listed = new Set();
-    const accept = (files) => {
-      const chips = document.querySelector('.chips') || document.querySelector('.box');
-      for (const file of files || []) {
-        if (listed.has(file.name)) continue;
-        listed.add(file.name);
-        const chip = document.createElement('div');
-        chip.className = 'attachment-chip file-preview';
-        chip.setAttribute('data-testid', 'file-preview');
-        chip.textContent = file.name;
-        chips.prepend(chip);
-      }
-    };
-    for (const input of document.querySelectorAll('input[type=file]')) {
-      input.addEventListener('change', () => accept(input.files));
-    }
-    const box = document.querySelector('.box');
-    box.addEventListener('dragover', (event) => event.preventDefault());
-    box.addEventListener('drop', (event) => { event.preventDefault(); accept(event.dataTransfer && event.dataTransfer.files); });
-    box.addEventListener('paste', (event) => {
-      const files = event.clipboardData && event.clipboardData.files;
-      if (files && files.length) { event.preventDefault(); accept(files); }
-    });
-  </script>
+  ${opt.consent ? consentOverlay() : ''}
+  <script>${composerScript(id, variant, opt)}</script>
 </body>
 </html>`;
 }

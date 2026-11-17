@@ -1,254 +1,87 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { useStore } from '@/src/state/store';
-import { getController } from '@/src/content/controller';
+import { getController, type AttachNotice } from '@/src/content/controller';
 import { detectAdapter } from '@/src/platforms/detect';
-import { injectControlEnabled, watchComposerRoute } from '@/src/platforms/routes';
+import { injectControlEnabled } from '@/src/platforms/routes';
 import {
   composerTextHasProtocol,
   pageThreadHasProtocol,
   shouldReinjectOnNewQuestion,
 } from '@/src/protocol/builder';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
-import { detectHostScheme } from '@/src/lib/theme';
 import { injectControlCss } from '@/src/lib/inject-control-css';
-import {
-  ensureComposerSlot,
-  isolateStemLmPointer,
-  outsideShellCoords,
-  removeComposerSlot,
-  resolveComposerFrame,
-  syncComposerSlotGeometry,
-} from '@/src/lib/composer-slot';
+import { trackComposerControl, type ControlPlacement } from '@/src/lib/composer-anchor';
+import { InjectGlyph, InjectSpinner } from './InjectGlyph';
 
-const BTN_SIZE = 32;
-/** The control's rules for the shadow root, where it lives when no composer slot can be docked. */
-const SHADOW_CONTROL_CSS = injectControlCss('', (scheme) => `.slm-fab-wrap--${scheme}`);
-const DOCK_RETRY_MS = 400;
-const FIXED_FALLBACK_MS = 900;
+/** The control's rules, for the shadow root it is drawn in. */
+const CONTROL_CSS = injectControlCss('', (scheme) => `.slm-fab-wrap[data-scheme="${scheme}"]`);
+const PANEL_UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
+/** How long a line about the last press stays beside the control. */
+const NOTICE_MS = 7000;
 
-function clamp(v: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, v));
-}
-
-function fixedCoords(adapter: NonNullable<ReturnType<typeof detectAdapter>>): {
-  top: number;
-  left: number;
-} {
-  const PAD = 8;
-  const leading = adapter.getComposerLeadingAnchor();
-  const leadingR = leading?.isConnected ? leading.getBoundingClientRect() : undefined;
-  const frame = resolveComposerFrame(adapter);
-  const frameR = frame?.isConnected ? frame.getBoundingClientRect() : undefined;
-  if (frameR && frameR.width > 0) {
-    const align = leadingR && leadingR.width > 0 ? leadingR : frameR;
-    return outsideShellCoords(frameR, align, BTN_SIZE);
-  }
-  if (leadingR && leadingR.width > 0) {
-    return outsideShellCoords(leadingR, leadingR, BTN_SIZE);
-  }
-
-  const shell = adapter.getComposerShell() ?? adapter.getComposerBox();
-  const boxR = shell?.isConnected ? shell.getBoundingClientRect() : undefined;
-  if (boxR && boxR.width > 0) {
-    return outsideShellCoords(boxR, boxR, BTN_SIZE);
-  }
-
-  const editor = adapter.findEditor();
-  const editorR = editor?.isConnected ? editor.getBoundingClientRect() : undefined;
-  if (editorR && editorR.width > 0) {
-    return outsideShellCoords(editorR, editorR, BTN_SIZE);
-  }
-
-  return {
-    top: clamp(window.innerHeight - BTN_SIZE - 72, PAD, window.innerHeight - BTN_SIZE - PAD),
-    left: clamp(24, PAD, window.innerWidth - BTN_SIZE - PAD),
-  };
+/** Put the control's box on its anchor. Written to the element: a position is not React state. */
+function paint(wrap: HTMLElement | null, place: ControlPlacement | null): void {
+  if (!wrap || !place) return;
+  wrap.style.left = `${place.left}px`;
+  wrap.style.top = `${place.top}px`;
+  wrap.style.setProperty('--slm-inject-size', `${place.size}px`);
+  wrap.style.setProperty('--slm-inject-radius', place.radius);
+  if (place.ink) wrap.style.setProperty('--slm-inject-host-ink', place.ink);
+  else wrap.style.removeProperty('--slm-inject-host-ink');
+  wrap.dataset.scheme = place.scheme;
+  // The line about the control goes above it, or below when the composer is at the top of the window.
+  wrap.dataset.tip = place.top < 56 ? 'below' : 'above';
 }
 
 /**
- * Keep the inject button in one stable portal target. Only fall back to fixed
- * positioning after the composer slot has been missing for a sustained period —
- * avoids flicker when Gemini briefly rebuilds the composer row.
+ * The control exists only while the chat's own attach button can be vouched for; its place is
+ * that button's (src/lib/composer-anchor.ts). Returns the element to draw into, or null.
  */
-function useInjectMount(
-  stemlmEnabled: boolean,
-): { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' } {
-  const adapter = detectAdapter();
-  const [path, setPath] = useState(() => (typeof location === 'undefined' ? '/' : location.pathname));
-  const [mount, setMount] = useState<
-    { mode: 'docked'; slot: HTMLElement } | { mode: 'fixed'; top: number; left: number } | { mode: 'hidden' }
-  >(() => {
-    if (!stemlmEnabled) return { mode: 'hidden' };
-    if (adapter && !injectControlEnabled(adapter.id, path)) return { mode: 'hidden' };
-    return adapter
-      ? { mode: 'fixed', ...fixedCoords(adapter) }
-      : { mode: 'fixed', top: window.innerHeight - 108, left: 24 };
-  });
-  const lastDockedAt = useRef(0);
-
-  useEffect(() => watchComposerRoute(() => setPath(location.pathname)), []);
+function useComposerPlace(enabled: boolean) {
+  const host = detectAdapter()?.id;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const place = useRef<ControlPlacement | null>(null);
+  const [shown, setShown] = useState(false);
 
   useEffect(() => {
-    const platform = detectAdapter();
-    if (!platform) return;
-
-    const enabled = stemlmEnabled && injectControlEnabled(platform.id, path);
-    if (!enabled) {
-      removeComposerSlot();
-      setMount({ mode: 'hidden' });
-      return;
-    }
-
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let observer: MutationObserver | null = null;
-
-    const syncGeometry = () => {
-      if (!stemlmEnabled || !injectControlEnabled(platform.id, location.pathname)) return;
-      syncComposerSlotGeometry(platform);
-    };
-
-    const sync = () => {
-      if (!stemlmEnabled || !injectControlEnabled(platform.id, location.pathname)) {
-        removeComposerSlot();
-        setMount({ mode: 'hidden' });
-        return;
-      }
-      const scheme = detectHostScheme();
-      const slot = ensureComposerSlot(platform, scheme);
-      const now = Date.now();
-
-      if (slot?.isConnected) {
-        lastDockedAt.current = now;
-        syncComposerSlotGeometry(platform);
-        // The shared slot is re-inserted when the host rebuilds its composer (SPA navigation). If the
-        // control left it meanwhile (a render saw it detached), the same slot needs a fresh render.
-        setMount((prev) =>
-          prev.mode === 'docked' && prev.slot === slot && slot.childElementCount > 0
-            ? prev
-            : { mode: 'docked', slot },
-        );
-        return;
-      }
-
-      if (lastDockedAt.current > 0 && now - lastDockedAt.current < FIXED_FALLBACK_MS) return;
-
-      const next = { mode: 'fixed' as const, ...fixedCoords(platform) };
-      setMount((prev) =>
-        prev.mode === 'fixed' && prev.top === next.top && prev.left === next.left ? prev : next,
-      );
-    };
-
-    // A throttle, not a debounce: a host that mutates without pause (streaming, loading) must not
-    // postpone the dock check indefinitely.
-    const schedule = () => {
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = null;
-        sync();
-      }, DOCK_RETRY_MS);
-    };
-
-    const onResize = () => {
-      syncGeometry();
-      schedule();
-    };
-
-    observer = new MutationObserver(schedule);
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    window.addEventListener('scroll', syncGeometry, true);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-    const visualViewport = window.visualViewport;
-    visualViewport?.addEventListener('resize', syncGeometry);
-    visualViewport?.addEventListener('scroll', syncGeometry);
-    const layoutTimers: number[] = [];
-    const unsubLayout = useStore.subscribe((state, prev) => {
-      if (
-        state.panelOpen === prev.panelOpen &&
-        state.splitRatio === prev.splitRatio &&
-        state.splitDragging === prev.splitDragging
-      ) {
-        return;
-      }
-      syncGeometry();
-      requestAnimationFrame(syncGeometry);
-      layoutTimers.push(window.setTimeout(syncGeometry, 300));
-    });
-    sync();
-
+    const adapter = detectAdapter();
+    if (!adapter || !enabled) return;
+    const stop = trackComposerControl(
+      adapter,
+      () => injectControlEnabled(adapter.id, location.pathname),
+      (next) => {
+        place.current = next;
+        paint(wrapRef.current, next);
+        setShown(next !== null);
+      },
+    );
     return () => {
-      if (timer) clearTimeout(timer);
-      for (const id of layoutTimers) clearTimeout(id);
-      observer?.disconnect();
-      window.removeEventListener('scroll', syncGeometry, true);
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      visualViewport?.removeEventListener('resize', syncGeometry);
-      visualViewport?.removeEventListener('scroll', syncGeometry);
-      unsubLayout();
+      stop();
+      place.current = null;
+      setShown(false);
     };
-  }, [adapter?.id ?? 'none', path, stemlmEnabled]);
+  }, [host, enabled]);
 
-  return mount;
+  useLayoutEffect(() => paint(wrapRef.current, place.current), [shown]);
+
+  return { shown: shown && enabled, wrapRef, place };
 }
 
-/** The therefore-mark at glyph size: two premises on the baseline, the conclusion above them. */
-const MARK_SHAPES = (
-  <>
-    <circle className="slm-inject-dot" cx="5.4" cy="17.4" r="3.3" />
-    <circle className="slm-inject-dot" cx="18.6" cy="17.4" r="3.3" />
-    <rect className="slm-inject-apex" x="8.6" y="3.2" width="6.8" height="6.8" rx="2.05" />
-  </>
-);
-
-/** While the guide is being attached the three shapes rise in turn. */
-function InjectSpinner() {
-  return (
-    <svg className="slm-inject-spinner" width={18} height={18} viewBox="0 0 24 24" aria-hidden="true">
-      {MARK_SHAPES}
-    </svg>
-  );
-}
-
-/** The mark (idle) gives way to a tick once the guide is attached. */
-export function InjectGlyph({ attached }: { attached: boolean }) {
-  return (
-    <span className={`slm-inject-glyph ${attached ? 'is-tick' : 'is-mark'}`} aria-hidden="true">
-      <svg className="slm-inject-mark" viewBox="0 0 24 24" width={18} height={18}>
-        {MARK_SHAPES}
-      </svg>
-      <svg className="slm-inject-tick" viewBox="0 0 24 24" width={18} height={18}>
-        <path
-          d="M19.5 6.5 9.6 17 4.5 11.9"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
-  );
-}
-
-const PANEL_UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
+/** Events on the control stay stemLM's: the chat's page-wide listeners never see them. */
+const keepFromHost = (event: SyntheticEvent) => event.stopPropagation();
 
 export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?: boolean }) {
   const stemlmEnabled = useStore((s) => s.settings.stemlmEnabled !== false);
-  const mount = useInjectMount(stemlmEnabled);
+  const { shown, wrapRef, place } = useComposerPlace(stemlmEnabled);
   const [pasting, setPasting] = useState(false);
+  const [notice, setNotice] = useState<AttachNotice | null>(null);
   const injected = useStore((s) => s.buttonInjected);
   const panelOpen = useStore((s) => s.panelOpen);
   const togglePanel = useStore((s) => s.togglePanel);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const onMainRef = useRef<() => void>(() => {});
-  const armedRef = useRef(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const pastingRef = useRef(false);
 
   const adapter = detectAdapter();
-  const hostScheme = detectHostScheme();
-  const neutral = adapter?.brand.neutral ?? false;
 
   useEffect(() => {
     if (!injected || !adapter) return;
@@ -257,8 +90,8 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
 
     const tick = () => {
       const text = adapter.getEditorText().trim();
-      // inject()/followUp set status 'loading' with buttonInjected; empty
-      // composer must still revert to the mark (host send clears the box).
+      // The chat clears its box when the message is sent (or the student clears it): either
+      // way stemlm is no longer on for a draft, and the control goes back to the mark.
       if (text.length === 0) {
         ctrl.resetInjection();
         return;
@@ -274,6 +107,41 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
     const id = window.setInterval(tick, 500);
     return () => clearInterval(id);
   }, [injected, adapter]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(id);
+  }, [notice]);
+
+  // The control is drawn outside the chat's tree, so the keyboard is led to it: Tab from the
+  // chat's attach button lands here, and coming back from the field after it lands here too.
+  useEffect(() => {
+    if (!shown) return;
+    let backAt = 0;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Tab' && event.shiftKey) backAt = performance.now();
+      const anchor = place.current?.anchor;
+      if (event.key !== 'Tab' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!anchor || document.activeElement !== anchor || !buttonRef.current) return;
+      event.preventDefault();
+      buttonRef.current.focus();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const anchor = place.current?.anchor;
+      const from = event.relatedTarget;
+      if (performance.now() - backAt > 250 || !anchor || event.target !== anchor || !(from instanceof Node) || !buttonRef.current) return;
+      const ours = buttonRef.current.getRootNode() instanceof ShadowRoot ? (buttonRef.current.getRootNode() as ShadowRoot).host : buttonRef.current;
+      if (from === ours || !(anchor.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+      buttonRef.current.focus();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('focusin', onFocusIn, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('focusin', onFocusIn, true);
+    };
+  }, [shown, place]);
 
   function onMain() {
     if (pastingRef.current) return;
@@ -299,13 +167,14 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
     }
     pastingRef.current = true;
     setPasting(true);
+    setNotice(null);
     void (async () => {
       try {
         await ctrl.inject();
+        setNotice(ctrl.takeAttachNotice());
       } catch {
-        const store = useStore.getState();
-        store.setStatus('error', 'Could not finish attaching the stemlm guide. Try the stemlm button again.');
-        store.openPanel();
+        useStore.getState().setStatus('error', 'Could not finish attaching the stemlm guide. Try the stemlm button again.');
+        setNotice({ tone: 'error', text: 'stemlm could not add its guide. Try again.' });
       } finally {
         pastingRef.current = false;
         setPasting(false);
@@ -313,94 +182,64 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
     })();
   }
 
-  onMainRef.current = onMain;
+  /** Tab moves on from the chat's attach button, which the control sits beside; Shift+Tab returns to it. */
+  function onKeyDown(event: KeyboardEvent) {
+    event.stopPropagation();
+    const anchor = place.current?.anchor;
+    if (event.key !== 'Tab' || !anchor?.isConnected) return;
+    if (event.shiftKey) event.preventDefault();
+    anchor.focus();
+  }
 
-  const docked = mount.mode === 'docked' && mount.slot.isConnected;
+  if (!shown) return null;
 
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const activate = () => {
-      if (armedRef.current) return;
-      armedRef.current = true;
-      queueMicrotask(() => {
-        armedRef.current = false;
-      });
-      onMainRef.current();
-    };
-    return isolateStemLmPointer(wrap, activate, true);
-  }, [docked]);
-
-  if (!stemlmEnabled || mount.mode === 'hidden') return null;
-
-  const wrapClass = [
-    'slm-fab-wrap',
-    docked ? '' : 'slm-fab-wrap--fixed',
-    neutral ? 'slm-fab-wrap--neutral' : '',
-    `slm-fab-wrap--${hostScheme}`,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const title = pasting
+  const failed = !pasting && notice?.tone === 'error';
+  const state = pasting ? 'busy' : failed ? 'error' : injected ? 'attached' : 'idle';
+  const label = pasting
     ? 'Attaching the stemlm guide'
     : panelUnavailable
       ? PANEL_UNAVAILABLE
       : injected
-      ? panelOpen
-        ? 'stemlm panel open'
-        : 'stemlm guide attached. Open the panel'
-      : 'Study with stemlm: attach the guide to this question';
+        ? `stemlm is on for this question. ${panelOpen ? 'Close' : 'Open'} the panel`
+        : 'Add the stemlm guide to this question';
+  const stateClass = pasting ? 'is-loading' : failed ? 'is-error' : injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : '';
 
-  const content = (
-    <>
+  return (
+    <div
+      ref={wrapRef}
+      className="slm-fab-wrap"
+      onClick={keepFromHost}
+      onPointerDown={keepFromHost}
+      onPointerUp={keepFromHost}
+      onMouseDown={keepFromHost}
+      onMouseUp={keepFromHost}
+      onKeyUp={keepFromHost}
+    >
+      <style>{CONTROL_CSS}</style>
       <button
+        ref={buttonRef}
         type="button"
-        className={`slm-inject-btn ${pasting ? 'is-loading' : ''} ${injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : ''}`}
+        className={`slm-inject-btn ${stateClass}`}
         data-stemlm-inject="true"
-        data-glyph={injected ? 'tick' : 'mark'}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (armedRef.current || pastingRef.current) return;
-          onMain();
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        title={title}
-        aria-label={title}
+        data-state={state}
+        data-glyph={failed ? 'alert' : injected ? 'tick' : 'mark'}
+        onClick={onMain}
+        onKeyDown={onKeyDown}
+        aria-label={label}
         aria-pressed={injected}
         aria-busy={pasting}
         aria-disabled={pasting}
       >
-        {pasting ? <InjectSpinner /> : <InjectGlyph attached={injected} />}
+        {pasting ? <InjectSpinner /> : <InjectGlyph attached={injected} failed={failed} />}
       </button>
-      <span className="slm-inject-live" role="status" aria-live="polite">
-        {pasting ? 'Attaching the stemlm guide' : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemlm guide attached' : ''}
+      {/* What the control does, in the words of its name; after a press, a line about what happened,
+          which stays open for a few seconds and is announced by the status below. */}
+      <span className={`slm-inject-tip ${notice && !pasting ? 'is-open' : ''}`} aria-hidden="true">
+        {(!pasting && notice?.text) || label}
       </span>
-    </>
-  );
-
-  const shell = (
-    <div ref={wrapRef} className={wrapClass}>
-      {content}
-    </div>
-  );
-
-  if (mount.mode === 'docked' && mount.slot.isConnected) {
-    return createPortal(shell, mount.slot);
-  }
-
-  const { top, left } =
-    mount.mode === 'fixed'
-      ? mount
-      : adapter
-        ? fixedCoords(adapter)
-        : { top: window.innerHeight - 108, left: 24 };
-
-  return (
-    <div ref={wrapRef} className={wrapClass} style={{ top, left }}>
-      <style>{SHADOW_CONTROL_CSS}</style>
-      {content}
+      <span className="slm-inject-live" role="status" aria-live="polite">
+        {pasting ? 'Attaching the stemlm guide' : notice ? notice.text : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemlm is on for this question' : ''}
+      </span>
     </div>
   );
 }

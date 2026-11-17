@@ -4,7 +4,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import { HOST_FIXTURES, mountHostComposer } from '@/src/platforms/host-fixtures';
-import { removeComposerSlot } from '@/src/lib/composer-slot';
 
 // D34 (V-LAZY-01): the study panel is a separate script loaded on first open. If it cannot load, the + says
 // so (tooltip, accessible name, live region) instead of the panel silently closing.
@@ -12,7 +11,14 @@ import { removeComposerSlot } from '@/src/lib/composer-slot';
 const loader = vi.hoisted(() => ({ load: vi.fn() }));
 vi.mock('@/src/content/load-panel', () => ({ loadPanelHost: loader.load }));
 vi.mock('@/src/content/controller', () => ({
-  getController: () => ({ inject: vi.fn(async () => true), getLastQuestion: vi.fn(() => ''), resetInjection: vi.fn() }),
+  getController: () => ({ inject: vi.fn(async () => true), getLastQuestion: vi.fn(() => ''), resetInjection: vi.fn(), takeAttachNotice: vi.fn(() => null) }),
+}));
+// The control exists only beside a measured attach button; here it is always given one.
+vi.mock('@/src/lib/composer-anchor', () => ({
+  trackComposerControl: (_adapter: unknown, _enabled: unknown, show: (place: unknown) => void) => {
+    show({ anchor: document.body, left: 100, top: 200, size: 32, radius: '999px', ink: '', scheme: 'light' });
+    return () => {};
+  },
 }));
 vi.mock('@/src/platforms/detect', () => ({ detectAdapter: () => HOST_FIXTURES[0]!.adapter }));
 
@@ -39,7 +45,6 @@ describe('study panel that cannot load', () => {
 
   afterEach(() => {
     act(() => root.unmount());
-    removeComposerSlot();
     document.body.innerHTML = '';
     vi.restoreAllMocks();
   });
@@ -52,12 +57,13 @@ describe('study panel that cannot load', () => {
     await act(async () => { await Promise.resolve(); });
 
     expect(useStore.getState().panelOpen).toBe(false);
-    expect(plus().getAttribute('title')).toBe(UNAVAILABLE);
+    expect(document.querySelector('.slm-inject-tip')?.textContent).toBe(UNAVAILABLE);
     expect(plus().getAttribute('aria-label')).toBe(UNAVAILABLE);
     expect(document.querySelector('.slm-inject-live')?.textContent).toBe(UNAVAILABLE);
 
     loader.load.mockReturnValueOnce(new Promise(() => {}));
     await act(async () => { useStore.getState().openPanel(); });
-    expect(plus().getAttribute('title')).not.toBe(UNAVAILABLE);
+    expect(plus().getAttribute('aria-label')).not.toBe(UNAVAILABLE);
+    expect(document.querySelector('.slm-inject-tip')?.textContent).not.toBe(UNAVAILABLE);
   });
 });

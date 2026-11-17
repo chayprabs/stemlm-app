@@ -525,6 +525,47 @@ describe('popup chrome', () => {
     unmount();
   });
 
+  it('describes the switch as it now stands once stemlm is off', async () => {
+    const { container, unmount } = await renderPopup();
+    const toggle = container.querySelector('[data-launch="stemlm-enabled"]') as HTMLButtonElement;
+    await act(async () => {
+      toggle.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const hint = document.getElementById(toggle.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toBe('The stemlm button is hidden in the chat box. The panel and your saved questions still work.');
+    unmount();
+  });
+
+  it('puts the switch back and says why when the change cannot be saved', async () => {
+    const { browser } = await import('wxt/browser');
+    const { container, unmount } = await renderPopup();
+    const toggle = container.querySelector('[data-launch="stemlm-enabled"]') as HTMLButtonElement;
+    vi.mocked(browser.storage.local.set).mockRejectedValue(new Error('storage unavailable'));
+    try {
+      await act(async () => {
+        toggle.click();
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    } finally {
+      vi.mocked(browser.storage.local.set).mockImplementation(async (data: Record<string, unknown>) => {
+        Object.assign(localStore, data);
+      });
+    }
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Could not turn stemlm off. Try again.');
+    expect(localStorage.getItem(ENABLED_BOOT_KEY)).toBe('1');
+
+    // The next change clears the message.
+    await act(async () => {
+      toggle.click();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    unmount();
+  });
+
   it('each host control opens that chat website', async () => {
     const { container, unmount } = await renderPopup();
     for (const host of CHAT_HOST_LAUNCH) {

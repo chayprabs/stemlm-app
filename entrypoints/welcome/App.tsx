@@ -6,7 +6,7 @@ import { injectControlCss } from '@/src/lib/inject-control-css';
 import { STUDY_GUIDE_FILENAME } from '@/src/lib/study-guide';
 import { BrandWordmark, themeToBrandVariant } from '@/src/components/brand';
 import { HostLogo } from '@/src/components/host-logos';
-import { InjectGlyph } from '@/src/components/OverlayButton';
+import { InjectGlyph } from '@/src/components/InjectGlyph';
 import { DiagramRenderer } from '@/src/components/DiagramRenderer';
 import { MathMarkdown } from '@/src/components/MathMarkdown';
 import { StepIndexMark } from '@/src/components/step-index';

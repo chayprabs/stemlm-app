@@ -259,7 +259,10 @@ export function PanelHeader({
             className="slm-icon-btn"
             aria-label="Export PDF"
             title="Export PDF"
-            onClick={onExportPdf}
+            // The second click of a double click would open a second export window.
+            onClick={(e) => {
+              if (e.detail <= 1) onExportPdf();
+            }}
             disabled={!session}
           >
             <IconPdf width={18} height={18} />

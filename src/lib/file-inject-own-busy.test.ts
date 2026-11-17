@@ -2,11 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { attachTextFile, hasConfirmedAttachment } from './file-inject';
 
 // Live Gemini 2026-09-27: the composer box gains a "with-file-preview" class, so it counts as the
-// chip's preview container; it also holds the stemlm + (docked in the composer), which is
-// aria-busy while attaching. The + vetoed its own confirmation until it gave up.
+// chip's preview container. The stemlm control, busy while attaching, used to sit inside that box
+// and veto its own confirmation; it is drawn outside the chat's tree now, so only the chat's own
+// progress can hold a confirmation back.
 const COMPOSER = [
   '<div class="text-input-field with-file-preview">',
-  '<div data-stemlm-composer-slot=""><button data-stemlm-inject="" aria-busy="true">+</button></div>',
   '<div class="attachment-preview-wrapper"><uploader-file-preview class="file-preview-chip">',
   '<gem-attachment class="gem-attachment"><span class="gem-attachment-text">stemLM Guide</span></gem-attachment>',
   '</uploader-file-preview></div>',
@@ -14,13 +14,13 @@ const COMPOSER = [
   '</div>',
 ].join('');
 
-describe('the stemlm control is not the host upload', () => {
+describe('a chip in a composer box that itself looks like a preview', () => {
   afterEach(() => {
     vi.useRealTimers();
     document.body.innerHTML = '';
   });
 
-  it('confirms a shown chip while the stemlm + is busy attaching', () => {
+  it('confirms a shown chip', () => {
     document.body.innerHTML = `<form id="composer">${COMPOSER}</form>`;
     expect(hasConfirmedAttachment('stemLM Guide.txt', document.getElementById('composer')!)).toBe(true);
   });
@@ -30,9 +30,9 @@ describe('the stemlm control is not the host upload', () => {
     expect(hasConfirmedAttachment('stemLM Guide.txt', document.getElementById('composer')!)).toBe(false);
   });
 
-  it('attaches once the host shows the chip, with the + busy the whole time', async () => {
+  it('attaches once the host shows the chip', async () => {
     vi.useFakeTimers();
-    document.body.innerHTML = '<form id="composer"><div class="text-input-field"><div data-stemlm-composer-slot=""><button data-stemlm-inject="" aria-busy="true">+</button></div><div class="ql-editor" contenteditable="true">Question</div></div></form>';
+    document.body.innerHTML = '<form id="composer"><div class="text-input-field"><div class="ql-editor" contenteditable="true">Question</div></div></form>';
     const root = document.getElementById('composer')!;
     const box = root.querySelector('.text-input-field')!;
     const sent: string[] = [];

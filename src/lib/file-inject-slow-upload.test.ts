@@ -48,7 +48,8 @@ describe('an upload the host has visibly started', () => {
     root.querySelector('input')!.addEventListener('change', () => sent.push('input'));
     const pending = attachTextFile('guide', { root, requireConfirmation: true, dropTargets: ['#composer'], timeoutMs: 4000, waitMs: 1 });
     await vi.runAllTimersAsync();
-    expect(await pending).toEqual({ ok: false, method: 'none' });
+    // Not delivered, and marked as begun: the caller must not answer it with a second upload.
+    expect(await pending).toEqual({ ok: false, method: 'none', started: true });
     expect(sent).toEqual(['drop']);
   });
 });

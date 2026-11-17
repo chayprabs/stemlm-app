@@ -1,17 +1,23 @@
 /**
  * Path gates for the inject control. Hostname matching still decides whether
- * a content script runs; these paths turn the control off on image-only SPA
- * surfaces (Grok Imagine, and any dedicated image-gen routes on other hosts).
+ * a content script runs; these paths turn the control off on the surfaces of
+ * each host that are not a chat: image generation, and the pages where a text
+ * field is an instruction or a search rather than a question (GPT and Gem
+ * builders, settings, libraries). A path not listed here is treated as a chat,
+ * and the control still needs that page's own composer before it shows.
  */
 import type { PlatformId } from './types';
 
 /** Dedicated image-generation (and other non-chat) pathnames per shipped host. Nested paths match. */
 export const IMAGE_GEN_PATHS: Record<PlatformId, readonly RegExp[]> = {
-  // ChatGPT Images reuses the chat composer; Codex is a separate coding product.
-  chatgpt: [/^\/images(?:\/|$)/i, /^\/codex(?:\/|$)/i],
+  // ChatGPT Images reuses the chat composer; Codex is a separate coding product. A GPT's own
+  // chats live under /g/; the store and its builder under /gpts.
+  chatgpt: [/^\/images(?:\/|$)/i, /^\/codex(?:\/|$)/i, /^\/gpts(?:\/|$)/i, /^\/library(?:\/|$)/i],
   grok: [/^\/imagine(?:\/|$)/i],
-  gemini: [/^\/imagen(?:\/|$)/i, /^\/image(?:s|gen)?(?:\/|$)/i],
-  claude: [/^\/imagine(?:\/|$)/i],
+  // A chat with a Gem is /gem/<id>; /gems is where Gems are listed and written.
+  gemini: [/^\/imagen(?:\/|$)/i, /^\/image(?:s|gen)?(?:\/|$)/i, /^\/gems(?:\/|$)/i, /^\/saved-info(?:\/|$)/i],
+  // A project's chats are /project/<id>; /projects is the list.
+  claude: [/^\/imagine(?:\/|$)/i, /^\/settings(?:\/|$)/i, /^\/projects(?:\/|$)/i, /^\/recents(?:\/|$)/i, /^\/artifacts(?:\/|$)/i],
 };
 
 export function isImageGenPath(id: PlatformId, pathname: string): boolean {

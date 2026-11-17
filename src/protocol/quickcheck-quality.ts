@@ -9,8 +9,12 @@ const VERDICT_ONLY =
 
 const FREQUENCY_VERDICT = /^(low|high)\s+frequenc(y|ies)\.?$/i;
 
+/**
+ * The answer gives a reason: it says "because" or "since", or it goes on for a second sentence
+ * ("5e^{5x}. The chain rule multiplies by the derivative of the exponent."). A lone result does not.
+ */
 function hasExplicitRationale(text: string): boolean {
-  return /\bbecause\b|\bsince\b/i.test(text);
+  return /\bbecause\b|\bsince\b/i.test(text) || /[.!?]\s+\S/.test(text.replace(/\$[^$]*\$/g, 'm'));
 }
 
 function hasStepEvidence(text: string): boolean {

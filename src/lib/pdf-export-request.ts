@@ -24,14 +24,27 @@ export function isPdfExportMessage(msg: unknown): msg is PdfExportMessage {
   return rec?.type === PDF_EXPORT_MESSAGE && typeof rec.session === 'object' && rec.session !== null;
 }
 
-/** Content script: true once the export window is open. */
-export async function requestSessionPdf(session: Session): Promise<boolean> {
+async function sendPdfRequest(session: Session): Promise<boolean> {
   try {
     const response = await browser.runtime.sendMessage({ type: PDF_EXPORT_MESSAGE, session }) as { ok?: unknown } | undefined;
     return response?.ok === true;
   } catch {
     return false;
   }
+}
+
+let pending: Promise<boolean> | null = null;
+
+/**
+ * Content script: true once the export window is open. A second request made before the first
+ * has been answered (a held key, a nervous second press) joins it instead of opening a second
+ * window and saving the file twice.
+ */
+export function requestSessionPdf(session: Session): Promise<boolean> {
+  pending ??= sendPdfRequest(session).finally(() => {
+    pending = null;
+  });
+  return pending;
 }
 
 /** Background: park the session and open pdf.html centred over the chat window. */

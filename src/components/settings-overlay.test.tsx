@@ -116,6 +116,7 @@ describe('SettingsOverlay', () => {
     expect(switches.map((el) => el.getAttribute('aria-label'))).toEqual([
       'Share sessions across tabs',
       'Open the panel automatically',
+      "Collapse the chat's sidebar while the panel is open",
     ]);
     expect(container.textContent).not.toMatch(/usage data|analytics/i);
     unmount();
@@ -405,6 +406,32 @@ describe('SettingsOverlay', () => {
     unmount();
   });
 
+  it('walks a segmented choice with the arrow keys without changing the setting on the way', async () => {
+    const { container, unmount } = await renderOverlay();
+    const theme = container.querySelector('[role="group"][aria-label="Theme"]') as HTMLElement;
+    const [auto, light, dark] = [...theme.querySelectorAll('button')] as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
+    const press = (target: HTMLElement, key: string) => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      act(() => {
+        target.dispatchEvent(event);
+      });
+      return event;
+    };
+    light.focus();
+    expect(press(light, 'ArrowRight').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(dark);
+    press(dark, 'ArrowRight');
+    expect(document.activeElement).toBe(auto);
+    press(auto, 'ArrowLeft');
+    expect(document.activeElement).toBe(dark);
+    // Focus moved; the choice did not. Enter or Space makes it.
+    expect(light.getAttribute('aria-pressed')).toBe('true');
+    expect((await getSettings()).theme).toBe('light');
+    // Keys the strip has no use for are left to the page.
+    expect(press(dark, 'ArrowDown').defaultPrevented).toBe(false);
+    unmount();
+  });
+
   it('gives every setting a title and a one-line description, and announces each save', async () => {
     const { container, unmount } = await renderOverlay();
     const rows = [...container.querySelectorAll('.slm-set-copy')];
@@ -414,6 +441,7 @@ describe('SettingsOverlay', () => {
       'Answers open on',
       'Share sessions across tabs',
       'Open the panel automatically',
+      "Collapse the chat's sidebar while the panel is open",
     ]);
     for (const row of rows) {
       expect(row.querySelector('.slm-settings-hint')?.textContent?.length, row.textContent ?? '').toBeGreaterThan(10);

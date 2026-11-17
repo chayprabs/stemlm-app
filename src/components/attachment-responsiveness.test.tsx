@@ -4,7 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
-import { _slotCss } from '@/src/lib/composer-slot';
+import { injectControlCss } from '@/src/lib/inject-control-css';
+
+const _slotCss = injectControlCss('', (scheme) => `.slm-fab-wrap[data-scheme="${scheme}"]`);
 
 const inject = vi.fn<() => Promise<boolean>>();
 
@@ -13,6 +15,7 @@ vi.mock('@/src/content/controller', () => ({
     inject,
     getLastQuestion: vi.fn(() => ''),
     resetInjection: vi.fn(),
+    takeAttachNotice: vi.fn(() => null),
   }),
 }));
 
@@ -28,14 +31,12 @@ vi.mock('@/src/platforms/detect', () => ({
   }),
 }));
 
-vi.mock('@/src/lib/composer-slot', async () => ({
-  ...(await vi.importActual<typeof import('@/src/lib/composer-slot')>('@/src/lib/composer-slot')),
-  ensureComposerSlot: () => null,
-  removeComposerSlot: () => {},
-  syncComposerSlotGeometry: () => {},
-  isolateStemLmPointer: () => () => {},
-  resolveComposerFrame: () => document.body,
-  outsideShellCoords: () => ({ top: 100, left: 24 }),
+// The control exists only beside a measured attach button; here it is always given one.
+vi.mock('@/src/lib/composer-anchor', () => ({
+  trackComposerControl: (_adapter: unknown, _enabled: unknown, show: (place: unknown) => void) => {
+    show({ anchor: document.body, left: 100, top: 200, size: 32, radius: '999px', ink: '', scheme: 'light' });
+    return () => {};
+  },
 }));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -102,7 +103,7 @@ describe('attachment responsiveness', () => {
     await act(async () => { finish(true); });
   });
 
-  it('ships the host dock attaching animation with a reduced-motion override', () => {
+  it('ships the attaching animation with a reduced-motion override', () => {
     expect(_slotCss).toMatch(/\.slm-inject-status|\.slm-inject-spinner/);
     // While attaching, the three shapes of the mark rise in turn; this is the one loop.
     expect(_slotCss).toMatch(/\.slm-inject-spinner \.slm-inject-apex\s*\{[^}]*animation:\s*slm-inject-think [^;]*infinite/);

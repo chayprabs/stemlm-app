@@ -5,6 +5,7 @@
 import { browser } from 'wxt/browser';
 import { downloadSessionPdf, downloadSessionsPdf, type PdfExportResult } from './pdf';
 import type { RenderOptions } from './pdf-raster';
+import { availableHeightCap } from './fit-extension-window';
 import {
   getSavedSession, getSavedSessions, snapshotToSession, type SavedSessionSnapshot,
 } from './saved-session-storage';
@@ -55,7 +56,8 @@ export async function openSavedSessionPdf(id: string): Promise<PdfExportResult> 
       url: savedPdfUrl(id),
       type: 'popup',
       width: 820,
-      height: 1040,
+      // A page of the report, but never taller than the screen it opens on.
+      height: Math.min(1040, availableHeightCap(1040)),
       focused: true,
     });
     return { ok: true, method: 'view' };

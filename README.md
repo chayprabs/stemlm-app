@@ -187,7 +187,7 @@ entrypoints/          MV3 entry points: background worker, content script, study
                       toolbar popup, settings, saved-questions library, PDF export, welcome page
 src/platforms/        one adapter per chat site: find the composer, attach, read answers
 src/content/          the controller that runs in the chat tab and drives the panel
-src/protocol/         the instruction file, capsule parser, subject playbooks, quality checks
+src/protocol/         the guide sent to the chat, the capsule parser, quality checks
 src/ingest/           plain chat answer -> Markdown with its LaTeX -> steps (no capsule needed)
 src/lib/figure/       figure catalog, engines, Scene IR, layout kernel, SVG compiler;
                       families/ = figure packs, intel/ = notation repair and translation

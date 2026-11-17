@@ -6,10 +6,11 @@ import {
   getSavedSessions,
   type SavedSessionMutationMessage,
   type SavedSessionMutationResponse,
+  type SavedSessionSnapshot,
 } from './saved-session-storage';
 export {
   SAVED_SESSIONS_KEY, SAVED_SESSION_RECORD_PREFIX, MAX_SAVED, MAX_SAVED_BYTES,
-  getSavedSession, getSavedSessions, sessionToSnapshot, snapshotToSession,
+  getSavedSession, getSavedSessions, readSavedSessions, sessionToSnapshot, snapshotToSession,
   normalizeStoredSession, estimateSnapshotBytes,
   type SavedSessionSnapshot,
 } from './saved-session-storage';
@@ -35,6 +36,11 @@ export async function refreshSavedSession(session: Session): Promise<boolean> {
 
 export async function deleteSavedSession(id: string): Promise<void> {
   await mutateSavedSession({ type: 'stemlm:saved-session-mutation', action: 'delete', id });
+}
+
+/** The library's Undo: put a deleted snapshot back exactly as it was. */
+export async function restoreSavedSession(snapshot: SavedSessionSnapshot): Promise<void> {
+  await mutateSavedSession({ type: 'stemlm:saved-session-mutation', action: 'restore', snapshot });
 }
 
 export async function isSessionSaved(id: string): Promise<boolean> {

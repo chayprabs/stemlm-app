@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div className="slm-error-fallback" role="alert">
-          <p>stemlm hit a display error. Your sessions are still saved.</p>
+          <p>stemlm could not draw this view. Your questions are still here.</p>
           <button type="button" className="slm-btn slm-btn-soft" onClick={this.retry}>
             Try again
           </button>

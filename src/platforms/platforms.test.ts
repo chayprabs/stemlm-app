@@ -14,7 +14,7 @@ import {
   composerHasAttachments,
   focusComposerQuestionSlot,
 } from './factory';
-import { buildFollowupAskInChatPrompt } from '@/src/protocol/builder';
+import { buildFollowupCopyText } from '@/src/protocol/builder';
 import { buildInjectionAppendix } from '@/src/protocol/builder';
 import { CHAT_CONTENT_MATCHES } from './hosts';
 import {
@@ -81,11 +81,13 @@ describe('detectAdapter', () => {
     expect(typeof adapterById('gemini')!.getComposerShell).toBe('function');
   });
 
-  it('docks ChatGPT and Grok outside the composer, Claude and Gemini beside the +', () => {
-    expect(adapterById('chatgpt')!.composerDock).toBe('outside-shell');
-    expect(adapterById('grok')!.composerDock).toBe('outside-shell');
-    expect(adapterById('gemini')!.composerDock).toBe('before-plus');
-    expect(adapterById('claude')!.composerDock).toBe('before-plus');
+  // The control has one place on every host, beside the attach button (src/lib/composer-anchor.ts):
+  // an adapter no longer chooses between docks, it only names the button.
+  it('gives every host one way to place the control', () => {
+    for (const id of ['chatgpt', 'grok', 'gemini', 'claude'] as const) {
+      expect(adapterById(id)).not.toHaveProperty('composerDock');
+      expect(typeof adapterById(id)!.getComposerRoot).toBe('function');
+    }
   });
 
   it('resolves adapters from page URLs and lists the four shipped hosts', () => {
@@ -246,11 +248,10 @@ describe('Gemini adapter', () => {
     );
     expect(geminiAdapter.insertPrompt(prompt)).toBe(true);
     const got = geminiAdapter.getEditorText();
-    expect(got).toContain('stemLM instructions');
-    expect(got).toContain('OUTPUT:');
+    expect(got).toContain('--- stemLM ---');
     expect(got).toContain('@meta');
     expect(got).toContain('Electrical');
-    expect(got).not.toContain('DIAGRAM REGISTRY');
+    expect(got).toContain('End of the stemLM study guide.');
     expect(got).not.toContain('stemlm-protocol.txt');
   });
 
@@ -263,8 +264,8 @@ describe('Gemini adapter', () => {
     expect(geminiAdapter.insertPrompt(prompt, 'append')).toBe(true);
     const got = geminiAdapter.getEditorText();
     expect(got).toContain('Find the range of a projectile launched at 60 degrees');
-    expect(got).toContain('stemLM instructions');
-    expect(got).toContain('OUTPUT:');
+    expect(got).toContain('--- stemLM ---');
+    expect(got).toContain('End of the stemLM study guide.');
   });
 
   it('does not treat the upload control as an attachment', () => {
@@ -303,7 +304,7 @@ describe('Gemini adapter', () => {
     expect(appendEditorText(editor, prompt)).toBe(true);
     expect(editor.querySelector('img[alt="problem photo"]')).not.toBeNull();
     expect(getEditorTextOf(editor)).toContain('See attached problem');
-    expect(getEditorTextOf(editor)).toContain('stemLM instructions');
+    expect(getEditorTextOf(editor)).toContain('End of the stemLM study guide.');
   });
 
   it('extracts the capsule from code-block', () => {
@@ -383,7 +384,7 @@ describe('setEditorText on textarea', () => {
   it('focuses the caret in the follow-up question slot', () => {
     setBody('<textarea id="t"></textarea>');
     const ta = document.getElementById('t') as HTMLTextAreaElement;
-    const prompt = buildFollowupAskInChatPrompt({
+    const prompt = buildFollowupCopyText({
       selection: 'Explain the sign of reactance',
       subject: 'Electrical',
     });
@@ -396,7 +397,7 @@ describe('setEditorText on textarea', () => {
   it('places the caret after the follow-up label in contenteditable editors', () => {
     setBody('<div id="ed" contenteditable="true"></div>');
     const el = document.getElementById('ed')!;
-    const prompt = buildFollowupAskInChatPrompt({
+    const prompt = buildFollowupCopyText({
       selection: 'Why is X_L positive?',
       subject: 'Electrical',
     });
@@ -434,7 +435,6 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
     const plus = spec.adapter.getComposerLeadingAnchor();
     expect(plus).not.toBeNull();
     expect(plus!.getAttribute('aria-label')).toBe(spec.plusLabel);
-    expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
   });
 
   it('inserts replace and append without wiping the editor', () => {
@@ -472,7 +472,7 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
 
   it('appends follow-up text without wiping an attachment chip and focuses the question slot', () => {
     addNamedChip(document, 'problem.png');
-    const prompt = buildFollowupAskInChatPrompt({
+    const prompt = buildFollowupCopyText({
       selection: 'Explain the sign of reactance',
       subject: 'Electrical',
     });
@@ -509,8 +509,7 @@ describe('editorReflectsText', () => {
     const stub = buildComposerStub('derivative of x^2');
     setEditorText(el, stub);
     expect(editorReflectsText(el, stub)).toBe(true);
-    expect(getEditorTextOf(el)).not.toContain('stemLM instructions');
-    expect(getEditorTextOf(el)).not.toContain('OUTPUT:');
+    expect(getEditorTextOf(el)).not.toContain('End of the stemLM study guide.');
   });
 });
 

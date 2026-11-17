@@ -12,6 +12,7 @@ import { EmptyState } from './EmptyState';
 import { useViewportWidth } from './use-viewport-width';
 import { isOverlayViewport, layoutPanelWidthVw } from '@/src/lib/split-ratio';
 import { ErrorBanner } from './ErrorBanner';
+import { ErrorBoundary } from './ErrorBoundary';
 import { SelectionPopover } from './SelectionPopover';
 import { ResizeHandle } from './ResizeHandle';
 import { IconClose, IconNavNext, IconNavPrev } from './icons';
@@ -30,6 +31,19 @@ import { panelMotion, type StepDirection } from './step-motion';
 
 function isArrowKey(key: string) {
   return key === 'ArrowLeft' || key === 'ArrowRight';
+}
+
+/** What has focus, looked up through shadow roots: from the page, focus inside the panel reads as its host element. */
+function focusedElement(): Element | null {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active;
+}
+
+/** A text field the student has typed in. */
+function holdsDraft(el: Element | null): boolean {
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return el.value.trim() !== '';
+  return el instanceof HTMLElement && el.isContentEditable && (el.textContent ?? '').trim() !== '';
 }
 
 function shouldHandleStepArrow(e: KeyboardEvent, panel: HTMLElement): boolean {
@@ -64,6 +78,7 @@ export function Panel() {
     setSettings: setStoreSettings,
     setTheme,
     splitRatio,
+    hostSidebarPx,
     settings,
   } = useStore();
   const session = useActiveSession();
@@ -100,16 +115,18 @@ export function Panel() {
     };
   }, [session]);
 
-  // Move focus into the panel on entry and return it to the opener on close.
+  // Focus moves into the panel when it opens and back to the opener when it closes, but it is
+  // never taken from where the student is working: an answer that opens the panel by itself
+  // leaves a half-typed chat message alone, and closing leaves focus that has since moved on.
   useEffect(() => {
+    const panel = panelRef.current;
+    const active = focusedElement();
     if (panelOpen) {
-      const active = document.activeElement;
-      openerRef.current = active instanceof HTMLElement && !panelRef.current?.contains(active)
-        ? active
-        : null;
-      panelRef.current?.focus({ preventScroll: true });
-    } else if (openerRef.current?.isConnected) {
-      openerRef.current.focus({ preventScroll: true });
+      if (panel?.contains(active)) return;
+      openerRef.current = active instanceof HTMLElement ? active : null;
+      if (!holdsDraft(active)) panel?.focus({ preventScroll: true });
+    } else {
+      if (openerRef.current?.isConnected && panel?.contains(active)) openerRef.current.focus({ preventScroll: true });
       openerRef.current = null;
     }
   }, [panelOpen]);
@@ -240,9 +257,18 @@ export function Panel() {
     }
   }
 
+  // A key pressed in the panel is the panel's. Left to bubble, the chat page acts on it too:
+  // its own Escape and shortcuts fire, and a page that sends stray typing to its chat box takes
+  // the keyboard away from the follow-up field.
+  function keepFromPage(e: React.KeyboardEvent) {
+    e.stopPropagation();
+  }
+
   function onKeyDown(e: React.KeyboardEvent) {
+    keepFromPage(e);
     if (e.key === 'Escape') {
-      closePanel();
+      // Escape that cancels an IME composition is not a request to leave.
+      if (!e.nativeEvent.isComposing) closePanel();
       return;
     }
     if (!session || view !== 'steps') return;
@@ -251,11 +277,9 @@ export function Panel() {
     if (e.key === 'ArrowRight') {
       nextStep();
       e.preventDefault();
-      e.stopPropagation();
     } else if (e.key === 'ArrowLeft') {
       prevStep();
       e.preventDefault();
-      e.stopPropagation();
     }
   }
 
@@ -272,9 +296,10 @@ export function Panel() {
       className="slm-panel"
       data-stemlm-theme={theme}
       data-content-scale={settings.contentScale}
-      style={{ width: `${layoutPanelWidthVw(splitRatio, viewport)}vw` }}
+      style={{ width: `${layoutPanelWidthVw(splitRatio, viewport, hostSidebarPx)}vw` }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
+      onKeyUp={keepFromPage}
       onPointerDown={onPanelPointerDown}
       {...panelMotion(Boolean(reducedMotion))}
       role="complementary"
@@ -334,85 +359,90 @@ export function Panel() {
       {errorMessage && <ErrorBanner message={errorMessage} tone={status === 'error' ? 'error' : 'info'} />}
 
       <div className="slm-body">
-        {status === 'loading' && !session && <Loading theme={theme} />}
+        {/* What is drawn from an answer can fail to render. It fails here, inside the frame: the
+            header keeps its close button and the composer control outside the panel is untouched.
+            Another question or the other view starts clean. */}
+        <ErrorBoundary key={`${session?.id}:${view}`}>
+          {status === 'loading' && !session && <Loading theme={theme} />}
 
-        {!session && status !== 'loading' && <EmptyState />}
+          {!session && status !== 'loading' && <EmptyState />}
 
-        {session && view === 'steps' && (
-          <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
-            <div className="slm-steps-layout">
-              <StepList
-                entries={entries}
-                activeIndex={activeStepIndex}
-                onSelect={setActiveStep}
-              />
-              <div className="slm-steps-detail">
-                <div className="slm-read" ref={readRef}>
-                  <AnimatePresence mode="wait" custom={direction} initial={false}>
-                    {activeEntry?.kind === 'step' && (
-                      <StepCard
-                        key={activeEntry.key}
-                        session={session}
-                        index={activeEntry.stepIndex}
-                        theme={theme}
-                        direction={direction}
-                      />
-                    )}
-                    {activeEntry?.kind === 'followup' && (
-                      <FollowupCard
-                        key={activeEntry.key}
-                        session={session}
-                        followup={activeEntry.followup}
-                        anchorStepNumber={activeEntry.anchorStepIndex + 1}
-                        ordinal={activeEntry.ordinal}
-                        theme={theme}
-                        direction={direction}
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
+          {session && view === 'steps' && (
+            <div className="slm-steps-hero" role="tabpanel" id="slm-panel-steps" aria-labelledby="slm-tab-steps">
+              <div className="slm-steps-layout">
+                <StepList
+                  entries={entries}
+                  activeIndex={activeStepIndex}
+                  onSelect={setActiveStep}
+                />
+                <div className="slm-steps-detail">
+                  <div className="slm-read" ref={readRef}>
+                    <AnimatePresence mode="wait" custom={direction} initial={false}>
+                      {activeEntry?.kind === 'step' && (
+                        <StepCard
+                          key={activeEntry.key}
+                          session={session}
+                          index={activeEntry.stepIndex}
+                          theme={theme}
+                          direction={direction}
+                        />
+                      )}
+                      {activeEntry?.kind === 'followup' && (
+                        <FollowupCard
+                          key={activeEntry.key}
+                          session={session}
+                          followup={activeEntry.followup}
+                          anchorStepNumber={activeEntry.anchorStepIndex + 1}
+                          ordinal={activeEntry.ordinal}
+                          theme={theme}
+                          direction={direction}
+                        />
+                      )}
+                    </AnimatePresence>
+                  </div>
 
-                <div className="slm-stepnav-slot">
-                  <footer className="slm-stepnav slm-stepnav--overlay" aria-label="Step navigation">
-                    <button
-                      type="button"
-                      className="slm-stepnav-btn"
-                      onClick={prevStep}
-                      disabled={activeStepIndex === 0}
-                      aria-label="Previous step"
-                    >
-                      <IconNavPrev /> Prev
-                    </button>
-                    <span className="slm-stepnav-count" aria-hidden="true">
-                      <span className="slm-stepnav-count-now">{stepPlace}</span>
-                      <span className="slm-stepnav-count-of">/ {stepTotal}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className="slm-stepnav-btn slm-stepnav-btn--next"
-                      onClick={nextStep}
-                      disabled={activeStepIndex >= total - 1}
-                      aria-label="Next step"
-                    >
-                      Next <IconNavNext />
-                    </button>
-                  </footer>
+                  <div className="slm-stepnav-slot">
+                    <footer className="slm-stepnav slm-stepnav--overlay" aria-label="Step navigation">
+                      <button
+                        type="button"
+                        className="slm-stepnav-btn"
+                        onClick={prevStep}
+                        disabled={activeStepIndex === 0}
+                        aria-label="Previous step"
+                      >
+                        <IconNavPrev /> Prev
+                      </button>
+                      <span className="slm-stepnav-count" aria-hidden="true">
+                        <span className="slm-stepnav-count-now">{stepPlace}</span>
+                        <span className="slm-stepnav-count-of">/ {stepTotal}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="slm-stepnav-btn slm-stepnav-btn--next"
+                        onClick={nextStep}
+                        disabled={activeStepIndex >= total - 1}
+                        aria-label="Next step"
+                      >
+                        Next <IconNavNext />
+                      </button>
+                    </footer>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {session && view === 'solution' && (
-          <div
-            className="slm-solution-wrap"
-            role="tabpanel"
-            id="slm-panel-solution"
-            aria-labelledby="slm-tab-solution"
-          >
-            <SolutionView session={session} theme={theme} />
-          </div>
-        )}
+          {session && view === 'solution' && (
+            <div
+              className="slm-solution-wrap"
+              role="tabpanel"
+              id="slm-panel-solution"
+              aria-labelledby="slm-tab-solution"
+            >
+              <SolutionView session={session} theme={theme} />
+            </div>
+          )}
+        </ErrorBoundary>
       </div>
 
       {session && (

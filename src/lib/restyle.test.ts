@@ -29,7 +29,7 @@ describe('restyle: one design system across the panel', () => {
   const hosts = read('src/platforms/hosts.ts');
   const svgPresent = read('src/lib/svg-present.ts');
   const emit = read('src/lib/figure/emit.ts');
-  const composer = read('src/lib/composer-slot.ts');
+  const composer = read('src/lib/inject-control-css.ts');
   const pdf = read('src/lib/pdf.ts');
 
   const shipped = [
@@ -176,6 +176,7 @@ describe('restyle: one design system across the panel', () => {
       '.slm-stepnav-btn',
       '.slm-resize-handle',
       '.slm-banner-details summary',
+      '.slm-banner-undo',
     ]) {
       expect(ruleFor(panel, `${selector}:focus-visible`), `${selector} has no focus ring`).toMatch(ring);
     }
@@ -212,7 +213,7 @@ describe('restyle: one design system across the panel', () => {
     expect(read('src/components/StepList.tsx')).not.toMatch(/slm-step-rail-(?:label|title)/);
   });
 
-  it('caps the question, rounds the sheet and keeps the questions of a chat on one scrolling row', () => {
+  it('caps the question, docks the sheet and keeps the questions of a chat on one scrolling row', () => {
     // Collapsed to two lines; opened, a very long question scrolls inside a cap instead of
     // pushing the working off the panel.
     expect(panel).toMatch(/\.slm-topic-scroll\.is-single \.slm-topic\s*\{[^}]*-webkit-line-clamp:\s*2/);
@@ -221,9 +222,11 @@ describe('restyle: one design system across the panel', () => {
     expect(question).toMatch(/overflow-y:\s*auto/);
 
     const sheet = cssRule(panel, '.slm-panel');
-    expect(sheet).toMatch(/border-radius:\s*var\(--slm-panel-radius/);
-    expect(sheet).toMatch(/top:\s*var\(--slm-panel-inset/);
-    expect(sheet).toMatch(/bottom:\s*var\(--slm-panel-inset/);
+    // A column flush with the window's right edge at full height: a hairline where it meets the
+    // chat, and nothing that floats it over the page (no inset, rounding or shadow).
+    for (const edge of ['top', 'right', 'bottom']) expect(sheet).toMatch(new RegExp(`[\\s;]${edge}:\\s*0;`));
+    expect(sheet).toMatch(/border-left:\s*1px solid var\(--slm-border\)/);
+    expect(sheet).not.toMatch(/border-radius|box-shadow|inset/);
     expect(sheet).toMatch(/container-type:\s*inline-size/);
 
     const sessions = cssRule(panel, '.slm-session-switch');
