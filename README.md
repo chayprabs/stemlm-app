@@ -124,6 +124,7 @@ The figure compiler goes **catalog → engine → Scene IR → layout kernel →
 | Digital logic | truth tables computed from Boolean expressions, logic-gate circuits derived from the same expressions, K-maps, timing diagrams |
 | Statistics and data | bar, grouped and stacked charts, line charts, histograms, pies and donuts, box plots, scatter plots with a fitted line, probability distributions with the shaded probability computed, number lines for intervals and inequalities, Venn diagrams |
 | Geometry and calculus | triangles solved from the given sides and angles and drawn to scale, coordinate-plane figures with computed distance, midpoint and slope, vector addition with the computed resultant, the unit circle with exact values, slope fields with integrated solution curves, polar and parametric curves |
+| Chemistry, biology and mechanics extras | reaction energy profiles with the activation energy and enthalpy change computed, probability trees with exact path products, projectile motion drawn to scale with range, height and flight time computed, electron configurations and orbital box diagrams computed for every element, Bohr shell models, pedigree charts |
 | Tables | matrices, dynamic-programming tables, ICE tables, Punnett squares |
 
 **Exact about content, forgiving about notation.** A spec that compiles as written is drawn as written. One that does not gets a second chance:

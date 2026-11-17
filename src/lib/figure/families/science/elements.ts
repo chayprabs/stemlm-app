@@ -2,7 +2,8 @@
  * Periodic data for Z = 1..118 and the tolerant reader for "which atom or ion is this":
  * `Fe`, `iron`, `Z=26`, `Fe3+`, `Fe(III)`, `Fe³⁺`, `iron(III) ion`, `chloride`.
  */
-import { plainSuperscripts, refuse } from './shared';
+import type { SpecDoc } from '../../spec';
+import { plainSuperscripts, readOne, refuse } from './shared';
 
 const SYMBOLS = (
   'H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr '
@@ -74,6 +75,8 @@ export interface Species {
   z: number;
   /** Net charge stated with the element itself (`Fe3+`), undefined when none was written. */
   charge?: number;
+  /** Mass number stated with the element itself (`C-14`). */
+  mass?: number;
 }
 
 /**
@@ -103,8 +106,29 @@ function checkedZ(z: number, raw: string): number {
 
 function withCharge(z: number, rest: string, raw: string): Species {
   if (!rest) return { z };
-  // A mass number or a count after the symbol (`O2`, `U 235`) is not a charge; guessing one would draw an ion nobody named.
+  // `C-14`, `U 235`: an isotope's mass number, which is never below Z. `O-2` and `Cl-1` are charges.
+  const mass = /^-?\s*(\d{1,3})$/.exec(rest);
+  if (mass && Number(mass[1]) >= z) return { z, mass: Number(mass[1]) };
+  // A count after the symbol (`O2`) is not a charge; guessing one would draw an ion nobody named.
   const charge = parseCharge(rest, false);
   if (charge === null) refuse(`element "${raw.trim()}": "${rest}" is not a charge`);
   return { z, charge };
+}
+
+export interface Atom {
+  z: number;
+  charge: number;
+  mass?: number;
+}
+
+/** The atom or ion a figure is about: `element:` and, when the charge is not written with it, `charge:`. */
+export function readAtom(spec: SpecDoc): Atom {
+  const element = readOne(spec, 'element') ?? refuse('element is missing: give a symbol, a name or Z=number');
+  const species = parseSpecies(element);
+  const written = readOne(spec, 'charge');
+  const stated = written === undefined ? undefined : parseCharge(written) ?? refuse(`charge: "${written}" is not a charge such as 3+ or 2-`);
+  if (stated !== undefined && species.charge !== undefined && stated !== species.charge) {
+    refuse(`element: ${element} and charge: ${written} state two different charges`);
+  }
+  return { z: species.z, charge: stated ?? species.charge ?? 0, ...(species.mass !== undefined ? { mass: species.mass } : {}) };
 }
