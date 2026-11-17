@@ -7,3 +7,14 @@ export function cpuMs(): number {
   const { user, system } = process.cpuUsage();
   return (user + system) / 1000;
 }
+
+/** The CPU of the fastest of a few runs: the first run also pays for compiling the code. */
+export function fastestCpuMs(run: () => void, runs = 3): number {
+  let best = Infinity;
+  for (let i = 0; i < runs; i++) {
+    const start = cpuMs();
+    run();
+    best = Math.min(best, cpuMs() - start);
+  }
+  return best;
+}
