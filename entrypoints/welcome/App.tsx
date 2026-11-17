@@ -30,7 +30,7 @@ const FACTS: readonly { title: string; text: string }[] = [
   },
   {
     title: 'No server',
-    text: 'stemlm reads the question and the answer on the chat page and builds the study view in your browser. It sends no usage data.',
+    text: 'stemLM reads the question and the answer on the chat page and builds the study view in your browser. It sends no usage data.',
   },
   {
     title: 'Saved in this browser',
@@ -38,11 +38,11 @@ const FACTS: readonly { title: string; text: string }[] = [
   },
   {
     title: 'You press Send',
-    text: 'The stemlm button attaches a guide to your message. stemlm never sends a message for you.',
+    text: 'The stemLM button attaches a guide to your message. stemLM never sends a message for you.',
   },
   {
     title: 'Laid out, not verified',
-    text: 'The steps come from your AI model. stemlm lays them out and draws the figures they describe. It does not check them.',
+    text: 'The steps come from your AI model. stemLM lays them out and draws the figures they describe. It does not check them.',
   },
   {
     title: 'Open source',
@@ -177,10 +177,10 @@ export default function App() {
 
       <main>
         <section className="slm-welcome-hero">
-          <p className="slm-welcome-kicker">How to use stemlm</p>
+          <p className="slm-welcome-kicker">How to use stemLM</p>
           <h1 className="slm-welcome-title">Turn a chat answer into steps you can study.</h1>
           <p className="slm-welcome-lede">
-            stemlm sits beside ChatGPT, Claude, Gemini and Grok. Ask a STEM question there and it lays the answer out
+            stemLM sits beside ChatGPT, Claude, Gemini and Grok. Ask a STEM question there and it lays the answer out
             one step at a time, with the formulas typeset and the figures drawn.
           </p>
           <nav className="slm-welcome-start" aria-label="Start in a chat">
@@ -254,9 +254,9 @@ export default function App() {
                 <Composer state="attached" chip>A 5.0 kg block is released from rest on a 30° incline…</Composer>
               </div>
               <span className="slm-welcome-step-num">02</span>
-              <h3>Attach with the stemlm button</h3>
+              <h3>Attach with the stemLM button</h3>
               <p>
-                Click the stemlm button in the chat box. It attaches the stemlm guide to your message. Then press Send
+                Click the stemLM button in the chat box. It attaches the stemLM guide to your message. Then press Send
                 yourself.
               </p>
             </li>
@@ -292,7 +292,7 @@ export default function App() {
           <div className="slm-welcome-section-head">
             <h2 id="slm-welcome-draw-title">What it can draw</h2>
             <p>
-              Figures are not images from the model. The model writes a short description and stemlm draws it in your
+              Figures are not images from the model. The model writes a short description and stemLM draws it in your
               browser, the same way every time. If a description is incomplete, the figure is left out instead of
               guessed.
             </p>
@@ -306,7 +306,7 @@ export default function App() {
 
         <section className="slm-welcome-section" aria-labelledby="slm-welcome-facts-title">
           <div className="slm-welcome-section-head">
-            <h2 id="slm-welcome-facts-title">What stemlm does, and what it does not</h2>
+            <h2 id="slm-welcome-facts-title">What stemLM does, and what it does not</h2>
           </div>
           <dl className="slm-welcome-facts">
             {FACTS.map((fact) => (
@@ -320,8 +320,8 @@ export default function App() {
       </main>
 
       <footer className="slm-welcome-foot">
-        <span className="slm-welcome-foot-version">{version ? `stemlm ${version}` : 'stemlm'}</span>
-        <nav className="slm-welcome-foot-links" aria-label="About stemlm">
+        <span className="slm-welcome-foot-version">{version ? `stemLM ${version}` : 'stemLM'}</span>
+        <nav className="slm-welcome-foot-links" aria-label="About stemLM">
           <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">Source</a>
           <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">Privacy</a>
           <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">Terms</a>

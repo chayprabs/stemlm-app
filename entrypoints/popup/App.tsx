@@ -118,7 +118,7 @@ export default function App() {
       // The switch goes back to where it was, and says why: a silent flip reads as a glitch.
       setStemlmEnabled(!next);
       persistStemlmEnabledBoot(!next);
-      setSendError(`Could not turn stemlm ${next ? 'on' : 'off'}. Try again.`);
+      setSendError(`Could not turn stemLM ${next ? 'on' : 'off'}. Try again.`);
     }
   }
 
@@ -202,7 +202,7 @@ export default function App() {
         aria-checked={stemlmEnabled}
         aria-label={STEMLM_TOGGLE_LABEL}
         aria-describedby="slm-popup-toggle-hint"
-        title={stemlmEnabled ? 'Turn stemlm off' : 'Turn stemlm on'}
+        title={stemlmEnabled ? 'Turn stemLM off' : 'Turn stemLM on'}
         onClick={() => void toggleStemlm()}
       >
         <span className="slm-popup-row-title">{STEMLM_TOGGLE_LABEL}</span>
@@ -210,7 +210,7 @@ export default function App() {
           <span className="slm-popup-switch-knob" />
         </span>
         <span className="slm-popup-row-hint" id="slm-popup-toggle-hint">
-          {stemlmEnabled ? 'Turn off to hide the stemlm button in the chat box.' : 'The stemlm button is hidden in the chat box.'}
+          {stemlmEnabled ? 'Turn off to hide the stemLM button in the chat box.' : 'The stemLM button is hidden in the chat box.'}
           {' '}The panel and your saved questions still work.
         </span>
       </button>
@@ -227,7 +227,7 @@ export default function App() {
         )}
         <IconChevronRight className="slm-popup-row-chevron" width={14} height={14} aria-hidden="true" />
       </button>
-      {/* The manual way: the guide as text for any chat box, where stemlm cannot put it there itself. */}
+      {/* The manual way: the guide as text for any chat box, where stemLM cannot put it there itself. */}
       <button
         type="button"
         data-launch="copy-guide"
@@ -247,7 +247,7 @@ export default function App() {
         </span>
       </button>
       <span className="slm-sr-only" role="status" aria-live="polite">
-        {guideCopy === 'copied' ? 'The stemlm guide is on the clipboard.' : guideCopy === 'failed' ? 'The guide could not be copied.' : ''}
+        {guideCopy === 'copied' ? 'The stemLM guide is on the clipboard.' : guideCopy === 'failed' ? 'The guide could not be copied.' : ''}
       </span>
     </div>
   );
@@ -287,7 +287,7 @@ export default function App() {
           disabled={launching}
           onClick={() => void launchAndClose(openWelcomePage)}
         >
-          How to use stemlm
+          How to use stemLM
         </button>
         <button
           type="button"

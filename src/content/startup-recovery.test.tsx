@@ -47,7 +47,7 @@ vi.mock('@/src/lib/session-sync', async (original) => ({
   loadMirroredSessions: bootMocks.shared, mirrorActiveSessions: bootMocks.mirror,
   onMirroredSessionsChanged: bootMocks.mirrorWatch,
 }));
-vi.mock('@/src/lib/theme', () => ({ applyTheme: vi.fn(), resolveTheme: () => 'light', watchSystemTheme: () => () => {} }));
+vi.mock('@/src/lib/theme', () => ({ applyTheme: vi.fn(), resolveTheme: () => 'light', resolveHostTheme: () => 'light', watchSystemTheme: () => () => {}, watchHostScheme: () => () => {} }));
 vi.mock('@/src/lib/toolbar-icon', () => ({ watchAndApplyToolbarIcon: () => () => {} }));
 vi.mock('@/src/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
@@ -271,6 +271,18 @@ it('does not overwrite a stored backup merely by restoring it', async () => {
   await act(async () => { await boot.main(ctx); });
   expect(useStore.getState().sessions[0]?.id).toBe('restored');
   expect(bootMocks.save).not.toHaveBeenCalled();
+});
+
+it('opens the panel again on the restored answer when it was open before the reload, leaving the keyboard alone', async () => {
+  bootMocks.backup.mockResolvedValue({ sessions: [sample()], activeStepIndex: 0, panelOpen: true });
+  await act(async () => { await boot.main(ctx); });
+  expect(useStore.getState()).toMatchObject({ panelOpen: true, panelTakesFocus: false, activeSessionId: 'restored' });
+
+  invalidations.splice(0).forEach((callback) => callback());
+  useStore.setState(useStore.getInitialState(), true);
+  bootMocks.backup.mockResolvedValue({ sessions: [sample()], activeStepIndex: 0 });
+  await act(async () => { await boot.main(ctx); });
+  expect(useStore.getState().panelOpen).toBe(false);
 });
 
 it('PERS-06 reports failed workspace writes and retries on the next answer change', async () => {

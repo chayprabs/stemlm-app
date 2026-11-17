@@ -13,6 +13,7 @@ import { handleSavedSessionMutation, isSavedSessionMutationMessage } from '@/src
 import { isPdfExportMessage, openPdfExportWindow } from '@/src/lib/pdf-export-request';
 import { extensionAssetUrl } from '@/src/lib/extension-context';
 import { CHAT_CONTENT_MATCHES } from '@/src/platforms/hosts';
+import { FIRST_RUN_HINT_KEY } from '@/src/lib/first-run-hint';
 
 /**
  * UPDATE-01 (D13): MV3 never re-injects declared content scripts into tabs that were
@@ -62,6 +63,8 @@ export default defineBackground(() => {
     if (details.reason === 'install' || details.reason === 'update') void injectIntoOpenChatTabs();
     if (details.reason === 'install') {
       void trackEvent('extension_installed', {});
+      // First run: a one-time hint at the stemLM button (src/lib/first-run-hint.ts).
+      void browser.storage.local.set({ [FIRST_RUN_HINT_KEY]: true }).catch(() => {});
       // First run: the bundled guide, once. Updates never open a tab (ONBOARD-01).
       void browser.tabs.create({ url: extensionAssetUrl('/welcome.html'), active: true }).catch(() => {});
     }
@@ -82,7 +85,7 @@ export default defineBackground(() => {
         return;
       }
       void handleSavedSessionMutation(msg).then(sendResponse, () => {
-        sendResponse({ ok: false, quota: false, message: 'Could not update saved sessions. Try again.' });
+        sendResponse({ ok: false, quota: false, message: 'Could not update saved questions. Try again.' });
       });
       return true;
     }

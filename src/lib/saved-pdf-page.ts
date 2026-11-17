@@ -76,7 +76,7 @@ function show({ title, detail, state = 'busy', progress, actions = [] }: Notice)
   root.setAttribute('role', state === 'error' ? 'alert' : 'status');
   root.replaceChildren(...parts);
   buttons[0]?.focus();
-  document.title = `${title} - stemlm`;
+  document.title = `${title} - stemLM`;
 }
 
 async function download(session: Session): Promise<boolean> {
@@ -111,7 +111,7 @@ export async function runSavedPdfPage(
   if (!job && !id) {
     show({
       title: 'Nothing to open',
-      detail: 'This window was opened without a question. Close it and open the question from stemlm again.',
+      detail: 'This window was opened without a question. Close it and open the question from stemLM again.',
       state: 'error',
       actions: [CLOSE],
     });
@@ -156,7 +156,7 @@ export async function runSavedPdfPage(
     }
     show({
       title: 'Could not print',
-      detail: 'The print dialog did not open. Close this window and try again from stemlm.',
+      detail: 'The print dialog did not open. Close this window and try again from stemLM.',
       state: 'error',
       actions: [CLOSE],
     });
@@ -168,7 +168,7 @@ export async function runSavedPdfPage(
     document.open();
     document.write(html);
     document.close();
-    document.title = 'stemlm';
+    document.title = 'stemLM';
     return { ok: true, mode };
   } catch {
     show({

@@ -124,16 +124,17 @@ describe('structureAnswer: corpus of plain answers', () => {
       renderToStaticMarkup(createElement(MathMarkdown, { content, ...props }));
     for (const answer of WORKED) {
       const { capsule } = structured(answer.markdown, answer.question);
+      const bodies = capsule.steps.map((s) => html(s.body));
       const rendered = [
         html(capsule.steps.map((s) => s.title).join(' / '), { inline: true }),
-        ...capsule.steps.map((s) => html(s.body)),
+        ...bodies,
         ...capsule.steps.flatMap((s) => (s.formula ? [html(s.formula, { mathMode: 'display' })] : [])),
         capsule.solution ? html(capsule.solution) : '',
       ].join('\n');
       expect(rendered, answer.name).not.toContain('katex-error');
       // The render path must keep the body's blocks: every display equation, code block and table.
-      for (const step of capsule.steps) {
-        const body = html(step.body);
+      for (const [i, step] of capsule.steps.entries()) {
+        const body = bodies[i]!;
         const count = (re: RegExp, text: string) => text.match(re)?.length ?? 0;
         const where = `${answer.name} ${step.id}`;
         expect(count(/class="katex-display"/g, body), where).toBeGreaterThanOrEqual(count(/^\$\$$/gm, step.body) / 2 + count(/^\$\$.+\$\$$/gm, step.body));

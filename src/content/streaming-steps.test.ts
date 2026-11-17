@@ -125,6 +125,22 @@ describe('steps while the chat is still writing', () => {
     expect(state().sessions[0]!.capsule.solution).toContain('accelerates');
   });
 
+  it('does not take "@end", the start of "@endbody", for the end of the answer while it is written', async () => {
+    newReply();
+    controller.startWatching();
+    streaming(true);
+    // The page is looked at while the reply ends in the first four characters of "@endbody".
+    code().textContent = [...META, ...S1, '@step id=s2', 'title: Balance', '@body', 'The block stays', '@end'].join('\n');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(state().writingId).toBe(state().sessions[0]!.id);
+
+    await streamTo(FULL);
+    streaming(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(titles()).toEqual([['Draw the forces', 'Balance the perpendicular forces', 'Apply the second law']]);
+    expect(state().sessions[0]!.cutOff).toBeUndefined();
+  });
+
   it('follows a reply by its changing text where the chat shows no sign that it is writing', async () => {
     newReply();
     controller.startWatching();

@@ -145,7 +145,7 @@ export function SavedLibraryOverlay({
                 <div className="slm-library-empty" role="alert">
                   <p className="slm-library-empty-title">Your saved questions could not be read.</p>
                   <p className="slm-library-empty-text">
-                    Nothing has been deleted. Try again, or close this window and open it from the stemlm
+                    Nothing has been deleted. Try again, or close this window and open it from the stemLM
                     toolbar button.
                   </p>
                   <button type="button" className="slm-library-clear" data-library="retry" onClick={() => void reload()}>

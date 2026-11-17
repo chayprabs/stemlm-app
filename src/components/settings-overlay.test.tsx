@@ -114,9 +114,10 @@ describe('SettingsOverlay', () => {
     const { container, unmount } = await renderOverlay();
     const switches = [...container.querySelectorAll<HTMLElement>('[role="switch"]')];
     expect(switches.map((el) => el.getAttribute('aria-label'))).toEqual([
-      'Share sessions across tabs',
+      'Share questions across tabs',
       'Open the panel automatically',
       "Collapse the chat's sidebar while the panel is open",
+      "Fold stemLM's text in the chat",
     ]);
     expect(container.textContent).not.toMatch(/usage data|analytics/i);
     unmount();
@@ -308,7 +309,7 @@ describe('SettingsOverlay', () => {
     expect(useStore.getState().settings.theme).toBe('dark');
     expect(useStore.getState().theme).toBe('dark');
 
-    await clickControl(container, 'Share sessions across tabs');
+    await clickControl(container, 'Share questions across tabs');
     expect((await getSettings()).shareAcrossTabs).toBe(true);
     expect(useStore.getState().settings.shareAcrossTabs).toBe(true);
 
@@ -345,7 +346,7 @@ describe('SettingsOverlay', () => {
 
   it('sets the reading size on one five-stop scale, saves it and previews it live', async () => {
     const { container, unmount } = await renderOverlay();
-    const scale = container.querySelector('input[type="range"][aria-label="Reading size"]') as HTMLInputElement;
+    const scale = container.querySelector('input[type="range"][aria-label="Text size"]') as HTMLInputElement;
     expect([scale.min, scale.max, scale.step, scale.value]).toEqual(['1', '5', '1', '2']);
     expect(scale.getAttribute('aria-valuetext')).toBe('Level 2 of 5');
     const preview = container.querySelector('.slm-set-preview') as HTMLElement;
@@ -437,11 +438,12 @@ describe('SettingsOverlay', () => {
     const rows = [...container.querySelectorAll('.slm-set-copy')];
     expect(rows.map((row) => row.querySelector('.slm-settings-label')?.textContent)).toEqual([
       'Theme',
-      'Reading size',
+      'Text size',
       'Answers open on',
-      'Share sessions across tabs',
+      'Share questions across tabs',
       'Open the panel automatically',
       "Collapse the chat's sidebar while the panel is open",
+      "Fold stemLM's text in the chat",
     ]);
     for (const row of rows) {
       expect(row.querySelector('.slm-settings-hint')?.textContent?.length, row.textContent ?? '').toBeGreaterThan(10);
@@ -451,8 +453,8 @@ describe('SettingsOverlay', () => {
     expect(live.textContent).toBe('');
     await clickControl(container, 'Solution');
     expect(live.textContent).toBe('Answers open on solution. Saved.');
-    await clickControl(container, 'Share sessions across tabs');
-    expect(live.textContent).toBe('Share sessions across tabs: on. Saved.');
+    await clickControl(container, 'Share questions across tabs');
+    expect(live.textContent).toBe('Share questions across tabs: on. Saved.');
     unmount();
   });
 

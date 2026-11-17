@@ -2297,12 +2297,16 @@
   border: 0;
   border-top: 1px solid var(--slm-border);
 }
-.slm-prose table {
-  display: block;
-  width: max-content;
+/* A table keeps its table semantics; its box scrolls sideways when the columns cannot fit. */
+.slm-table-scroll {
   max-width: 100%;
   margin: 0 0 0.9em;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.slm-prose table {
+  margin: 0;
   border-collapse: collapse;
   font-size: 0.94em;
   font-variant-numeric: tabular-nums;
@@ -2379,11 +2383,12 @@
   padding: 0.15em 0;
   scrollbar-width: thin;
 }
-/* An equation wider than the column scrolls sideways. Where scrollbars only appear on touch, a cut
-   edge would look like the end of it, so the side that has more fades out. The fade follows the
-   scroll position and does nothing for an equation that fits. */
+/* An equation or a table wider than the column scrolls sideways. Where scrollbars only appear on
+   touch, a cut edge would look like the end of it, so the side that has more fades out. The fade
+   follows the scroll position and does nothing for one that fits. */
 @supports (animation-timeline: scroll()) {
-  .slm-prose .katex-display {
+  .slm-prose .katex-display,
+  .slm-table-scroll {
     -webkit-mask-image: linear-gradient(
       to right,
       transparent,
@@ -2456,6 +2461,64 @@
 .slm-read::-webkit-scrollbar-thumb:hover,
 .slm-solution-wrap::-webkit-scrollbar-thumb:hover {
   background: var(--slm-border-strong);
+}
+
+/* ---------- short panel: a short window or a large zoom ----------
+   Pinned, the question and the step strip would leave the page a sliver. Only the bar stays;
+   everything under it scrolls as one page: the panel itself is the scroller. */
+@media (max-height: 560px) {
+  .slm-panel {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--slm-border) transparent;
+    /* A control reached with Tab is never left under the bar. */
+    scroll-padding-top: 3.5rem;
+    /* The page has no scrollbar of its own, so the strip makes no room for one. */
+    --slm-scroll-gutter: 0px !important;
+  }
+  .slm-header {
+    display: contents;
+  }
+  .slm-header-bar {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--slm-bg);
+    border-bottom: 1px solid var(--slm-border-subtle);
+  }
+  /* Takes no room in the flow and stays on the panel's left edge while it scrolls. */
+  .slm-resize-handle {
+    position: sticky;
+    flex: none;
+    height: 100dvh;
+    margin-bottom: -100dvh;
+  }
+  /* Nothing shrinks to fit and nothing below the bar scrolls by itself; a short page still puts
+     Prev and Next at the panel's foot. */
+  .slm-panel > *,
+  .slm-header > * {
+    flex: none;
+  }
+  .slm-panel > .slm-body,
+  .slm-steps-hero,
+  .slm-steps-layout,
+  .slm-steps-detail,
+  .slm-read,
+  .slm-solution-wrap,
+  .slm-loading,
+  .slm-empty {
+    flex: 1 0 auto;
+  }
+  .slm-read,
+  .slm-solution-wrap,
+  .slm-empty {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+  .slm-topic-row:last-child {
+    border-bottom: 1px solid var(--slm-border-subtle);
+  }
 }
 
 /* ---------- density by the panel's own width ---------- */

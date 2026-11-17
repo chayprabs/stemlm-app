@@ -150,7 +150,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
           Diagram
           {resolved.corrected && (
             // Drawn from repaired notation, not the model's text verbatim: say so (content is never changed).
-            <span className="slm-diagram-note" title="stemlm corrected this figure's notation before drawing it. Its content is unchanged.">
+            <span className="slm-diagram-note" title="stemLM corrected this figure's notation before drawing it. Its content is unchanged.">
               <IconWand width={11} height={11} /> Auto-corrected
             </span>
           )}

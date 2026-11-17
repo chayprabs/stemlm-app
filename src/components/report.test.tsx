@@ -66,7 +66,7 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('s1'); // step diagram injected (vector svg)
     expect(html).toContain('katex');
     expect(html).toContain('<math');
-    expect(html).toContain('PDF made using stemlm');
+    expect(html).toContain('PDF made using stemLM');
     expect(html).toContain('https://stemlm.app');
   });
 
@@ -578,7 +578,7 @@ describe('buildReportDocument (vector print PDF)', () => {
 
   it('builds a sensible filename for save', () => {
     const session = { ...buildSession(), createdAt: new Date(2026, 8, 26, 15, 30).getTime() };
-    expect(reportFilename(session)).toBe('stemlm - circuit-format-check - 2026-09-26');
+    expect(reportFilename(session)).toBe('stemLM - circuit-format-check - 2026-09-26');
     expect(reportFilename(session)).not.toMatch(/gemini|chatgpt|claude|grok/i);
     expect(reportFilename(session)).not.toMatch(/what-is-the-current/i);
   });
@@ -595,18 +595,18 @@ describe('buildReportDocument (vector print PDF)', () => {
       },
     };
     const name = reportFilename(long);
-    expect(name).toMatch(/^stemlm - [a-z0-9]+(?:-[a-z0-9]+)* - 2026-01-05$/);
+    expect(name).toMatch(/^stemLM - [a-z0-9]+(?:-[a-z0-9]+)* - 2026-01-05$/);
     expect(`${name}.pdf`.length).toBeLessThanOrEqual(60);
     expect(name).toContain('electrostatique-champ-e');
     const blank = { ...base, createdAt, capsule: { ...base.capsule, meta: { ...base.capsule.meta, topic: ' ?! ' } } };
-    expect(reportFilename(blank)).toBe('stemlm - 2026-01-05');
+    expect(reportFilename(blank)).toBe('stemLM - 2026-01-05');
   });
 
   it('uses a short print title without dates', () => {
     const session = buildSession();
     const doc = buildReportDocument(session, {});
-    expect(reportPrintTitle(session)).toBe('stemlm');
-    expect(doc).toContain('<title>stemlm</title>');
+    expect(reportPrintTitle(session)).toBe('stemLM');
+    expect(doc).toContain('<title>stemLM</title>');
     expect(doc).not.toContain('<title>Circuit format check</title>');
     expect(doc).not.toMatch(/stemlm-what-is-the-current/i);
   });
@@ -684,7 +684,7 @@ describe('buildReportDocument (vector print PDF)', () => {
     mkdirSync(outDir, { recursive: true });
     writeFileSync(resolve(outDir, 'preview.html'), html, 'utf8');
     expect(html).toContain('Angular Acceleration from Position');
-    expect(html).toContain('PDF made using stemlm');
+    expect(html).toContain('PDF made using stemLM');
     expect(html).toContain('#FF6B2C');
     expect(html).not.toContain('slm-report-label">Answer');
     const plotSvg =

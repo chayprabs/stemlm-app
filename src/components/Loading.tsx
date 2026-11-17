@@ -21,7 +21,7 @@ export function Loading({ theme = 'light' }: { theme?: ResolvedTheme }) {
             <AnimatedStemMark size={28} variant={themeToBrandVariant(theme)} />
           </span>
           <div>
-            <p className="slm-loading-title">Reading response</p>
+            <p className="slm-loading-title">Reading the answer</p>
             <p className="slm-loading-sub">Each step appears here as the chat finishes writing it.</p>
           </div>
         </div>

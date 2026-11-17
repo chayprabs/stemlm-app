@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:changed": "vitest run --changed",
+    "test:related": "vitest related --run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
     "release:chrome": "pnpm verify && pnpm zip",
     "postinstall": "wxt prepare"

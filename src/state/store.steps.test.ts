@@ -71,13 +71,22 @@ describe('store step navigation (10 steps)', () => {
     expect('reviewedStepIds' in (useStore.getState().sessions[0] ?? {})).toBe(false);
   });
 
-  it('setActiveSession resets step index', () => {
+  it('each question keeps its own step when the student switches between them', () => {
     const a = longSession();
     const b = { ...longSession(), id: 's-other' };
     useStore.getState().addSession(a);
     useStore.getState().setActiveStep(7);
     useStore.getState().addSession(b);
+    expect(useStore.getState().activeStepIndex).toBe(0);
+    useStore.getState().setActiveStep(2);
     useStore.getState().setActiveSession(a.id);
+    expect(useStore.getState().activeStepIndex).toBe(7);
+    useStore.getState().setActiveSession(b.id);
+    expect(useStore.getState().activeStepIndex).toBe(2);
+    // A question never visited before starts at its first step.
+    useStore.getState().addSession({ ...longSession(), id: 's-third' });
+    useStore.getState().setActiveSession(a.id);
+    useStore.getState().setActiveSession('s-third');
     expect(useStore.getState().activeStepIndex).toBe(0);
   });
 

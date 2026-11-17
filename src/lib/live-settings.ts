@@ -5,7 +5,7 @@
  * when another surface (popup fallback, another tab) changes storage.
  */
 import { useStore } from '@/src/state/store';
-import { resolveTheme } from '@/src/lib/theme';
+import { resolveHostTheme } from '@/src/lib/theme';
 import {
   clearMirroredSessions,
   loadMirroredSessions,
@@ -21,7 +21,7 @@ export function applyLiveSettings(next: Settings, prev: Settings = useStore.getS
   const sharingChanged = next.shareAcrossTabs !== prev.shareAcrossTabs;
   const generation = sharingChanged ? ++shareSyncGeneration : shareSyncGeneration;
   useStore.getState().setSettings(next);
-  useStore.getState().setTheme(resolveTheme(next.theme));
+  useStore.getState().setTheme(resolveHostTheme(next.theme));
 
   const state = useStore.getState();
   if (!state.splitDragging && Math.abs(state.splitRatio - next.splitRatio) > 0.001) {

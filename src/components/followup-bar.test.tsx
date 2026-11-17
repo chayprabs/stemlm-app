@@ -44,7 +44,7 @@ describe('FollowupBar failure recovery', () => {
 
     expect(useStore.getState().status).toBe('error');
     expect(useStore.getState().errorMessage).toBe(
-      'Could not send the follow-up to the chat box. Click in the input and try again.',
+      'Could not send the follow-up to the chat box. Click in the chat box and try again.',
     );
     act(() => root?.unmount());
     container.remove();

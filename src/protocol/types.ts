@@ -280,4 +280,6 @@ export interface Session {
   origin?: SessionOrigin;
   /** D38: the chat stopped before @end; only the blocks that closed are shown, and it cannot be saved. */
   cutOff?: boolean;
+  /** The chat's path when the answer was stored: the panel shows a chat's own questions. Absent: every chat's. */
+  chat?: string;
 }

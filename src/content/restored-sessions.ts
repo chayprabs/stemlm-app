@@ -65,7 +65,7 @@ function capsule(value: unknown): boolean {
  */
 function session(value: unknown): boolean {
   return record(value) && strings(value, ['id', 'question', 'raw']) &&
-    optional(value.origin, oneOf(['capsule', 'ingest'])) &&
+    optional(value.origin, oneOf(['capsule', 'ingest'])) && optional(value.chat, string) &&
     finite(value.createdAt) && finite(value.updatedAt) && isPlatformId(value.platform) &&
     capsule(value.capsule) && optional(value.followups, (followups) => array(followups, (followup) =>
       record(followup) && strings(followup, ['id', 'anchorStepId']) &&

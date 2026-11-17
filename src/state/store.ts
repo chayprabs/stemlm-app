@@ -23,7 +23,7 @@ export const REMOVED_NOTICE = 'Question removed from the panel.';
  * question back). A note, not an error: the empty panel under it drops its how-to.
  */
 export const NO_ANSWER_NOTICE =
-  'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm button.';
+  'The chat answered without stemLM steps. If it showed an error or a usage limit, wait a moment, then send your question again with the stemLM button.';
 export type PanelView = 'steps' | 'solution';
 
 export interface StoreState {
@@ -58,6 +58,10 @@ export interface StoreState {
   writingId?: string;
   /** Index into the flattened rail entries (steps + inline follow-up answers). */
   activeStepIndex: number;
+  /** Where each question was left, so switching back returns to the same step. */
+  stepBySession: Record<string, number>;
+  /** The path of the chat on screen: the panel shows its questions only (`chatSessions`). */
+  chat: string;
   /**
    * The question last removed from the strip. While the status line still reads REMOVED_NOTICE
    * it offers to put this back. Not kept when sessions are shared across tabs: a removal is
@@ -88,6 +92,11 @@ export interface StoreState {
   /** Replace all sessions (used by "Load conversation"). */
   setSessions: (sessions: Session[]) => void;
   setActiveSession: (id: string) => void;
+  /**
+   * The site shows another chat (`chat`): its newest question opens unless one of its own is open.
+   * `adoptFrom`: the "new chat" path the questions asked there were stored under, now this chat's.
+   */
+  setChat: (chat: string, adoptFrom?: string) => void;
   setActiveStep: (index: number) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -107,6 +116,8 @@ export const useStore = create<StoreState>((set, get) => ({
   hostSidebarPx: 0,
   sessions: [],
   activeStepIndex: 0,
+  stepBySession: {},
+  chat: typeof location === 'undefined' ? '' : location.pathname,
 
   openPanel: (takeFocus = true) => set({ panelOpen: true, panelTakesFocus: takeFocus }),
   closePanel: () => set({ panelOpen: false }),
@@ -124,6 +135,7 @@ export const useStore = create<StoreState>((set, get) => ({
       sessions: [...s.sessions, session],
       activeSessionId: session.id,
       activeStepIndex: 0,
+      stepBySession: rememberStep(s),
       status: 'ready',
       errorMessage: undefined,
       view: s.settings.defaultView,
@@ -155,7 +167,9 @@ export const useStore = create<StoreState>((set, get) => ({
       if (s.activeSessionId !== id) {
         return { sessions, status, ...undo };
       }
-      const neighbor = sessions[Math.min(idx, sessions.length - 1)];
+      // The next question of this chat, else the one before it.
+      const here = chatSessions({ sessions, chat: s.chat });
+      const neighbor = here.find((sess) => sessions.indexOf(sess) >= idx) ?? here[here.length - 1];
       return {
         sessions,
         activeSessionId: neighbor?.id,
@@ -227,7 +241,27 @@ export const useStore = create<StoreState>((set, get) => ({
     }),
 
   setActiveSession: (id) =>
-    set((s) => ({ activeSessionId: id, activeStepIndex: 0, view: s.settings.defaultView })),
+    set((s) => {
+      const stepBySession = rememberStep(s);
+      const last = buildStepEntries(s.sessions.find((sess) => sess.id === id)).length - 1;
+      const activeStepIndex = Math.max(0, Math.min(stepBySession[id] ?? 0, last));
+      return { activeSessionId: id, activeStepIndex, stepBySession, view: s.settings.defaultView };
+    }),
+
+  setChat: (chat, adoptFrom) => {
+    set((s) => ({
+      chat,
+      ...(adoptFrom !== undefined && s.sessions.some((sess) => sess.chat === adoptFrom)
+        ? { sessions: s.sessions.map((sess) => (sess.chat === adoptFrom ? { ...sess, chat } : sess)) }
+        : {}),
+    }));
+    const s = get();
+    const here = chatSessions(s);
+    if (here.some((sess) => sess.id === s.activeSessionId)) return;
+    const newest = here[here.length - 1];
+    if (newest) s.setActiveSession(newest.id);
+    else set({ activeSessionId: undefined, activeStepIndex: 0, stepBySession: rememberStep(s) });
+  },
 
   setActiveStep: (index) => {
     const session = getActiveSession(get());
@@ -239,8 +273,18 @@ export const useStore = create<StoreState>((set, get) => ({
   prevStep: () => get().setActiveStep(get().activeStepIndex - 1),
 
   resetSessions: () =>
-    set({ sessions: [], activeSessionId: undefined, activeStepIndex: 0, status: 'idle' }),
+    set({ sessions: [], activeSessionId: undefined, activeStepIndex: 0, stepBySession: {}, status: 'idle' }),
 }));
+
+/** The step map with the open question's place written in, before the panel moves to another question. */
+function rememberStep(s: StoreState): Record<string, number> {
+  return s.activeSessionId ? { ...s.stepBySession, [s.activeSessionId]: s.activeStepIndex } : s.stepBySession;
+}
+
+/** The questions of the chat on screen. One stored before questions had a chat belongs to every chat. */
+export function chatSessions(state: Pick<StoreState, 'sessions' | 'chat'>): Session[] {
+  return state.sessions.filter((s) => !s.chat || s.chat === state.chat);
+}
 
 export function getActiveSession(state: StoreState): Session | undefined {
   return state.sessions.find((s) => s.id === state.activeSessionId);

@@ -23,7 +23,7 @@ it('does not promise unloaded answers while the banner says this answer could no
     expect(container.querySelector('.slm-empty-load')).toBeNull();
     // The manual way in is what is left when an answer could not be read.
     expect([...container.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Paste an answer']);
-    expect(container.textContent).toContain('Study workspace');
+    expect(container.textContent).toContain('Study panel');
   } finally {
     act(() => root.unmount());
     useStore.getState().setStatus('idle');

@@ -51,6 +51,8 @@ const extUrl = (path) => `chrome-extension://${extId}/${path}`;
 // First install opens the welcome tab; it is photographed on purpose below.
 await new Promise((r) => setTimeout(r, 600));
 for (const p of ctx.pages()) if (p.url().includes('welcome.html')) await p.close();
+// Install also leaves a one-time hint at the stemLM button; only the suite about it shows it.
+await sw.evaluate(() => chrome.storage.local.remove('stemlm_first_run_hint'));
 
 const failures = [];
 async function shot(page, name, opt = {}) {

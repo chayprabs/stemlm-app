@@ -103,6 +103,20 @@ describe('MathMarkdown', () => {
     expect(host.textContent).toContain('per unit.');
   });
 
+  it('puts a table in its own sideways scroller, which fades at the edge like a long equation', () => {
+    const header = Array.from({ length: 8 }, (_, i) => `Column ${i + 1}`);
+    const host = rendered(`| ${header.join(' | ')} |\n|${' --- |'.repeat(8)}\n|${' 1 |'.repeat(8)}`);
+    const table = host.querySelector('table')!;
+    expect(table.parentElement?.className).toBe('slm-table-scroll');
+    expect(table.querySelectorAll('th')).toHaveLength(8);
+    expect(table.hasAttribute('node')).toBe(false);
+    const css = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
+    const box = css.slice(css.indexOf('.slm-table-scroll {'));
+    expect(box.slice(0, box.indexOf('}'))).toMatch(/max-width: 100%;[\s\S]*overflow-x: auto;/);
+    const fade = css.slice(css.indexOf('@supports (animation-timeline: scroll())'));
+    expect(fade.slice(0, fade.indexOf('mask-image'))).toMatch(/\.slm-prose \.katex-display,\s*\.slm-table-scroll \{/);
+  });
+
   it.each(['$|x|$', '$\\|x\\|$'])('GAP-02 preserves pipes inside table math: %s', (formula) => {
     const host = rendered(`| A | B |\n| --- | --- |\n| ${formula} | 2 |`);
     const cells = host.querySelectorAll('td');

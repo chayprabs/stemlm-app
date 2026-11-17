@@ -203,6 +203,78 @@ ${s}.slm-inject-tip.is-open {
   transform: translateY(0);
   transition-delay: 0s;
 }
+/* Once, after install: how to use the control, set clear of the chat box with its caret on the
+   control, which wears a ring of the signal until it is pressed. Hidden until it has a place. */
+${s}.slm-fab-wrap.has-hint .slm-inject-btn {
+  box-shadow: 0 0 0 2px ${INJECT_SIGNAL};
+}
+${s}.slm-first-hint {
+  --slm-hint-bg: #16161a;
+  --slm-hint-fg: #ffffff;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: var(--slm-hint-bg);
+  color: var(--slm-hint-fg);
+  font: 500 13px/1.4 ${FONT_SANS};
+  letter-spacing: 0;
+  box-shadow: 0 8px 24px rgb(22 22 26 / 0.18);
+  visibility: hidden;
+  animation: slm-inject-in ${DUR_3} ${EASE} both;
+}
+${s}.slm-first-hint[data-side] {
+  visibility: visible;
+}
+${dark} .slm-first-hint {
+  --slm-hint-bg: #f2f2f2;
+  --slm-hint-fg: #16161a;
+}
+${s}.slm-first-hint::after {
+  content: '';
+  position: absolute;
+  left: clamp(8px, calc(var(--slm-hint-caret, 16px) - 5px), calc(100% - 18px));
+  width: 10px;
+  height: 10px;
+  background: var(--slm-hint-bg);
+  transform: rotate(45deg);
+}
+${s}.slm-first-hint[data-side="above"]::after {
+  bottom: -4px;
+}
+${s}.slm-first-hint[data-side="below"]::after {
+  top: -4px;
+}
+${s}.slm-first-hint-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.72;
+  cursor: pointer;
+}
+${s}.slm-first-hint-close:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--slm-hint-fg) 12%, transparent);
+}
+${s}.slm-first-hint-close:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--slm-hint-fg);
+  outline-offset: -2px;
+}
 ${s}.slm-inject-live {
   position: absolute;
   width: 1px;
@@ -233,6 +305,7 @@ ${s}.slm-inject-live {
     transform: none;
   }
   ${s}.slm-fab-wrap,
+  ${s}.slm-first-hint,
   ${s}.slm-inject-spinner .slm-inject-dot,
   ${s}.slm-inject-spinner .slm-inject-apex {
     animation: none;

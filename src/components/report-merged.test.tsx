@@ -60,7 +60,7 @@ describe('MergedReport', () => {
     const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
 
     expect(html.match(/slm-report-wordmark/g)).toHaveLength(1);
-    expect(html.match(/PDF made using stemlm/g)).toHaveLength(1);
+    expect(html.match(/PDF made using stemLM/g)).toHaveLength(1);
     expect(html.match(/https:\/\/stemlm\.app/g)).toHaveLength(1);
     expect(html.match(/slm-report-head-row/g)).toHaveLength(1);
     expect(html.match(/class="slm-report-foot"/g)).toHaveLength(1);

@@ -31,10 +31,20 @@ export function StepList({
     const mark = active.getBoundingClientRect();
     const offset = mark.left + mark.width / 2 - (strip.left + strip.width / 2);
     rail.scrollBy?.({ left: offset, behavior: reducedMotion ? 'auto' : 'smooth' });
+    // The strip is one stop for Tab: when the keyboard is in it, it moves with the current mark.
+    const root = rail.getRootNode() as Document | ShadowRoot;
+    if (root.activeElement && rail.contains(root.activeElement)) active.querySelector('button')?.focus({ preventScroll: true });
   }, [activeIndex, entries.length, reducedMotion]);
 
+  // Left and Right turn the page (the panel's own keys); Home and End go to the first and last step.
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    onSelect(e.key === 'Home' ? 0 : entries.length - 1);
+  }
+
   return (
-    <nav ref={railRef} className="slm-step-rail" aria-label="Solution steps">
+    <nav ref={railRef} className="slm-step-rail" aria-label="Solution steps" onKeyDown={onKeyDown}>
       <ol className="slm-step-rail-track">
         {entries.map((entry, i) => {
           const active = i === activeIndex;
@@ -67,6 +77,7 @@ export function StepList({
                   .filter(Boolean)
                   .join(' ')}
                 onClick={() => onSelect(i)}
+                tabIndex={active ? 0 : -1}
                 aria-current={active ? 'step' : undefined}
                 aria-label={label}
                 title={title}
