@@ -1,7 +1,7 @@
 /**
- * Saved-questions library: search + time in a top toolbar, a scrolling category
- * rail, and question cards with download / open actions. "Merge PDF" turns the
- * list into a picker and combines the picked questions into one continuous PDF.
+ * Saved-questions library: a search field with a time filter and the merge action, a scrolling
+ * row of subject chips, and one ruled row per saved question with download / open / delete.
+ * "Merge PDF" turns the list into a picker and combines the picked questions into one PDF.
  */
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
@@ -36,12 +36,14 @@ import {
   savedTimeFilterLabel,
   type SavedTimeFilter,
 } from '@/src/lib/saved-library';
+import { CHAT_HOST_LAUNCH } from '@/src/platforms/hosts';
 import {
   IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconClock,
+  IconClose,
   IconDownload,
   IconLayers,
   IconOpen,
@@ -50,7 +52,39 @@ import {
   IconSearch,
   IconTrash,
 } from './icons';
+import { HostLogo } from './host-logos';
 import { MathMarkdown } from './MathMarkdown';
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** When a question was saved: relative while it is recent, a calendar date after a week. */
+export function savedWhenLabel(savedAt: number, now: number): string {
+  const age = now - savedAt;
+  if (!Number.isFinite(age) || age < MINUTE) return 'Just now';
+  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
+  if (age < DAY) return `${Math.floor(age / HOUR)} h ago`;
+  if (age < 7 * DAY) return `${Math.floor(age / DAY)} d ago`;
+  const date = new Date(savedAt);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  }).format(date);
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** True when a key press belongs to something the reader is typing into. */
+function isTypingTarget(event: KeyboardEvent): boolean {
+  const target = (event.composedPath?.()[0] ?? event.target) as Element | null;
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(target.tagName);
+}
 
 function TimeFilter({
   value,
@@ -182,10 +216,14 @@ function TimeFilter({
  */
 function CategoryRail({
   subjects,
+  counts,
+  total,
   value,
   onChange,
 }: {
   subjects: string[];
+  counts: ReadonlyMap<string, number>;
+  total: number;
   value: string;
   onChange: (next: string) => void;
 }) {
@@ -255,6 +293,7 @@ function CategoryRail({
           onClick={() => onChange(ALL_SAVED_SUBJECTS)}
         >
           All categories
+          <span className="slm-library-chip-count">{total}</span>
         </button>
         {subjects.map((name) => (
           <button
@@ -265,6 +304,7 @@ function CategoryRail({
             onClick={() => onChange(name)}
           >
             {name}
+            <span className="slm-library-chip-count">{counts.get(name) ?? 0}</span>
           </button>
         ))}
       </div>
@@ -304,12 +344,23 @@ export function SavedSessionList({
   const [picked, setPicked] = useState<readonly string[]>([]);
   const [merging, setMerging] = useState(false);
   const [progress, setProgress] = useState<RenderProgress | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // One clock reading per list, so every row's "saved 2 h ago" agrees with the others.
+  const now = useMemo(() => Date.now(), [items]);
 
   useEffect(() => {
     setItems(sessions);
   }, [sessions]);
 
   const subjects = useMemo(() => savedSessionSubjects(items), [items]);
+  const subjectCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      const name = savedSessionSubject(item);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return counts;
+  }, [items]);
   const visible = useMemo(
     () => filterSavedSessions(items, { query: deferredQuery, subject, time }),
     [items, deferredQuery, subject, time],
@@ -335,6 +386,37 @@ export function SavedSessionList({
   }, [items, visible, pickedSet]);
   const allVisiblePicked =
     visible.length > 0 && visible.every((item) => pickedSet.has(item.id));
+
+  const filtering = query.trim().length > 0 || subject !== ALL_SAVED_SUBJECTS || time !== ALL_SAVED_TIME;
+
+  // "/" jumps to search from anywhere on the page, the way it does in most libraries.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.altKey || event.ctrlKey || event.metaKey || isTypingTarget(event)) return;
+      const input = searchRef.current;
+      if (!input) return;
+      event.preventDefault();
+      input.focus();
+      input.select();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  function clearFilters() {
+    setQuery('');
+    setSubject(ALL_SAVED_SUBJECTS);
+    setTime(ALL_SAVED_TIME);
+  }
+
+  /** What is narrowing the list, in words, for the no-results state. */
+  function filterSummary(): string {
+    const parts: string[] = [];
+    if (query.trim()) parts.push(`\u201c${query.trim()}\u201d`);
+    if (subject !== ALL_SAVED_SUBJECTS) parts.push(`in ${subject}`);
+    if (time !== ALL_SAVED_TIME) parts.push(`from the ${savedTimeFilterLabel(time).toLowerCase()}`);
+    return parts.length > 0 ? `Nothing saved matches ${parts.join(' ')}.` : 'Nothing saved matches.';
+  }
 
   function fail(result: PdfExportResult, fallback: string) {
     setError({
@@ -430,66 +512,55 @@ export function SavedSessionList({
     }
   }
 
+  const empty = items.length === 0;
+
   return (
     <section className="slm-library-main" aria-label="Saved questions">
-      <div className="slm-library-toolbar-row">
-        <div className="slm-library-toolbar">
-          <div className="slm-library-search-wrap">
-            <IconSearch width={16} height={16} aria-hidden="true" />
-            <input
-              type="text"
-              className="slm-library-search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={SAVED_SEARCH_PLACEHOLDER}
-              aria-label="Search saved questions"
-              autoComplete="off"
-              spellCheck={false}
-            />
+      {!empty && (
+        <div className="slm-library-toolbar-row">
+          <div className="slm-library-toolbar">
+            <div className="slm-library-search-wrap">
+              <IconSearch width={16} height={16} aria-hidden="true" />
+              <input
+                ref={searchRef}
+                type="text"
+                className="slm-library-search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  // Escape empties a search first; only an already empty field lets it close the library.
+                  if (e.key === 'Escape' && query) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setQuery('');
+                  }
+                }}
+                placeholder={SAVED_SEARCH_PLACEHOLDER}
+                aria-label="Search saved questions"
+                aria-keyshortcuts="/"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {query ? (
+                <button
+                  type="button"
+                  className="slm-library-search-clear"
+                  aria-label="Clear search"
+                  title="Clear search"
+                  onClick={() => {
+                    setQuery('');
+                    searchRef.current?.focus();
+                  }}
+                >
+                  <IconClose width={14} height={14} aria-hidden="true" />
+                </button>
+              ) : (
+                <kbd className="slm-library-search-key" aria-hidden="true">/</kbd>
+              )}
+            </div>
           </div>
           <TimeFilter value={time} onChange={setTime} />
-        </div>
-
-        {items.length > 0 &&
-          (picking ? (
-            <div className="slm-library-merge-actions">
-              <button
-                type="button"
-                className="slm-library-merge is-primary"
-                data-merge="download"
-                disabled={pickedIds.length === 0 || merging}
-                aria-label={mergeDownloadLabel(pickedIds.length)}
-                onClick={() => void downloadPicked()}
-              >
-                <IconDownload width={15} height={15} aria-hidden="true" />
-                <span className="slm-library-merge-label">
-                  {merging
-                    ? progress
-                      ? `Page ${progress.page}/${progress.total}`
-                      : 'Building…'
-                    : mergeDownloadLabel(pickedIds.length)}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="slm-library-merge-quiet"
-                data-merge="select-all"
-                disabled={merging || visible.length === 0}
-                onClick={toggleAllVisible}
-              >
-                {allVisiblePicked ? 'Clear' : SELECT_ALL_LABEL}
-              </button>
-              <button
-                type="button"
-                className="slm-library-merge-quiet"
-                data-merge="cancel"
-                disabled={merging}
-                onClick={stopPicking}
-              >
-                {MERGE_CANCEL_LABEL}
-              </button>
-            </div>
-          ) : (
+          {!picking && (
             <button
               type="button"
               className="slm-library-merge"
@@ -501,11 +572,64 @@ export function SavedSessionList({
               <IconLayers width={15} height={15} aria-hidden="true" />
               <span className="slm-library-merge-label">{MERGE_START_LABEL}</span>
             </button>
-          ))}
-      </div>
+          )}
+        </div>
+      )}
 
-      {items.length > 0 && (
-        <CategoryRail subjects={subjects} value={subject} onChange={setSubject} />
+      {!empty && (
+        <CategoryRail
+          subjects={subjects}
+          counts={subjectCounts}
+          total={items.length}
+          value={subject}
+          onChange={setSubject}
+        />
+      )}
+
+      {picking && (
+        <div className="slm-library-select" role="group" aria-label="Merge into one PDF">
+          <p className="slm-library-select-status" role="status">
+            <strong>{pickedIds.length === 0 ? 'Pick questions to merge' : `${pickedIds.length} selected`}</strong>
+            <span>They are combined into one PDF, in the order shown.</span>
+          </p>
+          <div className="slm-library-merge-actions">
+            <button
+              type="button"
+              className="slm-library-merge-quiet"
+              data-merge="select-all"
+              disabled={merging || visible.length === 0}
+              onClick={toggleAllVisible}
+            >
+              {allVisiblePicked ? 'Clear' : SELECT_ALL_LABEL}
+            </button>
+            <button
+              type="button"
+              className="slm-library-merge-quiet"
+              data-merge="cancel"
+              disabled={merging}
+              onClick={stopPicking}
+            >
+              {MERGE_CANCEL_LABEL}
+            </button>
+            <button
+              type="button"
+              className="slm-library-merge is-primary"
+              data-merge="download"
+              disabled={pickedIds.length === 0 || merging}
+              aria-label={mergeDownloadLabel(pickedIds.length)}
+              onClick={() => void downloadPicked()}
+            >
+              <IconDownload width={15} height={15} aria-hidden="true" />
+              <span className="slm-library-merge-label">
+                {merging
+                  ? progress
+                    ? `Page ${progress.page}/${progress.total}`
+                    : 'Building…'
+                  : mergeDownloadLabel(pickedIds.length)}
+              </span>
+            </button>
+          </div>
+        </div>
       )}
 
       {error && (
@@ -516,100 +640,152 @@ export function SavedSessionList({
       )}
 
       <div className="slm-library-feed" data-picking={picking ? 'true' : undefined}>
-        {items.length === 0 ? (
+        {empty ? (
           <div className="slm-library-empty">
             <span className="slm-saved-empty-mark" aria-hidden="true">
               <IconSave width={22} height={22} />
             </span>
-            <p className="slm-popup-empty">Nothing saved yet.</p>
+            <p className="slm-library-empty-title">Nothing saved yet.</p>
+            <p className="slm-library-empty-text">
+              Press the bookmark at the top of the study panel to keep an answer. It stays in this browser, ready to
+              reopen or to export as a PDF.
+            </p>
+            <div className="slm-library-empty-hosts">
+              <span className="slm-library-empty-label">Start in a chat</span>
+              <div className="slm-library-empty-host-row">
+                {CHAT_HOST_LAUNCH.map((host) => (
+                  <a
+                    key={host.id}
+                    className="slm-library-empty-host"
+                    href={host.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <HostLogo id={host.id} size={15} />
+                    {host.label}
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         ) : visible.length === 0 ? (
-          <p className="slm-popup-empty" role="status">
-            No questions match.
-          </p>
+          <div className="slm-library-empty slm-library-empty--filtered" role="status">
+            <span className="slm-library-empty-mark" aria-hidden="true">
+              <IconSearch width={20} height={20} />
+            </span>
+            <p className="slm-library-empty-title">No questions match.</p>
+            <p className="slm-library-empty-text">{filterSummary()}</p>
+            <button type="button" className="slm-library-clear" data-library="clear-filters" onClick={clearFilters}>
+              Clear search and filters
+            </button>
+          </div>
         ) : (
-          <ul className="slm-library-list">
-            {visible.map((item) => {
-              const question = savedSessionQuestion(item);
-              const subjectLabel = savedSessionSubject(item);
-              const busy = busyId === item.id;
-              const chosen = pickedSet.has(item.id);
-              return (
-                <li
-                  key={item.id}
-                  className="slm-library-row slm-saved-item"
-                  data-selected={picking && chosen ? 'true' : undefined}
-                  onClick={picking ? () => togglePick(item.id) : undefined}
-                >
-                  {picking ? (
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={chosen}
-                      className="slm-library-check"
-                      aria-label={`Select ${question}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        togglePick(item.id);
-                      }}
-                    >
-                      <IconCheck width={12} height={12} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
-                  ) : (
-                    <span className="slm-library-row-icon" aria-hidden="true">
-                      <IconPdf width={16} height={16} />
+          <>
+            {filtering && (
+              <p className="slm-library-summary" role="status">
+                <span>{visible.length} of {plural(items.length, 'question', 'questions')}</span>
+                <button type="button" className="slm-library-summary-clear" data-library="clear-filters" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              </p>
+            )}
+            <ul className="slm-library-list">
+              {visible.map((item) => {
+                const question = savedSessionQuestion(item);
+                const subjectLabel = savedSessionSubject(item);
+                const host = CHAT_HOST_LAUNCH.find((entry) => entry.id === item.platform);
+                const stepCount = Array.isArray(item.steps) ? item.steps.length : 0;
+                const busy = busyId === item.id;
+                const chosen = pickedSet.has(item.id);
+                return (
+                  <li
+                    key={item.id}
+                    className="slm-library-row slm-saved-item"
+                    data-selected={picking && chosen ? 'true' : undefined}
+                    onClick={picking ? () => togglePick(item.id) : undefined}
+                  >
+                    {picking ? (
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={chosen}
+                        className="slm-library-check"
+                        aria-label={`Select ${question}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePick(item.id);
+                        }}
+                      >
+                        <IconCheck width={12} height={12} strokeWidth={2.5} aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <span className="slm-library-row-icon" aria-hidden="true">
+                        <IconPdf width={16} height={16} />
+                      </span>
+                    )}
+                    <span className="slm-library-row-copy">
+                      <MathMarkdown
+                        content={question}
+                        className="slm-library-row-q slm-saved-question-text"
+                      />
+                      <span className="slm-library-row-meta">
+                        <span className="slm-library-row-subject">{subjectLabel}</span>
+                        {host && (
+                          <span className="slm-library-row-host">
+                            <HostLogo id={host.id} size={11} />
+                            {host.label}
+                          </span>
+                        )}
+                        {stepCount > 0 && <span className="slm-library-row-steps">{plural(stepCount, 'step', 'steps')}</span>}
+                        {typeof item.savedAt === 'number' && (
+                          <time dateTime={new Date(item.savedAt).toISOString()}>{savedWhenLabel(item.savedAt, now)}</time>
+                        )}
+                      </span>
                     </span>
-                  )}
-                  <span className="slm-library-row-copy">
-                    <MathMarkdown
-                      content={question}
-                      className="slm-library-row-q slm-saved-question-text"
-                    />
-                    <span className="slm-library-row-meta">{subjectLabel}</span>
-                  </span>
-                  {!picking && (
-                    <span className="slm-library-row-actions">
-                      <button
-                        type="button"
-                        className="slm-library-icon-btn"
-                        data-action="download"
-                        data-label="Download"
-                        title="Download"
-                        aria-label={`Download PDF for ${question}`}
-                        disabled={busy}
-                        onClick={() => void download(item.id)}
-                      >
-                        <IconDownload width={15} height={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="slm-library-icon-btn"
-                        data-action="open"
-                        data-label="Open"
-                        title="Open"
-                        aria-label={`Open PDF for ${question}`}
-                        disabled={busy}
-                        onClick={() => void open(item.id)}
-                      >
-                        <IconOpen width={15} height={15} />
-                      </button>
-                      <button
-                        type="button"
-                        className="slm-library-icon-btn slm-library-icon-btn--quiet"
-                        data-action="delete"
-                        data-label="Delete"
-                        title="Delete saved question"
-                        aria-label={`Delete ${question}`}
-                        onClick={() => void remove(item.id)}
-                      >
-                        <IconTrash width={15} height={15} />
-                      </button>
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                    {!picking && (
+                      <span className="slm-library-row-actions">
+                        <button
+                          type="button"
+                          className="slm-library-icon-btn"
+                          data-action="download"
+                          data-label="Download"
+                          title="Download"
+                          aria-label={`Download PDF for ${question}`}
+                          disabled={busy}
+                          onClick={() => void download(item.id)}
+                        >
+                          <IconDownload width={15} height={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="slm-library-icon-btn"
+                          data-action="open"
+                          data-label="Open"
+                          title="Open"
+                          aria-label={`Open PDF for ${question}`}
+                          disabled={busy}
+                          onClick={() => void open(item.id)}
+                        >
+                          <IconOpen width={15} height={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="slm-library-icon-btn slm-library-icon-btn--quiet"
+                          data-action="delete"
+                          data-label="Delete"
+                          title="Delete saved question"
+                          aria-label={`Delete ${question}`}
+                          onClick={() => void remove(item.id)}
+                        >
+                          <IconTrash width={15} height={15} />
+                        </button>
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </div>
     </section>
