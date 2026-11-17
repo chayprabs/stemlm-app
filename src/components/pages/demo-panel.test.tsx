@@ -73,7 +73,8 @@ describe('welcome demo panel', () => {
     await settle();
     expect(kicker()).toBe('Step 4of 5');
     expect(container.querySelector('[aria-current="step"]')?.getAttribute('aria-label')).toMatch(/^Step 4:/);
-    expect(container.querySelector('.slm-stepnav-count')?.textContent).toBe('4/ 5');
+    // Like the real panel, the place is shown once: by the kicker and the strip, not a footer counter.
+    expect(container.querySelector('.slm-stepnav-count')).toBeNull();
   });
 
   it('keeps a quick check answer back until it is asked for', async () => {

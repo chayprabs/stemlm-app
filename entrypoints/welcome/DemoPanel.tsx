@@ -165,10 +165,6 @@ export function DemoPanel({ capsule, question, theme }: { capsule: Capsule; ques
                   >
                     <IconNavPrev /> Prev
                   </button>
-                  <span className="slm-stepnav-count" aria-hidden="true">
-                    <span className="slm-stepnav-count-now">{active + 1}</span>
-                    <span className="slm-stepnav-count-of">/ {total}</span>
-                  </span>
                   <button
                     type="button"
                     className="slm-stepnav-btn slm-stepnav-btn--next"
