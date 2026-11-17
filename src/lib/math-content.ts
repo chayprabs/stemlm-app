@@ -1113,7 +1113,11 @@ function isMathSpan(text: string, start: number, end: number): boolean {
     !RUNS_IN.test(text.slice(Math.max(0, start - CONTEXT_WINDOW), start));
 }
 
-function wrapUndelimitedStemTokens(text: string): string {
+/**
+ * @param texOnly — typeset a span only when it contains an explicit TeX command. Used for the
+ *   student's own words: `\vec{P}` is markup they wrote, `x_1 = 5` is a guess they did not ask for.
+ */
+function wrapUndelimitedStemTokens(text: string, texOnly = false): string {
   let out = '';
   let i = 0;
   while (i < text.length) {
@@ -1126,7 +1130,7 @@ function wrapUndelimitedStemTokens(text: string): string {
       }
     }
     const end = isMathBoundary(text, i) ? parseMathExpr(text, i) : i;
-    if (end > i && !isMathSpan(text, i, end)) {
+    if (end > i && !(texOnly ? /\\[A-Za-z]/.test(text.slice(i, end)) : isMathSpan(text, i, end))) {
       // Skipping the whole span keeps a long run of unpromoted text linear.
       out += text.slice(i, end);
       i = end;
@@ -1144,40 +1148,40 @@ function wrapUndelimitedStemTokens(text: string): string {
   return out;
 }
 
-function wrapStemTokens(text: string): string {
+function wrapStemTokens(text: string, texOnly = false): string {
   return splitMathSegments(text)
-    .map((seg) => (seg.math ? seg.text : wrapUndelimitedStemTokens(seg.text)))
+    .map((seg) => (seg.math ? seg.text : wrapUndelimitedStemTokens(seg.text, texOnly)))
     .join('');
 }
 
-function wrapFragmentsInLine(line: string): string {
+function wrapFragmentsInLine(line: string, texOnly = false): string {
   if (isStructuralMarkdownLine(line) || !line.trim()) return line;
 
   if (isAlreadyDelimitedMath(line)) {
     const unwrapped = unwrapProseMathDelimiters(line.trim());
-    if (unwrapped !== line.trim()) return wrapFragmentsInLine(unwrapped);
+    if (unwrapped !== line.trim()) return wrapFragmentsInLine(unwrapped, texOnly);
     return line;
   }
 
   if (!hasMathDelimiters(line)) {
-    return wrapStemTokens(line);
+    return wrapStemTokens(line, texOnly);
   }
 
   return splitMathSegments(line)
     .map((seg) => {
       if (seg.math) {
         const unwrapped = unwrapProseMathDelimiters(seg.text);
-        if (unwrapped !== seg.text) return wrapFragmentsInLine(unwrapped);
+        if (unwrapped !== seg.text) return wrapFragmentsInLine(unwrapped, texOnly);
         return seg.text;
       }
       const trimmed = seg.text.trim();
       if (!trimmed) return seg.text;
-      if (looksLikeRawLatex(trimmed)) {
+      if (!texOnly && looksLikeRawLatex(trimmed)) {
         const lead = seg.text.match(/^\s*/)?.[0] ?? '';
         const trail = seg.text.match(/\s*$/)?.[0] ?? '';
         return `${lead}${wrapAsMath(trimmed, prefersDisplayMath(trimmed))}${trail}`;
       }
-      return wrapStemTokens(seg.text);
+      return wrapStemTokens(seg.text, texOnly);
     })
     .join('');
 }
@@ -1223,11 +1227,31 @@ function joinSoftBrokenInlineMath(src: string): string {
   return lines.join('\n');
 }
 
+/** Apply a TeX rewrite inside delimited math only, leaving the words around it as typed. */
+function inMathOnly(src: string, rewrite: (math: string) => string): string {
+  return splitMathSegments(src)
+    .map((segment) => (segment.math && segment.text.startsWith('$') ? rewrite(segment.text) : segment.text))
+    .join('');
+}
+
+/** `2*3*4` as typed: Markdown would read the asterisks as emphasis and drop them. */
+function keepTypedProducts(text: string): string {
+  return text.replace(/(?<=[A-Za-z0-9)])\*(?=[A-Za-z0-9(])/g, '\\*');
+}
+
 /**
  * Prepare capsule math for MathMarkdown / KaTeX.
  * @param mode — `display` for @formula blocks; `auto` for mixed prose.
+ * @param promote — `false` for the student's own words. Math they marked up is still typeset:
+ *   anything delimited (`$…$`, `\(…\)`, `$$…$$`, `\[…\]`) and any expression holding an explicit
+ *   TeX command (`\vec{P}`). Bare text (`A-B 4`, `x_1 = 5`, `10^-5`, `sqrt(x)`) stays as typed.
  */
-export function prepareMathForRender(content: string, mode: MathRenderMode = 'auto', markdown = false): string {
+export function prepareMathForRender(
+  content: string,
+  mode: MathRenderMode = 'auto',
+  markdown = false,
+  promote = true,
+): string {
   if (content.length > MAX_MATH_RENDER_CHARS) {
     return 'Math content is too large to typeset safely.';
   }
@@ -1235,6 +1259,9 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
   let src = dedupeComposerMath(stripProtocolMarkers(protectedCode.text));
   if (!src.trim()) return src;
 
+  const forceDisplay = mode === 'display';
+  // A formula block is math by definition; only mixed prose can be left as typed.
+  const texOnly = !promote && !forceDisplay;
   src = protectFragileLatexCommands(src);
   src = normalizeMathDelimiters(src);
   const protectedEscapedMath = protectEscapedMathLiterals(src);
@@ -1250,10 +1277,10 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
       protectedCode.literals,
     );
   src = repairUnmatchedDisplayDelimiter(src);
-  src = normalizeUnicodeFractions(src);
-  src = normalizeRootNotation(src);
+  src = texOnly
+    ? inMathOnly(src, (math) => normalizeRootText(normalizeUnicodeFractions(math)))
+    : normalizeRootNotation(normalizeUnicodeFractions(src));
 
-  const forceDisplay = mode === 'display';
   const trimmed = src.trim();
 
   if (forceDisplay && trimmed && !hasMathDelimiters(trimmed)) {
@@ -1289,14 +1316,15 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
             : segment.text;
         }
         if (segment.text === '$') return markdown ? '\\$' : '$';
-        return braceWordSubscripts(segment.text);
+        if (!texOnly) return braceWordSubscripts(segment.text);
+        return markdown ? keepTypedProducts(segment.text) : segment.text;
       }).join('');
       if (markdown && /^\s*\|/.test(line)) {
         return splitMathSegments(line).map((segment) => segment.math
           ? segment.text.replace(/(?<!\\)\|/g, '\\vert ')
           : segment.text).join('');
       }
-      return wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay));
+      return texOnly ? wrapFragmentsInLine(line, true) : wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay));
     })
     .join('\n');
   return restoreLiterals(prepared);

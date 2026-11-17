@@ -100,7 +100,7 @@ export function FollowupCard({
           Follow-up {ordinal > 1 ? `${ordinal} ` : ''}· after step {anchorStepNumber}
         </span>
         <h2 className="slm-card-title">
-          <MathMarkdown content={followup.question || followup.capsule.meta.topic || 'Your question'} inline />
+          <MathMarkdown content={followup.question || followup.capsule.meta.topic || 'Your question'} inline promote={false} />
         </h2>
       </header>
 

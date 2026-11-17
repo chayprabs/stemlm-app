@@ -24,6 +24,32 @@ describe('stripProtocolMarkers', () => {
   it('removes @diagram type=svg marker lines', () => {
     expect(stripProtocolMarkers('Before\n@diagram type=svg\nAfter')).toBe('Before\nAfter');
   });
+
+  it('keeps a marker word that is part of a sentence', () => {
+    for (const prose of [
+      'Send the summary @end of day and tag @step two.',
+      'Email me @body shop hours, then see @solution for details.',
+      'The handle @meta posted the @formula sheet and a @takeaway list.',
+      'Ask @followup and @quickcheck on the forum.',
+      'Use the @END key, not @Step.',
+    ]) {
+      expect(stripProtocolMarkers(prose)).toBe(prose);
+    }
+  });
+
+  it('still removes a one-word marker glued to the end of a line or left on its own', () => {
+    expect(stripProtocolMarkers('Final answer: 5 m/s. @end')).toBe('Final answer: 5 m/s.');
+    expect(stripProtocolMarkers('The range is 40 m. @solution\nNext line')).toBe('The range is 40 m.\nNext line');
+    expect(stripProtocolMarkers('Text\n@end\nMore')).toBe('Text\nMore');
+    expect(stripProtocolMarkers('Text @endbody @end')).toBe('Text');
+    expect(stripProtocolMarkers('a\n@end @endbody\nb')).toBe('a\nb');
+  });
+
+  it('removes an end marker glued mid-line without touching the words around it', () => {
+    expect(stripProtocolMarkers('First part. @bodyend Second part @end of term.')).toBe(
+      'First part. Second part @end of term.',
+    );
+  });
 });
 
 describe('normalizeCapsuleText', () => {
