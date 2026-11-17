@@ -232,7 +232,6 @@ describe('leftover compilers through compileDiagramSpec', () => {
       'nline',
       'shaft',
       'punnett',
-      'pedigree',
       'magcirc',
       'devicemodel',
       'crispr',
