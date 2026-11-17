@@ -144,6 +144,11 @@ async function welcomeSuite(scheme) {
       const frame = page.locator('.slm-demo-frame');
       await frame.scrollIntoViewIfNeeded();
       await shot(page, `welcome-${scheme}-demo-step1`, { locator: frame });
+      await page.locator('.slm-demo-panel .slm-diagram-enlarge').click();
+      await settle(page, 600);
+      await shot(page, `welcome-${scheme}-demo-figure-enlarged`);
+      await page.keyboard.press('Escape');
+      await settle(page, 400);
       const panel = page.locator('.slm-demo-panel');
       await panel.focus();
       await page.keyboard.press('ArrowRight');
@@ -227,8 +232,44 @@ async function librarySuite(scheme) {
   await seedSaved(0);
 }
 
+/** Forget every stored setting, so each settings pass starts from the defaults. */
+async function resetSettings() {
+  await sw.evaluate(async () => {
+    const all = await chrome.storage.local.get(null);
+    const keys = Object.keys(all).filter((key) => key.startsWith('stemlm_setting') || key === 'stemlm_enabled');
+    if (keys.length) await chrome.storage.local.remove(keys);
+  });
+}
+
+/** Settings opens in a window fitted to the sheet (about 480px wide); it is shot at that width. */
+async function settingsSuite(scheme) {
+  await resetSettings();
+  const page = await openPage('options.html', scheme, { width: 480, height: 640 });
+  const sheet = page.locator('.slm-settings-page-shell');
+  await shot(page, `settings-${scheme}-1-default`, { locator: sheet });
+  await page.locator('.slm-set-seg-btn', { hasText: 'Solution' }).click();
+  await page.locator('[role="switch"]').first().click();
+  const scale = page.locator('.slm-set-scale-input');
+  await scale.focus();
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+  await settle(page, 500);
+  await shot(page, `settings-${scheme}-2-changed-scale-focus`, { locator: sheet });
+  await page.locator('.slm-set-seg-btn', { hasText: 'Light' }).focus();
+  await page.keyboard.press('Tab');
+  await settle(page, 300);
+  await shot(page, `settings-${scheme}-3-segment-focus`, { locator: sheet });
+  await page.close();
+  await resetSettings();
+  if (scheme === 'light') {
+    const narrow = await openPage('options.html', scheme, { width: 360, height: 700 });
+    await shot(narrow, `settings-${scheme}-4-narrow`, { locator: narrow.locator('.slm-settings-page-shell') });
+    await narrow.close();
+  }
+}
+
 try {
   for (const scheme of SCHEMES) {
+    if (want('settings')) await settingsSuite(scheme);
     if (want('library')) await librarySuite(scheme);
     if (want('popup')) await popupSuite(scheme);
     if (want('welcome')) await welcomeSuite(scheme);
