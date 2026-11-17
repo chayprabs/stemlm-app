@@ -5,7 +5,7 @@ import { diagramFromFence, explainFence, isFigureFence } from './index';
 import { REFUSED, TRANSLATED } from './corpus';
 
 /** Targets whose compilers are being built separately: until they exist only the spec text is asserted. */
-const PENDING_FAMILIES = ['sequence', 'chart'];
+const PENDING_FAMILIES = ['sequence'];
 
 describe('foreign corpus', () => {
   it('covers every notation with at least 60 translations and 20 refusals', () => {
