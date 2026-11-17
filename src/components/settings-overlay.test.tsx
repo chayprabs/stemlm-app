@@ -36,7 +36,7 @@ vi.mock('wxt/browser', () => ({
   },
 }));
 
-import { SETTINGS_LEGAL_LINKS, SettingsOverlay } from './SettingsOverlay';
+import { READING_SIZE_PX, SETTINGS_LEGAL_LINKS, SettingsOverlay } from './SettingsOverlay';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -325,6 +325,106 @@ describe('SettingsOverlay', () => {
     });
     expect(useStore.getState().settings).toMatchObject(saved);
 
+    unmount();
+  });
+
+  /** Move a React-controlled range input the way a drag or an arrow key does. */
+  async function setRange(input: HTMLInputElement, value: string, settle = true) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    await act(async () => {
+      setter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      if (!settle) return;
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  it('sets the reading size on one five-stop scale, saves it and previews it live', async () => {
+    const { container, unmount } = await renderOverlay();
+    const scale = container.querySelector('input[type="range"][aria-label="Reading size"]') as HTMLInputElement;
+    expect([scale.min, scale.max, scale.step, scale.value]).toEqual(['1', '5', '1', '2']);
+    expect(scale.getAttribute('aria-valuetext')).toBe('Level 2 of 5');
+    const preview = container.querySelector('.slm-set-preview') as HTMLElement;
+    expect(preview.style.fontSize).toBe('15px');
+    expect(container.querySelectorAll('.slm-set-scale-tick')).toHaveLength(5);
+    expect(container.querySelectorAll('.slm-set-scale-tick.is-on')).toHaveLength(2);
+
+    await setRange(scale, '4');
+    expect((await getSettings()).contentScale).toBe(4);
+    expect(useStore.getState().settings.contentScale).toBe(4);
+    expect(scale.getAttribute('aria-valuetext')).toBe('Level 4 of 5');
+    expect(preview.style.fontSize).toBe('17px');
+    expect(container.querySelectorAll('.slm-set-scale-tick.is-on')).toHaveLength(4);
+    unmount();
+  });
+
+  it('keeps every step of a quick run of changes, so arrow keys never fall behind', async () => {
+    const { container, unmount } = await renderOverlay();
+    const scale = container.querySelector('input[type="range"]') as HTMLInputElement;
+    // Three changes land before the first write has finished.
+    await setRange(scale, '3', false);
+    expect(scale.value).toBe('3');
+    await setRange(scale, '4', false);
+    expect(scale.value).toBe('4');
+    await setRange(scale, '5');
+    expect(scale.value).toBe('5');
+    expect((await getSettings()).contentScale).toBe(5);
+    unmount();
+  });
+
+  it('previews answer text at the sizes the study panel really uses', () => {
+    const panel = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
+    const base = Number(/--slm-read-size:\s*(\d+)px/.exec(panel)?.[1]);
+    expect(base).toBeGreaterThan(0);
+    expect(READING_SIZE_PX[2]).toBe(base);
+    for (const level of [1, 3, 4, 5] as const) {
+      const rule = new RegExp(
+        `\\.slm-panel\\[data-content-scale='${level}'\\]\\s*\\{[^}]*--slm-content-read-size:\\s*calc\\(var\\(--slm-read-size\\)\\s*([+-])\\s*(\\d+)px\\)`,
+      ).exec(panel);
+      expect(rule, `level ${level}`).toBeTruthy();
+      const offset = Number(rule![2]) * (rule![1] === '-' ? -1 : 1);
+      expect(READING_SIZE_PX[level], `level ${level}`).toBe(base + offset);
+    }
+  });
+
+  it('slides the segment thumb to the chosen option and says what Auto means', async () => {
+    const { container, unmount } = await renderOverlay();
+    const theme = container.querySelector('[role="group"][aria-label="Theme"]') as HTMLElement;
+    expect(theme.querySelector('.slm-set-seg-thumb')?.getAttribute('aria-hidden')).toBe('true');
+    expect(theme.style.getPropertyValue('--slm-seg-count')).toBe('3');
+    expect(theme.style.getPropertyValue('--slm-seg-index')).toBe('1');
+    await clickControl(container, 'Dark');
+    expect(theme.style.getPropertyValue('--slm-seg-index')).toBe('2');
+    expect(theme.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    await clickControl(container, 'Auto');
+    expect(theme.style.getPropertyValue('--slm-seg-index')).toBe('0');
+    expect(container.textContent).toContain('Follows your system.');
+    unmount();
+  });
+
+  it('gives every setting a title and a one-line description, and announces each save', async () => {
+    const { container, unmount } = await renderOverlay();
+    const rows = [...container.querySelectorAll('.slm-set-copy')];
+    expect(rows.map((row) => row.querySelector('.slm-settings-label')?.textContent)).toEqual([
+      'Theme',
+      'Reading size',
+      'Answers open on',
+      'Share sessions across tabs',
+      'Open the panel automatically',
+    ]);
+    for (const row of rows) {
+      expect(row.querySelector('.slm-settings-hint')?.textContent?.length, row.textContent ?? '').toBeGreaterThan(10);
+    }
+    const live = container.querySelector('.slm-settings-foot [role="status"]') as HTMLElement;
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(live.textContent).toBe('');
+    await clickControl(container, 'Solution');
+    expect(live.textContent).toBe('Answers open on solution. Saved.');
+    await clickControl(container, 'Share sessions across tabs');
+    expect(live.textContent).toBe('Share sessions across tabs: on. Saved.');
     unmount();
   });
 

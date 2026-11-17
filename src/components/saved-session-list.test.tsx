@@ -63,7 +63,7 @@ vi.mock('@/src/lib/tab-bridge', () => ({
 }));
 
 import { downloadSessionPdf, downloadSessionsPdf, exportSessionPdf } from '@/src/lib/pdf';
-import { SavedSessionList } from './SavedSessionList';
+import { SavedSessionList, savedWhenLabel } from './SavedSessionList';
 import { SavedLibraryOverlay } from './SavedLibraryOverlay';
 import { SAVED_SEARCH_PLACEHOLDER, SAVED_TIME_FILTERS } from '@/src/lib/saved-library';
 import {
@@ -769,17 +769,14 @@ describe('library chrome CSS', () => {
   it('disables every saved-page transition for reduced-motion users', () => {
     const css = pagesCss();
     const reduced = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    for (const selector of [
-      '.slm-popup-action',
-      '.slm-popup-host',
-      '.slm-library-row',
-      '.slm-library-check',
-      '.slm-library-row-actions',
-      '.slm-settings-link',
-    ]) {
+    // One blanket per surface, so a control added later cannot forget to opt out.
+    for (const selector of ['.slm-popup *', '.slm-library-overlay *', '.slm-settings-overlay *', '.slm-welcome-hero > *']) {
       expect(reduced, selector).toContain(selector);
     }
-    expect(reduced).toContain('transition: none');
+    expect(reduced).toMatch(/transition:\s*none/);
+    expect(reduced).toMatch(/animation:\s*none/);
+    // Pressed and hover transforms go too, not only the timing.
+    expect(reduced).toMatch(/\.slm-library-check:active[^{]*\{[^}]*transform:\s*none/);
   });
 
   it('closes the gap between the time label and its caret', () => {
@@ -792,41 +789,38 @@ describe('library chrome CSS', () => {
     expect(css).toMatch(/\.slm-library-time-leading\s*\{[^}]*flex:\s*0 1 auto/);
   });
 
-  it('gives the highlighted row a visible edge, not the invisible shared border', () => {
+  it('draws a ruled list, and gives a row a surface only while it is live or picked', () => {
     const css = pagesCss();
-    const row = css.slice(css.indexOf('.slm-library-row {'));
-    const block = row.slice(0, row.indexOf('}'));
-    expect(block).toMatch(/border:\s*none/);
-    expect(block).toMatch(/border-radius:\s*var\(--radius-card\)/);
-    expect(block).not.toMatch(/border-bottom:\s*1px/);
-
-    // Hover and selected both draw an inset hairline. Inset, so the feed's
-    // overflow clip can never slice the corner; hairline, so the row reads as
-    // a defined object rather than a faint wash.
-    const hover = css.slice(css.indexOf('.slm-library-row:hover {'));
-    const hoverBody = hover.slice(0, hover.indexOf('}'));
-    expect(hoverBody).toMatch(/box-shadow:\s*inset 0 0 0 1px var\(--slm-row-line\)/);
-    expect(hoverBody).toMatch(/background:\s*var\(--slm-row-surface\)/);
-
+    const rule = (selector: string) => {
+      const from = css.indexOf(`${selector} {`);
+      expect(from, selector).toBeGreaterThanOrEqual(0);
+      return css.slice(from, css.indexOf('}', from));
+    };
+    // At rest a row is text on the page: no border, no fill, no shadow.
+    const row = rule('.slm-library-row');
+    expect(row).toMatch(/border:\s*none/);
+    expect(row).toMatch(/background:\s*transparent/);
+    expect(row).not.toMatch(/box-shadow/);
+    // Rows are separated by a hairline, not boxed one by one.
+    expect(rule('.slm-library-row + .slm-library-row::before')).toMatch(/background:\s*var\(--slm-border-subtle\)/);
+    // Pointer and keyboard focus light the same surface, and a picked row is a step stronger.
+    const live = css.slice(css.indexOf('.slm-library-row:hover,\n.slm-library-row:focus-within {'));
+    expect(live.slice(0, live.indexOf('}'))).toMatch(/background:\s*var\(--slm-bg-subtle\)/);
     const picked = css.slice(css.indexOf(".slm-library-row[data-selected='true'],"));
-    const pickedBody = picked.slice(0, picked.indexOf('}'));
-    expect(pickedBody).toMatch(/box-shadow:\s*inset 0 0 0 1\.5px var\(--slm-row-line-strong\)/);
-
-    // The shared --slm-border is #2a2a2a on a #151515 canvas: it cannot carry
-    // this edge, so the row must never fall back to it.
-    expect(hoverBody).not.toMatch(/var\(--slm-border\)/);
-    expect(pickedBody).not.toMatch(/var\(--slm-border\)/);
+    expect(picked.slice(0, picked.indexOf('}'))).toMatch(/background:\s*var\(--slm-bg-muted\)/);
+    // The picker's box reads as checked by shape and ink, not by a colour of its own.
+    expect(rule(".slm-library-check[aria-checked='true']")).toMatch(/background:\s*var\(--slm-solid\)/);
   });
 
-  it('tunes the row edge against the list background in both themes', () => {
+  it('colours the library from tokens only, in both themes', () => {
     const css = pagesCss();
-    for (const selector of ['.slm-library-main {', "[data-stemlm-theme='dark'] .slm-library-main {"]) {
-      const rule = css.slice(css.indexOf(selector));
-      const body = rule.slice(0, rule.indexOf('}'));
-      expect(body).toMatch(/--slm-row-surface:/);
-      expect(body).toMatch(/--slm-row-line:/);
-      expect(body).toMatch(/--slm-row-line-strong:/);
-    }
+    const library = css.slice(css.indexOf('.slm-library-overlay {'), css.indexOf('.slm-settings-overlay {'));
+    expect(library.length).toBeGreaterThan(2000);
+    expect(library.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
+    expect(library).not.toMatch(/\b(?:rgba?|hsla?)\(/);
+    expect(library).not.toMatch(/--slm-accent\b/);
+    // No theme forks either: the tokens carry dark mode.
+    expect(library).not.toContain("[data-stemlm-theme='dark']");
   });
 
   it('never attaches a native tooltip to the question text', () => {
@@ -872,5 +866,174 @@ describe('library chrome CSS', () => {
     expect(block).toMatch(/background:\s*none/);
     expect(block).toMatch(/text-transform:\s*uppercase/);
     expect(block).not.toMatch(/border-radius:\s*var\(--radius-pill\)/);
+  });
+});
+
+describe('finding and reading saved questions', () => {
+  const searchOf = (container: HTMLElement) =>
+    container.querySelector('input[aria-label="Search saved questions"]') as HTMLInputElement;
+
+  it('says when each question was saved: relative while recent, a date after a week', () => {
+    const now = new Date(2026, 10, 16, 12, 0, 0).getTime();
+    expect(savedWhenLabel(now - 20_000, now)).toBe('Just now');
+    expect(savedWhenLabel(now - 5 * 60_000, now)).toBe('5 min ago');
+    expect(savedWhenLabel(now - 3 * 3_600_000, now)).toBe('3 h ago');
+    expect(savedWhenLabel(now - 2 * 86_400_000, now)).toBe('2 d ago');
+    expect(savedWhenLabel(now - 20 * 86_400_000, now)).toMatch(/27/);
+    expect(savedWhenLabel(now - 20 * 86_400_000, now)).not.toMatch(/2026/);
+    expect(savedWhenLabel(now - 400 * 86_400_000, now)).toMatch(/2025/);
+    // A clock that ran backwards must not print a negative age.
+    expect(savedWhenLabel(now + 60_000, now)).toBe('Just now');
+  });
+
+  it('gives every row one meta line: subject, chat, length and date', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    const meta = container.querySelector('.slm-library-row-meta') as HTMLElement;
+    expect(meta.querySelector('.slm-library-row-subject')?.textContent).toBe('Electrical');
+    expect(meta.querySelector('.slm-library-row-host')?.textContent).toBe('Gemini');
+    expect(meta.querySelector('.slm-library-row-host svg')).toBeTruthy();
+    expect(meta.textContent).toContain('1 step');
+    expect(meta.textContent).not.toContain('1 steps');
+    expect(meta.querySelector('time')?.getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    unmount();
+  });
+
+  it('counts the questions on each subject chip', () => {
+    const list = [...snapshots(), { ...snapshots()[1]!, id: 'newton-2' }];
+    seed(list);
+    const { container, unmount } = mount(list);
+    const chips = [...container.querySelectorAll('.slm-library-chip')].map((chip) =>
+      (chip.textContent ?? '').replace(/\s+/g, ' ').trim());
+    expect(chips).toEqual(['All categories4', 'Physics2', 'Math1', 'Electrical1']);
+    unmount();
+  });
+
+  it('focuses search on "/" but never steals the key from a field being typed in', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    const search = searchOf(container);
+    expect(document.activeElement).not.toBe(search);
+    const slash = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+    act(() => {
+      document.body.dispatchEvent(slash);
+    });
+    expect(document.activeElement).toBe(search);
+    expect(slash.defaultPrevented).toBe(true);
+
+    // Typed into the field itself, "/" is just a character of the query.
+    const typed = new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true });
+    act(() => {
+      search.dispatchEvent(typed);
+    });
+    expect(typed.defaultPrevented).toBe(false);
+    unmount();
+  });
+
+  it('clears a search from its own button and brings the list back', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    expect(container.querySelector('[aria-label="Clear search"]')).toBeNull();
+    expect(container.querySelector('.slm-library-search-key')?.textContent).toBe('/');
+    setInputValue(searchOf(container), 'Quadratic formula');
+    expect(container.querySelectorAll('.slm-library-row')).toHaveLength(1);
+    expect(container.querySelector('.slm-library-summary')?.textContent).toContain('1 of 3 questions');
+    const clear = container.querySelector('[aria-label="Clear search"]') as HTMLButtonElement;
+    act(() => {
+      clear.click();
+    });
+    expect(searchOf(container).value).toBe('');
+    expect(container.querySelectorAll('.slm-library-row')).toHaveLength(3);
+    expect(container.querySelector('.slm-library-summary')).toBeNull();
+    unmount();
+  });
+
+  it('a search with no match says what was searched and offers to clear it', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    setInputValue(searchOf(container), 'organic stereochemistry');
+    const state = container.querySelector('.slm-library-empty--filtered') as HTMLElement;
+    expect(state.getAttribute('role')).toBe('status');
+    expect(state.textContent).toContain('No questions match.');
+    expect(state.textContent).toContain('organic stereochemistry');
+    // Not the first-use state: nothing here suggests the library is empty.
+    expect(state.textContent).not.toContain('Nothing saved yet.');
+    act(() => {
+      (state.querySelector('[data-library="clear-filters"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('.slm-library-row')).toHaveLength(3);
+    expect(searchOf(container).value).toBe('');
+    unmount();
+  });
+
+  it('an empty library explains saving and offers the four chats, with no search to operate', () => {
+    const { container, unmount } = mount([]);
+    expect(container.querySelector('.slm-library-empty-text')?.textContent).toMatch(/bookmark/);
+    const hosts = [...container.querySelectorAll<HTMLAnchorElement>('.slm-library-empty-host')];
+    expect(hosts.map((a) => a.textContent)).toEqual(['ChatGPT', 'Claude', 'Gemini', 'Grok']);
+    for (const link of hosts) {
+      expect(link.href).toMatch(/^https:\/\//);
+      expect(link.target).toBe('_blank');
+      expect(link.rel).toContain('noopener');
+    }
+    expect(searchOf(container)).toBeNull();
+    expect(container.querySelector('.slm-library-chip')).toBeNull();
+    unmount();
+  });
+
+  it('states the selection while merging and keeps the way out in the same bar', () => {
+    const list = snapshots();
+    seed(list);
+    const { container, unmount } = mount(list);
+    expect(container.querySelector('.slm-library-select')).toBeNull();
+    act(() => {
+      (container.querySelector('[data-merge="start"]') as HTMLButtonElement).click();
+    });
+    const bar = container.querySelector('.slm-library-select') as HTMLElement;
+    const status = bar.querySelector('[role="status"]') as HTMLElement;
+    expect(status.textContent).toContain('Pick questions to merge');
+    act(() => {
+      (container.querySelector('.slm-library-check') as HTMLButtonElement).click();
+    });
+    expect(status.textContent).toContain('1 selected');
+    expect(bar.querySelector('[data-merge="cancel"]')).toBeTruthy();
+    expect(bar.querySelector('[data-merge="select-all"]')).toBeTruthy();
+    expect(bar.querySelector('[data-merge="download"]')).toBeTruthy();
+    // Search and filters stay usable while picking.
+    expect(searchOf(container)).toBeTruthy();
+    unmount();
+  });
+
+  it('Escape empties a search before it is allowed to close the library', () => {
+    const onClose = vi.fn();
+    const list = snapshots();
+    seed(list);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    act(() => {
+      root = createRoot(container);
+      root.render(<SavedLibraryOverlay sessions={list} onClose={onClose} />);
+    });
+    expect(container.querySelector('.slm-library-count')?.textContent).toBe('3');
+    const search = searchOf(container);
+    setInputValue(search, 'RLC');
+    act(() => {
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(search.value).toBe('');
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => {
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    act(() => {
+      root?.unmount();
+    });
+    container.remove();
   });
 });

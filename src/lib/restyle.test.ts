@@ -243,69 +243,103 @@ describe('restyle: one design system across the panel', () => {
   });
 
   it('popup overlay uses panel tokens, a compact action shell, and the four shipped chat hosts', () => {
-    const width = /\.slm-popup\s*\{[^}]*width:\s*(\d+)px/.exec(pages);
-    expect(width).toBeTruthy();
-    expect(Number(width![1])).toBeLessThan(420);
-    expect(Number(width![1])).toBeLessThanOrEqual(340);
-    expect(pages).toContain('border-radius: var(--radius-xl)');
-    expect(pages).toContain('--slm-bg');
-    expect(pages).toContain('--slm-solid');
-    expect(pages).not.toContain('slm-launch-grid');
-    expect(pages).toContain('slm-popup-actions');
-    expect(pages).not.toContain('.slm-popup.is-settings');
-    expect(pages).not.toContain('.slm-popup.is-library');
+    const settings = read('assets/settings.css');
+    const sheets = withoutComments(pages) + withoutComments(settings);
+
+    // Chrome sizes the popup window from its document and cannot shrink it again, so the width is
+    // one fixed number on every box, and nothing animates it.
+    expect(Number(/\.slm-popup\s*\{[^}]*width:\s*(\d+)px/.exec(pages)?.[1])).toBe(312);
     expect(pages).toMatch(/html\.slm-popup-page[\s\S]{0,180}width:\s*312px/);
-    expect(popupApp).toContain('window.close');
-    expect(popupApp).not.toContain('is-sheet');
-    expect(pages).not.toMatch(/\.slm-popup \.slm-settings-body\s*\{[^}]*grid-template-columns:\s*1fr/);
-    expect(pages).not.toMatch(/\.slm-popup \.slm-library-body\s*\{[^}]*grid-template-columns:\s*1fr/);
-    expect(pages).toMatch(/\.slm-popup-actions\s*\{[^}]*flex-direction:\s*column/);
-    expect(pages).toContain('slm-library-overlay');
-    expect(pages).toContain('slm-settings-overlay');
-    expect(pages).not.toContain('slm-options');
-    expect(pages).not.toContain('slm-opt-card');
-    const libWidth = /\.slm-library-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
-    const libHeight = /\.slm-library-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(
-      pages,
-    );
-    expect(libWidth).toBeTruthy();
-    expect(libHeight).toBeTruthy();
-    expect(Number(libWidth![1])).toBeGreaterThanOrEqual(36 * 1.4);
-    expect(Number(libHeight![1])).toBeGreaterThanOrEqual(40 * 1.4);
-    const settingsWidth = /\.slm-settings-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(
-      pages,
-    );
-    const settingsHeight =
-      /\.slm-settings-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
-    expect(settingsWidth).toBeTruthy();
-    expect(settingsHeight).toBeTruthy();
-    // Settings sheet is a portrait single-column list.
-    expect(Number(settingsHeight![1])).toBeGreaterThan(Number(settingsWidth![1]));
-    const libraryCss = pages.slice(
-      pages.indexOf('.slm-library-dialog {'),
-      pages.indexOf('.slm-settings-overlay {'),
-    );
-    expect(libraryCss).not.toMatch(/--slm-accent/);
-    expect(pages).toContain('-webkit-line-clamp: 2');
-    // D4: the popup registers the bundled faces (was: a Google Fonts <link> in popup.html).
-    expect(read('entrypoints/popup/main.tsx')).toContain('installFontFaces(document, extensionAssetUrl)');
-    expect(popupHtml).toContain('stemlm_theme_boot');
-    expect(popupHtml).toContain('color-scheme');
-    expect(popupHtml).not.toMatch(/<body[^>]*data-stemlm-theme=/);
-    // The primary action is solid ink, and the switch is neutral: ink when on, an outline when off.
-    expect(cssRule(pages, '.slm-popup-open.is-primary')).toMatch(/background:\s*var\(--slm-solid\)/);
-    expect(ruleFor(pages, '.slm-popup-toggle.is-on .slm-popup-switch')).toMatch(/background:\s*var\(--slm-solid\)/);
-    expect(pages).toContain('slm-popup-toggle');
-    expect(pages).toContain('slm-popup-switch');
-    // A long label can never push the switch out of the row.
-    expect(pages).toMatch(/\.slm-popup-toggle \.slm-popup-row-title\s*\{[^}]*min-width:\s*0/);
     expect(pages).toMatch(/html\.slm-popup-page[\s\S]*?transition:\s*none/);
     expect(pages).not.toMatch(/html\.slm-popup-page[\s\S]{0,80}background:\s*transparent/);
-    // D4: each page registers the bundled faces (was: a Google Fonts <link> in its HTML).
-    for (const main of ['entrypoints/options/main.tsx', 'entrypoints/pdf/main.ts', 'entrypoints/saved-library/main.tsx']) {
-      expect(read(main)).toContain('installFontFaces(document, extensionAssetUrl)');
+    expect(popupApp).toContain('window.close');
+    expect(popupApp).not.toContain('is-sheet');
+
+    // The pages are drawn from the same tokens as the panel: no raw colour, no theme fork, and no
+    // second accent. Every custom property they read is a token or is declared beside its use.
+    expect(sheets.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
+    expect(sheets).not.toMatch(/\b(?:rgba?|hsla?)\(/);
+    expect(sheets).not.toMatch(/--slm-(?:teal|blue|accent)\b/);
+    expect(sheets).not.toContain("[data-stemlm-theme='dark']");
+    const declared = new Set(
+      [...(tokens + panel + sheets).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!),
+    );
+    // Set inline by the segmented control (src/components/SettingsOverlay.tsx).
+    for (const inline of ['--slm-seg-count', '--slm-seg-index']) declared.add(inline);
+    const read_ = [...new Set([...sheets.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]!))];
+    expect(read_.filter((name) => !declared.has(name))).toEqual([]);
+
+    // Solid ink for the primary action; orange only where the one accent belongs.
+    expect(cssRule(pages, '.slm-popup-open.is-primary')).toMatch(/background:\s*var\(--slm-solid\)/);
+    expect(cssRule(pages, '.slm-library-merge.is-primary')).toMatch(/background:\s*var\(--slm-solid\)/);
+    expect(cssRule(pages, '.slm-library-chip.is-active')).toMatch(/background:\s*var\(--slm-solid\)/);
+    const signal = [...sheets.matchAll(/([^{}]+)\{[^}]*var\(--slm-signal[\w-]*\)[^}]*\}/g)].map((m) => m[1]!.trim());
+    expect(signal).toEqual(['.slm-welcome-kicker']);
+
+    // One neutral switch for the popup and settings: ink when on, an outline when off.
+    expect(ruleFor(pages, '.slm-popup-toggle.is-on .slm-popup-switch')).toMatch(/background:\s*var\(--slm-solid\)/);
+    expect(ruleFor(pages, '.slm-set-switch.is-on')).toMatch(/background:\s*var\(--slm-solid\)/);
+    expect(ruleFor(pages, '.slm-set-switch')).toMatch(/border:\s*1\.5px solid var\(--slm-fg-subtle\)/);
+    expect(optionsHtml).not.toMatch(/slm-set-switch|#0e7c76|#3dcdc4/);
+    // A long label can never push the switch out of the row.
+    expect(pages).toMatch(/\.slm-popup-toggle \.slm-popup-row-title\s*\{[^}]*min-width:\s*0/);
+    expect(pages).toMatch(/\.slm-popup-actions\s*\{[^}]*flex-direction:\s*column/);
+
+    // Every interactive thing on the pages shows the shared 2px ring on keyboard focus.
+    for (const scope of ['.slm-popup', '.slm-library-dialog', '.slm-settings-dialog']) {
+      expect(pages, scope).toContain(`:where(${scope}) button:focus-visible`);
     }
-    expect(savedLibraryMain).toContain("katex/dist/katex.min.css");
+    expect(pages.match(/outline:\s*2px solid var\(--slm-ring\)/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(pages).not.toMatch(/outline:\s*1(?:\.5)?px solid/);
+
+    // Type and motion stay on the token scales.
+    // (An `em` is relative to that scale: it only keeps KaTeX in proportion to the text around it.)
+    expect(sheets.match(/font-size:\s*[\d.]+(?:px|rem)\b/g) ?? []).toEqual([]);
+    for (const [, value] of sheets.matchAll(/transition:\s*([^;]+);/g)) {
+      if (value!.trim() === 'none' || value!.includes('none !important')) continue;
+      expect(value, value).toMatch(/var\(--slm-dur-\d\)/);
+      expect(value, value).toMatch(/var\(--slm-ease-out\)/);
+    }
+
+    // The library and settings are also dialogs; their sheets stay large enough to work in.
+    expect(pages).toContain('slm-library-overlay');
+    expect(pages).toContain('slm-settings-overlay');
+    const libWidth = /\.slm-library-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    const libHeight = /\.slm-library-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    expect(Number(libWidth?.[1])).toBeGreaterThanOrEqual(36 * 1.4);
+    expect(Number(libHeight?.[1])).toBeGreaterThanOrEqual(40 * 1.4);
+    const settingsWidth = /\.slm-settings-dialog\s*\{[^}]*width:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    const settingsHeight = /\.slm-settings-dialog\s*\{[^}]*max-height:\s*min\((\d+(?:\.\d+)?)rem/.exec(pages);
+    // Settings is a portrait single-column list.
+    expect(Number(settingsHeight?.[1])).toBeGreaterThan(Number(settingsWidth?.[1]));
+    expect(pages).toContain('-webkit-line-clamp: 2');
+
+    // D4: each page registers the bundled faces (was: a Google Fonts <link> in its HTML).
+    for (const main of [
+      'entrypoints/popup/main.tsx',
+      'entrypoints/options/main.tsx',
+      'entrypoints/pdf/main.ts',
+      'entrypoints/saved-library/main.tsx',
+      'entrypoints/welcome/main.tsx',
+    ]) {
+      expect(read(main), main).toContain('installFontFaces(document, extensionAssetUrl)');
+    }
+    // Pages that typeset math load KaTeX's sheet; the welcome demo also needs the panel's own.
+    expect(savedLibraryMain).toContain('katex/dist/katex.min.css');
+    const welcomeMain = read('entrypoints/welcome/main.tsx');
+    expect(welcomeMain).toContain('katex/dist/katex.min.css');
+    expect(welcomeMain).toContain('assets/panel.css');
+
+    // First paint: the theme comes from the boot cache, never from a hard-coded attribute, and
+    // the page colours before the sheet arrives are the canvas tokens of each theme.
+    expect(popupHtml).toContain('stemlm_theme_boot');
+    for (const html of [popupHtml, optionsHtml, savedLibraryHtml, read('entrypoints/welcome/index.html')]) {
+      expect(html).toContain('color-scheme');
+      expect(html).not.toMatch(/<body[^>]*data-stemlm-theme=/);
+      expect(html).toContain(/--slm-bg:\s*(#[0-9a-f]{6})/.exec(tokens)![1]!);
+      expect(html).toContain('#151515');
+    }
+
     expect(popupApp).toContain('Open study panel');
     expect(popupApp).toContain('stemlm-enabled');
     expect(popupApp).toContain('STEMLM_TOGGLE_LABEL');
