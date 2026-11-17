@@ -7,10 +7,10 @@
  * Prints every figure the compiler hid, with its reason.
  */
 import { execFileSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { BROWSER, chromium } from './browser.mjs';
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const [specs, out] = process.argv.slice(2);
@@ -19,16 +19,17 @@ if (!specs || !out) {
   process.exit(2);
 }
 const html = resolve(out).replace(/\.png$/, '.html');
-execFileSync('npx', ['vitest', 'run', '--config', 'scripts/visual/gallery.config.ts'], {
+// A shell, because on Windows npx is a .cmd file and cannot be spawned directly.
+execFileSync('npx vitest run --config scripts/visual/gallery.config.ts', {
+  shell: true,
   cwd: root,
   stdio: ['ignore', 'pipe', 'inherit'],
   env: { ...process.env, GALLERY_SPECS: resolve(specs), GALLERY_OUT: html },
 });
 
-const { chromium } = createRequire(import.meta.url)('playwright');
-const browser = await chromium.launch();
+const browser = await chromium.launch(BROWSER);
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 }, deviceScaleFactor: 1 });
-await page.goto(`file://${html}`);
+await page.goto(pathToFileURL(html).href);
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(300);
 await page.screenshot({ path: resolve(out), fullPage: true });

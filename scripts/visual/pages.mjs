@@ -9,14 +9,12 @@
  * states a still screenshot of the default view would miss: a supported chat tab, an error, a
  * seeded library, a search with and without results, selection mode, narrow windows.
  */
-import { createRequire } from 'node:module';
+import { BROWSER, chromium } from './browser.mjs';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { savedSeed } from './saved-seed.mjs';
-
-const { chromium } = createRequire(import.meta.url)('playwright');
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const args = process.argv.slice(2);
@@ -35,8 +33,7 @@ const profile = mkdtempSync(join(tmpdir(), 'stemlm-pages-'));
 const log = (...a) => console.log('[pages]', ...a);
 
 const ctx = await chromium.launchPersistentContext(profile, {
-  headless: true,
-  channel: 'chromium',
+  ...BROWSER,
   args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-sandbox'],
   viewport: { width: 1440, height: 900 },
   deviceScaleFactor: 2,

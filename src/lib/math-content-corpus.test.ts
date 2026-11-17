@@ -117,9 +117,16 @@ describe('budget for text that is parsed and then left alone', () => {
     ['indexing', 'd[u] + w(u, v) '.repeat(2_500)],
     ['spelled words', 'mu_k g sin(theta) '.repeat(2_000)],
   ])('prepares a long run of %s within 250 ms', (_label, input) => {
-    const start = performance.now();
-    const output = md(input);
-    expect(performance.now() - start).toBeLessThan(250);
+    // The fastest of three runs: the budget is about the algorithm, and a single run also times
+    // whatever else the machine is doing (the suite runs in parallel).
+    let output = '';
+    let fastest = Infinity;
+    for (let run = 0; run < 3; run++) {
+      const start = performance.now();
+      output = md(input);
+      fastest = Math.min(fastest, performance.now() - start);
+    }
+    expect(fastest).toBeLessThan(250);
     expect(output.length).toBeGreaterThanOrEqual(input.trimEnd().length);
   }, 60_000);
 });
