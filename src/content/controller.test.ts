@@ -1,5 +1,5 @@
 import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StemController, initController } from './controller';
 import { attachTextFile } from '@/src/lib/file-inject';
 import { PROTOCOL_FILENAME, STEMLM_SENTINEL } from '@/src/protocol/builder';
@@ -14,6 +14,17 @@ import { buildLongStepCapsule, TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixt
 import { parseCapsule } from '@/src/protocol/parser';
 import { GUIDE_MAX_CHARS } from '@/src/protocol/protocol';
 import { SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
+
+// The controller's waits are its own timers (check interval, stability, root check): move the
+// clock on instead of sleeping. The clock still runs in real time too, so code that awaits a short
+// real pause of its own (inject) needs no change.
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+const wait = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 
 const CAPSULE_BODY = FENCED_ELECTRICAL
   .replace(/```stemlm\n/, '')
@@ -413,7 +424,7 @@ describe('StemController.inject', () => {
 
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().buttonInjected).toBe(false);
 
     adapter.editorText = 'Another projectile question';
@@ -550,7 +561,7 @@ describe('StemController.inject', () => {
     const c = new StemController(adapter);
 
     expect(await c.inject()).toBe(true);
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(0);
 
     c.stopWatching();
@@ -559,7 +570,7 @@ describe('StemController.inject', () => {
       CAPSULE_BODY.replace('Circuit format check', 'Newly generated circuit'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(useStore.getState().sessions[0]!.capsule.meta.topic).toBe('Newly generated circuit');
     c.stopWatching();
@@ -609,7 +620,7 @@ describe('StemController.followUp', () => {
     // The student sends: the chat box empties and the reply begins.
     adapter.editorText = '';
     adapter.capsules = ['Working through the circuit.'];
-    await new Promise((r) => setTimeout(r, 450));
+    await wait(450);
     expect(useStore.getState().status).toBe('loading');
 
     const ok = await c.followUp('Why is R1 + R2 here?', 'Series resistors', 'Electrical');
@@ -647,7 +658,7 @@ describe('StemController.followUp', () => {
 
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     const originalId = useStore.getState().sessions[0]!.id;
     c.stopWatching();
@@ -656,7 +667,7 @@ describe('StemController.followUp', () => {
     const followUpCapsule = CAPSULE_BODY.replace('Circuit format check', 'Follow-up explanation');
     adapter.capsules = [followUpCapsule];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(1);
@@ -696,7 +707,7 @@ describe('StemController.followUp', () => {
     ].join('\n'));
     adapter.capsules = [withIds];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions[0]!.capsule.steps[1]!.body).toContain('2 mA');
     c.stopWatching();
 
@@ -724,7 +735,7 @@ describe('StemController.followUp', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.capsule.steps).toHaveLength(2);
@@ -739,7 +750,7 @@ describe('StemController.followUp', () => {
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const original = useStore.getState().sessions[0]!;
     expect(original).toBeTruthy();
     const originalSteps = original.capsule.steps.length;
@@ -773,7 +784,7 @@ describe('StemController.followUp', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const state = useStore.getState();
     expect(state.sessions).toHaveLength(1);
     expect(state.sessions[0]!.id).toBe(original.id);
@@ -792,7 +803,7 @@ describe('StemController.followUp', () => {
     // already visible in the chat history.
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const original = useStore.getState().sessions[0]!;
     c.stopWatching();
 
@@ -806,7 +817,7 @@ describe('StemController.followUp', () => {
 
     // Watcher runs over the unchanged page — the stale capsule must NOT attach.
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions[0]!.followups ?? []).toHaveLength(0);
 
     // The student sends; the assistant produces a genuinely new answer.
@@ -836,7 +847,7 @@ describe('StemController.followUp', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const state = useStore.getState();
     expect(state.sessions).toHaveLength(1);
     expect(state.sessions[0]!.followups).toHaveLength(1);
@@ -885,7 +896,7 @@ describe('StemController.followUp', () => {
     ].join('\n'));
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const originalId = useStore.getState().sessions[0]!.id;
     c.stopWatching();
 
@@ -919,7 +930,7 @@ describe('StemController.followUp', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.id).toBe(originalId);
@@ -934,7 +945,7 @@ describe('StemController.followUp', () => {
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     c.stopWatching();
 
@@ -984,7 +995,7 @@ describe('StemController.followUp', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(2);
     c.stopWatching();
   });
@@ -999,12 +1010,12 @@ describe('CAP-OBS-01 replaced conversation root', () => {
     const c = new StemController(adapter);
     c.startWatching();
     // Let the initial check run on the empty page first.
-    await new Promise((r) => setTimeout(r, 600));
+    await wait(600);
     expect(useStore.getState().sessions).toHaveLength(0);
     const fresh = document.createElement('main');
     document.querySelector('main')!.replaceWith(fresh);
     adapter.capsules = [CAPSULE_BODY];
-    await new Promise((r) => setTimeout(r, 2200));
+    await wait(2200);
     fresh.append(document.createTextNode('answer arrives'));
     await vi.waitFor(() => expect(useStore.getState().sessions).toHaveLength(1), { timeout: 3000 });
     c.stopWatching();
@@ -1044,7 +1055,7 @@ describe('DISABLED-01 answer started while stemLM is off', () => {
     const onStarted = vi.fn();
     c.setOnAnswerStarted(onStarted);
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(onStarted).toHaveBeenCalledTimes(calls);
     c.stopWatching();
     useStore.setState({ settings: { ...useStore.getState().settings, stemlmEnabled: true } });
@@ -1257,7 +1268,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const originalId = useStore.getState().sessions[0]!.id;
     expect(useStore.getState().sessions[0]!.capsule.steps[1]!.body).toContain('2 mA');
     c.stopWatching();
@@ -1285,7 +1296,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.id).toBe(originalId);
@@ -1300,7 +1311,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const before = useStore.getState().sessions[0]!;
     c.stopWatching();
 
@@ -1327,7 +1338,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     const state = useStore.getState();
     expect(state.sessions).toHaveLength(1);
@@ -1342,7 +1353,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const originalId = useStore.getState().sessions[0]!.id;
     c.stopWatching();
 
@@ -1376,7 +1387,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.id).toBe(originalId);
@@ -1392,7 +1403,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(true);
     adapter.capsules = [original];
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     const originalId = useStore.getState().sessions[0]!.id;
     expect(useStore.getState().sessions[0]!.capsule.meta.qid).toBe('q1');
@@ -1443,7 +1454,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(2);
     expect(sessions[0]!.id).toBe(originalId);
@@ -1460,7 +1471,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(true);
     adapter.capsules = [original];
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const originalId = useStore.getState().sessions[0]!.id;
     c.stopWatching();
 
@@ -1501,7 +1512,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const sessions = useStore.getState().sessions;
     expect(sessions).toHaveLength(2);
     expect(sessions[0]!.id).toBe(originalId);
@@ -1516,7 +1527,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     c.stopWatching();
 
@@ -1565,7 +1576,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
       ].join('\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(2);
     expect(useStore.getState().sessions[1]!.capsule.meta.qid).toBe('q2');
     expect(adapter.editorText).not.toContain('FOLLOW-UP CONTRACT');
@@ -1578,7 +1589,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     const c = new StemController(adapter);
     adapter.capsules = [original];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(adapter.editorText).toBe('');
     expect(adapter.inserted).toBe('');
@@ -1597,7 +1608,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions.length).toBe(1);
     expect(useStore.getState().status).toBe('ready');
     expect(useStore.getState().buttonInjected).toBe(false);
@@ -1610,7 +1621,7 @@ describe('StemController capture', () => {
     adapter.capsules = [CAPSULE_BODY];
     const c = new StemController(adapter);
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions.length).toBe(1);
     expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
@@ -1621,7 +1632,7 @@ describe('StemController capture', () => {
     adapter.capsules = [TEN_STEP_BODY];
     const c = new StemController(adapter);
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const session = useStore.getState().sessions[0];
     expect(session?.capsule.steps).toHaveLength(10);
     expect(session?.capsule.steps[9]?.index).toBe(10);
@@ -1686,7 +1697,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
 
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     expect(useStore.getState().sessions.length).toBe(1);
     expect(useStore.getState().status).toBe('ready');
@@ -1704,7 +1715,7 @@ describe('StemController capture', () => {
 
     expect(await c.inject()).toBe(true);
     adapter.capsules = [TEN_STEP_BODY];
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions[0]?.capsule.steps).toHaveLength(10);
     useStore.setState({ activeStepIndex: 9 });
     c.stopWatching();
@@ -1715,7 +1726,7 @@ describe('StemController capture', () => {
     c.stopWatching();
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(useStore.getState().sessions[0]?.capsule.steps.length).toBeLessThan(10);
@@ -1733,7 +1744,7 @@ describe('StemController capture', () => {
 
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
 
@@ -1742,7 +1753,7 @@ describe('StemController capture', () => {
     // Attached, not sent: the answer already in the panel stays in view, and nothing loads.
     expect(useStore.getState().status).toBe('ready');
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().status).toBe('ready');
     c.stopWatching();
   });
@@ -1753,7 +1764,7 @@ describe('StemController capture', () => {
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
     c.stopWatching();
-    await new Promise((r) => setTimeout(r, 600));
+    await wait(600);
     expect(useStore.getState().sessions).toHaveLength(0);
   });
 
@@ -1915,7 +1926,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
 
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     expect(useStore.getState().sessions.length).toBe(0);
     expect(useStore.getState().status).toBe('error');
@@ -1931,7 +1942,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
 
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
     expect(lead).not.toMatch(/parser|code|capsule/i);
@@ -2012,14 +2023,14 @@ describe('StemController capture', () => {
     const partial = CAPSULE_BODY.replace(/\n@end\n?$/, '');
     adapter.capsules = [partial];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 2000));
+    await wait(2000);
 
     expect(useStore.getState().sessions).toHaveLength(0);
 
     c.stopWatching();
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(useStore.getState().sessions[0]!.raw).toContain('@end');
@@ -2082,7 +2093,7 @@ describe('StemController capture', () => {
         .replace(/\n@uncertainty[\s\S]*?@enduncertainty\n/, '\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(useStore.getState().sessions[0]!.capsule.steps).toHaveLength(2);
     expect(useStore.getState().status).toBe('ready');
@@ -2101,7 +2112,7 @@ describe('StemController capture', () => {
     expect(body).toContain('status: unsure');
     adapter.capsules = [body];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const [session] = useStore.getState().sessions;
     expect(session?.capsule.steps.length).toBeGreaterThan(0);
     expect(session?.capsule.verification?.status).toBe('fail');
@@ -2118,7 +2129,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY.replace(/\n@solution[\s\S]*?@endsolution\n/, '\n')];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     expect(useStore.getState().errorMessage).toContain('without its summary.');
     c.stopWatching();
@@ -2128,7 +2139,7 @@ describe('StemController capture', () => {
       CAPSULE_BODY.replace(/\n@verify[\s\S]*?@endverify\n/, '\n').replace(/\n@end\s*$/, '\n'),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(0);
     c.stopWatching();
   });
@@ -2138,7 +2149,7 @@ describe('StemController capture', () => {
     const c = new StemController(adapter);
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     const original = useStore.getState().sessions[0]!;
     c.stopWatching();
 
@@ -2153,7 +2164,7 @@ describe('StemController capture', () => {
       ),
     ];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(2);
     expect(useStore.getState().sessions[0]!.followups ?? []).toHaveLength(0);
     c.stopWatching();
@@ -2165,13 +2176,13 @@ describe('StemController capture', () => {
 
     adapter.capsules = [CAPSULE_BODY];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().sessions).toHaveLength(1);
     c.stopWatching();
 
     await c.followUp('Explain the resistor combination.', 'Label the circuit', 'Electrical');
     adapter.capsules = [MALFORMED_NO_STEPS_BODY];
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     expect(useStore.getState().status).toBe('error');
 
     adapter.editorText = 'Solve a different circuit with the same topic label.';
@@ -2184,7 +2195,7 @@ describe('StemController capture', () => {
     c.stopWatching();
     adapter.capsules = [CAPSULE_BODY.replace('question: Structural fixture — not a stored solution.\n', '')];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
 
     expect(useStore.getState().sessions).toHaveLength(2);
     c.stopWatching();
@@ -2287,7 +2298,7 @@ describe('StemController generic patch routing', () => {
   async function seedSession(c: StemController, adapter: MockAdapter, qid: string, topic: string) {
     adapter.capsules = [opticsCapsule(qid, topic)];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     c.stopWatching();
     adapter.capsules = [];
   }
@@ -2295,7 +2306,7 @@ describe('StemController generic patch routing', () => {
   async function deliver(c: StemController, adapter: MockAdapter, raw: string) {
     adapter.capsules = [raw];
     c.startWatching();
-    await new Promise((r) => setTimeout(r, 500));
+    await wait(500);
     c.stopWatching();
   }
 
@@ -2320,7 +2331,7 @@ describe('AUTO-OPEN-01 the answer-started hook fires only for an answer stemLM a
       return Array.from({ length: this.blocks }, () => document.createElement('div')) as never[];
     }
   }
-  const settle = () => new Promise((r) => setTimeout(r, 500));
+  const settle = () => wait(500);
   // Watch a <main> of our own so stray body mutations cannot keep re-arming the debounce.
   const mutate = () => document.querySelector('main')!.append(document.createElement('span'));
 
@@ -2367,8 +2378,6 @@ describe('AUTO-OPEN-01 the answer-started hook fires only for an answer stemLM a
     adapter.blocks = 2;
     adapter.streaming = true;
     mutate();
-    // The debounce runs on real timers: wait for the call itself, since a fixed pause is too short
-    // when the whole suite is running.
     await vi.waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1), { timeout: 5000, interval: 50 });
     await settle();
     expect(onStarted).toHaveBeenCalledTimes(1);
