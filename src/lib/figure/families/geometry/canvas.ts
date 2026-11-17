@@ -1,6 +1,6 @@
 /**
  * Shared drawing kit for the geometry pack: results, canvas sizing, a label placer that keeps text
- * clear of strokes and other text, and the small marks (right angle, arc, ticks) geometry figures use.
+ * clear of strokes and other text, and the small marks geometry figures use.
  *
  * Families here place every label themselves and hand it to the kernel as `protected`: a label's
  * position carries meaning (which side, which angle), so the kernel must not move it.
@@ -8,36 +8,12 @@
 import { FONT_MIN, type CompileResult } from '../../types';
 import { measureText, type Box, type Segment } from '../../geom';
 import type { SceneBuilder } from '../../scene-build';
-import type { SpecDoc } from '../../spec';
 
 export interface Pt { x: number; y: number }
 export interface Size { w: number; h: number }
 
 export const malformed = (reason: string): CompileResult => ({ ok: false, code: 'malformed', reason });
 export const refused = (reason: string): CompileResult => ({ ok: false, code: 'refused', reason });
-
-/**
- * Every value of a repeatable key, whether repeated inline or written as an indented list. Both forms
- * may appear for one key, so the read certificate is marked with their combined count.
- */
-export function records(spec: SpecDoc, ...keys: string[]): string[] {
-  return keys.flatMap((key) => {
-    const k = key.toLowerCase();
-    const all = [...(spec.values.get(k) ?? []), ...(spec.lists.get(k) ?? [])];
-    if (all.length) spec.consumed?.set(k, Math.max(all.length, spec.consumed.get(k) ?? 0));
-    return all;
-  });
-}
-
-/** Comma/semicolon separated items of every record of the given keys. */
-export function items(spec: SpecDoc, ...keys: string[]): string[] {
-  return records(spec, ...keys).flatMap((raw) => raw.split(/[,;]+/)).map((item) => item.trim()).filter(Boolean);
-}
-
-/** Lowercased option words of `show:`-style keys, split on commas, semicolons and spaces. */
-export function words(spec: SpecDoc, ...keys: string[]): string[] {
-  return records(spec, ...keys).flatMap((raw) => raw.toLowerCase().split(/[,;\s]+/)).filter(Boolean);
-}
 
 /**
  * The panel shows a figure at full text size while its canvas is the nominal height, and again once
@@ -49,52 +25,53 @@ export function canvasHeight(needed: number, nominalHeight: number): number {
   return Math.max(Math.ceil(needed), Math.floor(1.5 * nominalHeight) + 1);
 }
 
-export function textSize(text: string, katex = false): Size {
-  return measureText(text, FONT_MIN, katex);
+export function textSize(text: string): Size {
+  return measureText(text, FONT_MIN);
 }
 
-export function boxAround(x: number, y: number, size: Size): Box {
+export const TEXT_H = textSize('0').h;
+
+function boxAround(x: number, y: number, size: Size): Box {
   return { x1: x - size.w / 2, y1: y - size.h / 2, x2: x + size.w / 2, y2: y + size.h / 2 };
 }
 
-/** Centre of a box that lies wholly beyond the line at `gap` from `p`, in the direction `angle` (screen radians). */
+/** A text box is cut to its glyphs sideways but carries leading above and below; this evens the air around it. */
+const SIDE_BEARING = 2;
+
+/** Centre of a text box that lies wholly beyond the line at `gap` from `p`, in the direction `angle` (screen radians). */
 export function beyond(p: Pt, angle: number, gap: number, size: Size): Pt {
   const ux = Math.cos(angle);
   const uy = Math.sin(angle);
-  const reach = gap + (Math.abs(ux) * size.w) / 2 + (Math.abs(uy) * size.h) / 2;
+  const reach = gap + Math.abs(ux) * (size.w / 2 + SIDE_BEARING) + (Math.abs(uy) * size.h) / 2;
   return { x: p.x + ux * reach, y: p.y + uy * reach };
 }
 
-/** Exact segment/rectangle test (Liang–Barsky), with the rectangle grown by `pad`. */
-export function segmentHitsBox(s: Segment, box: Box, pad = 0): boolean {
-  const dx = s.x2 - s.x1;
-  const dy = s.y2 - s.y1;
+/** The part of segment pq inside `box`, or null when it misses (Liang–Barsky). */
+export function clipToBox(box: Box, p: Pt, q: Pt): [Pt, Pt] | null {
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
   let enter = 0;
   let leave = 1;
-  const edges: Array<[number, number]> = [
-    [-dx, s.x1 - (box.x1 - pad)],
-    [dx, box.x2 + pad - s.x1],
-    [-dy, s.y1 - (box.y1 - pad)],
-    [dy, box.y2 + pad - s.y1],
-  ];
-  for (const [p, q] of edges) {
-    if (p === 0) {
-      if (q < 0) return false;
+  const edges: Array<[number, number]> = [[-dx, p.x - box.x1], [dx, box.x2 - p.x], [-dy, p.y - box.y1], [dy, box.y2 - p.y]];
+  for (const [a, c] of edges) {
+    if (a === 0) {
+      if (c < 0) return null;
       continue;
     }
-    const t = q / p;
-    if (p < 0) {
-      if (t > leave) return false;
+    const t = c / a;
+    if (a < 0) {
+      if (t > leave) return null;
       enter = Math.max(enter, t);
     } else {
-      if (t < enter) return false;
+      if (t < enter) return null;
       leave = Math.min(leave, t);
     }
   }
-  return true;
+  return [{ x: p.x + dx * enter, y: p.y + dy * enter }, { x: p.x + dx * leave, y: p.y + dy * leave }];
 }
 
-const boxesTouch = (a: Box, b: Box, pad: number) => a.x1 < b.x2 + pad && a.x2 > b.x1 - pad && a.y1 < b.y2 + pad && a.y2 > b.y1 - pad;
+/** Model text quoted in a refusal, cut short. */
+export const clip = (text: string) => (text.length > 20 ? `${text.slice(0, 20)}…` : text);
 
 /**
  * Tracks what is already drawn and answers "is this spot free?". Strokes are obstacles as segments,
@@ -104,7 +81,7 @@ export class Placer {
   private readonly segments: Segment[] = [];
   private readonly boxes: Box[] = [];
 
-  constructor(private readonly frame?: { width: number; height: number; margin?: number }) {}
+  constructor(private readonly frame?: { width: number; height: number }) {}
 
   line(x1: number, y1: number, x2: number, y2: number): this {
     this.segments.push({ x1, y1, x2, y2 });
@@ -118,14 +95,11 @@ export class Placer {
     return this;
   }
 
-  /** A circle or arc (screen degrees), sampled finely enough that no label slips between chords. */
-  circle(cx: number, cy: number, r: number, fromDeg = 0, toDeg = 360): this {
-    const steps = Math.max(4, Math.ceil((Math.abs(toDeg - fromDeg) / 360) * Math.max(24, r * 0.9)));
+  /** A circle, sampled finely enough that no label slips between chords. */
+  circle(cx: number, cy: number, r: number): this {
+    const steps = Math.ceil(Math.max(24, r * 0.9));
     const points: number[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const a = ((fromDeg + ((toDeg - fromDeg) * i) / steps) * Math.PI) / 180;
-      points.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
-    }
+    for (let i = 0; i <= steps; i++) points.push(cx + r * Math.cos((2 * Math.PI * i) / steps), cy + r * Math.sin((2 * Math.PI * i) / steps));
     return this.path(points);
   }
 
@@ -140,11 +114,10 @@ export class Placer {
   }
 
   isFree(box: Box, pad = 2): boolean {
-    if (this.frame) {
-      const margin = this.frame.margin ?? 5;
-      if (box.x1 < margin || box.y1 < margin || box.x2 > this.frame.width - margin || box.y2 > this.frame.height - margin) return false;
-    }
-    return !this.boxes.some((other) => boxesTouch(other, box, pad)) && !this.segments.some((segment) => segmentHitsBox(segment, box, pad));
+    if (this.frame && (box.x1 < 5 || box.y1 < 5 || box.x2 > this.frame.width - 5 || box.y2 > this.frame.height - 5)) return false;
+    const grown = { x1: box.x1 - SIDE_BEARING - pad, y1: box.y1 - pad, x2: box.x2 + SIDE_BEARING + pad, y2: box.y2 + pad };
+    return !this.boxes.some((other) => other.x1 < grown.x2 && other.x2 > grown.x1 && other.y1 < grown.y2 && other.y2 > grown.y1)
+      && !this.segments.some((s) => clipToBox(grown, { x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }));
   }
 
   /** The first candidate centre where `size` is free; the spot is claimed for later queries. */
@@ -167,24 +140,59 @@ export class Placer {
 }
 
 /** Candidate centres around `p`: each direction (screen radians) tried at each gap, nearest gaps first. */
-export function* ring(p: Pt, size: Size, angles: readonly number[], gaps: readonly number[] = [5, 9, 14, 20, 27]): Generator<Pt> {
+export function* ring(p: Pt, size: Size, angles: readonly number[], gaps: readonly number[] = [3, 7, 12, 18, 25]): Generator<Pt> {
   for (const gap of gaps) for (const angle of angles) yield beyond(p, angle, gap, size);
 }
 
-const DEG = Math.PI / 180;
-
-/** Eight compass directions starting from `first` (screen degrees), alternating outward from it. */
+/** Eight compass directions starting from `first` (screen radians), alternating outward from it. */
 export function fan(first: number): number[] {
-  return [0, 45, -45, 90, -90, 135, -135, 180].map((offset) => (first + offset) * DEG);
+  return [0, 45, -45, 90, -90, 135, -135, 180].map((offset) => first + (offset * Math.PI) / 180);
 }
 
 /** The square corner mark of a right angle at `v`, between unit directions `u1` and `u2`. */
-export function rightAngleMark(b: SceneBuilder, id: string, v: Pt, u1: Pt, u2: Pt, size = 7): void {
-  b.polyline(id, [
+export function rightAngleMark(b: SceneBuilder, id: string, v: Pt, u1: Pt, u2: Pt, size = 7): number[] {
+  const points = [
     v.x + u1.x * size, v.y + u1.y * size,
     v.x + (u1.x + u2.x) * size, v.y + (u1.y + u2.y) * size,
     v.x + u2.x * size, v.y + u2.y * size,
-  ], { width: 1, role: 'annotation', fill: 'none' });
+  ];
+  b.polyline(id, points, { width: 1, role: 'annotation', fill: 'none' });
+  return points;
+}
+
+const READOUT_GAP = 16;
+
+/** Computed results printed under a figure: entries packed into centred rows, and the strip they need. */
+export interface Readout { rows: string[][]; height: number }
+
+export function readout(entries: string[], canvasWidth: number): Readout {
+  const rows: string[][] = [];
+  let used = 0;
+  for (const entry of entries) {
+    const w = textSize(entry).w;
+    if (rows.length && used + READOUT_GAP + w <= canvasWidth - 16) {
+      rows.at(-1)!.push(entry);
+      used += READOUT_GAP + w;
+    } else {
+      rows.push([entry]);
+      used = w;
+    }
+  }
+  return { rows, height: rows.length ? rows.length * (TEXT_H + 1) + 3 : 0 };
+}
+
+/** Print the readout along the bottom of the canvas and keep every other label out of its strip. */
+export function drawReadout(b: SceneBuilder, placer: Placer, { rows, height }: Readout): void {
+  if (!height) return;
+  placer.box({ x1: 0, y1: b.height - 3 - height, x2: b.width, y2: b.height });
+  rows.forEach((row, r) => {
+    const widths = row.map((entry) => textSize(entry).w);
+    let x = (b.width - widths.reduce((sum, w) => sum + w, 0) - READOUT_GAP * (row.length - 1)) / 2;
+    row.forEach((entry, i) => {
+      b.label(`readout-${r}-${i}`, entry, x + widths[i]! / 2, b.height - 2 - height + (r + 0.5) * (TEXT_H + 1), { protected: true });
+      x += widths[i]! + READOUT_GAP;
+    });
+  });
 }
 
 /** Signed sweep from screen angle `from` to `to` (radians) by the shorter way, in (−π, π]. */
@@ -193,19 +201,4 @@ export function sweep(from: number, to: number): number {
   if (delta > Math.PI) delta -= 2 * Math.PI;
   if (delta <= -Math.PI) delta += 2 * Math.PI;
   return delta;
-}
-
-/** `count` short strokes across the middle of segment pq: the mark for equal lengths. */
-export function tickMarks(b: SceneBuilder, id: string, p: Pt, q: Pt, count: number, at = 0.5): void {
-  const length = Math.hypot(q.x - p.x, q.y - p.y) || 1;
-  const ux = (q.x - p.x) / length;
-  const uy = (q.y - p.y) / length;
-  const mx = p.x + (q.x - p.x) * at;
-  const my = p.y + (q.y - p.y) * at;
-  for (let k = 0; k < count; k++) {
-    const shift = (k - (count - 1) / 2) * 3.2;
-    const cx = mx + ux * shift;
-    const cy = my + uy * shift;
-    b.line(`${id}-${k}`, cx - uy * 4, cy + ux * 4, cx + uy * 4, cy - ux * 4, { width: 1.1, role: 'annotation', protected: true });
-  }
 }

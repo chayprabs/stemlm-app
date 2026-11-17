@@ -167,7 +167,3 @@ export function solveTriangle(input: TriangleInput): TriangleSolution {
   if (sideIdx.length === 1) return no('one side needs two angles, or two more facts, to fix a triangle');
   return no('not enough data: give three of the sides and angles of the triangle');
 }
-
-export function triangleArea(sides: Triple<number>, angles: Triple<number>): number {
-  return 0.5 * sides[0] * sides[1] * Math.sin(angles[2] * RAD);
-}

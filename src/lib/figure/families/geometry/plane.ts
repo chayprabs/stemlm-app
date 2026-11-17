@@ -4,7 +4,7 @@
  */
 import type { SceneBuilder } from '../../scene-build';
 import { MINUS } from './format';
-import { Placer, boxAround, canvasHeight, textSize, type Pt } from './canvas';
+import { Placer, TEXT_H, canvasHeight, clipToBox, textSize, type Pt } from './canvas';
 
 export interface Window { x0: number; x1: number; y0: number; y1: number }
 
@@ -14,11 +14,11 @@ export interface PlaneOptions {
   /** One scale for both axes, so angles and circles are drawn true. */
   equal: boolean;
   /** `axis`: numbers beside the axes, inside the plot. `edge`: a framed plot with numbers outside it. */
-  numbers: 'axis' | 'edge' | 'none';
+  numbers: 'axis' | 'edge';
   grid: boolean;
   /** Grow the window to fill the canvas (a window inferred from content); an explicit window is kept as given. */
   fill: boolean;
-  /** Window aspect (height / width) above which the canvas goes tall. */
+  /** Window aspect (height / width) above which the canvas goes tall; 0.8 unless given. */
   tallAbove?: number;
   names?: { x: string; y: string };
   /** Room kept under the plot for a readout, in canvas units. */
@@ -46,15 +46,42 @@ function multiples(step: number, lo: number, hi: number): number[] {
 }
 
 /** Tick text at the step's own precision, with a true minus sign. */
-export function tickText(value: number, step: number): string {
+function tickText(value: number, step: number): string {
   if (Math.abs(value) < step * 1e-9) return '0';
   const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
   const text = String(Number(Math.abs(value).toFixed(Math.min(decimals + 1, 12))));
   return `${value < 0 ? MINUS : ''}${text}`;
 }
 
+/**
+ * A window around a figure's marks: the axes are brought in unless the figure sits far from them, a
+ * degenerate extent is opened up, and a margin keeps the marks off the frame.
+ */
+export function windowAround(marks: Pt[]): Window {
+  const range = (values: number[]) => ({ lo: Math.min(...values), hi: Math.max(...values) });
+  const x = range(marks.map((p) => p.x));
+  const y = range(marks.map((p) => p.y));
+  const size = Math.max(x.hi - x.lo, y.hi - y.lo);
+  for (const axis of [x, y]) {
+    if (!size || Math.max(axis.lo, -axis.hi) <= 1.5 * size) {
+      axis.lo = Math.min(axis.lo, 0);
+      axis.hi = Math.max(axis.hi, 0);
+    }
+  }
+  const span = Math.max(x.hi - x.lo, y.hi - y.lo) || 8;
+  for (const axis of [x, y]) {
+    const short = 0.5 * span - (axis.hi - axis.lo);
+    if (short > 0) {
+      axis.lo -= short / 2;
+      axis.hi += short / 2;
+    }
+    axis.lo -= 0.12 * span;
+    axis.hi += 0.12 * span;
+  }
+  return { x0: x.lo, x1: x.hi, y0: y.lo, y1: y.hi };
+}
+
 const AXIS_OVERSHOOT = 9;
-const TEXT_H = textSize('0').h;
 
 export class Plane {
   readonly width: number;
@@ -80,8 +107,8 @@ export class Plane {
     const footer = options.footer ?? 0;
     const nameW = options.names ? Math.max(textSize(options.names.x).w, textSize(options.names.y).w) : 0;
     const base = options.numbers === 'edge'
-      ? { l: 12, r: options.names ? nameW + 12 : 10, t: options.names ? TEXT_H + 6 : 8, b: TEXT_H + 10 + footer }
-      : { l: 9, r: AXIS_OVERSHOOT + (options.names ? nameW + 8 : 4), t: AXIS_OVERSHOOT + 6, b: 9 + footer };
+      ? { l: 12, r: options.names ? nameW + 12 : 10, t: options.names ? TEXT_H + 8 : 8, b: TEXT_H + 13 + footer }
+      : { l: 9, r: AXIS_OVERSHOOT + (options.names ? nameW + 12 : 4), t: AXIS_OVERSHOOT + 6, b: 9 + footer };
     let plan = this.fit(given, spanX, spanY, base);
     // Tick numbers need room that depends on the scale they are drawn at; two passes settle it.
     for (let pass = 0; pass < 2; pass++) {
@@ -110,7 +137,8 @@ export class Plane {
     let window = given;
     if (equal) {
       const aspect = spanY / spanX;
-      const tall = aspect > (this.options.tallAbove ?? (fill ? 1.15 : 0.8));
+      // A squarish figure would use only half the width of the nominal canvas.
+      const tall = aspect > (this.options.tallAbove ?? 0.8);
       let k = Math.min(kx, ky);
       if (tall) {
         const limit = Math.round(1.75 * nominal.h) - margin.t - margin.b;
@@ -142,10 +170,9 @@ export class Plane {
   /** Canvas room the tick numbers need left of and below the plot rectangle. */
   private numberRoom(plan: ReturnType<Plane['fit']>): { l: number; b: number } {
     const { numbers } = this.options;
-    if (numbers === 'none') return { l: 0, b: 0 };
     const { window, kx, ky, step } = plan;
     const yText = Math.max(...multiples(step.y, window.y0, window.y1).map((v) => textSize(tickText(v, step.y)).w), 0);
-    if (numbers === 'edge') return { l: yText + 11, b: TEXT_H + 10 };
+    if (numbers === 'edge') return { l: yText + 11, b: TEXT_H + 13 };
     // Numbers sit beside the axes; they reach outside the plot only when an axis runs near its edge.
     const axisX = Math.min(Math.max(0, window.x0), window.x1);
     const axisY = Math.min(Math.max(0, window.y0), window.y1);
@@ -202,7 +229,7 @@ export class Plane {
     return finer * k >= 9 ? finer : step;
   }
 
-  /** Axis lines and names. In an `axis` plane they carry arrowheads; in an `edge` plane they are zero lines. */
+  /** Axis lines. In an `axis` plane they carry arrowheads; an `edge` plane is framed, with its numbers and names outside. */
   drawAxes(b: SceneBuilder, placer: Placer): void {
     const { numbers, names } = this.options;
     const { x: ax, y: ay } = this.axis;
@@ -213,7 +240,7 @@ export class Plane {
       multiples(this.step.x, x0, x1).forEach((value, index) => {
         const text = tickText(value, this.step.x);
         b.line(`x-tick${index}`, this.x(value), this.bottom, this.x(value), this.bottom + 3, { color: 'muted', width: 1, role: 'guide', protected: true });
-        b.label(`x-number${index}`, text, this.x(value), this.bottom + 5 + TEXT_H / 2, { protected: true, priority: 'required' });
+        b.label(`x-number${index}`, text, this.x(value), this.bottom + 8 + TEXT_H / 2, { protected: true, priority: 'required' });
       });
       multiples(this.step.y, y0, y1).forEach((value, index) => {
         const text = tickText(value, this.step.y);
@@ -232,20 +259,31 @@ export class Plane {
     b.line('x-axis', this.left - 4, ay, xEnd, ay, { width: 1.2, role: 'axis', markerEnd: true, protected: true });
     b.line('y-axis', ax, this.bottom + 4, ax, yEnd, { width: 1.2, role: 'axis', markerEnd: true, protected: true });
     placer.line(this.left - 4, ay, xEnd, ay).line(ax, this.bottom + 4, ax, yEnd);
-    if (names) {
-      const xSize = textSize(names.x);
-      const ySize = textSize(names.y);
-      const xAt = { x: xEnd + 3 + xSize.w / 2, y: ay };
-      const yAt = { x: ax + 5 + ySize.w / 2, y: yEnd + ySize.h / 2 - 2 };
-      b.label('x-name', names.x, xAt.x, xAt.y, { protected: true, priority: 'required' });
-      b.label('y-name', names.y, yAt.x, yAt.y, { protected: true, priority: 'required' });
-      placer.box(boxAround(xAt.x, xAt.y, xSize)).box(boxAround(yAt.x, yAt.y, ySize));
-    }
   }
 
   /**
-   * Tick numbers of an `axis` plane, placed last: each goes below (or left of) its axis, switches to
-   * the other side when the figure's geometry is in the way, and is left out when both are taken.
+   * Axis names of an `axis` plane, placed once the figure's strokes are known: a name moves to the
+   * other side of its arrowhead when a line runs through its usual spot.
+   */
+  drawNames(b: SceneBuilder, placer: Placer): void {
+    const { names, numbers } = this.options;
+    if (!names || numbers !== 'axis') return;
+    const { x: ax, y: ay } = this.axis;
+    const xEnd = this.right + AXIS_OVERSHOOT;
+    const yTop = this.top - AXIS_OVERSHOOT;
+    const xSize = textSize(names.x);
+    const ySize = textSize(names.y);
+    const xSpots = [{ x: xEnd + 5 + xSize.w / 2, y: ay }, { x: xEnd - xSize.w / 2, y: ay + 5 + xSize.h / 2 }, { x: xEnd - xSize.w / 2, y: ay - 5 - xSize.h / 2 }];
+    const ySpots = [{ x: ax + 6 + ySize.w / 2, y: yTop + ySize.h / 2 - 0.5 }, { x: ax - 6 - ySize.w / 2, y: yTop + ySize.h / 2 - 0.5 }];
+    const xAt = placer.claim(xSize, xSpots, 1) ?? xSpots[0]!;
+    const yAt = placer.claim(ySize, ySpots, 1) ?? ySpots[0]!;
+    b.label('x-name', names.x, xAt.x, xAt.y, { protected: true, priority: 'required' });
+    b.label('y-name', names.y, yAt.x, yAt.y, { protected: true, priority: 'required' });
+  }
+
+  /**
+   * Tick numbers of an `axis` plane, placed last: each goes below (or left of) its axis and is left
+   * out when the figure is in the way. The grid still counts the units.
    */
   drawNumbers(b: SceneBuilder, placer: Placer): void {
     if (this.options.numbers !== 'axis') return;
@@ -259,7 +297,7 @@ export class Plane {
       if (ticks) b.line(`x-tick${index}`, X, ay - 2.5, X, ay + 2.5, { width: 1, role: 'axis', protected: true });
       const text = tickText(value, this.step.x);
       const size = textSize(text);
-      const spot = placer.claim(size, [{ x: X, y: ay + 4 + size.h / 2 }, { x: X, y: ay - 4 - size.h / 2 }], 1);
+      const spot = placer.claim(size, [{ x: X, y: ay + 4 + size.h / 2 }], 1);
       if (spot) b.label(`x-number${index}`, text, spot.x, spot.y, { protected: true, priority: 'required' });
     });
     multiples(this.step.y, y0, y1).forEach((value, index) => {
@@ -268,7 +306,7 @@ export class Plane {
       if (ticks) b.line(`y-tick${index}`, ax - 2.5, Y, ax + 2.5, Y, { width: 1, role: 'axis', protected: true });
       const text = tickText(value, this.step.y);
       const size = textSize(text);
-      const spot = placer.claim(size, [{ x: ax - 5 - size.w / 2, y: Y }, { x: ax + 5 + size.w / 2, y: Y }], 1);
+      const spot = placer.claim(size, [{ x: ax - 5 - size.w / 2, y: Y }], 1);
       if (spot) b.label(`y-number${index}`, text, spot.x, spot.y, { protected: true, priority: 'required' });
     });
     if (crossing) {
@@ -279,28 +317,9 @@ export class Plane {
   }
 }
 
-/** The part of segment pq inside the window, or null when it misses (Liang–Barsky). */
+/** The part of segment pq inside the window, or null when it misses. */
 export function clipSegment(window: Window, p: Pt, q: Pt): [Pt, Pt] | null {
-  const dx = q.x - p.x;
-  const dy = q.y - p.y;
-  let enter = 0;
-  let leave = 1;
-  const edges: Array<[number, number]> = [[-dx, p.x - window.x0], [dx, window.x1 - p.x], [-dy, p.y - window.y0], [dy, window.y1 - p.y]];
-  for (const [a, c] of edges) {
-    if (a === 0) {
-      if (c < 0) return null;
-      continue;
-    }
-    const t = c / a;
-    if (a < 0) {
-      if (t > leave) return null;
-      enter = Math.max(enter, t);
-    } else {
-      if (t < enter) return null;
-      leave = Math.min(leave, t);
-    }
-  }
-  return [{ x: p.x + dx * enter, y: p.y + dy * enter }, { x: p.x + dx * leave, y: p.y + dy * leave }];
+  return clipToBox({ x1: window.x0, y1: window.y0, x2: window.x1, y2: window.y1 }, p, q);
 }
 
 /** A sampled curve cut into the runs that lie inside the window, with exact entry and exit points. */

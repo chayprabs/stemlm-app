@@ -1,4 +1,5 @@
 /** Number and exact-value text for geometry labels. Plain text uses a true minus sign, as print does. */
+import type { Angle } from './expr';
 
 export const MINUS = '−';
 
@@ -33,88 +34,34 @@ export function isExactAt(value: number, text: string): boolean {
   return Number.isFinite(shown) && Math.abs(shown - value) <= 1e-9 * Math.max(1, Math.abs(value));
 }
 
-export interface Exact {
-  /** Plain text: `−√3/2`. */
-  text: string;
-  /** KaTeX source: `-\frac{\sqrt{3}}{2}`. */
-  tex: string;
-}
-
-interface Surd { plus: Exact; minus: Exact }
-
-const surd = (text: string, tex: string, negText = `${MINUS}${text}`, negTex = `-${tex}`): Surd => ({
-  plus: { text, tex },
-  minus: { text: negText, tex: negTex },
-});
-
-const ZERO: Surd = { plus: { text: '0', tex: '0' }, minus: { text: '0', tex: '0' } };
-
-/** sin of the first-quadrant multiples of 15°. */
-const SIN: Record<number, Surd> = {
-  0: ZERO,
-  15: surd('(√6−√2)/4', '\\frac{\\sqrt{6}-\\sqrt{2}}{4}', '(√2−√6)/4', '\\frac{\\sqrt{2}-\\sqrt{6}}{4}'),
-  30: surd('1/2', '\\frac{1}{2}'),
-  45: surd('√2/2', '\\frac{\\sqrt{2}}{2}'),
-  60: surd('√3/2', '\\frac{\\sqrt{3}}{2}'),
-  75: surd('(√6+√2)/4', '\\frac{\\sqrt{6}+\\sqrt{2}}{4}', '−(√6+√2)/4', '-\\frac{\\sqrt{6}+\\sqrt{2}}{4}'),
-  90: surd('1', '1'),
+/** sin of the first-quadrant multiples of 15°, as written when positive and when negative. */
+const SIN: Record<number, readonly [string, string]> = {
+  0: ['0', '0'],
+  15: ['(√6−√2)/4', '(√2−√6)/4'],
+  30: ['1/2', '−1/2'],
+  45: ['√2/2', '−√2/2'],
+  60: ['√3/2', '−√3/2'],
+  75: ['(√6+√2)/4', '−(√6+√2)/4'],
+  90: ['1', '−1'],
 };
-
-/** tan of the first-quadrant multiples of 15°; tan 90° is undefined. */
-const TAN: Record<number, Surd> = {
-  0: ZERO,
-  15: surd('2−√3', '2-\\sqrt{3}', '√3−2', '\\sqrt{3}-2'),
-  30: surd('√3/3', '\\frac{\\sqrt{3}}{3}'),
-  45: surd('1', '1'),
-  60: surd('√3', '\\sqrt{3}'),
-  75: surd('2+√3', '2+\\sqrt{3}', '−2−√3', '-2-\\sqrt{3}'),
-};
-
-export interface ExactTrig { sin: Exact; cos: Exact; tan: Exact | null }
 
 /**
- * Exact sin, cos and tan for a multiple of 15°, from the first-quadrant table and the quadrant's
- * signs. Null for any other angle: a decimal is then the honest answer.
+ * Exact cos and sin for a multiple of 15°, from the first-quadrant table and the quadrant's signs.
+ * Null for any other angle: a decimal is then the honest answer.
  */
-export function exactTrig(degrees: number): ExactTrig | null {
+export function exactPoint(degrees: number): { cos: string; sin: string } | null {
   const steps = degrees / 15;
   if (!Number.isFinite(steps) || Math.abs(steps - Math.round(steps)) > 1e-9) return null;
   const d = (((Math.round(steps) * 15) % 360) + 360) % 360;
   const reference = d <= 90 ? d : d <= 180 ? 180 - d : d <= 270 ? d - 180 : 360 - d;
-  const sinSign = d > 180 ? -1 : 1;
-  const cosSign = d > 90 && d < 270 ? -1 : 1;
-  const pick = (entry: Surd, sign: number) => (sign < 0 ? entry.minus : entry.plus);
-  const tangent = TAN[reference];
   return {
-    sin: pick(SIN[reference]!, sinSign),
-    cos: pick(SIN[90 - reference]!, cosSign),
-    tan: tangent ? pick(tangent, sinSign * cosSign) : null,
+    cos: SIN[90 - reference]![d > 90 && d < 270 ? 1 : 0],
+    sin: SIN[reference]![d > 180 ? 1 : 0],
   };
 }
 
-function gcd(a: number, b: number): number {
-  return b ? gcd(b, a % b) : Math.abs(a);
-}
-
-/** Degrees as a multiple of π when it is one with a small denominator (150 → 5π/6); null otherwise. */
-export function piMultiple(degrees: number): Exact | null {
-  const twelfths = degrees / 15;
-  if (!Number.isFinite(twelfths) || Math.abs(twelfths - Math.round(twelfths)) > 1e-9) return null;
-  const n = Math.round(twelfths);
-  if (n === 0) return { text: '0', tex: '0' };
-  const divisor = gcd(n, 12);
-  const top = Math.abs(n) / divisor;
-  const bottom = 12 / divisor;
-  const sign = n < 0;
-  const numerator = top === 1 ? 'π' : `${top}π`;
-  const numeratorTex = top === 1 ? '\\pi' : `${top}\\pi`;
-  return bottom === 1
-    ? { text: `${sign ? MINUS : ''}${numerator}`, tex: `${sign ? '-' : ''}${numeratorTex}` }
-    : { text: `${sign ? MINUS : ''}${numerator}/${bottom}`, tex: `${sign ? '-' : ''}\\frac{${numeratorTex}}{${bottom}}` };
-}
-
 /** How the source wrote a value, tidied for print: `5*sqrt(3)` → `5√3`, `2 pi/3` → `2π/3`, `-4` → `−4`. */
-export function prettySource(source: string): string {
+function prettySource(source: string): string {
   return source.trim()
     .replace(/\\?sqrt\s*[({]\s*([^(){}]+?)\s*[)}]/gi, '√$1')
     .replace(/\\?pi\b/gi, 'π')
@@ -123,4 +70,17 @@ export function prettySource(source: string): string {
     .replace(/\s*\/\s*/g, '/')
     .replace(/-/g, MINUS)
     .replace(/\s+/g, ' ');
+}
+
+/** The value as the problem wrote it when that is plain arithmetic text, otherwise the number. */
+export function asWritten(text: string, value: number): string {
+  const pretty = prettySource(text);
+  return pretty.length <= 9 && /^[\d.√π/·−+() ]+$/.test(pretty) ? pretty : fmt(value, 4);
+}
+
+/** An angle in the unit the problem used: `150°`, `5π/6`, `2.618 rad`. */
+export function angleLabel(angle: Angle): string {
+  if (angle.unit === 'deg') return `${asWritten(angle.text, angle.degrees)}°`;
+  const written = asWritten(angle.text, (angle.degrees * Math.PI) / 180);
+  return /π/.test(written) ? written : `${written} rad`;
 }
