@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
-import { HOST_FIXTURES, mountHostComposer } from '@/src/platforms/host-fixtures';
-import { COMPOSER_SLOT_STYLE_ID, removeComposerSlot } from '@/src/lib/composer-slot';
+import { LIVE_COMPOSERS, fakeLayout, liveBoxes, mountLiveComposer } from '@/src/platforms/host-fixtures';
+import { CONTROL_GAP_PX, ROOM_ATTR, removeComposerRoom } from '@/src/lib/composer-anchor';
 import { injectControlEnabled } from '@/src/platforms/routes';
 import type { PlatformAdapter } from '@/src/platforms/types';
 
-let activeAdapter: PlatformAdapter = HOST_FIXTURES[0]!.adapter;
+let activeAdapter: PlatformAdapter = LIVE_COMPOSERS[0]!.adapter;
 
 vi.mock('@/src/content/controller', () => ({
   getController: () => ({
     inject: vi.fn(async () => true),
     getLastQuestion: vi.fn(() => ''),
     resetInjection: vi.fn(),
+    takeAttachNotice: vi.fn(() => null),
   }),
 }));
 
@@ -23,334 +23,207 @@ vi.mock('@/src/platforms/detect', () => ({
   detectAdapter: () => activeAdapter,
 }));
 
+// The control follows the page on its own clock (frames, observers), so these tests let React
+// and the page run as they do in a tab and wait for what they expect to see.
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true;
+  false;
 
-describe.each(HOST_FIXTURES)('$id overlay docks beside the shipped leading +', (spec) => {
-  let container: HTMLDivElement;
-  let root: Root | undefined;
+const frames = (n = 5) => new Promise((resolve) => setTimeout(resolve, n * 20));
+const controls = () => document.querySelectorAll<HTMLButtonElement>('[data-stemlm-inject]');
+/**
+ * Let the page run until the control is there (or gone): frames are not counted, only awaited.
+ * The test DOM can drop a MutationObserver mid-test (it holds the callback weakly), so a change to
+ * the page is also announced the way a browser would on the next layout: as a resize.
+ */
+async function settle(count: number) {
+  window.dispatchEvent(new Event('resize'));
+  for (let i = 0; i < 100 && controls().length !== count; i++) await frames(1);
+  await frames(2);
+}
+const grok = LIVE_COMPOSERS.find((spec) => spec.name === 'grok')!;
 
+let container: HTMLDivElement;
+let root: Root | undefined;
+let restore: (() => void) | undefined;
+
+/** stemLM's own root sits beside the chat's body, as its shadow host does. */
+async function render(expected = 1) {
+  container = document.createElement('div');
+  document.documentElement.appendChild(container);
+  root = createRoot(container);
+  root.render(<OverlayButton />);
+  await settle(expected);
+}
+
+beforeEach(() => {
+  useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle', settings: DEFAULT_SETTINGS });
+  window.history.replaceState({}, '', '/chat');
+});
+
+afterEach(() => {
+  root?.unmount();
+  root = undefined;
+  container?.remove();
+  restore?.();
+  restore = undefined;
+  removeComposerRoom();
+  document.body.innerHTML = '';
+  window.history.replaceState({}, '', '/');
+  vi.restoreAllMocks();
+});
+
+describe.each(LIVE_COMPOSERS)('$name: the control is drawn beside the chat\'s attach button', (spec) => {
   beforeEach(() => {
     activeAdapter = spec.adapter;
-    document.body.innerHTML = '';
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    mountHostComposer(spec, { capsule: false });
-    useStore.setState({
-      buttonInjected: false,
-      panelOpen: false,
-      status: 'idle',
-      settings: DEFAULT_SETTINGS,
-    });
+    restore = mountLiveComposer(spec).restore;
   });
 
-  afterEach(() => {
-    act(() => root?.unmount());
-    container.remove();
-    removeComposerSlot();
-    document.body.innerHTML = '';
-  });
-
-  it('portals the inject control next to the + and not inside the stemLM slot as the +', async () => {
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const plus = spec.adapter.getComposerLeadingAnchor();
-    expect(plus).not.toBeNull();
-    expect(plus!.getAttribute('aria-label')).toBe(spec.plusLabel);
-    expect(plus!.closest('[data-stemlm-composer-slot]')).toBeNull();
-
-    const slot = document.querySelector('[data-stemlm-composer-slot]');
-    expect(slot).not.toBeNull();
-    const shell = spec.adapter.getComposerShell();
-    if (spec.adapter.composerDock === 'outside-shell') {
-      expect(slot!.getAttribute('data-dock')).toBe('outside-shell');
-      expect(shell?.contains(slot!)).toBe(false);
-    } else {
-      const next = slot!.nextElementSibling;
-      expect(next === plus || next === shell).toBe(true);
-    }
-    expect(slot!.querySelector('button')).not.toBeNull();
-    expect(slot!.contains(plus!)).toBe(false);
-
-    const inject = slot!.querySelector('button') as HTMLButtonElement;
-    expect(inject).toBeTruthy();
-    expect(inject.getAttribute('data-stemlm-inject')).toBe('true');
+  it('is one control, at the button\'s side and size, outside the chat\'s own tree', async () => {
+    await render();
+    const attach = spec.adapter.getComposerLeadingAnchor()!;
+    const b = attach.getBoundingClientRect();
+    expect(controls()).toHaveLength(1);
+    const control = controls()[0]!;
+    const wrap = control.closest('.slm-fab-wrap') as HTMLElement;
+    expect(container.contains(wrap)).toBe(true);
+    // The chat's composer holds nothing of stemLM's: logged-out ChatGPT blanks its page otherwise.
+    expect(document.querySelector('main [data-stemlm-inject], main .slm-fab-wrap, main style')).toBeNull();
+    expect(wrap.style.left).toBe(`${b.right + CONTROL_GAP_PX}px`);
+    expect(wrap.style.top).toBe(`${b.top}px`);
+    expect(wrap.style.getPropertyValue('--slm-inject-size')).toBe(`${b.height}px`);
     // Beside the chat's own plus it shows the therefore mark, never a second plus.
-    expect(inject.getAttribute('data-glyph')).toBe('mark');
-    expect(inject.innerHTML).not.toContain('M12 5v14');
-    expect(inject.querySelectorAll('.slm-inject-mark circle')).toHaveLength(2);
-    expect(inject.querySelectorAll('.slm-inject-mark rect')).toHaveLength(1);
-    // Docked in the page's own DOM, its rules are installed there under the slot's scope.
-    const pageCss = document.getElementById(COMPOSER_SLOT_STYLE_ID)?.textContent ?? '';
-    expect(pageCss).toContain('[data-stemlm-composer-slot] .slm-inject-btn {');
-    expect(slot!.querySelector('style')).toBeNull();
+    expect(control.getAttribute('data-glyph')).toBe('mark');
+    expect(control.innerHTML).not.toContain('M12 5v14');
+    expect(control.querySelectorAll('.slm-inject-mark circle')).toHaveLength(2);
+    expect(control.querySelectorAll('.slm-inject-mark rect')).toHaveLength(1);
+    // Its rules travel with it, in stemLM's root; the chat page's head gets only the room rule.
+    expect(wrap.querySelector('style')?.textContent).toContain('.slm-inject-btn {');
+    expect([...document.head.querySelectorAll('style')].every((style) => !style.textContent?.includes('.slm-inject-btn'))).toBe(true);
   });
 
-  it('does not fire the host + listener when the stemLM control is clicked', async () => {
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+  it('leaves the chat\'s own attach button to the chat', async () => {
+    await render();
+    const attach = spec.adapter.getComposerLeadingAnchor()!;
+    const attachClick = vi.fn();
+    const pageClick = vi.fn();
+    attach.addEventListener('click', attachClick);
+    document.body.addEventListener('click', pageClick);
+    controls()[0]!.click();
+    await frames(1);
+    expect(attachClick).not.toHaveBeenCalled();
+    expect(pageClick).not.toHaveBeenCalled();
+    attach.click();
+    expect(attachClick).toHaveBeenCalledTimes(1);
+  });
 
-    const plus = spec.adapter.getComposerLeadingAnchor()!;
-    const parent = plus.parentElement!;
-    const plusClick = vi.fn();
-    const plusDown = vi.fn();
-    const parentClick = vi.fn();
-    const parentDown = vi.fn();
-    plus.addEventListener('click', plusClick);
-    plus.addEventListener('pointerdown', plusDown);
-    parent.addEventListener('click', parentClick);
-    parent.addEventListener('pointerdown', parentDown);
-
-    const inject = document.querySelector('[data-stemlm-inject]') as HTMLButtonElement;
-    expect(inject).toBeTruthy();
-    await act(async () => {
-      inject.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      inject.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    });
-
-    expect(plusClick).not.toHaveBeenCalled();
-    expect(plusDown).not.toHaveBeenCalled();
-    expect(parentClick).not.toHaveBeenCalled();
-    expect(parentDown).not.toHaveBeenCalled();
-
-    await act(async () => {
-      plus.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      plus.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    });
-    expect(plusClick).toHaveBeenCalledTimes(1);
-    expect(plusDown).toHaveBeenCalledTimes(1);
+  it('can be reached from the keyboard at the attach button, and hands focus back to it', async () => {
+    await render();
+    const attach = spec.adapter.getComposerLeadingAnchor()!;
+    const control = controls()[0]!;
+    attach.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    attach.dispatchEvent(tab);
+    expect(document.activeElement).toBe(control);
+    expect(tab.defaultPrevented).toBe(true);
+    const back = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+    control.dispatchEvent(back);
+    expect(document.activeElement).toBe(attach);
+    expect(back.defaultPrevented).toBe(true);
   });
 });
 
-describe('inject control hides on image-gen SPA routes', () => {
-  const grok = HOST_FIXTURES.find((s) => s.id === 'grok')!;
-  let container: HTMLDivElement;
-  let root: Root | undefined;
-
+describe('the control is shown only where it belongs', () => {
   beforeEach(() => {
     activeAdapter = grok.adapter;
-    document.body.innerHTML = '';
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    mountHostComposer(grok, { capsule: false });
-    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle', settings: DEFAULT_SETTINGS });
-    window.history.replaceState({}, '', '/chat');
-  });
-
-  afterEach(() => {
-    act(() => root?.unmount());
-    container.remove();
-    removeComposerSlot();
-    document.body.innerHTML = '';
-    window.history.replaceState({}, '', '/');
+    restore = mountLiveComposer(grok).restore;
   });
 
   it('hides on /imagine and shows again on a chat path', async () => {
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
+    await render();
+    expect(controls()).toHaveLength(1);
 
-    await act(async () => {
-      window.history.pushState({}, '', '/imagine');
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    window.history.pushState({}, '', '/imagine');
+    await settle(0);
     expect(injectControlEnabled('grok', location.pathname)).toBe(false);
-    expect(document.querySelector('[data-stemlm-inject]')).toBeNull();
-    expect(document.querySelector('[data-stemlm-composer-slot]')).toBeNull();
+    expect(controls()).toHaveLength(0);
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
 
-    await act(async () => {
-      window.history.pushState({}, '', '/chat');
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    window.history.pushState({}, '', '/chat');
+    await settle(1);
     expect(injectControlEnabled('grok', location.pathname)).toBe(true);
-    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
-  });
-});
-
-describe('inject control hides when stemlm is turned off', () => {
-  const grok = HOST_FIXTURES.find((s) => s.id === 'grok')!;
-  let container: HTMLDivElement;
-  let root: Root | undefined;
-
-  beforeEach(() => {
-    activeAdapter = grok.adapter;
-    document.body.innerHTML = '';
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    mountHostComposer(grok, { capsule: false });
-    useStore.setState({
-      buttonInjected: false,
-      panelOpen: false,
-      status: 'idle',
-      settings: DEFAULT_SETTINGS,
-    });
-    window.history.replaceState({}, '', '/chat');
+    expect(controls()).toHaveLength(1);
   });
 
-  afterEach(() => {
-    act(() => root?.unmount());
-    container.remove();
-    removeComposerSlot();
-    document.body.innerHTML = '';
-    window.history.replaceState({}, '', '/');
+  it('is removed when stemlm is turned off and restored when it is turned back on', async () => {
+    await render();
+    expect(controls()).toHaveLength(1);
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).not.toBeNull();
+
+    useStore.setState({ settings: { ...DEFAULT_SETTINGS, stemlmEnabled: false } });
+    await settle(0);
+    expect(controls()).toHaveLength(0);
+    // Nothing of stemLM's is left on the chat page.
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
+    expect(document.head.querySelector('style')).toBeNull();
+
     useStore.setState({ settings: DEFAULT_SETTINGS });
+    await settle(1);
+    expect(controls()).toHaveLength(1);
   });
 
-  it('removes the composer attach control and restores it when turned back on', async () => {
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
-    expect(document.querySelector('[data-stemlm-composer-slot]')).not.toBeNull();
+  it('follows the composer when it moves', async () => {
+    const attach = document.querySelector<HTMLElement>(grok.attach)!;
+    let lift = 0;
+    restore?.();
+    restore = fakeLayout(liveBoxes(grok, () => (attach.hasAttribute(ROOM_ATTR) ? 36 : 0)).map(([el, box]) => [
+      el,
+      () => {
+        const b = typeof box === 'function' ? box() : box;
+        return { ...b, top: b.top - lift };
+      },
+    ]));
+    await render();
+    const wrap = controls()[0]!.closest('.slm-fab-wrap') as HTMLElement;
+    expect(wrap.style.top).toBe('277px');
 
-    await act(async () => {
-      useStore.setState({ settings: { ...DEFAULT_SETTINGS, stemlmEnabled: false } });
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(document.querySelector('[data-stemlm-inject]')).toBeNull();
-    expect(document.querySelector('[data-stemlm-composer-slot]')).toBeNull();
-
-    await act(async () => {
-      useStore.setState({ settings: DEFAULT_SETTINGS });
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(document.querySelector('[data-stemlm-inject]')).not.toBeNull();
-  });
-});
-
-describe('outside-shell overlay stays visible and tracks the composer', () => {
-  const grok = HOST_FIXTURES.find((s) => s.id === 'grok')!;
-  let container: HTMLDivElement;
-  let root: Root | undefined;
-
-  function mockBox(el: Element, box: { left: number; top: number; width: number; height: number }) {
-    vi.spyOn(el, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          x: box.left,
-          y: box.top,
-          width: box.width,
-          height: box.height,
-          top: box.top,
-          left: box.left,
-          bottom: box.top + box.height,
-          right: box.left + box.width,
-          toJSON() {},
-        }) as DOMRect,
-    );
-  }
-
-  beforeEach(() => {
-    activeAdapter = grok.adapter;
-    document.body.innerHTML = '';
-    mountHostComposer(grok, { capsule: false });
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    useStore.setState({
-      buttonInjected: false,
-      panelOpen: false,
-      status: 'idle',
-      splitRatio: 0.5,
-      splitDragging: false,
-      settings: DEFAULT_SETTINGS,
-    });
+    lift = 80;
+    window.dispatchEvent(new Event('scroll'));
+    await frames(3);
+    expect(wrap.style.top).toBe('197px');
+    expect(wrap.style.left).toBe(`${202 + 32 + CONTROL_GAP_PX}px`);
+    expect(controls()).toHaveLength(1);
   });
 
-  afterEach(() => {
-    act(() => root?.unmount());
-    container.remove();
-    removeComposerSlot();
-    document.body.innerHTML = '';
-    vi.restoreAllMocks();
+  // The control used to fall back to a fixed spot near the composer, then to a corner of the
+  // window. Without the chat's attach button there is nothing to anchor to: it is not shown.
+  it('is not shown at all once its anchor is gone: it never floats', async () => {
+    await render();
+    expect(controls()).toHaveLength(1);
+    document.querySelector(grok.attach)!.remove();
+    await settle(0);
+    expect(controls()).toHaveLength(0);
+    expect(container.querySelector('.slm-fab-wrap')).toBeNull();
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
   });
 
-  it('repositions immediately on scroll instead of waiting for the dock debounce', async () => {
-    const pill = document.querySelector('form.chat-input') as HTMLElement;
-    const plus = grok.adapter.getComposerLeadingAnchor()!;
-    const pillBox = { left: 200, top: 400, width: 640, height: 52 };
-    const plusBox = { left: 212, top: 410, width: 36, height: 36 };
-    mockBox(pill, pillBox);
-    mockBox(plus, plusBox);
-
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const slot = document.querySelector('[data-stemlm-composer-slot]') as HTMLElement;
-    expect(slot).not.toBeNull();
-    expect(Number.parseFloat(slot.style.left)).toBe(200 - 36 - 8);
-
-    pillBox.left = 140;
-    pillBox.top = 320;
-    plusBox.left = 152;
-    plusBox.top = 330;
-    mockBox(pill, pillBox);
-    mockBox(plus, plusBox);
-
-    await act(async () => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-
-    expect(Number.parseFloat(slot.style.left)).toBe(140 - 36 - 8);
-    expect(Number.parseFloat(slot.style.top)).toBe(330);
-  });
-
-  it('falls back to a visible fixed wrap if the dock slot is disconnected', async () => {
-    const pill = document.querySelector('form.chat-input') as HTMLElement;
-    mockBox(pill, { left: 200, top: 400, width: 640, height: 52 });
-
-    await act(async () => {
-      root = createRoot(container);
-      root.render(<OverlayButton />);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    const slot = document.querySelector('[data-stemlm-composer-slot]') as HTMLElement;
-    expect(slot?.querySelector('[data-stemlm-inject]')).not.toBeNull();
-    slot.remove();
-
-    await act(async () => {
-      useStore.setState({ panelOpen: true });
-    });
-
-    const wrap = container.querySelector('.slm-fab-wrap') as HTMLElement;
-    expect(wrap).not.toBeNull();
-    expect(wrap.className).toMatch(/slm-fab-wrap--fixed/);
-    expect(wrap.querySelector('[data-stemlm-inject]')).not.toBeNull();
-    expect(wrap.closest('[data-stemlm-composer-slot]')).toBeNull();
+  it('is not shown beside a field that is not the composer', async () => {
+    restore?.();
+    document.body.innerHTML = `
+      <main>
+        <div data-testid="user-message"><form>
+          <button type="button" data-testid="attach-button" aria-label="Add files">clip</button>
+          <div data-testid="chat-input"><div contenteditable="true" aria-label="Edit message">An earlier question</div></div>
+        </form></div>
+        <div role="dialog"><form>
+          <button type="button" data-testid="attach-button" aria-label="Add files">clip</button>
+          <div data-testid="chat-input"><div contenteditable="true" aria-label="Custom instructions"></div></div>
+        </form></div>
+      </main>`;
+    restore = fakeLayout([...document.querySelectorAll('main *')].map((el, i) => [el, { left: 200, top: 100 + i * 40, width: el.tagName === 'BUTTON' ? 32 : 600, height: 32 }]));
+    await render(0);
+    await frames(10);
+    // An earlier message being edited and a dialog's field both look like a composer; neither is one.
+    expect(grok.adapter.findEditor()).toBeNull();
+    expect(controls()).toHaveLength(0);
   });
 });

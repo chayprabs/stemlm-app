@@ -1,20 +1,22 @@
 #!/usr/bin/env node
 /**
- * Visual harness for the extension's own pages: toolbar popup, welcome, saved questions, settings.
+ * Visual harness for the extension's own pages: toolbar popup, welcome, saved questions, settings,
+ * and the PDF export window with a saved answer opened from the library.
  *
  *   STEMLM_OUT_DIR=.output-x npx wxt build
- *   node scripts/visual/pages.mjs --ext .output-x/chrome-mv3 [--out dir] [--only popup,library]
+ *   node scripts/visual/pages.mjs --ext .output-x/chrome-mv3 [--out dir] [--only popup,library,pdf]
  *
  * It drives the real built pages in Chromium, in light and dark, and puts each one through the
  * states a still screenshot of the default view would miss: a supported chat tab, an error, a
- * seeded library, a search with and without results, selection mode, narrow windows.
+ * seeded library, a search with and without results, selection mode, a delete and its undo,
+ * damaged records, unreadable storage, an export in progress and one that fails, narrow windows.
  */
 import { BROWSER, chromium } from './browser.mjs';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { savedSeed } from './saved-seed.mjs';
+import { savedEdgeCases, savedLongAnswer, savedSeed } from './saved-seed.mjs';
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const args = process.argv.slice(2);
@@ -61,12 +63,15 @@ async function shot(page, name, opt = {}) {
 }
 const settle = (page, ms = 450) => page.waitForTimeout(ms);
 
-/** Replace the saved library with `count` seeded answers (0 clears it). */
-async function seedSaved(count) {
-  await sw.evaluate(async (items) => {
-    await chrome.storage.local.set({ stemlm_saved_sessions: items, stemlm_saved_sessions_version: 2 });
-  }, savedSeed(count));
+/** Replace the saved library with these stored records. */
+async function seedRecords(items) {
+  await sw.evaluate(async (list) => {
+    await chrome.storage.local.set({ stemlm_saved_sessions: list, stemlm_saved_sessions_version: 2 });
+  }, items);
 }
+
+/** Replace the saved library with `count` seeded answers (0 clears it). */
+const seedSaved = (count) => seedRecords(savedSeed(count));
 
 async function openPage(path, scheme, viewport, init) {
   const page = await ctx.newPage();
@@ -165,9 +170,9 @@ async function welcomeSuite(scheme) {
   }
 }
 
-/** The library opens in a 700 x 460 window (src/lib/saved-library.ts); it is shot at that size first. */
+/** The library opens in a 700 x 600 window (src/lib/saved-library.ts); less the title bar, it is shot at that size first. */
 async function librarySuite(scheme) {
-  const windowSize = { width: 700, height: 460 };
+  const windowSize = { width: 700, height: 562 };
   const page = async (count, viewport = windowSize) => {
     await seedSaved(count);
     return openPage('saved-library.html', scheme, viewport);
@@ -212,6 +217,57 @@ async function librarySuite(scheme) {
 
   p = await page(300);
   await shot(p, `library-${scheme}-10-three-hundred`);
+  await p.close();
+
+  // Deleting: the row goes at once, the bar under the list brings it back.
+  p = await page(7);
+  await p.locator('[data-action="delete"]').nth(1).click();
+  await p.mouse.move(690, 20);
+  await settle(p, 500);
+  await shot(p, `library-${scheme}-14-deleted-one`);
+  await p.locator('[data-action="delete"]').nth(0).focus();
+  await p.keyboard.press('Enter');
+  await settle(p, 500);
+  await shot(p, `library-${scheme}-15-deleted-two-focus-follows`);
+  await p.keyboard.press('Control+z');
+  await settle(p, 600);
+  await shot(p, `library-${scheme}-16-undone`);
+  // The time menu from the keyboard: it opens on the current choice and the arrows move from it.
+  await p.locator('button[aria-label="Filter by time"]').focus();
+  await p.keyboard.press('ArrowDown');
+  await p.keyboard.press('ArrowDown');
+  await p.keyboard.press('ArrowDown');
+  await settle(p, 300);
+  await shot(p, `library-${scheme}-17-time-menu-keyboard`);
+  await p.keyboard.press('Escape');
+  // One PDF at a time: the row says what is happening where its date was, then that it is saved.
+  await p.locator('[data-action="download"]').nth(0).click();
+  await p.mouse.move(690, 20);
+  await p.waitForSelector('.slm-library-row-note', { timeout: 5_000 }).catch(() => {});
+  await shot(p, `library-${scheme}-18-building-pdf`);
+  await p.locator('.slm-library-row-note', { hasText: 'Saved' }).waitFor({ timeout: 30_000 }).catch(() => {});
+  await shot(p, `library-${scheme}-19-pdf-saved`);
+  await p.close();
+
+  // Records a library has to survive (scripts/visual/saved-seed.mjs).
+  await seedRecords(savedEdgeCases());
+  p = await openPage('saved-library.html', scheme, windowSize);
+  await shot(p, `library-${scheme}-20-edge-cases`);
+  await p.locator('.slm-library-feed').evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await settle(p, 300);
+  await shot(p, `library-${scheme}-21-edge-cases-end`);
+  await p.close();
+
+  // Storage that cannot be read is not an empty library.
+  p = await openPage('saved-library.html', scheme, windowSize, {
+    // The library reads everything (`get(null)`); settings read their own keys and still work.
+    fn: () => {
+      const read = chrome.storage.local.get.bind(chrome.storage.local);
+      chrome.storage.local.get = (keys, ...rest) =>
+        keys === null ? Promise.reject(new Error('storage unavailable')) : read(keys, ...rest);
+    },
+  });
+  await shot(p, `library-${scheme}-22-read-failed`);
   await p.close();
 
   if (scheme === 'light') {
@@ -264,10 +320,71 @@ async function settingsSuite(scheme) {
   }
 }
 
+/**
+ * pdf.html: the small export window the panel opens (420 x 240, src/lib/pdf-export-request.ts),
+ * and a saved answer opened from the library. The export is caught mid-build by stopping the
+ * page from closing itself and photographing it as its status changes.
+ */
+async function pdfSuite(scheme) {
+  const exportWindow = { width: 404, height: 201 };
+  const keepOpen = { fn: () => { window.close = () => {}; } };
+  await seedRecords([savedLongAnswer(), ...savedEdgeCases()]);
+
+  let p = await openPage('pdf.html?mode=download&job=expired-0000', scheme, exportWindow, keepOpen);
+  await shot(p, `pdf-${scheme}-1-export-expired`);
+  await p.close();
+
+  p = await ctx.newPage();
+  await p.setViewportSize(exportWindow);
+  await p.emulateMedia({ colorScheme: scheme });
+  await p.addInitScript(keepOpen.fn);
+  await p.goto(extUrl('pdf.html?mode=download&id=seed-long'), { waitUntil: 'load' });
+  await shot(p, `pdf-${scheme}-2-export-preparing`);
+  await p.locator('.slm-saved-pdf-status', { hasText: 'page' }).waitFor({ timeout: 60_000 }).catch(() => {});
+  await shot(p, `pdf-${scheme}-3-export-rendering`);
+  await p.locator('#app[data-state="done"], #app[data-state="error"]').waitFor({ timeout: 120_000 }).catch(() => {});
+  await shot(p, `pdf-${scheme}-4-export-saved`);
+  await p.close();
+
+  // A build that cannot run: html2canvas needs a frame to render in, and here it gets none.
+  p = await ctx.newPage();
+  await p.setViewportSize(exportWindow);
+  await p.emulateMedia({ colorScheme: scheme });
+  await p.addInitScript(() => {
+    window.close = () => {};
+    const create = Document.prototype.createElement;
+    Document.prototype.createElement = function (tag, ...rest) {
+      if (String(tag).toLowerCase() === 'iframe') throw new Error('frames are blocked');
+      return create.call(this, tag, ...rest);
+    };
+  });
+  await p.goto(extUrl('pdf.html?mode=download&id=edge-ingest'), { waitUntil: 'load' });
+  await p.locator('#app[data-state="error"]').waitFor({ timeout: 30_000 }).catch(() => {});
+  await settle(p, 300);
+  await shot(p, `pdf-${scheme}-5-export-failed`);
+  await p.close();
+
+  // A saved answer opened from the library (820px wide), and one that is no longer there.
+  const viewer = { width: 804, height: 900 };
+  p = await openPage('pdf.html?id=edge-ingest', scheme, viewer);
+  await settle(p, 900);
+  await shot(p, `pdf-${scheme}-6-saved-answer-from-chat`);
+  await p.close();
+  p = await openPage('pdf.html?id=edge-token', scheme, viewer);
+  await settle(p, 900);
+  await shot(p, `pdf-${scheme}-7-saved-answer-long-token`);
+  await p.close();
+  p = await openPage('pdf.html?id=gone', scheme, viewer);
+  await shot(p, `pdf-${scheme}-8-saved-answer-missing`);
+  await p.close();
+  await seedSaved(0);
+}
+
 try {
   for (const scheme of SCHEMES) {
     if (want('settings')) await settingsSuite(scheme);
     if (want('library')) await librarySuite(scheme);
+    if (want('pdf')) await pdfSuite(scheme);
     if (want('popup')) await popupSuite(scheme);
     if (want('welcome')) await welcomeSuite(scheme);
   }

@@ -137,7 +137,9 @@ describe('Claude empty question staging', () => {
     expect(await input.files![0]!.text()).toBe(source);
     expect(claudeAdapter.getEditorText()).toContain('Problem image/PDF is attached');
     expect(claudeAdapter.getEditorText()).not.toContain('The student has not typed a question yet');
-    expect(useStore.getState().status).toBe('loading');
+    // Attached, not sent: nothing is on its way, so the panel neither waits nor opens.
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().panelOpen).toBe(false);
   });
 
   it('preserves a typed question above the pointer and waits for the student to send', async () => {
@@ -149,6 +151,8 @@ describe('Claude empty question staging', () => {
     expect(text.indexOf(question)).toBe(0);
     expect(text.split(question)).toHaveLength(2);
     expect(text.indexOf(STEMLM_SENTINEL)).toBeGreaterThan(question.length);
-    expect(useStore.getState().status).toBe('loading');
+    // Attached, not sent: nothing is on its way, so the panel neither waits nor opens.
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().panelOpen).toBe(false);
   });
 });

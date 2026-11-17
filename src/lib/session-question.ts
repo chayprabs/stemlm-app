@@ -43,6 +43,8 @@ export function repeatsQuestion(topic: string, question: string): boolean {
 
 function stripInjectedNoise(text: string): string {
   const markers = [
+    // The line stemLM writes in place of a question that came as an image, in both its wordings.
+    '(Problem image/PDF is attached',
     '--- stemLM ---',
     '--- stemLM',
     'stemLM instructions',

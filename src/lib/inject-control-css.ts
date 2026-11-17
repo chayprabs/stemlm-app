@@ -1,16 +1,21 @@
 /**
  * The composer control's look, in one place.
  *
- * The control is drawn in two worlds: docked in the chat page's own DOM (inside the composer
- * slot), and, when the composer cannot be found, fixed inside stemLM's shadow root. Each world
- * needs the rules under its own scope, so the stylesheet is generated rather than written twice.
+ * The control lives inside someone else's interface, beside the chat's own attach button, so it
+ * is drawn as that button's neighbour: no surface of its own at rest, the same size, corner and
+ * ink (measured from the button and passed in as custom properties), and the wash every chat uses
+ * for a hovered icon button. What is stemLM's is the glyph: the therefore-mark, not a plus, because
+ * the chat's own plus sits right beside it; the signal colour marks a question stemlm is on for.
  *
- * The control shows the therefore-mark, not a plus: every host already has a plus that opens its
- * own attach menu, and two of them side by side cannot be told apart.
+ * It is drawn in stemLM's shadow root on a chat page and as a crop on the welcome page, so the
+ * rules are generated under a scope rather than written twice.
  */
+import { FONT_SANS } from '@/src/lib/fonts';
+
 export const INJECT_SIGNAL = '#ff6b2c';
 /** The signal as a fill under a white glyph: a shade deeper, so glyph and shape both clear 3:1. */
 export const INJECT_SIGNAL_STRONG = '#f8601f';
+/** Size and corner when no attach button has been measured (the welcome page's crops). */
 export const INJECT_SIZE_PX = 32;
 export const INJECT_RADIUS = '10px';
 
@@ -22,29 +27,29 @@ const DUR_2 = '0.18s';
 const DUR_3 = '0.26s';
 
 /**
- * @param scope selector prefix ending in a space (`'[data-stemlm-composer-slot] '`), or `''`
- * @param schemeSelector how this world marks the host page's light/dark scheme on an ancestor
+ * @param scope selector prefix ending in a space (`'.slm-welcome '`), or `''`
+ * @param schemeSelector how this world marks light or dark on the control or an ancestor
  */
 export function injectControlCss(
   scope: string,
   schemeSelector: (scheme: 'light' | 'dark') => string,
 ): string {
   const s = scope;
-  const light = schemeSelector('light');
   const dark = schemeSelector('dark');
   return `
 ${s}.slm-fab-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
+  height: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
   pointer-events: auto;
+  animation: slm-inject-in ${DUR_2} ${EASE} both;
 }
 ${s}.slm-inject-btn {
-  --slm-inject-ink: #16161a;
-  --slm-inject-surface: rgba(255, 255, 255, 0.96);
-  --slm-inject-line: rgba(22, 22, 26, 0.16);
+  --slm-inject-ink: var(--slm-inject-host-ink, #16161a);
   --slm-inject-signal-ink: #c2410c;
+  --slm-inject-error: #c81e1e;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -52,118 +57,93 @@ ${s}.slm-inject-btn {
   height: var(--slm-inject-size, ${INJECT_SIZE_PX}px);
   padding: 0;
   margin: 0;
-  border: 1px solid var(--slm-inject-line);
-  border-radius: ${INJECT_RADIUS};
-  background: var(--slm-inject-surface);
+  border: 0;
+  border-radius: var(--slm-inject-radius, ${INJECT_RADIUS});
+  background: transparent;
   color: var(--slm-inject-ink);
   cursor: pointer;
   box-sizing: border-box;
-  overflow: visible;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: background ${DUR_2} ${EASE}, border-color ${DUR_2} ${EASE}, box-shadow ${DUR_2} ${EASE},
-    transform ${DUR_1} ${EASE};
+  transition: background-color ${DUR_2} ${EASE}, color ${DUR_2} ${EASE}, transform ${DUR_1} ${EASE};
 }
 ${dark} .slm-inject-btn {
-  --slm-inject-ink: #f2f2f2;
-  --slm-inject-surface: rgba(34, 34, 36, 0.92);
-  --slm-inject-line: rgba(255, 255, 255, 0.16);
+  --slm-inject-ink: var(--slm-inject-host-ink, #f2f2f2);
   --slm-inject-signal-ink: #ff9466;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-${light} .slm-inject-btn {
-  --slm-inject-ink: #16161a;
-  --slm-inject-surface: rgba(255, 255, 255, 0.96);
-  --slm-inject-line: rgba(22, 22, 26, 0.16);
-  --slm-inject-signal-ink: #c2410c;
+  --slm-inject-error: #f87171;
 }
 ${s}.slm-inject-btn:hover {
-  border-color: ${INJECT_SIGNAL};
-  box-shadow: 0 0 0 3px rgba(255, 107, 44, 0.16), 0 1px 2px rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--slm-inject-ink) 9%, transparent);
 }
 ${s}.slm-inject-btn:focus-visible {
   outline: 2px solid var(--slm-inject-ink);
   outline-offset: 2px;
 }
 ${s}.slm-inject-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 ${s}.slm-inject-btn[aria-disabled="true"] {
-  cursor: wait;
+  cursor: progress;
 }
-/* Guide attached: the control is armed and says so. The tick is the signal as ink, which reads
-   on the tinted surface in either scheme. */
+/* stemlm is on for this question: the tick is the signal as ink, on a wash of it. */
 ${s}.slm-inject-btn.is-attached {
-  border-color: ${INJECT_SIGNAL};
-  background: color-mix(in srgb, ${INJECT_SIGNAL} 14%, var(--slm-inject-surface));
+  background: color-mix(in srgb, ${INJECT_SIGNAL} 14%, transparent);
   color: var(--slm-inject-signal-ink);
 }
+${s}.slm-inject-btn.is-attached:hover {
+  background: color-mix(in srgb, ${INJECT_SIGNAL} 22%, transparent);
+}
 /* Panel open: the control is the lit end of the panel. */
-${s}.slm-inject-btn.is-panel-open {
-  border-color: ${INJECT_SIGNAL_STRONG};
+${s}.slm-inject-btn.is-panel-open,
+${s}.slm-inject-btn.is-panel-open:hover {
   background: ${INJECT_SIGNAL_STRONG};
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(255, 107, 44, 0.35);
 }
-${s}.slm-inject-glyph {
+${s}.slm-inject-btn.is-error {
+  background: color-mix(in srgb, var(--slm-inject-error) 12%, transparent);
+  color: var(--slm-inject-error);
+}
+${s}.slm-inject-glyph,
+${s}.slm-inject-spinner {
+  --slm-inject-glyph: clamp(16px, calc(var(--slm-inject-size, ${INJECT_SIZE_PX}px) * 0.5625), 20px);
   position: relative;
   display: block;
-  width: 18px;
-  height: 18px;
+  width: var(--slm-inject-glyph);
+  height: var(--slm-inject-glyph);
+  overflow: visible;
 }
 ${s}.slm-inject-glyph svg {
   position: absolute;
   inset: 0;
-  width: 18px;
-  height: 18px;
+  width: 100%;
+  height: 100%;
   display: block;
   overflow: visible;
+  opacity: 0;
+  transform: scale(0.6);
   transition: opacity ${DUR_2} ${EASE}, transform ${DUR_3} ${EASE};
 }
-${s}.slm-inject-mark {
+${s}.slm-inject-glyph.is-mark .slm-inject-mark,
+${s}.slm-inject-glyph.is-tick .slm-inject-tick,
+${s}.slm-inject-glyph.is-alert .slm-inject-alert {
   opacity: 1;
   transform: scale(1);
 }
-${s}.slm-inject-mark .slm-inject-dot {
+${s}.slm-inject-dot {
   fill: var(--slm-inject-ink);
 }
-${s}.slm-inject-mark .slm-inject-apex {
+${s}.slm-inject-apex {
   fill: ${INJECT_SIGNAL};
+}
+${s}.slm-inject-mark .slm-inject-apex {
   transform-box: fill-box;
   transform-origin: center;
   transition: transform ${DUR_3} ${EASE};
 }
-${s}.slm-inject-btn:hover .slm-inject-apex {
-  transform: translateY(-1px) scale(1.08);
+${s}.slm-inject-btn:hover .slm-inject-mark .slm-inject-apex {
+  transform: translateY(-1px);
 }
-${s}.slm-inject-tick {
-  opacity: 0;
-  transform: scale(0.5) rotate(-18deg);
-}
-${s}.slm-inject-btn.is-attached .slm-inject-mark,
-${s}.slm-inject-btn.is-panel-open .slm-inject-mark {
-  opacity: 0;
-  transform: scale(0.5);
-}
-${s}.slm-inject-btn.is-attached .slm-inject-tick,
-${s}.slm-inject-btn.is-panel-open .slm-inject-tick {
-  opacity: 1;
-  transform: scale(1) rotate(0deg);
-}
-/* Attaching: premise, premise, conclusion, in turn. */
-${s}.slm-inject-spinner {
-  width: 18px;
-  height: 18px;
-  display: block;
-  overflow: visible;
-}
-${s}.slm-inject-spinner .slm-inject-dot {
-  fill: var(--slm-inject-ink);
-}
-${s}.slm-inject-spinner .slm-inject-apex {
-  fill: ${INJECT_SIGNAL};
-}
+/* At work: premise, premise, conclusion, in turn. The one loop. */
 ${s}.slm-inject-spinner .slm-inject-dot,
 ${s}.slm-inject-spinner .slm-inject-apex {
   transform-box: fill-box;
@@ -176,6 +156,46 @@ ${s}.slm-inject-spinner .slm-inject-dot + .slm-inject-dot {
 ${s}.slm-inject-spinner .slm-inject-apex {
   animation-delay: 0.32s;
 }
+/* What the control does, said beside it: on hover after a beat, at once on focus or after a press. */
+${s}.slm-inject-tip {
+  --slm-inject-tip-bg: #16161a;
+  --slm-inject-tip-fg: #ffffff;
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: var(--slm-inject-tip-bg);
+  color: var(--slm-inject-tip-fg);
+  font: 500 12px/1.4 ${FONT_SANS};
+  letter-spacing: 0;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity ${DUR_1} ${EASE}, transform ${DUR_1} ${EASE};
+}
+${dark} .slm-inject-tip {
+  --slm-inject-tip-bg: #f2f2f2;
+  --slm-inject-tip-fg: #16161a;
+}
+${s}.slm-fab-wrap[data-tip="below"] .slm-inject-tip {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+${s}.slm-inject-btn:hover + .slm-inject-tip {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.4s;
+}
+${s}.slm-inject-btn:focus-visible + .slm-inject-tip,
+${s}.slm-inject-tip.is-open {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
 ${s}.slm-inject-live {
   position: absolute;
   width: 1px;
@@ -187,6 +207,9 @@ ${s}.slm-inject-live {
   white-space: nowrap;
   border: 0;
 }
+@keyframes slm-inject-in {
+  from { opacity: 0; }
+}
 @keyframes slm-inject-think {
   0%, 60%, 100% { transform: translateY(0); opacity: 1; }
   30% { transform: translateY(-2.5px); opacity: 0.55; }
@@ -194,13 +217,15 @@ ${s}.slm-inject-live {
 @media (prefers-reduced-motion: reduce) {
   ${s}.slm-inject-btn,
   ${s}.slm-inject-glyph svg,
+  ${s}.slm-inject-tip,
   ${s}.slm-inject-mark .slm-inject-apex {
     transition: none !important;
   }
   ${s}.slm-inject-btn:active,
-  ${s}.slm-inject-btn:hover .slm-inject-apex {
+  ${s}.slm-inject-btn:hover .slm-inject-mark .slm-inject-apex {
     transform: none;
   }
+  ${s}.slm-fab-wrap,
   ${s}.slm-inject-spinner .slm-inject-dot,
   ${s}.slm-inject-spinner .slm-inject-apex {
     animation: none;

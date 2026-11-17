@@ -1,12 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="slm-saved-pdf-html">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>stemlm</title>
+    <style>
+      html.slm-saved-pdf-html {
+        background: #fbfbfa;
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        html.slm-saved-pdf-html:not([data-stemlm-theme='light']) {
+          background: #151515;
+          color-scheme: dark;
+        }
+      }
+      html.slm-saved-pdf-html[data-stemlm-theme='dark'] {
+        background: #151515;
+        color-scheme: dark;
+      }
+      html.slm-saved-pdf-html[data-stemlm-theme='light'] {
+        background: #fbfbfa;
+        color-scheme: light;
+      }
+    </style>
     <link rel="icon" type="image/png" sizes="32x32" href="/icon/32.png" />
   </head>
-  <body data-stemlm-theme="light" class="slm-page slm-saved-pdf-page">
+  <body class="slm-page slm-saved-pdf-page">
     <main class="slm-saved-pdf-card" id="app" role="status" aria-live="polite">
       <p class="slm-saved-pdf-title">stemlm</p>
       <p class="slm-saved-pdf-status">Preparing the report…</p>

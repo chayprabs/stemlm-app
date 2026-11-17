@@ -21,6 +21,10 @@ export function EmptyState() {
   const [busy, setBusy] = useState(false);
   // The banner above already explains an unreadable answer; do not also offer it as loadable.
   const failed = useStore((s) => s.status === 'error');
+  // A guide waiting in the chat box to be sent puts its own name on the page, which reads as an
+  // earlier stemlm turn. Until that question is asked there is no answer of its own to load.
+  const drafting = useStore((s) => s.buttonInjected);
+  const explained = useStore((s) => Boolean(s.errorMessage));
   const theme = useStore((s) => s.theme);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export function EmptyState() {
         <StemMark size={40} variant={themeToBrandVariant(theme)} />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
-      {loadable === 'capsules' && !failed ? (
+      {loadable === 'capsules' && !failed && !drafting ? (
         <>
           <p className="slm-empty-text">
             This chat has stemlm answers that aren't loaded yet.
@@ -90,8 +94,10 @@ export function EmptyState() {
         </>
       )}
       {status === 'none' && (
-        <p className="slm-empty-hint">
-          The response could not be loaded. See the message above for details.
+        <p className="slm-empty-hint" role="status">
+          {/* Only point at the status line when there is one to read. */}
+          The response could not be loaded.{' '}
+          {explained ? 'See the message above for details.' : 'Ask the question again with the stemlm button.'}
         </p>
       )}
     </div>

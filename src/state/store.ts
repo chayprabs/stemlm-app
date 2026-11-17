@@ -15,6 +15,9 @@ import { DEFAULT_SETTINGS, type Settings } from '@/src/lib/settings';
 import { clampSplitRatio } from '@/src/lib/split-ratio';
 
 export type PanelStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** The status line after a question is removed from the strip; Undo is offered beside it. */
+export const REMOVED_NOTICE = 'Question removed from the panel.';
 export type PanelView = 'steps' | 'solution';
 
 export interface StoreState {
@@ -34,12 +37,20 @@ export interface StoreState {
   splitRatio: number;
   /** True while the user is dragging the resize handle. */
   splitDragging: boolean;
+  /** Width in px that the chat site's own sidebar shows beside the open panel (its rail, when folded); not kept up while the panel is closed. */
+  hostSidebarPx: number;
 
   // Data
   sessions: Session[];
   activeSessionId?: string;
   /** Index into the flattened rail entries (steps + inline follow-up answers). */
   activeStepIndex: number;
+  /**
+   * The question last removed from the strip. While the status line still reads REMOVED_NOTICE
+   * it offers to put this back. Not kept when sessions are shared across tabs: a removal is
+   * broadcast there and cannot be taken back (src/lib/session-sync.ts).
+   */
+  removed?: { session: Session; index: number };
 
   // Actions
   openPanel: () => void;
@@ -56,6 +67,8 @@ export interface StoreState {
   addSession: (session: Session) => void;
   /** Drop a session from the question strip. */
   removeSession: (id: string) => void;
+  /** Undo the last `removeSession`: the question returns to its place and opens. */
+  restoreRemoved: () => void;
   /** Attach an Ask-in-chat answer inline after its anchor step and focus it. */
   addFollowup: (sessionId: string, followup: StepFollowup) => void;
   /** Replace all sessions (used by "Load conversation"). */
@@ -76,6 +89,7 @@ export const useStore = create<StoreState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   splitRatio: DEFAULT_SETTINGS.splitRatio,
   splitDragging: false,
+  hostSidebarPx: 0,
   sessions: [],
   activeStepIndex: 0,
 
@@ -103,8 +117,14 @@ export const useStore = create<StoreState>((set, get) => ({
   removeSession: (id) =>
     set((s) => {
       const idx = s.sessions.findIndex((sess) => sess.id === id);
-      if (idx < 0) return s;
+      const session = s.sessions[idx];
+      if (!session) return s;
       const sessions = s.sessions.filter((sess) => sess.id !== id);
+      // The remove control sits on every chip, a click away from switching to it: say what
+      // happened and keep the question so the status line can put it back.
+      const undo = s.settings.shareAcrossTabs
+        ? {}
+        : { removed: { session, index: idx }, errorMessage: REMOVED_NOTICE };
       if (sessions.length === 0) {
         return {
           sessions,
@@ -112,10 +132,13 @@ export const useStore = create<StoreState>((set, get) => ({
           activeStepIndex: 0,
           status: 'idle' as const,
           errorMessage: undefined,
+          ...undo,
         };
       }
+      // A notice is not an error: it takes the place of one that was showing.
+      const status = s.status === 'error' && 'removed' in undo ? ('ready' as const) : s.status;
       if (s.activeSessionId !== id) {
-        return { sessions };
+        return { sessions, status, ...undo };
       }
       const neighbor = sessions[Math.min(idx, sessions.length - 1)];
       return {
@@ -123,6 +146,26 @@ export const useStore = create<StoreState>((set, get) => ({
         activeSessionId: neighbor?.id,
         activeStepIndex: 0,
         view: s.settings.defaultView,
+        status,
+        errorMessage: undefined,
+        ...undo,
+      };
+    }),
+
+  restoreRemoved: () =>
+    set((s) => {
+      const removed = s.removed;
+      if (!removed) return s;
+      if (s.sessions.some((sess) => sess.id === removed.session.id)) return { removed: undefined };
+      const sessions = [...s.sessions];
+      sessions.splice(Math.min(removed.index, sessions.length), 0, removed.session);
+      return {
+        sessions,
+        removed: undefined,
+        activeSessionId: removed.session.id,
+        activeStepIndex: 0,
+        view: s.settings.defaultView,
+        status: s.status === 'loading' ? ('loading' as const) : ('ready' as const),
         errorMessage: undefined,
       };
     }),

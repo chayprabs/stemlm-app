@@ -5,10 +5,9 @@
  * Fragile, frequently-changing bits live in each host's config file.
  */
 import type { AdapterConfig, PlatformAdapter } from './types';
-import { COMPOSER_SLOT_SELECTOR } from '@/src/lib/composer-slot';
 import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
 import { normalizeComposerText, readComposerText } from '@/src/lib/composer-text';
-import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
+import { STUDY_GUIDE_END, STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
 import { isCapsuleEndLine } from '@/src/protocol/capsule-boundary';
 
 const STEMLM_CODE_SELECTORS = [
@@ -150,12 +149,6 @@ function userQuestionBefore(block: Element, turnSelectors: string[], textSelecto
   return (text || typedText(nearest)).slice(0, USER_QUESTION_MAX_CHARS);
 }
 
-function outsideComposerSlot(el: HTMLElement | null): HTMLElement | null {
-  if (!el?.isConnected) return null;
-  if (el.closest(COMPOSER_SLOT_SELECTOR)) return null;
-  return el;
-}
-
 function isHiddenComposerNode(el: HTMLElement): boolean {
   if (el.hidden) return true;
   if (el.getAttribute('aria-hidden') === 'true') return true;
@@ -175,21 +168,7 @@ function isHiddenComposerNode(el: HTMLElement): boolean {
 
 /** Prefer the actual host + / attach control, never an inner SVG/icon. */
 function climbToHostControl(el: HTMLElement): HTMLElement {
-  const control = el.closest('button, [role="button"], [aria-haspopup]') as HTMLElement | null;
-  if (control && !control.closest(COMPOSER_SLOT_SELECTOR)) return control;
-  return el;
-}
-
-function sharesComposer(el: HTMLElement, editor: HTMLElement | null, shell: HTMLElement | null): boolean {
-  if (shell?.contains(el)) return true;
-  if (!editor) return true;
-  if (shell?.contains(editor) && shell.contains(el)) return true;
-  let node: HTMLElement | null = editor;
-  for (let i = 0; i < 8 && node && node !== document.body; i++) {
-    if (node.contains(el)) return true;
-    node = node.parentElement;
-  }
-  return false;
+  return (el.closest('button, [role="button"], [aria-haspopup]') as HTMLElement | null) ?? el;
 }
 
 function hasBox(el: HTMLElement): boolean {
@@ -198,23 +177,18 @@ function hasBox(el: HTMLElement): boolean {
 }
 
 /**
- * First match that is not inside the stemLM inject slot (avoids our own button). Among the matches
- * of one selector a laid-out one wins: after an in-app new chat ChatGPT keeps the old thread's
- * composer in the DOM at zero size, ahead of the live one.
+ * First shown match, optionally skipping some. Among the matches of one selector a laid-out one
+ * wins: after an in-app new chat ChatGPT keeps the old thread's composer in the DOM at zero size,
+ * ahead of the live one.
  */
-function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document): HTMLElement | null {
+function firstShownMatch(selectors: string[], skip?: (el: HTMLElement) => boolean): HTMLElement | null {
   for (const sel of selectors) {
     try {
-      if (root instanceof HTMLElement && root.matches(sel)) {
-        const hit = outsideComposerSlot(root);
-        if (hit && !isHiddenComposerNode(hit)) return hit;
-      }
       let first: HTMLElement | null = null;
-      for (const el of root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`)) {
-        const hit = outsideComposerSlot(el);
-        if (!hit || isHiddenComposerNode(hit)) continue;
-        if (hasBox(hit)) return hit;
-        first ??= hit;
+      for (const el of document.querySelectorAll<HTMLElement>(sel)) {
+        if (isHiddenComposerNode(el) || skip?.(el)) continue;
+        if (hasBox(el)) return el;
+        first ??= el;
       }
       if (first) return first;
     } catch {
@@ -223,6 +197,11 @@ function firstMatchOutsideSlot(selectors: string[], root: ParentNode = document)
   }
   return null;
 }
+
+/** Page-level containers: never a composer's own box. */
+const PAGE_TAGS = new Set(['BODY', 'HTML', 'MAIN']);
+/** A field in a dialog is a setting or an instruction, not the chat's composer. */
+const DIALOG_SELECTOR = '[role="dialog"], dialog, [aria-modal="true"]';
 
 /**
  * Select `range` and tell the editor now. Chrome queues `selectionchange`, and ProseMirror pastes at
@@ -248,21 +227,10 @@ function selectContents(el: HTMLElement, caret?: 'start' | 'end'): void {
 /** True when the editor visibly contains the text we tried to write. */
 export function editorReflectsText(el: HTMLElement, expected: string): boolean {
   const got = getEditorTextOf(el);
-  if (expected.includes('stemLM instructions')) {
-    return got.includes('stemLM instructions') && got.includes('OUTPUT:');
-  }
-  if (expected.includes('stemLM follow-up context')) {
-    return (
-      got.includes('stemLM follow-up context') &&
-      (got.includes('stemlm-protocol.txt') || got.includes('Follow the attached'))
-    );
-  }
-  if (expected.includes(STUDY_GUIDE_REFERENCE)) {
-    return got.includes(STUDY_GUIDE_REFERENCE);
-  }
-  if (expected.includes('stemlm-protocol.txt') || expected.includes('Follow the attached')) {
-    return got.includes('stemlm-protocol.txt') || got.includes('Follow the attached');
-  }
+  // A guide pasted as text has arrived only when its last line has.
+  if (expected.includes(STUDY_GUIDE_END)) return got.includes(STUDY_GUIDE_END);
+  if (expected.includes('stemLM follow-up context')) return got.includes('stemLM follow-up context');
+  if (expected.includes(STUDY_GUIDE_REFERENCE)) return got.includes(STUDY_GUIDE_REFERENCE);
   const probe = expected.trim().slice(0, 48);
   return probe.length > 0 && got.includes(probe);
 }
@@ -499,86 +467,26 @@ const GENERIC_LAYOUT_ROOTS = ['#__next', '#root', '#app', 'main', '[role="main"]
 const TRAILING_COMPOSER_LABEL =
   /send|submit|stop|think|voice|microphone|\bmic\b|audio|dictate|speech|search|fast|model|reason|upgrade|dismiss/i;
 const LEADING_COMPOSER_LABEL = /add |attach|upload|file|photo|plus|composer-plus|composer menu/i;
-const OPEN_LEADING_ROOTS = new Set(['BODY', 'HTML']);
-
-function leadingSearchRoots(shell: HTMLElement | null, editor: HTMLElement | null): ParentNode[] {
-  const roots: ParentNode[] = [];
-  const seen = new Set<ParentNode>();
-  const add = (node: ParentNode | null | undefined) => {
-    if (!node || seen.has(node)) return;
-    if (node instanceof HTMLElement && OPEN_LEADING_ROOTS.has(node.tagName)) return;
-    seen.add(node);
-    roots.push(node);
-  };
-  add(shell);
-  add(editor?.parentElement?.parentElement);
-  add(editor?.parentElement);
-  add(shell?.parentElement);
-  return roots;
-}
-
-function hopsUntilContains(from: HTMLElement, target: HTMLElement): number {
-  let hops = 0;
-  let node: HTMLElement | null = from;
-  while (node && hops < 24) {
-    if (node.contains(target)) return hops;
-    node = node.parentElement;
-    hops++;
-  }
-  return 99;
-}
-
-function leadingTieBreak(el: HTMLElement): number {
-  const testid = (el.getAttribute('data-testid') ?? '').toLowerCase();
-  if (testid.includes('composer-plus')) return -0.25;
-  if (el.getAttribute('aria-haspopup')) return -0.1;
-  return 0;
-}
-
-function pickClosestToEditor(hits: HTMLElement[], editor: HTMLElement | null): HTMLElement | null {
-  if (!hits.length) return null;
-  if (!editor || hits.length === 1) return hits[0] ?? null;
-  let best = hits[0]!;
-  let bestScore = hopsUntilContains(editor, best) + leadingTieBreak(best);
-  for (const hit of hits.slice(1)) {
-    const score = hopsUntilContains(editor, hit) + leadingTieBreak(hit);
-    if (score < bestScore) {
-      best = hit;
-      bestScore = score;
-    }
-  }
-  return best;
-}
-
-function collectLeadingHits(
-  selectors: string[],
-  roots: ParentNode[],
-  editor: HTMLElement | null,
-  shell: HTMLElement | null,
-): HTMLElement[] {
-  const hits: HTMLElement[] = [];
-  const seen = new Set<HTMLElement>();
-  for (const root of roots) {
+/**
+ * The attach button nearest the editor: its own row first, then each wrapper outwards. Within one
+ * wrapper the adapter's order decides (test ids and structure before labels), so a chip labelled
+ * like the button never wins over the button itself.
+ */
+function nearestLeading(editor: HTMLElement, selectors: string[]): HTMLElement | null {
+  let node = editor.parentElement;
+  for (let hops = 0; node && !PAGE_TAGS.has(node.tagName) && hops < 12; hops++, node = node.parentElement) {
     for (const sel of selectors) {
       try {
-        const list: HTMLElement[] = [];
-        if (root instanceof HTMLElement && root.matches(sel)) list.push(root);
-        root.querySelectorAll<HTMLElement>(`:scope ${sel}, ${sel}`).forEach((el) => list.push(el));
-        for (const el of list) {
-          const hit = outsideComposerSlot(el);
-          if (!hit || isHiddenComposerNode(hit)) continue;
-          const control = climbToHostControl(hit);
-          if (seen.has(control) || isHiddenComposerNode(control)) continue;
-          if (!sharesComposer(control, editor, shell)) continue;
-          seen.add(control);
-          hits.push(control);
+        for (const el of node.querySelectorAll<HTMLElement>(sel)) {
+          const control = climbToHostControl(el);
+          if (!isHiddenComposerNode(control)) return control;
         }
       } catch {
         /* invalid selector */
       }
     }
   }
-  return hits;
+  return null;
 }
 
 /** Last-resort: first non-trailing button in the composer (usually the host +). */
@@ -586,9 +494,8 @@ function guessLeadingComposerButton(root: HTMLElement): HTMLElement | null {
   const buttons = root.querySelectorAll<HTMLElement>('button, [role="button"]');
   let fallback: HTMLElement | null = null;
   for (const raw of buttons) {
-    const hit = outsideComposerSlot(raw);
-    if (!hit || isHiddenComposerNode(hit)) continue;
-    const control = climbToHostControl(hit);
+    if (isHiddenComposerNode(raw)) continue;
+    const control = climbToHostControl(raw);
     const label = `${control.getAttribute('aria-label') ?? ''} ${control.getAttribute('title') ?? ''} ${control.getAttribute('data-testid') ?? ''}`;
     if (LEADING_COMPOSER_LABEL.test(label)) return control;
     if (TRAILING_COMPOSER_LABEL.test(label)) continue;
@@ -601,12 +508,44 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
   const withoutCitations = (text: string) =>
     (config.citationMarkers ?? []).reduce((out, marker) => out.replace(marker, ''), text);
 
+  const turns = [...(config.userMessage ?? []), ...USER_TURN_FALLBACKS, ...config.assistant].join(', ');
+  /** An earlier message opened for editing, or a field in a dialog: an editor, but not the composer. */
+  const notTheComposer = (el: HTMLElement) => {
+    try {
+      return el.closest(`${DIALOG_SELECTOR}, ${turns}`) !== null;
+    } catch {
+      return false;
+    }
+  };
+  /**
+   * The composer around one of its own nodes: the wrappers that are still its card, up to whatever
+   * holds the messages, is the page, or is much taller than what came before.
+   */
+  const composerAround = (start: HTMLElement): HTMLElement => {
+    let inner = start.getBoundingClientRect();
+    // A `display: contents` wrapper has no box: measure from the first one that does.
+    for (let node = start.parentElement; node && !inner.width && !inner.height; node = node.parentElement) {
+      inner = node.getBoundingClientRect();
+    }
+    let root = start;
+    for (let parent = root.parentElement; parent && !PAGE_TAGS.has(parent.tagName); parent = parent.parentElement) {
+      const r = parent.getBoundingClientRect();
+      let turnsInside = false;
+      try {
+        turnsInside = parent.querySelector(turns) !== null;
+      } catch {
+        /* an adapter selector this page cannot parse */
+      }
+      if (turnsInside || r.height > inner.height + 200) break;
+      root = parent;
+    }
+    return root;
+  };
+
   return {
     id: config.id,
     label: config.label,
     brand: config.brand,
-    composerDock: config.composerDock ?? 'before-plus',
-    insideDock: config.insideDock ?? 'insert',
     fileInput: config.fileInput,
     additiveFileInput: config.additiveFileInput ?? false,
     layoutRoots: [...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS],
@@ -616,7 +555,12 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     findEditor() {
-      return firstMatchOutsideSlot(config.editor);
+      return firstShownMatch(config.editor, notTheComposer);
+    },
+
+    acceptsFiles() {
+      const editor = this.findEditor();
+      return !editor || !(config.noFileEditor ?? []).some((sel) => editor.matches(sel));
     },
 
     getEditorText() {
@@ -688,35 +632,27 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     getComposerLeadingAnchor() {
-      const shell = this.getComposerShell();
       const editor = this.findEditor();
-      if (config.composerLeading) {
-        const local = collectLeadingHits(
-          config.composerLeading,
-          leadingSearchRoots(shell, editor),
-          editor,
-          shell,
-        );
-        const localBest = pickClosestToEditor(local, editor);
-        if (localBest) return localBest;
-        const global = collectLeadingHits(config.composerLeading, [document], editor, shell);
-        const globalBest = pickClosestToEditor(global, editor);
-        if (globalBest) return globalBest;
-      }
-      const guessRoot =
-        shell ??
-        (editor?.closest('form, fieldset, [role="form"]') as HTMLElement | null) ??
-        editor?.parentElement ??
-        null;
-      if (guessRoot) {
-        const guess = guessLeadingComposerButton(guessRoot);
-        if (guess && sharesComposer(guess, editor, shell)) return guess;
-      }
-      return null;
+      if (!editor?.parentElement) return null;
+      const named = nearestLeading(editor, config.composerLeading ?? []);
+      if (named) return named;
+      // An unlabelled or translated button: the first control of the composer that is not a
+      // send, voice or model control. On all four hosts the attach button leads the composer.
+      return guessLeadingComposerButton(composerAround(editor.parentElement));
+    },
+
+    getComposerRoot() {
+      const editor = this.findEditor();
+      const leading = this.getComposerLeadingAnchor();
+      let shared = editor?.parentElement ?? null;
+      while (shared && !PAGE_TAGS.has(shared.tagName) && !(leading && shared.contains(leading))) shared = shared.parentElement;
+      // The two often share only a row inside the composer's card (file chips sit above it, a
+      // row of options under it): the composer is that card.
+      return shared && leading && !PAGE_TAGS.has(shared.tagName) ? composerAround(shared) : null;
     },
 
     getComposerShell() {
-      const shell = config.composerShell ? firstMatchOutsideSlot(config.composerShell) : null;
+      const shell = config.composerShell ? firstShownMatch(config.composerShell) : null;
       if (shell && !isHiddenComposerNode(shell)) return shell;
       const editor = this.findEditor();
       if (!editor) return null;

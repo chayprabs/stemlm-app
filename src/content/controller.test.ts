@@ -12,6 +12,7 @@ import type { PlatformAdapter } from '@/src/platforms/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { buildLongStepCapsule, TEN_STEP_ELECTRICAL } from '@/src/protocol/__fixtures-long-steps';
 import { parseCapsule } from '@/src/protocol/parser';
+import { GUIDE_MAX_CHARS } from '@/src/protocol/protocol';
 import { SOLUTION_ANCHOR_ID } from '@/src/lib/step-entries';
 
 const CAPSULE_BODY = FENCED_ELECTRICAL
@@ -175,36 +176,39 @@ describe('production protocol delivery', () => {
     controller.stopWatching();
   });
 
-  it('keeps the student draft untouched when automatic file delivery fails', async () => {
+  // Live Grok 2026-09-27 (signed out): the host answered each upload with "Sign in to upload files".
+  // The question must still go through: the guide goes into the message as text, and stemlm says so.
+  it('puts the guide into the message as text when the chat takes no upload, and says so (UX-ERR-04)', async () => {
     vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
     const adapter = new MockAdapter();
     adapter.editorText = 'Explain the conservation of momentum.';
     const controller = initController(adapter);
-    expect(await controller.inject()).toBe(false);
-    expect(adapter.editorText).toBe('Explain the conservation of momentum.');
-    expect(adapter.inserted).toBe('');
-    expect(useStore.getState().buttonInjected).toBe(false);
-    expect(useStore.getState().errorMessage).toMatch(/attach|upload/i);
+    expect(await controller.inject()).toBe(true);
+    expect(adapter.editorText.startsWith(`Explain the conservation of momentum.\n\n${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(adapter.editorText.endsWith('End of the stemLM study guide.')).toBe(true);
+    expect(adapter.editorText.length).toBeLessThan(4_000);
+    expect(adapter.editorText).not.toContain(PROTOCOL_FILENAME);
+    expect(useStore.getState().buttonInjected).toBe(true);
+    // Attached, not sent: the panel does not wait for an answer yet, and does not open.
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().panelOpen).toBe(false);
+    expect(useStore.getState().errorMessage).toBe('This chat did not take a file, so the guide is in your message as text.');
     controller.stopWatching();
   });
 
-  // Live Grok 2026-09-27 (signed out): the host answered each upload with "Sign in to upload files"
-  // while stemlm told the student to wait for uploads to finish.
-  it('says the chat may need a sign-in before it accepts the guide file (UX-ERR-04)', async () => {
+  it('reports it when the upload fails and the guide cannot be written into the chat box either', async () => {
     vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
     const adapter = new MockAdapter();
     adapter.editorText = 'Explain the conservation of momentum.';
+    adapter.insertOk = false;
     const controller = initController(adapter);
     expect(await controller.inject()).toBe(false);
-    const injectMessage = useStore.getState().errorMessage ?? '';
-    expect(await controller.followUp('Momentum is conserved', 'Conserve momentum', 'Physics', { intent: 'ask' })).toBe(false);
-    const followUpMessage = useStore.getState().errorMessage ?? '';
-    console.log('ATTACH_FAIL', JSON.stringify({ injectMessage, followUpMessage }));
-    for (const message of [injectMessage, followUpMessage]) {
-      expect(message).toMatch(/sign in/i);
-      expect(message).toMatch(/upload/i);
-      expect(message).toMatch(/unchanged/i);
-    }
+    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toMatch(/Could not add the stemlm study guide/);
+    // A press of the stemlm button never opens the panel: the button itself shows the failure.
+    expect(useStore.getState().panelOpen).toBe(false);
+    expect(controller.takeAttachNotice()).toMatchObject({ tone: 'error' });
+    expect(useStore.getState().buttonInjected).toBe(false);
     controller.stopWatching();
   });
 
@@ -219,25 +223,27 @@ describe('production protocol delivery', () => {
     controller.stopWatching();
   });
 
-  it('does not paste the protocol into an Ask-in-chat draft after upload failure', async () => {
+  it('writes an Ask-in-chat follow-up without uploading anything, so no upload can block it', async () => {
+    vi.mocked(attachTextFile).mockClear();
     vi.mocked(attachTextFile).mockResolvedValue({ ok: false, method: 'none' });
     const adapter = new MockAdapter();
-    adapter.editorText = 'An unfinished student question';
     const controller = initController(adapter);
-    expect(await controller.followUp('Momentum is conserved', 'Conserve momentum', 'Physics', { intent: 'ask' })).toBe(false);
-    expect(adapter.editorText).toBe('An unfinished student question');
-    expect(adapter.inserted).toBe('');
+    expect(await controller.followUp('Momentum is conserved', 'Conserve momentum', 'Physics', { intent: 'ask' })).toBe(true);
+    expect(attachTextFile).not.toHaveBeenCalled();
+    expect(adapter.editorText).toMatch(/^Ask your question here:/);
+    expect(adapter.editorText).toContain('> Momentum is conserved');
+    expect(adapter.editorText).toContain('@meta\nmode: resolve\n@endmeta');
+    expect(adapter.editorText).not.toContain(PROTOCOL_FILENAME);
     controller.stopWatching();
   });
 
-  it.each(['inject', 'followUp'] as const)('cancels %s when the draft changes during attachment', async (action) => {
+  it('cancels inject when the draft changes during attachment', async () => {
     let finish!: (result: { ok: boolean; method: 'input' }) => void;
     vi.mocked(attachTextFile).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
     const adapter = new MockAdapter();
     adapter.editorText = 'Original draft';
     const controller = initController(adapter);
-    const pending = action === 'inject' ? controller.inject()
-      : controller.followUp('Original step context', 'Step', 'Physics', { intent: 'ask' });
+    const pending = controller.inject();
     adapter.editorText = 'Newer student draft';
     finish({ ok: true, method: 'input' });
     expect(await pending).toBe(false);
@@ -307,14 +313,13 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(attachTextFile).toHaveBeenCalledWith(
-      expect.stringMatching(/ELECTRICAL[\s\S]*PHYSICS|PHYSICS[\s\S]*ELECTRICAL/),
+      expect.stringContaining('End of the stemLM study guide.'),
       expect.objectContaining({ filename: PROTOCOL_FILENAME, preserveExisting: false }),
     );
     expect(adapter.editorText).toContain('Solve this circuit');
     expect(adapter.editorText).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.editorText).toContain(STEMLM_SENTINEL);
-    expect(adapter.editorText).toContain('Follow the attached');
-    expect(adapter.editorText).toContain('Infer the subject from the problem');
+    expect(adapter.editorText).toContain('The attached stemLM study guide has the rest');
     expect(adapter.editorText.indexOf('Solve this circuit')).toBeLessThan(
       adapter.editorText.indexOf(STEMLM_SENTINEL),
     );
@@ -325,7 +330,8 @@ describe('StemController.inject', () => {
     expect(adapter.inserted).toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.inserted).not.toContain('Solve this circuit');
     expect(useStore.getState().buttonInjected).toBe(true);
-    expect(useStore.getState().status).toBe('loading');
+    // Attached, not sent: nothing is loading yet.
+    expect(useStore.getState().status).toBe('idle');
     c.stopWatching();
   });
 
@@ -362,7 +368,7 @@ describe('StemController.inject', () => {
     c.stopWatching();
   });
 
-  it('attaches a universal protocol file so every subject is available', async () => {
+  it('attaches the guide for the question\'s own subject, with the keys of every other figure type', async () => {
     const question = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     const adapter = new MockAdapter();
     adapter.editorText = question;
@@ -370,21 +376,13 @@ describe('StemController.inject', () => {
 
     const ok = await c.inject();
     expect(ok).toBe(true);
-    expect(attachTextFile).toHaveBeenCalledWith(
-      expect.stringContaining('ELECTRICAL'),
-      expect.any(Object),
-    );
     const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
-    expect(file).toContain('PHYSICS');
-    expect(file).toContain('CHEMISTRY');
-    expect(file).toContain('MATH');
-    expect(file).toContain('BIOLOGY');
-    expect(file).toContain('MECHANICAL');
-    expect(file).toContain('CIVIL');
-    expect(file).toContain('CHEMICAL');
-    expect(file).not.toContain('PHYSICS: subject=');
-    expect(adapter.inserted).not.toContain('(Electrical)');
-    expect(adapter.inserted).toContain('Infer the subject from the problem');
+    expect(file).toContain('COMMON MISTAKES IN ELECTRICAL');
+    expect(file).toContain('@diagram type=circuit');
+    expect(file).not.toContain('@diagram type=gel');
+    expect(file).toMatch(/^type=gel: /m);
+    expect(file.length).toBeLessThanOrEqual(GUIDE_MAX_CHARS);
+    expect(adapter.inserted).not.toContain('Electrical');
     c.stopWatching();
   });
 
@@ -397,12 +395,11 @@ describe('StemController.inject', () => {
     const ok = await c.inject();
     expect(ok).toBe(true);
     expect(adapter.editorText).toContain('Solve this circuit');
-    expect(adapter.editorText).toContain('OUTPUT:');
+    expect(adapter.editorText).toContain(STEMLM_SENTINEL);
     expect(adapter.editorText).toContain('@meta');
-    expect(adapter.editorText).toContain('Electrical');
-    expect(adapter.editorText).toContain('stemLM instructions');
-    expect(adapter.editorText).not.toContain('DIAGRAM REGISTRY');
-    expect(adapter.editorText).not.toContain('anatomy\tleftover');
+    expect(adapter.editorText).toContain('@diagram type=circuit');
+    expect(adapter.editorText.endsWith('End of the stemLM study guide.')).toBe(true);
+    expect(adapter.inserted.length).toBeLessThan(4_000);
     expect(adapter.inserted).not.toContain(PROTOCOL_FILENAME);
     c.stopWatching();
   });
@@ -474,10 +471,9 @@ describe('StemController.inject', () => {
     c.resetInjection();
     adapter.editorText = `Another projectile question\n${adapter.editorText}`;
     expect(await c.inject()).toBe(true);
-    expect(adapter.inserted).toContain('New problem');
-    expect(adapter.inserted).toContain(STEMLM_SENTINEL);
-    expect(adapter.inserted).not.toContain('OUTPUT:');
-    expect(adapter.inserted).not.toContain('@meta');
+    expect(adapter.inserted.startsWith(STEMLM_SENTINEL)).toBe(true);
+    expect(adapter.inserted).toContain(STUDY_GUIDE_REFERENCE);
+    expect(adapter.inserted.length).toBeLessThan(400);
     expect(adapter.editorText).toContain('Another projectile question');
     c.stopWatching();
   });
@@ -495,13 +491,14 @@ describe('StemController.inject', () => {
     adapter.findEditor = () => document.getElementById('ed');
     adapter.editorText = 'A new kinematics question on the same chat';
     const c = new StemController(adapter);
+    vi.mocked(attachTextFile).mockClear();
 
     expect(await c.inject()).toBe(true);
-    expect(adapter.inserted).toContain('New problem');
-    expect(adapter.inserted).toContain(STEMLM_SENTINEL);
-    expect(adapter.inserted).not.toContain('textbook-style solution');
-    expect(adapter.inserted).not.toContain('OUTPUT:');
-    expect(adapter.inserted).not.toContain('@meta');
+    // The chat already has the guide for this subject: only the reminder goes, and nothing is uploaded.
+    expect(attachTextFile).not.toHaveBeenCalled();
+    expect(adapter.inserted.startsWith(STEMLM_SENTINEL)).toBe(true);
+    expect(adapter.inserted).toContain('The stemLM study guide earlier in this chat has the rest.');
+    expect(adapter.inserted.length).toBeLessThan(400);
     expect(adapter.editorText).toContain('A new kinematics question');
     expect(adapter.editorText.indexOf('A new kinematics question')).toBeLessThan(
       adapter.editorText.indexOf(STEMLM_SENTINEL),
@@ -517,8 +514,8 @@ describe('StemController.inject', () => {
     expect(useStore.getState().buttonInjected).toBe(true);
     adapter.editorText = `A different kinematics question\n${adapter.editorText}`;
     expect(await c.inject()).toBe(true);
-    expect(adapter.inserted).toContain('New problem');
-    expect(adapter.inserted).not.toContain('OUTPUT:');
+    expect(adapter.inserted.startsWith(STEMLM_SENTINEL)).toBe(true);
+    expect(adapter.inserted.length).toBeLessThan(400);
     c.stopWatching();
   });
 
@@ -618,6 +615,10 @@ describe('StemController.followUp', () => {
     adapter.editorText = 'Solve this circuit';
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(true);
+    // The student sends: the chat box empties and the reply begins.
+    adapter.editorText = '';
+    adapter.capsules = ['Working through the circuit.'];
+    await new Promise((r) => setTimeout(r, 450));
     expect(useStore.getState().status).toBe('loading');
 
     const ok = await c.followUp('Why is R1 + R2 here?', 'Series resistors', 'Electrical');
@@ -627,16 +628,10 @@ describe('StemController.followUp', () => {
     c.stopWatching();
   });
 
-  it('succeeds with file attach when the protocol chip is visible but the filename line is missing from editor text', async () => {
-    vi.mocked(attachTextFile).mockResolvedValue({ ok: true, method: 'input' });
+  it('writes the whole follow-up into the chat box: the context, the answer shape and no guide', async () => {
+    vi.mocked(attachTextFile).mockClear();
     const adapter = new MockAdapter();
     adapter.composerHasAttachments = () => true;
-    adapter.insertPrompt = (text: string, mode: 'replace' | 'append' = 'replace') => {
-      adapter.inserted = text;
-      adapter.editorText =
-        'Ask your question here:\n\n\n--- stemLM follow-up context (do not remove) ---\n> Why is total resistance R1 + R2 here?';
-      return true;
-    };
     const c = new StemController(adapter);
 
     const ok = await c.followUp(
@@ -645,18 +640,13 @@ describe('StemController.followUp', () => {
       'Electrical',
     );
     expect(ok).toBe(true);
-    expect(adapter.editorText).toContain('stemLM follow-up context');
-    const file = vi.mocked(attachTextFile).mock.calls.at(-1)?.[0] as string;
-    expect(file).toContain('SUBJECT REGISTRY');
-    expect(file).toContain('PHYSICS');
-    expect(file).toContain('ELECTRICAL');
-    expect(file).toContain('CHEMICAL');
-    expect(file).not.toContain('PHYSICS: subject=');
-    expect(adapter.inserted).toContain('Follow the attached');
-    expect(adapter.inserted).toContain('FOLLOW-UP CONTRACT');
-    expect(adapter.inserted).not.toContain('--- stemLM instructions');
-    expect(adapter.inserted).not.toContain('OUTPUT:');
-    expect(adapter.inserted).not.toContain('ARCHETYPE REGISTRY');
+    expect(attachTextFile).not.toHaveBeenCalled();
+    expect(adapter.inserted).toContain('stemLM follow-up context');
+    expect(adapter.inserted).toContain('("Combine series resistors")');
+    expect(adapter.inserted).toContain('@meta\nmode: patch\n@endmeta');
+    expect(adapter.inserted).not.toContain(STUDY_GUIDE_REFERENCE);
+    expect(adapter.inserted).not.toContain('End of the stemLM study guide.');
+    expect(adapter.inserted.length).toBeLessThan(700);
     c.stopWatching();
   });
 
@@ -1088,21 +1078,24 @@ describe('INJ-01 attach abandoned mid-way', () => {
     c.stopWatching();
   });
 
-  it('stays quiet when a newer attempt took over', async () => {
+  // A second press used to start a second attempt that took over from the first, and both
+  // uploaded. Now it joins the press already at work: one upload, one result, nothing to report.
+  it('joins the press already at work instead of starting a second one', async () => {
     const adapter = new MockAdapter();
     adapter.editorText = 'Find the range of a projectile.';
     const c = new StemController(adapter);
     let release: () => void = () => {};
+    vi.mocked(attachTextFile).mockClear();
     vi.mocked(attachTextFile).mockImplementationOnce(() => new Promise((resolve) => {
       release = () => resolve({ ok: true, method: 'input' });
     }));
     const first = c.inject();
     await Promise.resolve();
-    vi.mocked(attachTextFile).mockResolvedValueOnce({ ok: true, method: 'input' });
     const second = c.inject();
     release();
-    expect(await first).toBe(false);
-    await second;
+    expect(await first).toBe(true);
+    expect(await second).toBe(true);
+    expect(attachTextFile).toHaveBeenCalledTimes(1);
     expect(useStore.getState().errorMessage ?? '').not.toMatch(/changed while/);
     c.stopWatching();
   });
@@ -1755,7 +1748,8 @@ describe('StemController capture', () => {
 
     adapter.editorText = 'Solve this circuit with a 12V source and resistor (Kirchhoff)';
     expect(await c.inject()).toBe(true);
-    expect(useStore.getState().status).toBe('loading');
+    // Attached, not sent: the answer already in the panel stays in view, and nothing loads.
+    expect(useStore.getState().status).toBe('ready');
     c.startWatching();
     await new Promise((r) => setTimeout(r, 500));
     expect(useStore.getState().status).toBe('ready');
@@ -1781,6 +1775,8 @@ describe('StemController capture', () => {
       const injected = c.inject();
       await vi.advanceTimersByTimeAsync(100);
       expect(await injected).toBe(true);
+      // The student sends: the chat box empties, and the reply is not an answer.
+      adapter.editorText = '';
       adapter.capsules = ['Please clarify which force acts horizontally.'];
       await vi.advanceTimersByTimeAsync(11_000);
       expect(useStore.getState().status).toBe('error');
@@ -1909,9 +1905,12 @@ describe('StemController capture', () => {
       expect(await c.inject()).toBe(true);
       adapter.capsules = [CAPSULE_BODY.replace(/^qid:.*\n/gm, '').replace(/^question:.*$/m, `question: ${question}`)];
       document.body.append(document.createTextNode('.'));
-      await vi.waitFor(() => expect(useStore.getState().status).toBe('ready'));
-      const active = useStore.getState().sessions.find((s) => s.id === useStore.getState().activeSessionId)!;
-      expect(active.question).toBe(question);
+      // The panel already shows an answer ("ready"), so wait for the new one itself.
+      await vi.waitFor(() => {
+        const active = useStore.getState().sessions.find((s) => s.id === useStore.getState().activeSessionId)!;
+        expect(active.question).toBe(question);
+      });
+      expect(useStore.getState().status).toBe('ready');
     } finally {
       c.stopWatching();
     }
@@ -1992,6 +1991,8 @@ describe('StemController capture', () => {
       const injected = c.inject();
       await vi.advanceTimersByTimeAsync(100);
       expect(await injected).toBe(true);
+      // The student sends: the chat box empties, and the chat answers with a notice of its own.
+      adapter.editorText = '';
       adapter.capsules = ['Grok is under heavy usage right now. Please try again later or upgrade your plan.'];
       await vi.advanceTimersByTimeAsync(11_000);
 
@@ -2371,6 +2372,9 @@ describe('AUTO-OPEN-01 the answer-started hook fires only for an answer stemLM a
     adapter.blocks = 2;
     adapter.streaming = true;
     mutate();
+    // The debounce runs on real timers: wait for the call itself, since a fixed pause is too short
+    // when the whole suite is running.
+    await vi.waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1), { timeout: 5000, interval: 50 });
     await settle();
     expect(onStarted).toHaveBeenCalledTimes(1);
     c.stopWatching();

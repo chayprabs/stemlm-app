@@ -26,28 +26,11 @@ export interface ComposerLayout {
   actionRow: HTMLElement;
 }
 
-/** Where the inject control should live relative to the host composer. */
-export type ComposerDock = 'before-plus' | 'outside-shell';
-
-/**
- * How an outside-shell control docks inside the composer when there is no room beside it:
- * `insert` puts the slot before the +; `inset` leaves the host tree untouched, shifts the + with a
- * stylesheet rule and floats the slot over the space.
- */
-export type InsideDock = 'insert' | 'inset';
-
 export interface PlatformAdapter {
   readonly id: PlatformId;
   readonly label: string;
   /** Brand palette for the overlay button. */
   readonly brand: PlatformBrand;
-  /**
-   * How the inject control docks. Defaults to `before-plus` when omitted
-   * (test doubles / older adapters).
-   */
-  readonly composerDock?: ComposerDock;
-  /** Inside dock for an outside-shell control without room beside the composer; `insert` when omitted. */
-  readonly insideDock?: InsideDock;
   /** Hidden file inputs that take the guide; shared defaults when omitted. */
   readonly fileInput?: string[];
   /** The host adds each file set on its input to its attachment list instead of replacing it. */
@@ -58,8 +41,17 @@ export interface PlatformAdapter {
   /** Does this adapter handle the current page (by hostname)? */
   matches(host?: string): boolean;
 
-  /** The composer editor element (contenteditable or textarea), if present. */
+  /**
+   * The chat's own composer editor (contenteditable or textarea), if present. Never an earlier
+   * message opened for editing or a field in a dialog.
+   */
   findEditor(): HTMLElement | null;
+
+  /**
+   * False when this composer is known not to take a file (logged-out ChatGPT answers one with a
+   * login wall): the guide then goes into the message as text. Optional for test doubles.
+   */
+  acceptsFiles?(): boolean;
 
   /** Current text in the composer. */
   getEditorText(): string;
@@ -88,8 +80,14 @@ export interface PlatformAdapter {
   /** A stable element near the composer to dock the stemLM button beside. */
   getComposerAnchor(): HTMLElement | null;
 
-  /** Leading composer control (upload / + button) for outside-left placement. */
+  /** The chat's own attach button (upload / +): the composer control sits beside it. */
   getComposerLeadingAnchor(): HTMLElement | null;
+
+  /**
+   * The smallest element holding both the editor and the attach button: the composer, found by
+   * structure. Null when either is missing or they only share the page. Optional for test doubles.
+   */
+  getComposerRoot?(): HTMLElement | null;
 
   /**
    * The outer composer shell (input box container). The overlay button docks
@@ -126,17 +124,6 @@ export interface AdapterConfig {
   label: string;
   hosts: RegExp;
   /**
-   * `before-plus` inserts into the composer row (Claude / Gemini).
-   * `outside-shell` viewport-fixes just left of the visual box (Grok)
-   * so host grid/overflow/React reconciliation cannot hide or shift the control.
-   */
-  composerDock?: ComposerDock;
-  /**
-   * `inset` for hosts whose startup takeover of their server-rendered composer breaks on a foreign
-   * node inside it (logged-out ChatGPT blanks and reloads).
-   */
-  insideDock?: InsideDock;
-  /**
    * Hidden file inputs that take the guide, tried in order. Needed where the first
    * input in the composer only accepts images (ChatGPT).
    */
@@ -145,13 +132,18 @@ export interface AdapterConfig {
   additiveFileInput?: boolean;
   /** Editor selectors, tried in order. */
   editor: string[];
+  /** Editors of a composer that cannot take a file (logged-out ChatGPT). */
+  noFileEditor?: string[];
   /** Outer composer container — tried in order. */
   composerBox: string[];
   /** Action/toolbar row inside the box — tried in order. */
   composerActionRow: string[];
   /** Send/submit control — tried in order. */
   composerAnchor: string[];
-  /** Leading control (e.g. upload / +) — tried in order. */
+  /**
+   * The attach button (upload / +): test ids and structure first, then labels. Tried in order in
+   * each wrapper around the editor, nearest first, so keep every entry specific to that button.
+   */
   composerLeading?: string[];
   /** Outer composer container for in-box overlay placement (tried in order). */
   composerShell?: string[];

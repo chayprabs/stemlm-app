@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import sharp from 'sharp';
 import { StemMark, BrandWordmark, AnimatedStemMark, BRAND_SIGNAL, BRAND_INK } from './brand';
 import { Loading } from './Loading';
-import { OverlayButton } from './OverlayButton';
+import { InjectGlyph } from './InjectGlyph';
 import { PanelHeader } from './PanelHeader';
 import { Report } from './Report';
 import { Panel } from './Panel';
@@ -222,11 +222,12 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
   });
 
   it('inject idle glyph is the therefore mark at glyph size, not a plus', () => {
-    const html = renderToStaticMarkup(<OverlayButton />);
+    // The control itself is drawn only beside a chat's attach button; its glyph is the same anywhere.
+    const html = renderToStaticMarkup(<InjectGlyph attached={false} />);
     const doc = parseSvg(html);
-    const btn = doc.querySelector('.slm-inject-btn');
+    const btn = doc.querySelector('.slm-inject-glyph');
     expect(btn).toBeTruthy();
-    expect(btn?.getAttribute('data-glyph')).toBe('mark');
+    expect(btn?.classList.contains('is-mark')).toBe(true);
     expect(html).not.toContain('M12 5v14');
     expect(html).not.toContain('slm-inject-plus');
     expect(html).toContain('slm-inject-tick');

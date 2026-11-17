@@ -95,11 +95,12 @@ describe('integration: Gemini adapter + controller capture', () => {
     const injected = geminiAdapter.getEditorText();
     expect(injected).toContain('12V series resistor');
     expect(injected).toContain(STUDY_GUIDE_REFERENCE);
-    expect(injected).toContain('Follow the attached');
-    expect(injected).not.toContain('OUTPUT:');
+    expect(injected).toContain('The attached stemLM study guide has the rest');
+    expect(injected).not.toContain('End of the stemLM study guide.');
     expect(injected).not.toContain('--- stemLM instructions');
     expect(document.body.textContent).toContain(PROTOCOL_FILENAME);
-    expect(useStore.getState().status).toBe('loading');
+    // Attached, not sent: nothing is loading yet.
+    expect(useStore.getState().status).toBe('idle');
 
     pushAssistantCapsule(CAPSULE_BODY);
     await wait(600);
@@ -129,9 +130,9 @@ describe('integration: Gemini adapter + controller capture', () => {
     );
     expect(injected).toContain(question);
     expect(injected).toContain('--- stemLM ---');
-    expect(injected).toContain('Follow the attached stemLM study guide');
+    expect(injected).toContain('The attached stemLM study guide has the rest');
     expect(injected).not.toContain('--- stemLM instructions');
-    expect(injected).not.toContain('OUTPUT:');
+    expect(injected).not.toContain('End of the stemLM study guide.');
     const input = document.querySelector('input[type="file"]') as HTMLInputElement | null;
     expect(input?.files?.[0]?.name).toBe(PROTOCOL_FILENAME);
     c.stopWatching();
@@ -162,10 +163,9 @@ describe('integration: Gemini adapter + controller capture', () => {
     expect(ok).toBe(true);
 
     const injected = geminiAdapter.getEditorText();
-    expect(injected).toContain('Infer the subject from the problem');
     expect(injected).not.toContain('(Chemistry)');
     expect(injected).toContain(STUDY_GUIDE_REFERENCE);
-    expect(injected).not.toContain('OUTPUT:');
+    expect(injected).not.toContain('End of the stemLM study guide.');
     expect(injected).not.toContain('mhchem');
 
     pushAssistantCapsule(CHEM_CAPSULE_BODY);
@@ -207,13 +207,14 @@ describe.each(HOST_FIXTURES)(
       const injected = spec.adapter.getEditorText();
       expect(injected).toContain('12V series resistor');
       expect(injected).toContain(STUDY_GUIDE_REFERENCE);
-      expect(injected).toContain('Follow the attached');
-      expect(injected).not.toContain('OUTPUT:');
+      expect(injected).toContain('The attached stemLM study guide has the rest');
+      expect(injected).not.toContain('End of the stemLM study guide.');
       expect(injected).not.toContain('--- stemLM instructions');
       expect(document.body.textContent).toContain(PROTOCOL_FILENAME);
       expect(document.body.textContent).toContain('problem.png');
       expect(spec.adapter.composerHasAttachments()).toBe(true);
-      expect(useStore.getState().status).toBe('loading');
+      // Attached, not sent: nothing is loading yet.
+      expect(useStore.getState().status).toBe('idle');
 
       pushHostCapsule(spec.id, CAPSULE_BODY);
       expect(spec.adapter.extractCapsules().join('\n')).toContain('@meta');

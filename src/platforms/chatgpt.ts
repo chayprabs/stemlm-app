@@ -3,26 +3,21 @@ import type { AdapterConfig } from './types';
 
 /**
  * ChatGPT (chatgpt.com; chat.openai.com only redirects there).
- * Composer is a ProseMirror field inside `form[data-chatgpt-composer]`; the
- * rounded pill switches between a single-line and a multiline layout as the
- * draft grows, so the inject control docks just outside the form (like Grok).
- * Never add a node inside the composer: logged-out ChatGPT takes over its
- * server-rendered DOM about 2 s after load and blanks the page when it meets
- * one. Without room beside the form the control floats in a gap made by CSS,
- * or above the form when even the + row has no spare width.
- * The leading + opens a menu. Attach via the hidden file input: its first
- * inputs only take images/video, so the guide goes to the one without `accept`,
- * which appends to ChatGPT's attachment list.
- * Logged out, ChatGPT serves `textarea#mobile-composer-prompt` (it cannot take
- * uploads, so stemlm reports that). `#prompt-textarea` and the data-testid
- * hooks are ChatGPT's earlier markup.
+ * Signed in, the composer is a ProseMirror field: in `form[data-chatgpt-composer]` (seen
+ * 2026-09-29) or as `#prompt-textarea` in `form[data-type="unified-composer"]`. Its pill switches
+ * between a single-line and a multiline layout as the draft grows, which moves the + to another row.
+ * Signed out (seen 2026-11-17) it is `textarea#mobile-composer-prompt` behind wrappers without a
+ * box, with 44 px buttons, and a file is answered with a login wall: the guide goes into the
+ * message as text there.
+ * Never add a node inside the composer: logged-out ChatGPT takes over its server-rendered DOM
+ * about 2 s after load and blanks the page when it meets one.
+ * The leading + opens a menu. Attach via the hidden file input: its first inputs only take
+ * images/video, so the guide goes to the one without `accept`, which appends to ChatGPT's list.
  */
 const config: AdapterConfig = {
   id: 'chatgpt',
   label: 'ChatGPT',
   hosts: /^(?:www\.)?chatgpt\.com$/i,
-  composerDock: 'outside-shell',
-  insideDock: 'inset',
   fileInput: ['input[type="file"]:not([accept])'],
   additiveFileInput: true,
   editor: [
@@ -30,9 +25,12 @@ const config: AdapterConfig = {
     'form[data-chatgpt-composer] [contenteditable="true"][role="textbox"]',
     '#prompt-textarea',
     'textarea#mobile-composer-prompt',
+    'form[data-type="unified-composer"] [contenteditable="true"]',
   ],
+  noFileEditor: ['textarea#mobile-composer-prompt'],
   composerBox: [
     'form[data-chatgpt-composer]',
+    'form[data-type="unified-composer"]',
     'form:has(#prompt-textarea)',
     'form:has(#mobile-composer-prompt)',
   ],
@@ -46,13 +44,13 @@ const config: AdapterConfig = {
     'button[data-testid="send-button"]',
   ],
   composerLeading: [
-    'form[data-chatgpt-composer] button[data-composer-navigation-target="add-context"]',
-    'form[data-chatgpt-composer] button[aria-label*="files and more" i]',
     'button[data-testid="composer-plus-btn"]',
+    'button[data-composer-navigation-target="add-context"]',
     'button[aria-label*="files and more" i]',
   ],
   composerShell: [
     'form[data-chatgpt-composer]',
+    'form[data-type="unified-composer"]',
     'form:has(#prompt-textarea)',
     'form:has(#mobile-composer-prompt)',
   ],

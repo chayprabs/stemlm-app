@@ -56,8 +56,13 @@ describe('the student removes the attached guide before sending', () => {
 
   it('keeps waiting when the chip left because the question was sent', async () => {
     const { controller, chip } = await injectWithChip();
+    // Sent: the chip and the draft leave the chat box and become the student's message.
+    const editor = claude.adapter.findEditor()!;
+    const sent = Object.assign(document.createElement('div'), { textContent: editor.textContent });
+    sent.setAttribute('data-testid', 'user-message');
     chip.remove();
-    claude.adapter.findEditor()!.textContent = '';
+    editor.textContent = '';
+    document.getElementById('thread')!.append(sent);
     await vi.advanceTimersByTimeAsync(1500);
     expect(useStore.getState().errorMessage ?? '').not.toMatch(/removed/i);
     expect(useStore.getState().status).toBe('loading');

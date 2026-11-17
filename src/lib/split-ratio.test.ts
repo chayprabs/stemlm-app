@@ -5,15 +5,15 @@ import {
   clampSplitRatio,
   isOverlayViewport,
   layoutSplitRatio,
-  MIN_HOST_PX,
+  MIN_CHAT_PX,
+  layoutPanelWidthVw,
   minSplitRatio,
-  pageWidthVw,
-  panelWidthVw,
   ratioFromPointer,
   MIN_PANEL_PX,
   MAX_SPLIT_RATIO,
   DEFAULT_SPLIT_RATIO,
   hydrateSplitRatio,
+  viewportWidth,
 } from './split-ratio';
 
 describe('split-ratio', () => {
@@ -32,9 +32,9 @@ describe('split-ratio', () => {
     expect(clampSplitRatio(0.9, 1600)).toBe(0.75);
   });
 
-  it('derives panel and page widths that sum to 100vw', () => {
-    expect(panelWidthVw(0.5) + pageWidthVw(0.5)).toBe(100);
-    expect(panelWidthVw(DEFAULT_SPLIT_RATIO) + pageWidthVw(DEFAULT_SPLIT_RATIO)).toBe(100);
+  it('gives the panel its fraction of the window where both columns have room', () => {
+    expect(layoutPanelWidthVw(0.5, 1600)).toBe(50);
+    expect(layoutPanelWidthVw(DEFAULT_SPLIT_RATIO, 1920)).toBe(68);
   });
 
   it('maps pointer position to ratio', () => {
@@ -67,21 +67,61 @@ describe('split-ratio', () => {
     expect(hydrateSplitRatio(0.75, undefined, { preserveLegacyValues: true })).toBe(0.75);
   });
 
-  it('keeps a phone-width chat column beside the panel (UI-SMALL-01)', () => {
-    expect(MIN_HOST_PX).toBe(320);
-    for (const vw of [600, 760, 900, 1000]) {
+  it('keeps a readable chat column beside the panel (UI-SMALL-01)', () => {
+    // The narrowest the hosts give the chat beside their own sidebar: 768px less 288px.
+    expect(MIN_CHAT_PX).toBe(480);
+    for (const vw of [760, 900, 1000, 1280, 1440]) {
       const ratio = layoutSplitRatio(DEFAULT_SPLIT_RATIO, vw);
-      expect((1 - ratio) * vw, `chat at ${vw}px`).toBeGreaterThanOrEqual(MIN_HOST_PX - 1e-9);
+      expect((1 - ratio) * vw, `chat at ${vw}px`).toBeGreaterThanOrEqual(MIN_CHAT_PX - 1e-9);
       expect(ratio * vw, `panel at ${vw}px`).toBeGreaterThanOrEqual(MIN_PANEL_PX - 1e-9);
     }
     // Wide screens keep the reading-first default.
-    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1024)).toBe(DEFAULT_SPLIT_RATIO);
-    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1400)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1700)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1920)).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('keeps that column beside whatever the host sidebar is showing, down to the panel minimum', () => {
+    // 1440 - 480 - 288 leaves the panel 672px beside an open sidebar, 888px beside a 72px rail.
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1440, 288) * 1440).toBeCloseTo(672);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1440, 72) * 1440).toBeCloseTo(888);
+    // Room for a 60px rail is kept even where none was measured: some hosts draw theirs apart
+    // from the sidebar that was folded.
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1440, 52) * 1440).toBeCloseTo(900);
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1440) * 1440).toBeCloseTo(900);
+    // No room for both minimums: the panel keeps its own rather than vanishing.
+    expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 1000, 288) * 1000).toBeCloseTo(MIN_PANEL_PX);
+    // A narrower request than the cap is honoured as asked.
+    expect(layoutSplitRatio(0.3, 1440, 288)).toBe(0.3);
+  });
+
+  it('never lays the panel out wider than the stored 75% cap or narrower than its floor', () => {
+    expect(layoutSplitRatio(0.95, 4000)).toBe(MAX_SPLIT_RATIO);
+    expect(layoutSplitRatio(0, 1600)).toBe(0.25);
+    expect(layoutSplitRatio(Number.NaN, 1920)).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('measures the window the page is laid out in, not the part a pinch zoom shows', () => {
+    const innerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const visualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: { width: 720 } });
+    try {
+      // Zoomed in twice over, the layout is unchanged: still a split, with the same columns.
+      expect(viewportWidth()).toBe(1440);
+      expect(isOverlayViewport()).toBe(false);
+      expect(ratioFromPointer(720)).toBe(0.5);
+    } finally {
+      if (innerWidth) Object.defineProperty(window, 'innerWidth', innerWidth);
+      else Reflect.deleteProperty(window, 'innerWidth');
+      if (visualViewport) Object.defineProperty(window, 'visualViewport', visualViewport);
+      else Reflect.deleteProperty(window, 'visualViewport');
+    }
   });
 
   it('overlays the chat when the window cannot fit both (UI-SMALL-01)', () => {
-    expect(isOverlayViewport(599)).toBe(true);
-    expect(isOverlayViewport(600)).toBe(false);
+    // 480px of chat + 280px of panel: just under the hosts' own 768px breakpoint.
+    expect(isOverlayViewport(759)).toBe(true);
+    expect(isOverlayViewport(760)).toBe(false);
     expect(layoutSplitRatio(DEFAULT_SPLIT_RATIO, 480)).toBe(1);
   });
 });

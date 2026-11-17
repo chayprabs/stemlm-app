@@ -50,6 +50,28 @@ describe('isSubstantiveQuickCheck', () => {
     ).toBe(false);
   });
 
+  it('accepts a result followed by its reason in a second sentence', () => {
+    expect(
+      isSubstantiveQuickCheck({
+        question: 'Differentiate $e^{5x}$.',
+        answer: '$5e^{5x}$. The chain rule multiplies by the derivative of the exponent, which is 5.',
+      }),
+    ).toBe(true);
+    expect(
+      isSubstantiveQuickCheck({
+        question: 'What percentage of men are shorter than 161 cm?',
+        answer: 'About 2.3%. The height 161 cm is $z = (161 - 175)/7 = -2$, and the curve is symmetric.',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not read a decimal point, or a full stop inside maths, as a second sentence', () => {
+    expect(isSubstantiveQuickCheck({ question: 'What is the current?', answer: 'About 1.46 A.' })).toBe(false);
+    expect(isSubstantiveQuickCheck({ question: 'What is x?', answer: '$x = 2. 5$' })).toBe(false);
+    // A second sentence with nothing from the step in it is still not evidence.
+    expect(isSubstantiveQuickCheck({ question: 'Which is larger?', answer: 'The first one. It dominates here.' })).toBe(false);
+  });
+
   it('rejects padded frequency trivia without numbers', () => {
     expect(
       isSubstantiveQuickCheck({

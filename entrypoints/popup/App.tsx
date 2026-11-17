@@ -107,11 +107,14 @@ export default function App() {
     const next = !stemlmEnabled;
     setStemlmEnabled(next);
     persistStemlmEnabledBoot(next);
+    setSendError(null);
     try {
       await writeStemlmEnabled(next);
     } catch {
+      // The switch goes back to where it was, and says why: a silent flip reads as a glitch.
       setStemlmEnabled(!next);
       persistStemlmEnabledBoot(!next);
+      setSendError(`Could not turn stemlm ${next ? 'on' : 'off'}. Try again.`);
     }
   }
 
@@ -197,7 +200,8 @@ export default function App() {
           <span className="slm-popup-switch-knob" />
         </span>
         <span className="slm-popup-row-hint" id="slm-popup-toggle-hint">
-          Turn off to hide the stemlm button in the chat box. The panel and your saved questions still work.
+          {stemlmEnabled ? 'Turn off to hide the stemlm button in the chat box.' : 'The stemlm button is hidden in the chat box.'}
+          {' '}The panel and your saved questions still work.
         </span>
       </button>
       <button

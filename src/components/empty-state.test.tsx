@@ -159,3 +159,49 @@ describe('EmptyState on a chat that was answered without stemlm', () => {
     }
   });
 });
+
+describe('EmptyState while a question is being prepared', () => {
+  afterEach(() => {
+    useStore.setState({ buttonInjected: false, status: 'idle', errorMessage: undefined });
+  });
+
+  it('does not offer to load answers while the guide waits unsent in the chat box', () => {
+    // The attached guide's own name on the page reads as an earlier stemlm turn.
+    hasConversationToLoad.mockReturnValue(true);
+    useStore.setState({ buttonInjected: true, status: 'idle', errorMessage: 'Instructions attached.' });
+    const { container, unmount } = mount();
+    expect(container.textContent).not.toContain("aren't loaded yet");
+    expect(container.textContent).not.toContain(LOAD_FROM_CHAT_LABEL);
+    expect(container.textContent).toContain('Type a question in the chat, then start stemlm.');
+    // Once that question has been asked and answered, or the guide is taken out, the offer is back.
+    act(() => useStore.setState({ buttonInjected: false }));
+    expect(container.textContent).toContain(LOAD_FROM_CHAT_LABEL);
+    unmount();
+  });
+
+  it('still offers a plain answer that is already in the chat', () => {
+    plainAnswer.mockReturnValue(true);
+    useStore.setState({ buttonInjected: true });
+    const { container, unmount } = mount();
+    expect(container.textContent).toContain('Study the latest answer');
+    unmount();
+  });
+
+  it('points at the status line after a failed load only when there is one to read', async () => {
+    hasConversationToLoad.mockReturnValue(true);
+    loadConversation.mockResolvedValue(0);
+    const { container, unmount } = mount();
+    const load = () => [...container.querySelectorAll('button')].find((el) => el.textContent?.includes(LOAD_FROM_CHAT_LABEL)) as HTMLButtonElement;
+    await act(async () => {
+      load().click();
+      await Promise.resolve();
+    });
+    const hint = container.querySelector('.slm-empty-hint');
+    expect(hint?.getAttribute('role')).toBe('status');
+    expect(hint?.textContent).toBe('The response could not be loaded. Ask the question again with the stemlm button.');
+
+    act(() => useStore.getState().setStatus('idle', 'The chat is still writing its answer.'));
+    expect(hint?.textContent).toBe('The response could not be loaded. See the message above for details.');
+    unmount();
+  });
+});

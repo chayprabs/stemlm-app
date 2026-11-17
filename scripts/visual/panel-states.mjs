@@ -200,6 +200,22 @@ async function sessionsSuite(h, scheme, tag) {
   await page.locator('.slm-session-chip.is-active').hover();
   await h.settle(page, 300);
   await h.shot(page, `${tag}-active-chip-hover`, { locator: panel });
+  // Removing a question says so and can be undone from the status line.
+  await page.locator('.slm-session-chip').nth(1).hover();
+  await page.locator('.slm-session-chip').nth(1).locator('.slm-session-pill-remove').click();
+  await page.mouse.move(700, 500);
+  await h.settle(page, 500);
+  await h.shot(page, `${tag}-removed-notice`, { locator: panel });
+  // Reached with Tab, so the focus ring is on camera.
+  await page.locator('.slm-banner-undo').focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await h.settle(page, 200);
+  await h.shot(page, `${tag}-removed-undo-focus`, { locator: panel });
+  await page.keyboard.press('Enter');
+  await h.settle(page, 600);
+  await h.shot(page, `${tag}-removed-undone`, { locator: panel });
+  if (await page.locator('.slm-session-chip').count() !== 3) throw new Error('Undo did not bring the removed question back');
   await page.close();
 
   await h.setStored({ stemlm_setting_splitRatio: NARROW.splitRatio, stemlm_split_ratio_user_set: true });
@@ -235,6 +251,18 @@ async function bannerSuite(h, scheme, tag) {
     await page.locator('.slm-read').evaluate((el) => el.scrollTo({ top: 0 }));
     await h.settle(page, 200);
     await h.shot(page, `${tag}-error-over-answer`, { locator: panel });
+    // The status line can be put away, and the keyboard goes back to the panel.
+    await page.locator('.slm-banner-dismiss').focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await h.settle(page, 200);
+    await h.shot(page, `${tag}-error-dismiss-focus`, { locator: panel });
+    await page.keyboard.press('Enter');
+    await h.settle(page, 400);
+    if (await page.locator('.slm-banner').count()) throw new Error('the status line did not go away when dismissed');
+    await page.keyboard.press('ArrowRight');
+    await h.settle(page, 600);
+    await h.shot(page, `${tag}-error-dismissed-step2`, { locator: panel });
     await page.close();
   }
   // A status line that is not an error: the guide attached to an empty chat box.

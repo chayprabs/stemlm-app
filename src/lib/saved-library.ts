@@ -30,12 +30,20 @@ export const SETTINGS_LABEL = 'Settings';
 export const LOAD_FROM_CHAT_LABEL = 'Load conversation from this chat';
 /** Compact toolbar action popup (well below the old 492px launch grid). */
 export const POPUP_WIDTH_PX = 312;
-/** Settings sheet window — sized to the 2×2 card grid, then shrink-wrapped to content. */
-export const SETTINGS_WINDOW_WIDTH_PX = 720;
-export const SETTINGS_WINDOW_HEIGHT_PX = 430;
-/** Saved-questions window — wide enough for sidebar + list, short enough to avoid empty void. */
+/**
+ * Settings window: opened at the width its one-column sheet is then fitted to
+ * (src/lib/fit-extension-window.ts) and as near its height as a 768px-high laptop screen
+ * allows, so the fit is a nudge and not a jump from a different shape.
+ */
+export const SETTINGS_WINDOW_WIDTH_PX = 480;
+export const SETTINGS_WINDOW_HEIGHT_PX = 656;
+/**
+ * Saved-questions window. The header, search row and subject chips take about 150px, so this
+ * height shows five whole rows; it still fits a 768px-high laptop screen below the 72px the
+ * window is dropped from the top of the browser.
+ */
 export const LIBRARY_WINDOW_WIDTH_PX = 700;
-export const LIBRARY_WINDOW_HEIGHT_PX = 460;
+export const LIBRARY_WINDOW_HEIGHT_PX = 600;
 
 export type SavedTimeFilter = 'all' | '24h' | '7d' | 'month' | '6m';
 
@@ -61,17 +69,22 @@ export function mergeDownloadLabel(count: number): string {
   return `Download ${count}`;
 }
 
-/** Plain-language reason a PDF export did not produce a file. */
-export function pdfFailureMessage(reason: PdfFailureReason): string {
+/**
+ * Plain-language reason a PDF export did not produce a file. `merged` is the library's
+ * several-questions export: two of the reasons call for different advice there.
+ */
+export function pdfFailureMessage(reason: PdfFailureReason, merged = false): string {
   switch (reason) {
     case 'blank':
       return 'That report rendered blank. Open it to check the saved answer, then try again.';
     case 'empty':
-      return 'Pick at least one question first.';
+      return merged ? 'Pick at least one question first.' : 'That question is no longer saved.';
     case 'save':
       return 'The PDF was built but could not be saved. Check your download settings.';
     case 'timeout':
-      return 'Rendering took too long. Try again, or merge fewer questions at once.';
+      return merged
+        ? 'Rendering took too long. Try again, or merge fewer questions at once.'
+        : 'Rendering took too long. Try again.';
     default:
       return 'Could not build the PDF. Try again.';
   }

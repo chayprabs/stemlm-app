@@ -2,7 +2,8 @@
  * pdf.html entry logic. Default mode renders a saved report.
  * `mode=download` saves a real PDF to Downloads (D7): a saved question by `id`,
  * or the session a chat tab handed over by `job`. The window closes itself once
- * the file is saved; a failure stays on screen. `mode=print` opens the print dialog.
+ * the file is saved; a failure stays on screen with a way to try again.
+ * `mode=print` opens the print dialog.
  */
 import type { Session } from '@/src/protocol/types';
 import { getSavedSession, snapshotToSession } from '@/src/lib/saved-sessions';
@@ -20,29 +21,81 @@ export function parseSavedPdfMode(value: string | null | undefined): SavedPdfMod
   return 'view';
 }
 
-function show(title: string, detail: string, state: 'busy' | 'done' | 'error' = 'busy') {
+interface Action {
+  label: string;
+  run: () => void;
+}
+
+interface Notice {
+  title: string;
+  detail: string;
+  state?: 'busy' | 'done' | 'error';
+  /** Share of the pages rendered so far, 0 to 1. The bar is drawn only while a build is running. */
+  progress?: number;
+  /** What the student can do from this window once something has gone wrong; the first is the main one. */
+  actions?: readonly Action[];
+}
+
+const CLOSE: Action = { label: 'Close window', run: () => window.close() };
+
+function element(tag: string, className: string, text = ''): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+function show({ title, detail, state = 'busy', progress, actions = [] }: Notice) {
   const root = document.getElementById('app');
   if (!root) return;
-  const heading = document.createElement('p');
-  heading.className = 'slm-saved-pdf-title';
-  heading.textContent = title;
-  const status = document.createElement('p');
-  status.className = `slm-saved-pdf-status${state === 'error' ? ' is-error' : ''}`;
-  status.textContent = detail;
+  const parts = [
+    element('p', 'slm-saved-pdf-title', title),
+    element('p', `slm-saved-pdf-status${state === 'error' ? ' is-error' : ''}`, detail),
+  ];
+  if (progress !== undefined) {
+    const bar = element('div', 'slm-saved-pdf-progress');
+    bar.setAttribute('aria-hidden', 'true');
+    const fill = element('span', 'slm-saved-pdf-progress-fill');
+    fill.style.width = `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`;
+    bar.append(fill);
+    parts.push(bar);
+  }
+  const buttons = actions.map(({ label, run }, i) => {
+    const button = element('button', `slm-saved-pdf-btn${i === 0 ? ' is-primary' : ''}`, label) as HTMLButtonElement;
+    button.type = 'button';
+    button.addEventListener('click', run);
+    return button;
+  });
+  if (buttons.length > 0) {
+    const row = element('div', 'slm-saved-pdf-actions');
+    row.append(...buttons);
+    parts.push(row);
+  }
   root.dataset.state = state;
-  root.replaceChildren(heading, status);
+  // A failure interrupts; progress is only ever read out politely.
+  root.setAttribute('role', state === 'error' ? 'alert' : 'status');
+  root.replaceChildren(...parts);
+  buttons[0]?.focus();
+  document.title = `${title} - stemlm`;
 }
 
 async function download(session: Session): Promise<boolean> {
-  show('Exporting PDF', 'Preparing the report…');
+  show({ title: 'Exporting PDF', detail: 'Preparing the report…', progress: 0 });
   const result = await downloadSessionPdf(session, {
-    onProgress: ({ page, total }) => show('Exporting PDF', `Rendering page ${page} of ${total}…`),
+    onProgress: ({ page, total }) =>
+      show({ title: 'Exporting PDF', detail: `Rendering page ${page} of ${total}…`, progress: page / total }),
   });
   if (!result.ok) {
-    show('PDF not saved', pdfFailureMessage(result.reason ?? 'render'), 'error');
+    show({
+      title: 'PDF not saved',
+      detail: pdfFailureMessage(result.reason ?? 'render'),
+      state: 'error',
+      // The session was handed over once and is still in memory: the export can run again from here.
+      actions: [{ label: 'Try again', run: () => void download(session) }, CLOSE],
+    });
     return false;
   }
-  show('PDF saved', 'It is in your Downloads folder. This window closes itself.', 'done');
+  show({ title: 'PDF saved', detail: 'It is in your Downloads folder. This window closes itself.', state: 'done' });
   setTimeout(() => window.close(), CLOSE_AFTER_SAVE_MS);
   return true;
 }
@@ -56,7 +109,12 @@ export async function runSavedPdfPage(
   const mode = parseSavedPdfMode(params.get('mode'));
 
   if (!job && !id) {
-    show('PDF not available', 'Missing saved session id.', 'error');
+    show({
+      title: 'Nothing to open',
+      detail: 'This window was opened without a question. Close it and open the question from stemlm again.',
+      state: 'error',
+      actions: [CLOSE],
+    });
     return { ok: false, mode };
   }
 
@@ -71,22 +129,37 @@ export async function runSavedPdfPage(
     session = null;
   }
   if (!session) {
-    show('PDF not available', job
-      ? 'This export has expired. Export the PDF again from the panel.'
-      : 'Saved session not found. It may have been deleted.', 'error');
+    show(job
+      ? {
+          title: 'PDF not exported',
+          detail: 'This export has expired. Export the PDF again from the panel.',
+          state: 'error',
+          actions: [CLOSE],
+        }
+      : {
+          title: 'Saved question not found',
+          detail: 'It is no longer in your saved questions. It may have been deleted.',
+          state: 'error',
+          actions: [CLOSE],
+        });
     return { ok: false, mode };
   }
 
   if (mode === 'download') return { ok: await download(session), mode };
 
   if (mode === 'print') {
-    show('Printing', 'Opening the print dialog. Choose “Save as PDF”.');
+    show({ title: 'Printing', detail: 'Opening the print dialog. Choose “Save as PDF”.' });
     const result = await exportSessionPdf(session);
     if (result.ok) {
-      show('Print dialog open', 'Choose “Save as PDF”, then close this window.', 'done');
+      show({ title: 'Print dialog open', detail: 'Choose “Save as PDF”, then close this window.', state: 'done' });
       return { ok: true, mode };
     }
-    show('PDF not available', 'Could not prepare the PDF. Try again from the extension.', 'error');
+    show({
+      title: 'Could not print',
+      detail: 'The print dialog did not open. Close this window and try again from stemlm.',
+      state: 'error',
+      actions: [CLOSE],
+    });
     return { ok: false, mode };
   }
 
@@ -98,7 +171,12 @@ export async function runSavedPdfPage(
     document.title = 'stemlm';
     return { ok: true, mode };
   } catch {
-    show('PDF not available', 'Could not open the saved report. Try again from the extension.', 'error');
+    show({
+      title: 'Could not open this saved answer',
+      detail: 'Close this window and open it again from your saved questions.',
+      state: 'error',
+      actions: [CLOSE],
+    });
     return { ok: false, mode };
   }
 }

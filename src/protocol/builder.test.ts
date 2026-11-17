@@ -1,408 +1,311 @@
-import { STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { cleanSessionQuestion } from '@/src/lib/session-question';
+import { STUDY_GUIDE_END, STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
 import {
-  buildInjectionAppendix,
-  buildInjectionPrompt,
-  buildInjectionPayload,
-  buildComposerStub,
   buildComposerAppendix,
   buildComposerPointer,
-  composerTextHasProtocol,
-  pageThreadHasProtocol,
-  THREAD_PROTOCOL_SELECTORS,
-  shouldReinjectOnNewQuestion,
-  isEmptyFollowupSelection,
+  buildComposerStub,
   buildFollowupCopyText,
-  STEP_BODY_REQUIREMENT,
-  buildProtocolFileContent,
-  buildFollowupPrompt,
-  buildFollowupPayload,
-  buildFollowupComposerText,
-  resolveSubject,
+  buildInjectionAppendix,
+  buildInjectionPayload,
+  buildInjectionPrompt,
+  composerExpectsGuideFile,
+  composerHasInlineGuide,
+  composerTextHasProtocol,
+  GUIDE_PASTED_NOTICE,
+  GUIDE_REFRESH_TURNS,
+  guideNeeded,
+  isEmptyFollowupSelection,
+  pageThreadHasProtocol,
   PROTOCOL_FILENAME,
+  sentStudentMessages,
+  shouldReinjectOnNewQuestion,
   STEMLM_SENTINEL,
-  getDiagramRequirement,
+  THREAD_PROTOCOL_SELECTORS,
 } from './builder';
-import coreTemplate from './core-protocol.md?raw';
-import { CORE_PROTOCOL, renderProtocol, PROTOCOL_VERSION } from './protocol';
+import { parse } from './parser';
+import { assembleGuide, GUIDE_INLINE_MAX_CHARS } from './protocol';
+import { SUBJECTS } from './types';
 
-describe('buildInjectionPrompt', () => {
-  it('includes the question, protocol, and every subject registry row', () => {
-    const { prompt, subject } = buildInjectionPrompt('Solve this circuit with a resistor and 12V voltage source');
-    expect(subject).toBe('Electrical');
-    expect(prompt).toContain('Solve this circuit');
-    expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('@meta');
-    expect(prompt).toContain('Electrical');
-    expect(prompt).toContain('@end');
-    expect(prompt).toContain(`version: ${PROTOCOL_VERSION}`);
+const INCLINE = 'A 5.0 kg block is released from rest on a 30° incline. Find its acceleration.';
+const PROJECTILE = 'A ball is thrown at 20 m/s at 35° above the horizontal. Find its range.';
+const PUNNETT = 'Two heterozygous pea plants are crossed. Show the Punnett square and the genotype ratio.';
+
+/** A student message as the chat shows it after sending. */
+const attached = (question: string) => buildComposerStub(question);
+const reminderOnly = (question: string) => `${question}\n\n${buildComposerPointer({ hasQuestion: true })}`;
+const pasted = (question: string) => buildInjectionPrompt(question).prompt;
+
+describe('the reminder every question carries', () => {
+  const stub = buildComposerStub('Find the range of a projectile.');
+  const reminder = stub.slice(stub.indexOf(STEMLM_SENTINEL));
+
+  it('sits under the question, below the sentinel', () => {
+    expect(stub.startsWith(`Find the range of a projectile.\n\n${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(reminder.split('\n')).toHaveLength(17);
   });
 
-  it('honors an explicit subject override', () => {
-    const { prompt, subject } = buildInjectionPrompt('something vague', { subject: 'Chemistry' });
-    expect(subject).toBe('Chemistry');
-    expect(prompt).toContain('Chemistry');
-    expect(prompt).toContain('Electrical');
-    expect(prompt).toContain('Physics');
+  it('leaves a blank first line for the question when the chat box is empty, and none under a question', () => {
+    expect(buildComposerStub('').startsWith(`\n${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(buildComposerPointer().startsWith(`\n${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(buildComposerAppendix({ hasQuestion: true }).startsWith(STEMLM_SENTINEL)).toBe(true);
+    expect(buildComposerPointer({ hasQuestion: true }).startsWith(STEMLM_SENTINEL)).toBe(true);
   });
 
-  it('always uses the deep depth dial on the single protocol', () => {
-    const { prompt } = buildInjectionPrompt('trace binary search code', {
-      subject: 'CS',
-    });
-    expect(prompt).toContain(CORE_PROTOCOL);
-    expect(prompt).toContain('DEPTH: deep');
-    expect(prompt).toContain('Physics');
-    expect(prompt).not.toMatch(/PHYSICS: one move\/step/);
+  it('is short enough to live in the student\'s own message', () => {
+    expect(reminder.length).toBeLessThanOrEqual(350);
+    expect(buildComposerPointer({ hasQuestion: true }).length).toBeLessThanOrEqual(350);
+    // A chat box may turn a fence into a code block of its own; the reminder names the block in words.
+    expect(reminder).not.toContain('```');
+    expect(reminder).not.toContain(PROTOCOL_FILENAME);
+    expect(reminder).not.toMatch(/\b[A-Z]{4,}\b/);
   });
 
-  it('normalizes CRLF in protocol templates so Windows checkouts stay consistent', () => {
-    const crlf = coreTemplate.replace(/\n/g, '\r\n');
-    expect(renderProtocol(crlf)).toBe(renderProtocol(coreTemplate));
+  it('is enough by itself: an answer written from it is read as a complete stemLM answer', () => {
+    // Every marker the reminder names, and nothing it does not.
+    const markers = reminder.match(/@[a-z]+/g)!;
+    expect(markers).toEqual(['@meta', '@endmeta', '@step', '@body', '@endbody', '@endstep', '@solution', '@endsolution', '@end']);
+    const step = (n: number) => `@step id=s${n}\ntitle: Move ${n}\n@body\nBecause of rule ${n}, the value is $x_${n} = ${n}\\ \\text{m}$.\n@endbody\n@endstep`;
+    const reply = ['```stemlm', '@meta', 'subject: Physics', 'topic: Range of a projectile', '@endmeta', step(1), step(2), step(3), '@solution', 'The range is $3\\ \\text{m}$.', '@endsolution', '@end', '```'].join('\n');
+    const result = parse(reply);
+    expect(result.status).toBe('ok');
+    expect(result.capsule!.steps.map((s) => s.id)).toEqual(['s1', 's2', 's3']);
+    expect(result.capsule!.meta).toMatchObject({ subject: 'Physics', topic: 'Range of a projectile' });
+    expect(result.capsule!.solution).toContain('range');
+    for (const fatal of ['missing_end', 'missing_meta', 'missing_step_body', 'missing_step_id', 'invalid_step_count']) {
+      expect(result.warningCodes, fatal).not.toContain(fatal);
+    }
   });
 
-  it('keeps structural markers the parser relies on', () => {
-    for (const marker of [
-      '@meta', '@endmeta', '@step', '@endstep', '@formula', '@endformula',
-      '@body', '@endbody', '@diagram', '@enddiagram', '@takeaway', '@endtakeaway',
-      '@quickcheck', '@followup', '@endfollowup', '@solution', '@endsolution', '@end',
-      '@verify', '@uncertainty', '@resume', '@q', '@patch',
-      'stemlm',
+  it('writes every marker on a line of its own, as the answer must', () => {
+    // Shown the markers on one line with commas between them, a model wrote them back that way.
+    for (const text of [reminder, buildFollowupCopyText({ selection: 'Step 1: range', intent: 'ask' }), buildFollowupCopyText({ selection: 'Step 1: range' })]) {
+      const marked = text.split('\n').filter((line) => line.includes('@') && !line.includes('@diagram only if'));
+      expect(marked.length).toBeGreaterThan(8);
+      for (const line of marked) expect(line, line).toMatch(/^@[a-z]+(?: [a-z]+=\S+)?(?: id=\(.*\))?$/);
+    }
+  });
+
+  it('says where the rest of the guide is: attached to this message, or earlier in the chat', () => {
+    expect(stub).toContain(`The attached ${STUDY_GUIDE_REFERENCE} has the rest`);
+    expect(buildComposerAppendix({ hasQuestion: true })).toBe(reminder);
+    expect(buildComposerPointer({ hasQuestion: true, protocolAttachmentConfirmed: true })).toBe(reminder);
+    const later = buildComposerPointer({ hasQuestion: true });
+    expect(later).toContain(`The ${STUDY_GUIDE_REFERENCE} earlier in this chat has the rest`);
+    expect(later.split('\n').slice(0, 16)).toEqual(reminder.split('\n').slice(0, 16));
+  });
+
+  it('asks for the question to be copied out when it came as an image or PDF', () => {
+    for (const text of [
+      buildComposerStub('', { hasImageAttachment: true }),
+      buildComposerAppendix({ hasImageAttachment: true, hasQuestion: false }),
+      buildComposerPointer({ hasImageAttachment: true, hasQuestion: false }),
     ]) {
-      expect(CORE_PROTOCOL).toContain(marker);
+      expect(text.startsWith('(Problem image/PDF is attached')).toBe(true);
+      expect(text).toContain(STEMLM_SENTINEL);
     }
+    expect(buildComposerAppendix({ hasImageAttachment: true, hasQuestion: true })).not.toContain('image/PDF');
   });
 
-  it('the single protocol carries the deep depth dial', () => {
-    expect(CORE_PROTOCOL).toContain('VERIFICATION');
-    expect(CORE_PROTOCOL).toMatch(/DEEP mode/i);
-    expect(CORE_PROTOCOL).toContain('DEPTH: deep');
-    for (const marker of ['@meta', '@step', '@body', '@diagram', '@solution', '@end']) {
-      expect(CORE_PROTOCOL).toContain(marker);
-    }
-  });
-
-  it('handles an empty question gracefully', () => {
-    const { prompt } = buildInjectionPrompt('   ');
-    expect(prompt).toContain('has not typed a question');
-  });
-
-  it('is a last-resort inline paste of core markers, not leftover rows', () => {
-    const { prompt } = buildInjectionPrompt('');
-    expect(prompt).toContain('stemLM instructions');
-    expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('@meta');
-    expect(prompt).not.toContain(PROTOCOL_FILENAME);
-    expect(prompt).not.toContain('Follow the attached');
-    expect(prompt).not.toContain('anatomy\tleftover');
-    expect(prompt).not.toContain('DIAGRAM REGISTRY');
-  });
-});
-
-describe('buildInjectionAppendix', () => {
-  it('returns only the separator and protocol (no question line)', () => {
-    const { prompt, subject } = buildInjectionAppendix(
-      'A projectile is launched at 20 m/s at 45 degrees',
-    );
-    expect(subject).toBe('Physics');
-    expect(prompt.startsWith('\n\n--- stemLM instructions')).toBe(true);
-    expect(prompt).toContain('CRITICAL');
-    expect(prompt).toContain('non-empty @body');
-    expect(prompt).toContain('FIRST PASS');
-    expect(prompt).toContain('OUTPUT:');
-    expect(prompt).toContain('Physics');
-    expect(prompt).toContain('Electrical');
-    expect(prompt).not.toContain('DIAGRAM REGISTRY');
-    expect(prompt).not.toContain('anatomy\tleftover');
-    expect(prompt).not.toContain('A projectile is launched');
-  });
-
-  it('asks the model to transcribe the image when the composer has no text', () => {
-    const { prompt } = buildInjectionAppendix('', { hasImageAttachment: true });
-    expect(prompt).toContain('problem image/PDF');
-    expect(prompt).toContain('@meta question:');
-  });
-});
-
-describe('buildInjectionPayload', () => {
-  it('puts protocol in the file and keeps the composer stub short', () => {
-    const payload = buildInjectionPayload(
-      'Solve this circuit with a resistor and 12V voltage source',
-    );
+  it('never tells the model which subject the classifier chose', () => {
+    const payload = buildInjectionPayload('Solve this circuit with a resistor and 12V voltage source');
     expect(payload.subject).toBe('Electrical');
-    expect(payload.composerText).toContain('Solve this circuit');
-    expect(payload.composerText).toContain(STUDY_GUIDE_REFERENCE);
-    expect(payload.composerText).toContain(STEMLM_SENTINEL);
-    expect(payload.composerText).toContain('Follow the attached');
-    expect(payload.composerText).not.toContain('OUTPUT:');
-    expect(payload.composerText).not.toContain('@meta');
-    expect(payload.composerText).not.toContain('(Electrical)');
-    expect(payload.composerText).toContain('Infer the subject from the problem');
-    expect(payload.composerText.indexOf('Solve this circuit')).toBeLessThan(
-      payload.composerText.indexOf(STEMLM_SENTINEL),
-    );
-    expect(payload.fileContent).toContain('OUTPUT:');
-    expect(payload.fileContent).toContain('ELECTRICAL');
-    expect(payload.fileContent).toContain('PHYSICS');
-    expect(payload.fileContent).toContain('CHEMISTRY');
-    expect(payload.fileContent).toContain('MATH');
-    expect(payload.fileContent).toContain('BIOLOGY');
-    expect(payload.fileContent).toContain('MECHANICAL');
-    expect(payload.fileContent).toContain('CIVIL');
-    expect(payload.fileContent).toContain('CHEMICAL');
-    expect(payload.fileContent).toContain('@resume');
-    expect(payload.fileContent).toContain('@uncertainty');
-    expect(payload.fileContent).toContain('WHEN NOT TO DRAW');
+    for (const subject of SUBJECTS) expect(payload.composerText).not.toContain(subject);
   });
 
-  it('attaches the same universal file regardless of the classified subject', () => {
-    const a = buildProtocolFileContent({ question: 'Solve this circuit with a resistor and 12V source' });
-    const b = buildProtocolFileContent({ question: 'A projectile is launched at 20 m/s at 45 degrees' });
-    const c = buildProtocolFileContent({ question: 'Balance ce{H2 + O2 -> H2O}' });
-    expect(a.subject).toBe('Electrical');
-    expect(b.subject).toBe('Physics');
-    expect(a.content).toBe(b.content);
-    expect(b.content).toBe(c.content);
-  });
-
-  it('teaches typed specs and does not instruct SVG coordinate craft', () => {
-    const { content } = buildProtocolFileContent({ question: 'sizing' });
-    expect(content).toContain('type=plot');
-    expect(content).toContain('type=circuit');
-    expect(content).toContain('type=field');
-    expect(content).toContain('catalog: solenoid');
-    expect(content).toContain('chem.smiles');
-    expect(content).toMatch(/NEVER <svg>|Never <svg>|never emit <svg>/i);
-    expect(content).not.toMatch(/viewBox="0 0 300 180"/);
-    expect(content).not.toMatch(/@diagram type=svg/);
-    const stub = buildComposerStub('A kinematics graph question.');
-    expect(stub).toMatch(/diagram/i);
-    expect(stub).not.toContain('viewBox');
-    expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
-    expect(getDiagramRequirement('Electrical')).not.toContain('nearly EVERY');
-    expect(getDiagramRequirement('Electrical')).toContain('rpi, gm, re, rc');
-    expect(getDiagramRequirement('Electrical')).not.toContain('viewBox="0 0 300 180"');
-  });
-
-  it('keeps the composer stub compact (full rules live in the attached file)', () => {
-    const stub = buildComposerStub('A representative question for sizing.');
-    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(900);
-    expect(stub).toContain('Infer the subject from the problem');
-  });
-
-  it('puts every subject registry in the attached file, not a duplicated diagram wall', () => {
-    const cases: [string, string][] = [
-      ['Find the eigenvalues of this 2x2 matrix and graph the region', 'MATH'],
-      ['Explain the Krebs cycle pathway in the mitochondrion', 'BIOLOGY'],
-      ['Compute bending stress for this shaft and draw the free-body diagram', 'MECHANICAL'],
-      ['Draw the SFD and BMD for a simply supported beam with a point load', 'CIVIL'],
-      ['Mass balance on a mixer with two inlet streams and one outlet', 'CHEMICAL'],
-    ];
-    for (const [question, marker] of cases) {
-      const { fileContent } = buildInjectionPayload(question);
-      expect(fileContent, `protocol file for "${question}" should mention "${marker}"`).toContain(marker);
-      expect(fileContent).toContain('OUTPUT:');
-      expect(fileContent).toContain('PHYSICS');
-      expect(fileContent).toContain('ELECTRICAL');
-      expect(buildComposerAppendix()).toContain(STUDY_GUIDE_REFERENCE);
-      expect(buildComposerAppendix()).not.toContain('OUTPUT:');
-    }
-  });
-
-  it('buildComposerStub references the attached filename only', () => {
-    const stub = buildComposerStub('derivative question');
-    expect(stub).toContain('derivative question');
-    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
-    expect(stub).not.toContain('MATH:');
-  });
-
-  it('buildProtocolFileContent includes every registry', () => {
-    const { content, subject } = buildProtocolFileContent({
-      question: 'binary search trace',
-      subject: 'CS',
-    });
-    expect(subject).toBe('CS');
-    expect(content).toContain('CS');
-    expect(content).toContain('PHYSICS');
-    expect(content).toContain('OUTPUT:');
-    expect(content).toContain('ARCHETYPE REGISTRY');
-  });
-
-  it('classifies for analytics but does not pin the composer or file to that subject', () => {
-    const question = 'Solve this circuit with a resistor and 12V voltage source';
-    const payloads = [
-      buildInjectionPayload(question),
-      buildInjectionPayload(question, { subject: 'Auto' }),
-      buildInjectionPayload(question, { subject: undefined }),
-    ];
-
-    for (const payload of payloads) {
-      expect(payload.subject).toBe('Electrical');
-      expect(payload.composerText).toContain('Follow the attached stemLM study guide');
-      expect(payload.composerText).toContain('Infer the subject from the problem');
-      expect(payload.composerText).not.toContain('(Electrical)');
-      expect(payload.fileContent).toContain('ELECTRICAL');
-      expect(payload.fileContent).toContain('PHYSICS');
-      expect(payload.composerText).not.toContain('OUTPUT:');
-    }
-
-    expect(payloads[0]).toEqual(payloads[1]);
-    expect(payloads[1]).toEqual(payloads[2]);
-  });
-
-  it('includes subject-specific textbook diagram conventions without prompt banks', () => {
-    expect(getDiagramRequirement('Electrical')).toContain('hybridpi');
-    expect(getDiagramRequirement('Electrical')).toContain('type=circuit');
-    expect(getDiagramRequirement('Electrical')).not.toContain('nearly EVERY');
-    expect(getDiagramRequirement('Chemistry')).toContain('chem.smiles');
-    expect(getDiagramRequirement('Physics')).toContain('FREE-BODY');
-    expect(getDiagramRequirement('Physics')).toContain('type=field');
-    expect(getDiagramRequirement('Physics')).toContain('solenoid');
-    expect(getDiagramRequirement('Math')).toContain('type=plot');
-    expect(getDiagramRequirement('Biology')).toContain('Punnett');
-    expect(getDiagramRequirement('Civil')).toContain('type=sfd');
-    expect(getDiagramRequirement('Chemical')).toContain('mccabe');
-  });
-});
-
-describe('resolveSubject', () => {
-  const circuitQuestion = 'Solve this circuit with a resistor and 12V voltage source';
-
-  it('classifies when subject is Auto', () => {
-    expect(resolveSubject('derivative and integral of polynomial', { subject: 'Auto' })).toBe('Math');
-  });
-
-  it('classifies when subject is omitted', () => {
-    expect(resolveSubject(circuitQuestion)).toBe('Electrical');
-    expect(resolveSubject(circuitQuestion, {})).toBe('Electrical');
-    expect(resolveSubject(circuitQuestion, { subject: undefined })).toBe('Electrical');
-  });
-
-  it('treats Auto, undefined, and no option identically', () => {
-    const noOpt = resolveSubject(circuitQuestion);
-    const auto = resolveSubject(circuitQuestion, { subject: 'Auto' });
-    const undef = resolveSubject(circuitQuestion, { subject: undefined });
-    expect(auto).toBe(noOpt);
-    expect(undef).toBe(noOpt);
-    expect(noOpt).toBe('Electrical');
-  });
-
-  it('returns the override when provided', () => {
-    expect(resolveSubject('derivative', { subject: 'Physics' })).toBe('Physics');
-  });
-});
-
-describe('buildFollowupPrompt', () => {
-  const opts = {
-    selection: 'Total resistance is R1 + R2',
-    stepTitle: 'Solve for current',
-    subject: 'Electrical' as const,
-  };
-
-  it('quotes the selection and uses the short form, not the protocol wall', () => {
-    const prompt = buildFollowupPrompt(opts);
-    expect(prompt).toMatch(/^Ask your question here:/);
-    expect(prompt).toContain('stemLM follow-up context');
-    expect(prompt).toContain('> Total resistance is R1 + R2');
-    expect(prompt).toContain('Solve for current');
-    expect(prompt).toContain('FOLLOW-UP CONTRACT');
-    expect(prompt).toContain('mode: patch');
-    expect(prompt).not.toContain('--- stemLM instructions');
-    expect(prompt).not.toContain('OUTPUT:');
-    expect(prompt).not.toContain('ARCHETYPE REGISTRY');
-    expect(prompt.indexOf('Ask your question here:')).toBeLessThan(
-      prompt.indexOf('stemLM follow-up context'),
-    );
-    expect(prompt).not.toContain('```stemlm');
-    expect(prompt).toContain(STUDY_GUIDE_REFERENCE);
-  });
-
-  it('uses ask intent copy for free-form last-step follow-ups', () => {
-    const prompt = buildFollowupPrompt({ ...opts, intent: 'ask' });
-    expect(prompt).toContain('asking a question about this step');
-    expect(prompt).toContain('ASK-IN-CHAT CONTRACT');
-    expect(prompt).toContain('inline step answer');
-  });
-
-  it('uses whole-solution copy for Solution-tab Ask in chat', () => {
-    const prompt = buildFollowupPrompt({
-      ...opts,
-      intent: 'ask-solution',
-      selection: 'Problem: Find I\nSolution route (2 steps): 1. Add R; 2. Ohm',
-    });
-    expect(prompt).toContain('WHOLE solution');
-    expect(prompt).toContain('whole-solution answer');
-    expect(prompt).not.toContain('asking a question about this step');
-    expect(prompt).not.toContain('from the step');
-    expect(prompt).not.toContain('OUTPUT:');
-    expect(Buffer.byteLength(prompt, 'utf8')).toBeLessThanOrEqual(4000);
-  });
-
-  it('buildFollowupComposerText references the attached protocol file', () => {
-    const composer = buildFollowupComposerText(opts);
-    expect(composer).toContain(STUDY_GUIDE_REFERENCE);
-    expect(composer).not.toContain('(Electrical)');
-    expect(composer).toContain('> Total resistance is R1 + R2');
-    expect(composer).not.toContain('OUTPUT:');
-    expect(composer).toContain('FOLLOW-UP CONTRACT');
-    expect(composer.indexOf(STUDY_GUIDE_REFERENCE)).toBeLessThan(composer.indexOf('> Total resistance'));
-  });
-
-  it('keeps the follow-up composer stub compact (full rules ship in the file)', () => {
-    const composer = buildFollowupComposerText({
-      ...opts,
-      intent: 'ask',
-      selection: 'Problem: verify the vector section formula\nFinal step: Verify endpoints\nContext: boundary work',
-    });
-    expect(Buffer.byteLength(composer, 'utf8')).toBeLessThanOrEqual(4000);
-    expect(composer).not.toContain('CRITICAL');
-  });
-
-  it('buildFollowupPayload pairs composer stub with protocol file content', () => {
-    const payload = buildFollowupPayload(opts);
-    expect(payload.composerText).toBe(buildFollowupComposerText(opts));
-    expect(payload.fileContent).toContain('OUTPUT:');
-    expect(payload.fileContent).toContain('ELECTRICAL');
-    expect(payload.fileContent).toContain('PHYSICS');
-    expect(payload.fileContent).toContain('FOLLOW-UP CONTRACT');
-    expect(payload.subject).toBe('Electrical');
-  });
-});
-
-describe('composer stubs', () => {
-  it('appends a short file pointer without repeating the question', () => {
-    const stub = buildComposerAppendix({ hasQuestion: true });
-    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
-    expect(stub).toContain(STEMLM_SENTINEL);
-    expect(stub).toContain('Infer the subject from the problem');
-    expect(stub).not.toContain('(Physics)');
-    expect(stub).not.toContain('OUTPUT:');
-    expect(stub).not.toContain('has not typed');
-    expect(Buffer.byteLength(stub, 'utf8')).toBeLessThanOrEqual(700);
-    expect(composerTextHasProtocol(stub)).toBe(true);
-  });
-
-  it('mentions an attached image/PDF when that is the only prompt', () => {
-    const stub = buildComposerAppendix({ hasImageAttachment: true, hasQuestion: false });
-    expect(stub).toContain('image/PDF');
-    expect(stub).toContain(STUDY_GUIDE_REFERENCE);
-    expect(stub).not.toContain('@meta');
-  });
-
-  it('emits a short pointer when the protocol is already present', () => {
-    const pointer = buildComposerPointer({ hasQuestion: true });
-    expect(pointer).toContain(STEMLM_SENTINEL);
-    expect(pointer).toContain('New problem');
-    expect(pointer).toContain(STUDY_GUIDE_REFERENCE);
-    expect(pointer).not.toContain('OUTPUT:');
-    expect(Buffer.byteLength(pointer, 'utf8')).toBeLessThanOrEqual(400);
-  });
-
-  it('detects both file-stub and inline-paste protocol markers', () => {
-    expect(composerTextHasProtocol('Follow the attached stemlm-protocol.txt exactly. Infer the subject from the problem.')).toBe(true);
-    expect(composerTextHasProtocol('--- stemLM instructions (do not remove) ---')).toBe(true);
-    expect(composerTextHasProtocol('--- stemLM ---\nstemLM is writing')).toBe(true);
+  it('is recognised as stemLM text, and as expecting a file only when it says one is attached', () => {
+    for (const text of [stub, buildComposerPointer({ hasQuestion: true }), pasted('Find x.')]) expect(composerTextHasProtocol(text)).toBe(true);
     expect(composerTextHasProtocol('Find the range of a projectile')).toBe(false);
+    expect(composerExpectsGuideFile(stub)).toBe(true);
+    expect(composerExpectsGuideFile(buildComposerPointer({ hasQuestion: true }))).toBe(false);
+    expect(composerExpectsGuideFile(pasted('Find x.'))).toBe(false);
+  });
+
+  it('still recognises what earlier versions wrote', () => {
+    const old = 'Find x.\n\n--- stemLM ---\nFollow the attached stemLM study guide as an answer-format reference for my question. Infer the subject from the problem.';
+    expect(composerTextHasProtocol(old)).toBe(true);
+    expect(composerExpectsGuideFile(old)).toBe(true);
+    expect(composerTextHasProtocol('Follow the attached stemlm-protocol.txt')).toBe(true);
+    expect(composerExpectsGuideFile('1789247745212_stemlm-protocol.txt')).toBe(true);
+    expect(composerTextHasProtocol('--- stemLM instructions (do not remove) ---')).toBe(true);
+  });
+});
+
+describe('the guide file', () => {
+  it('is the guide for this question, under the plain file name', () => {
+    const payload = buildInjectionPayload(INCLINE);
+    expect(payload.subject).toBe('Physics');
+    expect(payload.fileContent).toBe(assembleGuide(INCLINE).text);
+    expect(payload.composerText).toBe(buildComposerStub(INCLINE));
+    expect(PROTOCOL_FILENAME).toBe('stemLM Guide.txt');
+  });
+
+});
+
+describe('the guide as message text, where the host takes no upload', () => {
+  const question = 'A class survey asked 50 students for their favourite sport. Show the results as a bar chart.';
+  const { prompt } = buildInjectionPrompt(question);
+
+  it('keeps the question first and readable, then the sentinel, then the guide', () => {
+    expect(prompt.startsWith(`${question}\n\n${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(prompt.endsWith(STUDY_GUIDE_END)).toBe(true);
+    expect(cleanSessionQuestion(prompt)).toBe(question);
+  });
+
+  it('is small enough to stay ordinary message text', () => {
+    expect(prompt.length - question.length).toBeLessThanOrEqual(GUIDE_INLINE_MAX_CHARS + 120);
+    expect(prompt).not.toContain('```');
+    expect(prompt).not.toContain(PROTOCOL_FILENAME);
+  });
+
+  it('carries the answer shape and the figure form the question names', () => {
+    expect(prompt).toContain('@step id=s1');
+    expect(prompt).toContain('@diagram type=chart');
+    expect(parse(prompt).capsule?.steps).toHaveLength(1);
+  });
+
+  it('is appended under a question already in the chat box without repeating it', () => {
+    const appendix = buildInjectionAppendix(question).prompt;
+    // The chat box adds its own blank line before appended text.
+    expect(appendix.startsWith(`${STEMLM_SENTINEL}\n`)).toBe(true);
+    expect(appendix).not.toContain(question);
+    expect(`${question}\n\n${appendix}`).toBe(prompt);
+    expect(buildInjectionAppendix('', { hasImageAttachment: true }).prompt).toContain('(Problem image/PDF is attached');
+  });
+
+  it('counts as arrived only when it arrived whole', () => {
+    expect(composerHasInlineGuide(prompt)).toBe(true);
+    expect(composerHasInlineGuide(prompt.slice(0, -40))).toBe(false);
+    expect(composerHasInlineGuide(buildComposerStub(question))).toBe(false);
+  });
+
+  it('comes with one plain sentence that tells the student why the guide is in their message', () => {
+    expect(GUIDE_PASTED_NOTICE).toBe('This chat did not take a file, so the guide is in your message as text.');
+  });
+});
+
+describe('guideNeeded: when the full guide goes with a question', () => {
+  it('attaches it to the first question of a chat', () => {
+    expect(guideNeeded(INCLINE, [])).toBe(true);
+    expect(guideNeeded(INCLINE, ['hello', 'what is a vector?'])).toBe(true);
+  });
+
+  it('is not fooled by a chat whose messages carry only the reminder', () => {
+    // A reminder says the guide is "earlier in this chat"; that is not a guide.
+    expect(guideNeeded(PROJECTILE, [reminderOnly(INCLINE)])).toBe(true);
+    expect(guideNeeded(PROJECTILE, [reminderOnly(INCLINE), reminderOnly(PROJECTILE)])).toBe(true);
+  });
+
+  it('does not upload it again for the next question on the same subject', () => {
+    expect(guideNeeded(PROJECTILE, [attached(INCLINE)])).toBe(false);
+    expect(guideNeeded(INCLINE, [attached(INCLINE)])).toBe(false);
+  });
+
+  it('holds off for the following questions, then refreshes it', () => {
+    const sent = [attached(INCLINE)];
+    for (let turn = 1; turn < GUIDE_REFRESH_TURNS; turn += 1) {
+      expect(guideNeeded(PROJECTILE, sent), `turn ${turn}`).toBe(false);
+      sent.push(reminderOnly(PROJECTILE));
+    }
+    sent.push('thanks, and what about air resistance?');
+    expect(sent.length - 1).toBe(GUIDE_REFRESH_TURNS);
+    expect(guideNeeded(PROJECTILE, sent)).toBe(true);
+    // The refreshed guide starts the count again.
+    expect(guideNeeded(PROJECTILE, [...sent, attached(PROJECTILE)])).toBe(false);
+  });
+
+  it('attaches it again when the last answer did not come back in the format', () => {
+    expect(guideNeeded(PROJECTILE, [attached(INCLINE)], false)).toBe(true);
+  });
+
+  it('does not upload it again for a new subject: the file describes every figure type', () => {
+    expect(guideNeeded(PUNNETT, [attached(INCLINE)])).toBe(false);
+    expect(guideNeeded(INCLINE, [attached(PUNNETT)])).toBe(false);
+    expect(guideNeeded('For the block on the incline, write the truth table of the two switches.', [attached(INCLINE)])).toBe(false);
+    // The file an incline question attached already gives the keys of a Punnett square.
+    expect(assembleGuide(INCLINE).forms).not.toContain('table.punnett');
+    expect(assembleGuide(INCLINE).text).toContain('type=table: a Punnett square.');
+  });
+
+  it('treats a guide pasted as text as the guide, and pastes again only for figure forms it left out', () => {
+    expect(guideNeeded(INCLINE, [pasted(INCLINE)])).toBe(false);
+    expect(guideNeeded(PROJECTILE, [pasted(INCLINE)])).toBe(false);
+    // The pasted guide holds a few forms only: a Punnett square is not among a mechanics question's.
+    expect(guideNeeded(PUNNETT, [pasted(INCLINE)])).toBe(true);
+  });
+
+  it('trusts the guide an earlier version attached: it described every figure form', () => {
+    const old = `${INCLINE}\n\n--- stemLM ---\nFollow the attached stemLM study guide as an answer-format reference for my question.`;
+    expect(guideNeeded(PROJECTILE, [old])).toBe(false);
+  });
+});
+
+describe('sentStudentMessages', () => {
+  const hosts: Array<[string, (text: string) => string]> = [
+    ['ChatGPT', (text) => `<div data-message-author-role="user"><div class="whitespace-pre-wrap">${text}</div></div>`],
+    ['Claude', (text) => `<div data-testid="user-message"><p>${text}</p></div>`],
+    ['Gemini', (text) => `<user-query><div class="query-text"><p class="query-text-line">${text}</p></div></user-query>`],
+    ['Grok', (text) => `<div class="message-bubble" data-testid="user-message">${text}</div>`],
+  ];
+
+  it.each(hosts)('%s: reads each of the student\'s turns once, in order, and never the chat box', (_host, turn) => {
+    document.body.innerHTML = `<main>${turn(attached(INCLINE))}<div class="answer">@meta …</div>${turn(reminderOnly(PROJECTILE))}</main>
+      <div id="ed" contenteditable="true">${attached('A draft not sent yet')}</div>`;
+    const sent = sentStudentMessages(document, document.getElementById('ed'));
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toContain('30° incline');
+    expect(sent[1]).toContain('thrown at 20 m/s');
+    expect(guideNeeded(PROJECTILE, sent)).toBe(false);
+  });
+
+  it.each(hosts)('%s: a new chat, or one with only the reminder, gets the guide', (_host, turn) => {
+    document.body.innerHTML = '<main></main><div id="ed" contenteditable="true">Find x.</div>';
+    expect(guideNeeded(INCLINE, sentStudentMessages(document, document.getElementById('ed')))).toBe(true);
+    document.body.innerHTML = `<main>${turn(reminderOnly(INCLINE))}</main><div id="ed" contenteditable="true"></div>`;
+    expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(true);
+    expect(guideNeeded(INCLINE, sentStudentMessages(document, document.getElementById('ed')))).toBe(true);
+  });
+
+  describe('a guide attached but not sent is not a guide the chat has', () => {
+    /** A chat box as the hosts build it: the editor, and beside it (not inside it) the file chips. */
+    const chatBox = (chip: string) => `<main>
+        <form><div class="file-preview">${chip}</div><div id="ed" contenteditable="true">${attached(INCLINE)}</div></form>
+      </main>`;
+    const state = () => {
+      const editor = document.getElementById('ed');
+      return { thread: pageThreadHasProtocol(document, editor), sent: sentStudentMessages(document, editor) };
+    };
+
+    it('an empty chat with the guide chip and the reminder waiting in the chat box has no guide yet', () => {
+      document.body.innerHTML = chatBox(PROTOCOL_FILENAME);
+      expect(state()).toEqual({ thread: false, sent: [] });
+      expect(guideNeeded(INCLINE, state().sent)).toBe(true);
+    });
+
+    it('still needs the guide after the student removes the chip and asks again', () => {
+      document.body.innerHTML = chatBox('');
+      expect(state()).toEqual({ thread: false, sent: [] });
+      expect(guideNeeded(INCLINE, state().sent)).toBe(true);
+    });
+
+    it.each(['form', 'fieldset', 'input-area-v2', 'div role="form"'])('skips the whole chat box when it is a <%s>', (tag) => {
+      const name = tag.split(' ')[0]!;
+      document.body.innerHTML = `<main><${tag}><div class="file-preview">${PROTOCOL_FILENAME}</div><div id="ed" contenteditable="true"></div></${name}></main>`;
+      expect(state().thread).toBe(false);
+    });
+
+    it('counts the guide once the message is sent, whatever waits in the chat box', () => {
+      document.body.innerHTML = `<main><div data-message-author-role="user">${attached(INCLINE)}</div>
+        <form><div id="ed" contenteditable="true">${PROJECTILE}</div></form></main>`;
+      expect(state().thread).toBe(true);
+      expect(guideNeeded(PROJECTILE, state().sent)).toBe(false);
+    });
+  });
+
+  it('returns nothing where the host\'s turns cannot be told apart, which means: attach', () => {
+    document.body.innerHTML = `<main><div class="turn">${attached(INCLINE)}</div></main>`;
+    expect(sentStudentMessages(document, null)).toEqual([]);
+    expect(guideNeeded(INCLINE, [])).toBe(true);
   });
 });
 
@@ -412,13 +315,7 @@ describe('pageThreadHasProtocol', () => {
       <div data-message-author-role="user">A projectile --- stemLM --- Follow the attached stemlm-protocol.txt</div>
       <div id="ed" contenteditable="true">New question</div>
     `;
-    const editor = document.getElementById('ed');
-    expect(pageThreadHasProtocol(document, editor)).toBe(true);
-    expect(pageThreadHasProtocol(document, editor)).toBe(
-      composerTextHasProtocol(
-        'A projectile --- stemLM --- Follow the attached stemlm-protocol.txt',
-      ),
-    );
+    expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(true);
   });
 
   it('does not treat the live composer as the thread', () => {
@@ -429,7 +326,7 @@ describe('pageThreadHasProtocol', () => {
     expect(pageThreadHasProtocol(document, document.getElementById('ed'))).toBe(false);
   });
 
-  it('finds stemlm-protocol.txt in a conversation root outside the composer', () => {
+  it('finds the guide file name in a conversation root outside the composer', () => {
     document.body.innerHTML = `
       <main class="conversation-container">
         <div class="turn">Previous turn attached stemlm-protocol.txt</div>
@@ -448,57 +345,104 @@ describe('pageThreadHasProtocol', () => {
 });
 
 describe('shouldReinjectOnNewQuestion', () => {
-  it('re-injects when protocol is present and the question changed', () => {
-    expect(
-      shouldReinjectOnNewQuestion({
-        buttonInjected: true,
-        question: 'New projectile question',
-        lastQuestion: 'Old circuit question',
-        hasProtocol: true,
-      }),
-    ).toBe(true);
+  it('re-injects when stemLM text is present and the question changed', () => {
+    expect(shouldReinjectOnNewQuestion({ buttonInjected: true, question: 'New projectile question', lastQuestion: 'Old circuit question', hasProtocol: true })).toBe(true);
   });
 
   it('toggles the panel when the question is unchanged', () => {
-    expect(
-      shouldReinjectOnNewQuestion({
-        buttonInjected: true,
-        question: 'Same question',
-        lastQuestion: 'Same question',
-        hasProtocol: true,
-      }),
-    ).toBe(false);
+    expect(shouldReinjectOnNewQuestion({ buttonInjected: true, question: 'Same question', lastQuestion: 'Same question', hasProtocol: true })).toBe(false);
   });
 });
 
-describe('follow-up copy and empty slot', () => {
-  it('Copy text is the short composer form without the instructions wall', () => {
-    const text = buildFollowupCopyText({
-      selection: 'Total resistance is R1 + R2',
-      stepTitle: 'Solve for current',
-      subject: 'Electrical',
-      intent: 'ask',
-    });
-    expect(text).toMatch(/^Ask your question here:/);
-    expect(text).toContain('ASK-IN-CHAT CONTRACT');
-    expect(text).not.toContain('--- stemLM instructions');
-    expect(text).not.toContain('OUTPUT:');
+describe('follow-ups', () => {
+  const opts = { selection: 'Problem: Find I\nStep 2 of 4 (s2): Solve for current\nWork: Total resistance is R1 + R2', stepTitle: 'Solve for current', subject: 'Electrical' as const };
+  const ask = buildFollowupCopyText({ ...opts, intent: 'ask' });
+
+  it('leaves a slot for the student\'s question above the context', () => {
+    expect(ask.startsWith('Ask your question here:\n\n\n--- stemLM follow-up context (do not remove) ---\n')).toBe(true);
+    expect(ask).toContain('My question above is about this step of your earlier answer ("Solve for current"):');
+    expect(ask).toContain('> Problem: Find I\n> Step 2 of 4 (s2): Solve for current\n> Work: Total resistance is R1 + R2');
+    expect(cleanSessionQuestion(ask.replace('Ask your question here:\n\n\n', 'Why do the resistances add?\n\n'))).toBe('Why do the resistances add?');
   });
 
-  it('treats whitespace as an empty follow-up no-op', () => {
+  it('is short, plain and needs no attachment', () => {
+    expect(ask.length).toBeLessThanOrEqual(800);
+    expect(ask).not.toContain('```');
+    expect(ask).not.toContain(PROTOCOL_FILENAME);
+    expect(ask).not.toContain(STUDY_GUIDE_REFERENCE);
+    expect(ask).not.toMatch(/\b[A-Z]{4,}\b/);
+    expect(composerTextHasProtocol(ask)).toBe(true);
+    expect(composerExpectsGuideFile(ask)).toBe(false);
+  });
+
+  it('is enough by itself: the reply it asks for is read as an answer to hang under that step', () => {
+    expect(ask).toContain('@meta\nmode: resolve\n@endmeta\n@step id=s1\n');
+    const reply = ['```stemlm', '@meta', 'mode: resolve', '@endmeta', '@step id=s1', 'title: Why series resistances add', '@body', 'The same current $I$ flows through both, so the voltages add: $V = IR_1 + IR_2 = I(R_1 + R_2)$.', '@endbody', '@endstep', '@solution', 'They add because one current passes through both resistors.', '@endsolution', '@end', '```'].join('\n');
+    const result = parse(reply);
+    expect(result.status).toBe('ok');
+    expect(result.capsule!.meta.mode).toBe('resolve');
+    expect(result.capsule!.steps).toHaveLength(1);
+    expect(result.warningCodes).not.toContain('missing_end');
+    expect(result.patch).toBeUndefined();
+  });
+
+  it('names the qid of an older answer, which its reply must repeat to be matched', () => {
+    expect(buildFollowupCopyText({ ...opts, intent: 'ask', qid: 'q1' })).toContain('@meta\nqid: q1\nmode: resolve\n@endmeta');
+    expect(ask).not.toContain('qid');
+  });
+
+  it('asks about the whole answer from the solution view', () => {
+    const whole = buildFollowupCopyText({ ...opts, intent: 'ask-solution' });
+    expect(whole).toContain('My question above is about your whole earlier answer:');
+    expect(whole).not.toContain('about this step');
+    expect(whole).toContain('mode: resolve');
+  });
+
+  it('without a typed question, asks for that one step to be rewritten in place', () => {
+    const deeper = buildFollowupCopyText(opts);
+    expect(deeper).toContain('Explain this part of your earlier answer in more depth ("Solve for current"):');
+    expect(deeper).toContain('@meta\nmode: patch\n@endmeta\n@patch op=replace id=');
+    const reply = ['@meta', 'mode: patch', '@endmeta', '@patch op=replace id=s2', '@step id=s2', 'title: Solve for current', '@body', 'In series the current is the same, so $R = R_1 + R_2 = 6\\ \\Omega$.', '@endbody', '@endstep', '@endpatch', '@end'].join('\n');
+    const result = parse(reply);
+    expect(result.patch).toHaveLength(1);
+    expect(result.patch![0]).toMatchObject({ op: 'replace', id: 's2' });
+  });
+
+  it('treats whitespace as an empty selection', () => {
     expect(isEmptyFollowupSelection('')).toBe(true);
     expect(isEmptyFollowupSelection('   \n')).toBe(true);
     expect(isEmptyFollowupSelection('Why is R1 + R2?')).toBe(false);
   });
 });
 
-describe('numeric plug-in is scoped to numeric/lab', () => {
-  it('repair/inject body rules do not globally MUST-format every formula as a plug-in', () => {
-    expect(STEP_BODY_REQUIREMENT).toContain('NUMERIC/LAB only');
-    expect(STEP_BODY_REQUIREMENT).toContain('NEVER force a numeric plug-in');
-    expect(STEP_BODY_REQUIREMENT).toMatch(/proof MUST NOT plug into the formula/i);
-    const file = buildProtocolFileContent({ question: 'sizing' }).content;
-    expect(file).toContain('NUMERIC/LAB only');
-    expect(file).toContain('NEVER force a numeric plug-in');
+describe('the question shown in the panel and saved in the library', () => {
+  const question = 'Find the range of a projectile launched at 20 m/s.';
+
+  it.each([
+    ['guide attached', buildComposerStub(question)],
+    ['reminder only', reminderOnly(question)],
+    ['guide pasted as text', pasted(question)],
+    ['question typed above a follow-up', buildFollowupCopyText({ selection: 'Step 1: range', intent: 'ask' }).replace('Ask your question here:\n\n\n', `${question}\n\n`)],
+  ])('is the student\'s own text when the message is: %s', (_name, message) => {
+    expect(cleanSessionQuestion(message)).toBe(question);
+  });
+
+  it.each([
+    ['stub, 2026', `${question}\n\n--- stemLM ---\nFollow the attached stemLM study guide as an answer-format reference for my question. Infer the subject from the problem. Use its worked steps and diagram instructions.`],
+    ['pointer, 2026', `${question}\n\n--- stemLM ---\nNew problem. Follow the attached stemLM study guide, including its diagram instructions.`],
+    ['pointer without a file', `${question}\n--- stemLM ---\nNew problem. Re-read and apply the earlier stemLM study guide (attached file or inline fallback) before answering.`],
+    ['guide pasted inline', `${question}\n\n--- stemLM instructions (do not remove) ---\nstemLM Study Guide\nOUTPUT: for a STEM solve using this format…`],
+    ['first file name', `${question}\nFollow the attached stemlm-protocol.txt exactly. Infer the subject from the problem.`],
+    ['follow-up, 2026', `${question}\n\n\n--- stemLM follow-up context (do not remove) ---\nFollow the attached stemLM study guide. Do not treat this as new homework.`],
+  ])('is still clean for a message an earlier version wrote: %s', (_name, message) => {
+    expect(cleanSessionQuestion(message)).toBe(question);
+  });
+
+  it.each([
+    ['an image-only question', buildComposerStub('', { hasImageAttachment: true })],
+    ['an image-only question, 2026', '(Problem image/PDF is attached — transcribe the full question into the capsule question field.)\n\n--- stemLM ---\nFollow the attached stemLM study guide.'],
+    ['an empty follow-up slot', 'Ask your question here:\n\n\n--- stemLM follow-up context (do not remove) ---'],
+  ])('is empty, never stemLM\'s own words, for %s', (_name, message) => {
+    expect(cleanSessionQuestion(message)).toBe('');
   });
 });

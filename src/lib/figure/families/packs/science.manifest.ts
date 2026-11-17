@@ -7,7 +7,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['level'],
     keys: ['level', 'unit', 'show', 'catalyst'],
     subjects: ['Chemistry', 'Biology'],
-    grammar: 'energy: level: <id> <energy> [label] (repeat in reaction order: reactants, transition states, intermediates, products; a level above both neighbours is drawn as a transition state) | unit: kJ/mol | show: ea, dh (E_a, ΔH and exothermic/endothermic are computed) | catalyst: <transition-state id> <lower energy> (dashed path)',
+    grammar: 'energy: a reaction energy profile. level: <id> <energy> [label] (repeat in reaction order: reactants, transition state, products; a level above both neighbours is drawn as a peak) | unit: kJ/mol | show: ea, dh (activation energy and ΔH are worked out) | catalyst: <peak id> <lower energy> (adds the dashed catalysed path)',
     specimen: 'level: r 0 A + B\nlevel: ts 85 TS\nlevel: p -40 C + D\nunit: kJ/mol\nshow: ea, dh',
   },
   {
@@ -16,7 +16,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['branch'],
     keys: ['branch', 'show'],
     subjects: ['Math', 'Biology'],
-    grammar: 'probtree: branch: <parent-id|root> <id> <probability> [label] (repeat; ids are unique, the label is what is printed; probability as 0.3, 3/10 or 30%; the branches leaving a node must sum to 1) | show: products (each path is multiplied and its probability printed at the leaf)',
+    grammar: 'probtree: a probability tree. branch: <parent id or root> <id> <probability> [label] (repeat; every id is different, the label is the word or two printed at the branch, the probability is 0.3, 3/10 or 30%, and the branches leaving one point add up to 1) | show: products (multiplies along each path and prints the result)',
     specimen: 'branch: root R 3/10 Red\nbranch: root B 7/10 Blue\nbranch: R RR 2/9 Red\nbranch: R RB 7/9 Blue\nbranch: B BR 3/9 Red\nbranch: B BB 6/9 Blue\nshow: products',
   },
   {
@@ -25,7 +25,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['v0', 'angle'],
     keys: ['v0', 'angle', 'h0', 'g', 'show', 'mark'],
     subjects: ['Physics', 'Math'],
-    grammar: 'projectile: v0: 20 (launch speed, m/s) | angle: 35 (degrees above the horizontal; negative = below) | h0: 0 (launch height, m) | g: 9.81 | show: range, hmax, time (computed and dimensioned; ideal motion, no drag) | mark: 1.2 (seconds, repeat: the point and velocity vector at that instant)',
+    grammar: 'projectile: the path of a projectile. v0: 20 (launch speed, m/s) | angle: 35 (degrees above the horizontal; negative for below) | h0: 0 (launch height, m) | g: 9.81 | show: range, hmax, time (worked out and marked; no air resistance) | mark: 1.2 (repeat; the position and velocity at that time in seconds)',
     specimen: 'v0: 20\nangle: 35\nshow: range, hmax, time',
   },
   {
@@ -34,7 +34,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['element'],
     keys: ['element', 'charge', 'show', 'core'],
     subjects: ['Chemistry'],
-    grammar: 'econfig: element: Fe (symbol, name or Z=26; Fe3+ or Fe(III) also gives the charge) | charge: 3+ | show: boxes|notation|both (orbital box diagram, the 1s² 2s² … line, or both) | core: noble (abbreviate as [Ar] …); the ground-state configuration, the arrows and the unpaired-electron count are computed, never supplied',
+    grammar: 'econfig: an electron configuration. element: Fe (symbol, name or Z=26) | charge: 3+ | show: boxes|notation|both (orbital boxes, the 1s² 2s² … line, or both) | core: noble (shortens it to [Ar] …). The configuration, the arrows and the unpaired count are worked out; never give them',
     specimen: 'element: Fe\ncharge: 3+\nshow: both\ncore: noble',
   },
   {
@@ -43,7 +43,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['element'],
     keys: ['element', 'charge', 'mass'],
     subjects: ['Chemistry', 'Physics'],
-    grammar: 'bohr: element: Na (symbol, name or Z=11) | charge: 1+ | mass: 23 (mass number; the nucleus then shows A − Z neutrons); the electrons in each shell are computed from the element',
+    grammar: 'bohr: a Bohr model of an atom or ion. element: Na (symbol, name or Z=11) | charge: 1+ | mass: 23 (mass number, to show the neutrons). The electrons in each shell are worked out',
     specimen: 'element: Na\nmass: 23',
   },
   {
@@ -52,7 +52,7 @@ export const SCIENCE_MANIFESTS: FamilyManifest[] = [
     required: ['person'],
     keys: ['person', 'couple', 'child'],
     subjects: ['Biology'],
-    grammar: 'pedigree: person: <id> male|female|unknown [affected|carrier|unaffected] [deceased] (repeat) | couple: <idA> <idB> | child: <parentA> <parentB> <child ids…> (repeat per couple; children left to right); generations I, II, III are computed; one partner per person',
+    grammar: 'pedigree: a family pedigree. person: <id> male|female|unknown [affected|carrier|unaffected] [deceased] (repeat) | couple: <idA> <idB> | child: <parentA> <parentB> <child ids> (repeat for each couple; children left to right). Generations are worked out; one partner for each person',
     specimen: 'person: I-1 male\nperson: I-2 female carrier\nperson: II-1 female\nperson: II-2 male affected\nperson: II-3 female carrier\nchild: I-1 I-2 II-1 II-2 II-3',
   },
 ];

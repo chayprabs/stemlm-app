@@ -80,3 +80,85 @@ export function savedSeed(count, now = Date.now()) {
   }
   return rows;
 }
+
+/**
+ * Stored records a library has to survive: an answer structured from a plain chat reply (its
+ * topic is its question), code and display math in the question, one unbroken 300-character
+ * token, a record with neither question nor topic, no steps, an impossible saved time, a chat
+ * this build does not know, and two entries that are not records at all (dropped on read).
+ */
+export function savedEdgeCases(now = Date.now()) {
+  const row = (id, fields) => ({
+    id,
+    question: '',
+    savedAt: now - HOUR,
+    platform: 'chatgpt',
+    meta: { version: 2, subject: 'Physics', topic: '', qid: 'q1' },
+    steps: [{ id: 's1', index: 1, title: 'Step 1', body: 'Seeded for the visual harness.' }],
+    solution: 'Seeded for the visual harness.',
+    solutionDiagrams: [],
+    ...fields,
+  });
+  return [
+    row('edge-ingest', {
+      question: 'A ball is thrown at 20 m/s at 30° above the horizontal. How far away does it land? Use g = 9.8 m/s².',
+      meta: { version: 2, subject: 'Physics', topic: 'A ball is thrown at 20 m/s at 30° above the horizontal', question: 'A ball is thrown at 20 m/s at 30° above the horizontal. How far away does it land? Use g = 9.8 m/s².' },
+      origin: 'ingest',
+      platform: 'claude',
+      savedAt: now - 20 * 60_000,
+      steps: [
+        { id: 's1', index: 1, title: 'Resolve the initial velocity', body: String.raw`The horizontal part is $v_x = v_0\cos\theta = 17.3\ \text{m/s}$ and the vertical part is $v_y = v_0\sin\theta = 10.0\ \text{m/s}$.` },
+        { id: 's2', index: 2, title: 'Find the time of flight', body: String.raw`The ball returns to launch height when $t = 2v_y/g = 2.04\ \text{s}$.` },
+        { id: 's3', index: 3, title: 'Multiply the horizontal speed by that time', body: String.raw`$R = v_x t = 35.3\ \text{m}$.` },
+      ],
+      solution: String.raw`The ball lands about $35.3\ \text{m}$ from where it was thrown.`,
+    }),
+    row('edge-code', {
+      question: 'Why does `for (let i = 0; i <= n; i++)` read past the end of `a[n]`, and how should the loop bound be written so that `sum += a[i]` stays inside the array?',
+      meta: { version: 2, subject: 'CS', topic: 'Off-by-one loop bound', qid: 'q1' },
+      platform: 'grok',
+      savedAt: now - 3 * HOUR,
+    }),
+    row('edge-display-math', {
+      question: String.raw`Show that $$\sum_{k=1}^{n} k^2 = \frac{n(n+1)(2n+1)}{6}$$ by induction, and state where the inductive hypothesis is used.`,
+      meta: { version: 2, subject: 'Math', topic: 'Sum of squares by induction', qid: 'q1' },
+      platform: 'gemini',
+      savedAt: now - 2 * DAY,
+    }),
+    row('edge-token', {
+      question: `Simplify ${'x'.repeat(300)} and then explain the result.`,
+      meta: { version: 2, subject: 'Math', topic: 'One very long token', qid: 'q1' },
+      savedAt: now - 9 * DAY,
+    }),
+    row('edge-untitled', { steps: [], savedAt: now - 30 * DAY, meta: { version: 2, subject: '', topic: '' } }),
+    row('edge-time', {
+      question: 'A record whose saved time is not a time at all.',
+      savedAt: 1e300,
+      platform: 'bing',
+      meta: { version: 2, subject: 'Chemistry', topic: 'Damaged record', qid: 'q1' },
+    }),
+    'not a record',
+    { id: 7, question: 'Wrong types throughout', meta: null },
+  ];
+}
+
+/** One answer long enough to take several pages and several seconds to export. */
+export function savedLongAnswer(now = Date.now()) {
+  const body = 'Apply the relation to the quantities given, keeping units on every line so that an error shows up as a mismatch. '
+    + String.raw`Substituting the values gives $F = ma = (5.0\ \text{kg})(3.2\ \text{m/s}^2) = 16\ \text{N}$, which is then carried forward. `;
+  return {
+    id: 'seed-long',
+    question: 'Work through the full derivation of the motion of a block on a rough incline, with every intermediate quantity stated.',
+    savedAt: now - 5 * 60_000,
+    platform: 'chatgpt',
+    meta: { version: 2, subject: 'Physics', topic: 'Block on a rough incline, in full', qid: 'q1' },
+    steps: Array.from({ length: 36 }, (_, n) => ({
+      id: `s${n + 1}`,
+      index: n + 1,
+      title: `Carry the result into stage ${n + 1}`,
+      body: body.repeat(4),
+    })),
+    solution: String.raw`The block accelerates at $3.2\ \text{m/s}^2$.`,
+    solutionDiagrams: [],
+  };
+}

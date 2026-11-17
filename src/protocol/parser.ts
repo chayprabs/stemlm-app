@@ -212,7 +212,8 @@ export function findCapsuleRaw(text: string): string | null {
   const fenceRe = /```+[^\n]*\n([\s\S]*?)\n?```+(?!`)(?![\t ]*@end\b)/g;
   let m: RegExpExecArray | null;
   while ((m = fenceRe.exec(text)) !== null) {
-    if (m[1] && m[1].includes('@meta')) return throughEndLine(m[1]) ?? m[1];
+    // A code fence the model wrote inside the answer ends this match early: read on to @end.
+    if (m[1] && m[1].includes('@meta')) return throughEndLine(m[1]) ?? throughEndLine(text.slice(m.index)) ?? m[1];
   }
 
   // 3) Bare span from @meta to a standalone @end line (model dropped the fence).
@@ -265,12 +266,24 @@ function readBlock(c: Cursor, endMarker: string, paragraphs = false): string {
   const out: string[] = [];
   const markers = endMarkersFor(endMarker);
   let inDisplay = false;
+  // The fence character of the code block being read (`~` or a backtick), when inside one.
+  let fence = '';
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
     if (markers.includes(t)) {
       c.i++; // consume terminator
       break;
+    }
+    // Code is kept as written: its blank lines, its indentation, and lines such as `@patch(...)`
+    // that would otherwise read as a marker. Only the block's own end marker ends it early.
+    const fenced = paragraphs ? /^\s{0,3}(~{3,}|`{3,})/.exec(line)?.[1]?.[0] : undefined;
+    if (fence || fenced) {
+      if (!fence) fence = fenced!;
+      else if (fenced === fence && /^\s{0,3}(?:~{3,}|`{3,})\s*$/.test(line)) fence = '';
+      out.push(line);
+      c.i++;
+      continue;
     }
     if (isStructural(line)) break; // implicit close, leave marker for caller
 
@@ -731,6 +744,7 @@ function parseVerifyBlock(
   let malformedStatus = false;
   let sawStatus = false;
   let rawMethods = '';
+  const prose: string[] = [];
   while (c.i < c.lines.length) {
     const line = c.lines[c.i] ?? '';
     const t = line.trim();
@@ -758,13 +772,18 @@ function parseVerifyBlock(
     }
     else if (notes !== null) block.notes = notes;
     else if (correction !== null) block.correction = correction;
+    else if (t) prose.push(t);
     c.i++;
   }
+  // A check written in the model's own words, with none of the keys, is still a check: its text is
+  // the notes, and it must show its working like any other.
+  const freeForm = prose.length > 0 && !sawStatus && !rawMethods && !block.notes && !block.correction;
+  if (!block.notes && prose.length) block.notes = prose.join(' ');
   if (warnings && warningCodes) {
     const reasons: string[] = [];
     if (malformedStatus) reasons.push('status must be pass or fail');
-    if (!sawStatus) reasons.push('status is required');
-    if (!block.methods.length) reasons.push('at least one known verification method is required');
+    if (!sawStatus && !freeForm) reasons.push('status is required');
+    if (!block.methods.length && !freeForm) reasons.push('at least one known verification method is required');
     const suppliedMethods = rawMethods
       .split(/[,;]/)
       .map((part) => part.trim().toLowerCase())
@@ -812,7 +831,7 @@ function parseUncertaintyBlock(c: Cursor): UncertaintyBlock {
       break;
     }
     if (isStructural(line) && t !== '@uncertainty') break;
-    const assumption = readInlineValue(line, 'assumption');
+    const assumption = readInlineValue(line, 'assumptions?');
     const low = readInlineValue(line, 'low_confidence');
     const check = readInlineValue(line, 'check');
     if (assumption !== null) block.assumptions.push(assumption);
@@ -824,6 +843,8 @@ function parseUncertaintyBlock(c: Cursor): UncertaintyBlock {
           .filter(Boolean),
       );
     } else if (check !== null) block.studentChecks.push(check);
+    // A sentence with no key in front of it is an assumption stated in the model's own words.
+    else if (t && !/^[A-Za-z_ ]{1,24}:/.test(t)) block.assumptions.push(t);
     c.i++;
   }
   return block;

@@ -23,7 +23,7 @@ const MAX_LIBRARY_BYTES = 64 * 1024 * 1024;
 /** Largest single saved answer. */
 export const MAX_SAVED_BYTES = 4 * 1024 * 1024;
 const LIBRARY_FULL_MESSAGE =
-  'Library full. Delete saved answers you no longer need to make space for new ones.';
+  'Library full. Delete saved questions you no longer need to make room for new ones.';
 
 type DurableSavedEntry =
   | { kind: 'snapshot'; snapshot: SavedSessionSnapshot }
@@ -134,6 +134,11 @@ function isStep(value: unknown): value is Step {
   );
 }
 
+/** A stored time is one only if a date can hold it: NaN or 1e300 in a damaged record would break sorting and every date drawn from it. */
+function isTime(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(new Date(value).getTime());
+}
+
 /** Accept new snapshots and legacy full Session objects from older builds. */
 export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -148,7 +153,7 @@ export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | nul
     return {
       id: o.id,
       question: o.question,
-      savedAt: typeof o.savedAt === 'number' ? o.savedAt : typeof o.updatedAt === 'number' ? o.updatedAt : Date.now(),
+      savedAt: isTime(o.savedAt) ? o.savedAt : isTime(o.updatedAt) ? o.updatedAt : Date.now(),
       platform: isPlatformId(o.platform) ? o.platform : 'gemini',
       meta: o.meta,
       steps: Array.isArray(o.steps) ? o.steps.filter(isStep) : [],
@@ -211,9 +216,14 @@ async function readSavedState(): Promise<{ sessions: SavedSessionSnapshot[]; leg
   return { sessions: merged, legacyKeys };
 }
 
+/** The library, newest first. Throws when storage cannot be read, so the library page can say so instead of looking empty. */
+export async function readSavedSessions(): Promise<SavedSessionSnapshot[]> {
+  return sortByRecent((await readSavedState()).sessions);
+}
+
 export async function getSavedSessions(): Promise<SavedSessionSnapshot[]> {
   try {
-    return sortByRecent((await readSavedState()).sessions);
+    return await readSavedSessions();
   } catch {
     return [];
   }
@@ -241,7 +251,9 @@ function enqueueMutation<T>(op: () => Promise<T>): Promise<T> {
 
 export type SavedSessionMutationMessage =
   | { type: 'stemlm:saved-session-mutation'; action: 'save' | 'refresh'; session: Session }
-  | { type: 'stemlm:saved-session-mutation'; action: 'delete'; id: string };
+  | { type: 'stemlm:saved-session-mutation'; action: 'delete'; id: string }
+  /** Undo of a delete: the snapshot goes back exactly as it was, saved date included. */
+  | { type: 'stemlm:saved-session-mutation'; action: 'restore'; snapshot: SavedSessionSnapshot };
 
 export type SavedSessionMutationResponse =
   | { ok: true; result: boolean | null }
@@ -252,6 +264,7 @@ export function isSavedSessionMutationMessage(value: unknown): value is SavedSes
   const message = value as Record<string, unknown>;
   if (message.type !== 'stemlm:saved-session-mutation') return false;
   if (message.action === 'delete') return typeof message.id === 'string' && message.id.length > 0;
+  if (message.action === 'restore') return normalizeStoredSession(message.snapshot) !== null;
   if (message.action !== 'save' && message.action !== 'refresh') return false;
   if (!message.session || typeof message.session !== 'object') return false;
   const session = message.session as Session;
@@ -273,6 +286,17 @@ export async function handleSavedSessionMutation(message: SavedSessionMutationMe
       const { sessions: list, legacyKeys } = await readSavedState();
       if (message.action === 'delete') {
         await writeSavedSessions(list.filter((snapshot) => snapshot.id !== message.id), legacyKeys);
+        return null;
+      }
+      if (message.action === 'restore') {
+        const restored = normalizeStoredSession(message.snapshot);
+        // Saved again since it was deleted: that copy is the newer one and stays.
+        if (!restored || list.some((snapshot) => snapshot.id === restored.id)) return null;
+        const next = [...list, restored];
+        if (next.length > MAX_SAVED || estimateSnapshotBytes(next) > MAX_LIBRARY_BYTES) {
+          throw new StorageQuotaError(LIBRARY_FULL_MESSAGE);
+        }
+        await writeSavedSessions(next, legacyKeys);
         return null;
       }
       const session = message.session;

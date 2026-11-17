@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useStore } from '@/src/state/store';
 import { OverlayButton } from '@/src/components/OverlayButton';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { applySplit, removeSplit } from '@/src/lib/split-screen';
+import { syncHostSidebar } from '@/src/platforms/host-sidebar';
 import { loadPanelHost, type PanelHostComponent } from '@/src/content/load-panel';
 import { useViewportWidth } from '@/src/components/use-viewport-width';
+
+function reportHostSidebar(px: number) {
+  if (useStore.getState().hostSidebarPx !== px) useStore.setState({ hostSidebarPx: px });
+}
 
 /**
  * Root content-script app: the docked overlay button + the split-screen study
@@ -15,7 +20,8 @@ import { useViewportWidth } from '@/src/components/use-viewport-width';
 export default function App() {
   const panelOpen = useStore((s) => s.panelOpen);
   const splitRatio = useStore((s) => s.splitRatio);
-  const splitDragging = useStore((s) => s.splitDragging);
+  const hostSidebarPx = useStore((s) => s.hostSidebarPx);
+  const foldHostSidebar = useStore((s) => s.settings.collapseHostSidebar);
   const [PanelHost, setPanelHost] = useState<PanelHostComponent | null>(null);
   // D34: a panel that could not load is explained on the + until the next try.
   const [panelUnavailable, setPanelUnavailable] = useState(false);
@@ -37,24 +43,31 @@ export default function App() {
     return () => { live = false; };
   }, [panelOpen, PanelHost]);
 
-  useEffect(() => {
-    if (!panelOpen || !PanelHost) return;
-    applySplit(splitRatio, splitDragging);
-  }, [panelOpen, PanelHost, splitRatio, splitDragging, viewport]);
+  // Layout effects, so the page column, the host's sidebar and the panel all change in the frame
+  // the panel appears in. The page is given back as the panel starts to leave, not once it has
+  // gone: one motion, and no bare strip where the panel was.
+  const panelShown = panelOpen && PanelHost !== null;
+  useLayoutEffect(() => {
+    syncHostSidebar(panelShown, foldHostSidebar, reportHostSidebar);
+  }, [panelShown, foldHostSidebar]);
 
-  useEffect(() => () => removeSplit(), []);
+  useLayoutEffect(() => {
+    if (panelShown) applySplit(splitRatio, hostSidebarPx);
+    else removeSplit();
+  }, [panelShown, splitRatio, hostSidebarPx, viewport]);
+
+  useEffect(
+    () => () => {
+      removeSplit();
+      syncHostSidebar(false, false, reportHostSidebar);
+    },
+    [],
+  );
 
   return (
     <ErrorBoundary>
       <OverlayButton panelUnavailable={panelUnavailable} />
-      {PanelHost && (
-        <PanelHost
-          open={panelOpen}
-          onExitComplete={() => {
-            if (!useStore.getState().panelOpen) removeSplit();
-          }}
-        />
-      )}
+      {PanelHost && <PanelHost open={panelOpen} />}
     </ErrorBoundary>
   );
 }

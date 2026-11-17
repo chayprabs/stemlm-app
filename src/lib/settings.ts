@@ -32,6 +32,8 @@ export interface Settings {
   shareAcrossTabs: boolean;
   /** Auto-open the study panel when the assistant starts answering. */
   autoOpenOnAnswer: boolean;
+  /** Fold the chat site's own sidebar while the panel is open, and unfold it afterwards. */
+  collapseHostSidebar: boolean;
   /** Tab shown when an answer opens: step-by-step or the full solution. */
   defaultView: DefaultView;
   /** Reading-size level for answer content. Panel chrome and PDF stay fixed. */
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   shareAcrossTabs: false,
   autoOpenOnAnswer: true,
+  collapseHostSidebar: true,
   defaultView: 'steps',
   contentScale: DEFAULT_CONTENT_SCALE,
   stemlmEnabled: true,
@@ -70,6 +73,7 @@ const SETTINGS_FIELD_KEYS: Partial<Record<keyof Settings, string>> = {
   theme: 'stemlm_setting_theme',
   shareAcrossTabs: 'stemlm_setting_shareAcrossTabs',
   autoOpenOnAnswer: 'stemlm_setting_autoOpenOnAnswer',
+  collapseHostSidebar: 'stemlm_setting_collapseHostSidebar',
   defaultView: 'stemlm_setting_defaultView',
   contentScale: 'stemlm_setting_contentScale',
   stemlmEnabled: 'stemlm_setting_stemlmEnabled',
@@ -153,6 +157,7 @@ export function hydrateSettings(
     defaultView: normalizeDefaultView(stored.defaultView),
     contentScale: normalizeContentScale(stored.contentScale),
     autoOpenOnAnswer: Boolean(autoOpenOnAnswer),
+    collapseHostSidebar: Boolean(stored.collapseHostSidebar ?? DEFAULT_SETTINGS.collapseHostSidebar),
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
     stemlmEnabled: Boolean(stored.stemlmEnabled ?? DEFAULT_SETTINGS.stemlmEnabled),
     splitRatio: hydrateSplitRatio(stored.splitRatio, undefined, {

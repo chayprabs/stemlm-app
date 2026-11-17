@@ -139,6 +139,13 @@ describe('hydrateSettings', () => {
   it('honours an explicit stemlm off flag', () => {
     expect(hydrateSettings({ stemlmEnabled: false }).stemlmEnabled).toBe(false);
   });
+
+  it('folds the chat sidebar beside the panel unless that was switched off', () => {
+    expect(DEFAULT_SETTINGS.collapseHostSidebar).toBe(true);
+    // Settings stored before the option existed get it on.
+    expect(hydrateSettings({ theme: 'dark' }).collapseHostSidebar).toBe(true);
+    expect(hydrateSettings({ collapseHostSidebar: false }).collapseHostSidebar).toBe(false);
+  });
 });
 
 describe('setSettings', () => {
@@ -173,6 +180,13 @@ describe('setSettings', () => {
     const loaded = await getSettings();
     expect(loaded.theme).toBe('dark');
     expect(loaded.defaultView).toBe('solution');
+  });
+
+  it('persists the chat sidebar choice on its own key, so another surface saving cannot undo it', async () => {
+    await setSettings({ collapseHostSidebar: false });
+    await setSettings({ theme: 'dark' });
+    expect((await getSettings()).collapseHostSidebar).toBe(false);
+    expect(storageData.stemlm_setting_collapseHostSidebar).toBe(false);
   });
 
   it('persists turning stemlm off', async () => {

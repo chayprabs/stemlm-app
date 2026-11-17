@@ -26,7 +26,7 @@ import {
 import { removeSplit } from '@/src/lib/split-screen';
 import { installFontFaces } from '@/src/lib/fonts';
 import { extensionAssetUrl } from '@/src/lib/extension-context';
-import { removeComposerSlot } from '@/src/lib/composer-slot';
+import { removeComposerRoom } from '@/src/lib/composer-anchor';
 import { parseStemLmMessage } from '@/src/lib/messages';
 import { consumePendingPanelAction, handleStemLmPanelMessage } from '@/src/lib/panel-remote';
 import {
@@ -112,7 +112,7 @@ export default defineContentScript({
       try { persistTabWorkspace(); } catch { /* context may already be dead */ }
       for (const stop of cleanup) stop();
       removeSplit();
-      removeComposerSlot();
+      removeComposerRoom();
       for (const style of documentStyles) if (style.hasAttribute('data-stemlm-fonts')) style.remove();
       getController()?.stopWatching();
       try {
@@ -148,9 +148,10 @@ export default defineContentScript({
       const settings = await getSettings();
       if (!active) return;
       const controller = initController(adapter);
-      // Open the study panel only once the assistant actually starts answering
-      // (not the moment we inject), so the panel never appears while the user is
-      // still typing. Honour the user's auto-open preference.
+      // Open the study panel only once the question is sent (at the latest when the
+      // assistant starts answering), never the moment the guide is attached: the
+      // panel must not appear, or move the page, while the user is still typing.
+      // Honour the user's auto-open preference.
       controller.setOnAnswerStarted(() => {
         if (useStore.getState().settings.autoOpenOnAnswer) {
           useStore.getState().openPanel();
@@ -216,7 +217,14 @@ export default defineContentScript({
       }));
 
       const restoreError = (rejected?: number) => {
-        useStore.getState().setStatus('error', `${rejected ? `Could not restore ${rejected} damaged session record(s). Healthy records remain available.` : 'Could not restore the previous study session.'} Your stored data is unchanged. Use Load conversation to recover answers from this chat.`);
+        const what = rejected ? `${rejected} damaged question${rejected === 1 ? '' : 's'}` : 'Your earlier questions';
+        const some = useStore.getState().sessions.length > 0;
+        // A notice, not an error: the panel works, and an empty one must still offer to load this
+        // chat's answers, which it withholds under an error (src/components/EmptyState.tsx).
+        useStore.getState().setStatus(
+          some ? 'ready' : 'idle',
+          `${what} could not be restored. Nothing you saved was changed.${some ? ' The others are here.' : ' If this chat has stemlm answers, load them again below.'}`,
+        );
       };
       cleanup.push(onMirroredSessionsChanged((shared) => {
         if (!useStore.getState().settings.shareAcrossTabs) return;

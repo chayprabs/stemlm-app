@@ -3,17 +3,20 @@ import type { AdapterConfig } from './types';
 
 /**
  * Gemini (gemini.google.com).
- * Composer is a Quill editor inside <rich-textarea>. stemLM attaches
- * stemlm-protocol.txt (same as an image/PDF) and inserts only a short stub.
+ * The composer is a contenteditable inside <rich-textarea>, in <input-area-v2>; its attach button
+ * is labelled "Upload & tools" (seen 2026-11-17) and no file input exists until that menu opens,
+ * so the guide is dropped or pasted onto the composer. A first-run consent screen can cover a
+ * composer that is already in the page.
  */
 const config: AdapterConfig = {
   id: 'gemini',
   label: 'Gemini',
   hosts: /^(?:www\.)?gemini\.google\.com$/i,
-  composerDock: 'before-plus',
   editor: [
     'rich-textarea div.ql-editor[contenteditable="true"]',
+    'rich-textarea [contenteditable="true"]',
     'div.ql-editor[contenteditable="true"]',
+    'input-area-v2 [contenteditable="true"]',
     'div[contenteditable="true"][role="textbox"]',
   ],
   composerBox: [
@@ -36,20 +39,15 @@ const config: AdapterConfig = {
     'div.send-button-container',
   ],
   composerLeading: [
-    'input-area-v2 [class*="leading"] button',
-    'input-area-v2 uploader button',
-    'input-area-v2 .file-uploader-button',
-    'button[aria-label*="Open upload" i]',
     'button[aria-label*="Upload" i]',
-    'button[aria-label*="upload" i]',
+    'button[mattooltip*="Upload" i]',
     'button[aria-label*="Attach" i]',
     'button[aria-label*="Insert" i]',
-    'button[mattooltip*="Upload" i]',
-    'button[mattooltip*="upload" i]',
+    'input-area-v2 [class*="leading"] button',
+    'input-area-v2 uploader button',
     '.file-uploader-button',
     'uploader button',
     '[class*="uploader"] button',
-    'input-area-v2 button:first-of-type',
   ],
   composerShell: [
     'input-area-v2',
