@@ -293,18 +293,31 @@ export function hostPage(id, opt = {}) {
   </main>
   <script>
     // The host accepts an attached file by listing it; the adapters confirm delivery from that chip.
+    // Like the real sites, it takes a file from its input, from a drop on the composer or from a paste:
+    // which of the three stemLM uses differs by host.
+    const listed = new Set();
+    const accept = (files) => {
+      const chips = document.querySelector('.chips') || document.querySelector('.box');
+      for (const file of files || []) {
+        if (listed.has(file.name)) continue;
+        listed.add(file.name);
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip file-preview';
+        chip.setAttribute('data-testid', 'file-preview');
+        chip.textContent = file.name;
+        chips.prepend(chip);
+      }
+    };
     for (const input of document.querySelectorAll('input[type=file]')) {
-      input.addEventListener('change', () => {
-        const chips = document.querySelector('.chips') || document.querySelector('.box');
-        for (const file of input.files || []) {
-          const chip = document.createElement('div');
-          chip.className = 'attachment-chip file-preview';
-          chip.setAttribute('data-testid', 'file-preview');
-          chip.textContent = file.name;
-          chips.prepend(chip);
-        }
-      });
+      input.addEventListener('change', () => accept(input.files));
     }
+    const box = document.querySelector('.box');
+    box.addEventListener('dragover', (event) => event.preventDefault());
+    box.addEventListener('drop', (event) => { event.preventDefault(); accept(event.dataTransfer && event.dataTransfer.files); });
+    box.addEventListener('paste', (event) => {
+      const files = event.clipboardData && event.clipboardData.files;
+      if (files && files.length) { event.preventDefault(); accept(files); }
+    });
   </script>
 </body>
 </html>`;
