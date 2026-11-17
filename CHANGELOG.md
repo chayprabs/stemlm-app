@@ -23,6 +23,8 @@
 - **Statistics and data:** charts (bar, grouped, stacked, line, histogram, pie, donut, box, scatter) that compute their own ticks, bins, percentages, quartiles, outliers and fitted line with r²; probability distributions drawn to scale with the shaded probability computed; number lines for intervals and inequalities; Venn diagrams that shade exactly the regions a set expression holds in.
 - **Geometry and calculus:** triangles solved from whatever the problem gives (SSS, SAS, ASA, AAS, SSA) and drawn to scale, with the ambiguous case refused by name; coordinate-plane figures that read line and circle equations and compute distance, midpoint and slope; vector addition with the resultant computed; the unit circle with exact values at the special angles; slope fields with the solution through each given point integrated; polar and parametric curves.
 - **Chemistry, biology and mechanics:** reaction energy profiles that find the transition states and compute the activation energy and enthalpy change; probability trees that check each node sums to 1 and multiply every path exactly; projectile motion to scale with range, maximum height and flight time computed; electron configurations and orbital box diagrams computed for Z = 1 to 118, including the standard exceptions and common ions; Bohr shell models; pedigree charts with generations computed from parentage.
+- A plot of measured points with no stated range takes its range from the data. A long label in a probability tree wraps to two lines instead of hiding the figure.
+- The guide's figure section for a question follows its subject better: plurals, statistics, and keywords such as enthalpy, entropy, stoichiometry and trigonometry, which could never match before.
 - A dollar sign in a figure label is no longer deleted (an axis titled "Cost ($)" used to read "Cost ()").
 - A graph may carry a caption or title. Flowchart boxes are no longer reshaped because of a word in their label. A type alias selects its variant (`type=heap` checks the heap property).
 - The attached guide teaches the new families, generated from the same manifests the compiler is registered with.
@@ -48,6 +50,14 @@
 - Every answer says what stemLM did and did not check; the model's own check is labelled as the model's, and a figure that could not be drawn says so.
 - **Paste an answer** in the empty panel, and **Copy the guide** in the toolbar popup, give a way through on a site stemLM cannot read.
 - Saved questions: Undo after deleting (also Ctrl+Z), a clear message when storage cannot be read, progress while a PDF is built, a retry for a failed export, and a window tall enough for five questions. Removing a question from the panel can be undone.
+- The chat column stays readable: stemLM's answer shows as one line that opens the panel, and the lines stemLM adds under your question fold behind "Show the stemlm guide". Only an answer stemLM has read is folded, and a setting turns it off.
+- Questions belong to their chat: the panel shows the current chat's questions, and follows the site when it moves between chats. Each question keeps the step you were on.
+- After a reload the panel reopens on the restored answer. After the extension updates under an open tab, its actions say so with a Reload button. When a site's message box cannot be found, stemLM says so and points to Paste an answer.
+- In auto, the panel follows the chat site's theme. In a short window or at 200% zoom the whole panel scrolls under a pinned top bar. Wide tables scroll in their own box. The step strip is one tab stop, with arrow, Home and End keys.
+- One name for each thing in everything a student reads (question, panel, guide, chat box, answer), and no internal codes.
+- A one-time hint after install points at the stemlm button.
+- Fixed: a streamed answer whose last line began with `@end` (the start of `@endbody`) was taken as finished and opened a duplicate question.
+- Fixed: a Stop button outside the chat box (for dictation) made stemLM think the chat was writing.
 - Fixed: a second question asked without pressing the stemLM button overwrote the first answer and its saved copy.
 - Fixed: selecting text in the panel never offered Ask in chat.
 
