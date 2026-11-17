@@ -17,7 +17,7 @@ export {
 
 async function mutateSavedSession(message: SavedSessionMutationMessage): Promise<SavedSessionMutationResponse & { ok: true }> {
   const response = await browser.runtime.sendMessage(message) as SavedSessionMutationResponse | undefined;
-  if (!response || typeof response.ok !== 'boolean') throw new Error('Could not update saved sessions. Try again.');
+  if (!response || typeof response.ok !== 'boolean') throw new Error('Could not update saved questions. Try again.');
   if (!response.ok) {
     if (response.quota) throw new StorageQuotaError(response.message);
     throw new Error(response.message);

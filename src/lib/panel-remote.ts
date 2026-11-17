@@ -3,7 +3,7 @@
  */
 import type { StemLmMessage } from '@/src/lib/messages';
 import { getController } from '@/src/content/controller';
-import { useStore } from '@/src/state/store';
+import { chatSessions, useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { rememberCurrentChat } from '@/src/lib/last-chat';
 import type { PlatformId } from '@/src/platforms/types';
@@ -24,7 +24,7 @@ export interface PanelMessageResult {
  */
 async function openOnPlainAnswer(): Promise<number> {
   const state = useStore.getState();
-  if (state.sessions.length > 0 || state.status === 'loading' || state.buttonInjected) return 0;
+  if (chatSessions(state).length > 0 || state.status === 'loading' || state.buttonInjected) return 0;
   const controller = getController();
   if (controller?.conversationToLoad() !== 'answer') return 0;
   return controller.loadConversation({ maxWaitMs: 900, quiet: true });

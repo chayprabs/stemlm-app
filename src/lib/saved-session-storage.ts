@@ -319,7 +319,7 @@ export async function handleSavedSessionMutation(message: SavedSessionMutationMe
     return {
       ok: false,
       quota: error instanceof StorageQuotaError || isStorageQuotaError(error),
-      message: error instanceof Error ? error.message : 'Could not update saved sessions.',
+      message: error instanceof Error ? error.message : 'Could not update saved questions.',
     };
   }
 }

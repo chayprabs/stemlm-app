@@ -75,7 +75,7 @@ describe('cut-off answer (D38)', () => {
     expect(state.errorMessage).toMatch(/stopped before the end/i);
     expect(state.errorMessage).toMatch(/continue/i);
     // The message names the control to press, as it is drawn now: the stemlm button, not a plus.
-    expect(state.errorMessage).toMatch(/\bstemlm button\b/);
+    expect(state.errorMessage).toMatch(/\bstemLM button\b/);
     expect(state.errorMessage).not.toMatch(/\+/);
     expect(state.errorMessage).not.toMatch(/parser|code|capsule/i);
   });
@@ -135,6 +135,6 @@ describe('cut-off answer (D38)', () => {
     expect(state.sessions).toHaveLength(0);
     expect(state.status).toBe('error');
     expect(state.errorMessage).toMatch(/stopped before the end/i);
-    expect(state.errorMessage).toMatch(/Parser code: missing_end\.$/);
+    expect(state.errorMessage).not.toMatch(/Parser code/);
   });
 });

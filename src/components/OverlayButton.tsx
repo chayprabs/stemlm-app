@@ -10,12 +10,14 @@ import {
 } from '@/src/protocol/builder';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { injectControlCss } from '@/src/lib/inject-control-css';
-import { trackComposerControl, type ControlPlacement } from '@/src/lib/composer-anchor';
+import { noteSlot, trackComposerControl, type ControlPlacement } from '@/src/lib/composer-anchor';
+import { dismissFirstRunHint, firstRunHintPending, onFirstRunHintDismissed } from '@/src/lib/first-run-hint';
 import { InjectGlyph, InjectSpinner } from './InjectGlyph';
+import { IconClose } from './icons';
 
 /** The control's rules, for the shadow root it is drawn in. */
 const CONTROL_CSS = injectControlCss('', (scheme) => `.slm-fab-wrap[data-scheme="${scheme}"]`);
-const PANEL_UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
+const PANEL_UNAVAILABLE = "stemLM couldn't open its panel. Refresh this tab.";
 /** How long a line about the last press stays beside the control. */
 const NOTICE_MS = 7000;
 
@@ -31,6 +33,18 @@ function paint(wrap: HTMLElement | null, place: ControlPlacement | null): void {
   wrap.dataset.scheme = place.scheme;
   // The line about the control goes above it, or below when the composer is at the top of the window.
   wrap.dataset.tip = place.top < 56 ? 'below' : 'above';
+  // The first-run hint keeps clear of the chat box and the chat's controls; with no such place it waits unseen.
+  const hint = wrap.querySelector<HTMLElement>('.slm-first-hint');
+  if (!hint) return;
+  const slot = noteSlot(place, detectAdapter()?.findEditor() ?? null, hint.offsetWidth, hint.offsetHeight);
+  if (!slot) {
+    delete hint.dataset.side;
+    return;
+  }
+  hint.dataset.side = slot.top > place.top ? 'below' : 'above';
+  hint.style.left = `${slot.left}px`;
+  hint.style.top = `${slot.top}px`;
+  hint.style.setProperty('--slm-hint-caret', `${place.left + place.size / 2 - slot.left}px`);
 }
 
 /**
@@ -80,8 +94,39 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
   const togglePanel = useStore((s) => s.togglePanel);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pastingRef = useRef(false);
+  const [hint, setHint] = useState(false);
 
   const adapter = detectAdapter();
+
+  // Once after install, the control says how it is used, until it is pressed or the hint is closed.
+  useEffect(() => {
+    if (!shown) return;
+    let live = true;
+    void firstRunHintPending().then((pending) => live && setHint(pending));
+    const stop = onFirstRunHintDismissed(() => setHint(false));
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [shown]);
+
+  const hintShown = hint && !injected && !pasting;
+  // The hint follows the control, and the chat box it keeps clear of, which grows as the question is typed.
+  useLayoutEffect(() => {
+    if (!hintShown) return;
+    const repaint = () => paint(wrapRef.current, place.current);
+    repaint();
+    const editor = adapter?.findEditor();
+    if (!editor || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(repaint);
+    observer.observe(editor);
+    return () => observer.disconnect();
+  }, [hintShown]);
+
+  function dismissHint() {
+    setHint(false);
+    dismissFirstRunHint();
+  }
 
   useEffect(() => {
     if (!injected || !adapter) return;
@@ -131,6 +176,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
 
   function onMain() {
     if (pastingRef.current) return;
+    if (hint) dismissHint();
     const ctrl = getController();
     if (!ctrl) return;
     const text = adapter?.getEditorText().trim() ?? '';
@@ -159,8 +205,8 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         await ctrl.inject();
         setNotice(ctrl.takeAttachNotice());
       } catch {
-        useStore.getState().setStatus('error', 'Could not finish attaching the stemlm guide. Try the stemlm button again.');
-        setNotice({ tone: 'error', text: 'stemlm could not add its guide. Try again.' });
+        useStore.getState().setStatus('error', 'Could not finish attaching the stemLM guide. Try the stemLM button again.');
+        setNotice({ tone: 'error', text: 'stemLM could not add its guide. Try again.' });
       } finally {
         pastingRef.current = false;
         setPasting(false);
@@ -171,6 +217,10 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
   /** Tab moves on from the chat's attach button, which the control sits beside; Shift+Tab returns to it. */
   function onKeyDown(event: KeyboardEvent) {
     event.stopPropagation();
+    if (event.key === 'Escape' && hintShown) {
+      dismissHint();
+      return;
+    }
     const anchor = place.current?.anchor;
     if (event.key !== 'Tab' || !anchor?.isConnected) return;
     if (event.shiftKey) event.preventDefault();
@@ -182,18 +232,18 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
   const failed = !pasting && notice?.tone === 'error';
   const state = pasting ? 'busy' : failed ? 'error' : injected ? 'attached' : 'idle';
   const label = pasting
-    ? 'Attaching the stemlm guide'
+    ? 'Attaching the stemLM guide'
     : panelUnavailable
       ? PANEL_UNAVAILABLE
       : injected
-        ? `stemlm is on for this question. ${panelOpen ? 'Close' : 'Open'} the panel`
-        : 'Add the stemlm guide to this question';
+        ? `stemLM is on for this question. ${panelOpen ? 'Close' : 'Open'} the panel`
+        : 'Add the stemLM guide to this question';
   const stateClass = pasting ? 'is-loading' : failed ? 'is-error' : injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : '';
 
   return (
     <div
       ref={wrapRef}
-      className="slm-fab-wrap"
+      className={`slm-fab-wrap${hintShown ? ' has-hint' : ''}`}
       onClick={keepFromHost}
       onPointerDown={keepFromHost}
       onMouseDown={keepFromHost}
@@ -209,6 +259,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         onClick={onMain}
         onKeyDown={onKeyDown}
         aria-label={label}
+        aria-describedby={hintShown ? 'slm-first-hint-text' : undefined}
         aria-pressed={injected}
         aria-busy={pasting}
         aria-disabled={pasting}
@@ -221,8 +272,16 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         {(!pasting && notice?.text) || label}
       </span>
       <span className="slm-inject-live" role="status" aria-live="polite">
-        {pasting ? 'Attaching the stemlm guide' : notice ? notice.text : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemlm is on for this question' : ''}
+        {pasting ? 'Attaching the stemLM guide' : notice ? notice.text : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemLM is on for this question' : ''}
       </span>
+      {hintShown && (
+        <div className="slm-first-hint">
+          <span id="slm-first-hint-text">Type your question, press this, then Send.</span>
+          <button type="button" className="slm-first-hint-close" aria-label="Close tip" onClick={dismissHint}>
+            <IconClose width={14} height={14} strokeWidth={2} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

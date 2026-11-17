@@ -117,7 +117,7 @@ describe('removing a question from the strip', () => {
 
   it('replaces an error that was showing, and does not hold up an answer being waited for', () => {
     act(() => useStore.getState().setSessions([session('a'), session('b')]));
-    act(() => useStore.getState().setStatus('error', 'Could not save session. Try again.'));
+    act(() => useStore.getState().setStatus('error', 'Could not save the question. Try again.'));
     act(() => useStore.getState().removeSession('a'));
     expect(useStore.getState()).toMatchObject({ status: 'ready', errorMessage: REMOVED_NOTICE });
 

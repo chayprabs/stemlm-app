@@ -501,7 +501,7 @@ describe('capture fallback: the chat answered a stemLM question in its own words
 
     expect(useStore.getState().status).toBe('idle');
     expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
-    expect(NO_ANSWER_NOTICE).toMatch(/no stemlm answer/i);
+    expect(NO_ANSWER_NOTICE).toMatch(/without stemLM steps/i);
     // One line for the student: no parser code under it.
     expect(NO_ANSWER_NOTICE).not.toMatch(/\n|parser|capsule/i);
     expect(sessions()).toHaveLength(0);
@@ -738,7 +738,7 @@ describe('a stemLM patch never rewrites an answer structured from the chat', () 
     expect(after.capsule.verification).toBeUndefined();
     expect(useStore.getState().status).toBe('error');
     expect(useStore.getState().errorMessage).toMatch(/couldn't apply this change/);
-    expect(useStore.getState().errorMessage).toMatch(/structured from a plain chat reply/);
+    expect(useStore.getState().errorMessage).toMatch(/arranged from a plain chat answer/);
   });
 });
 

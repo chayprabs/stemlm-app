@@ -352,7 +352,7 @@ describe('restyle: one design system across the panel', () => {
     expect(popupApp).not.toContain('openOptionsPage');
     expect(popupApp).not.toContain('Start here');
     expect(popupApp).not.toContain('beside send');
-    expect(emptyState).toContain('Load conversation from this chat');
+    expect(emptyState).toContain("Load this chat's answers");
     expect(emptyState).not.toContain('beside send');
     expect(emptyState).not.toContain('Open Gemini');
     for (const source of [wxt, hosts]) {

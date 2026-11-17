@@ -125,10 +125,12 @@ describe('tab-workspace', () => {
       sessions: [sampleSession('s1')],
       activeSessionId: 's1',
       activeStepIndex: 2,
+      panelOpen: true,
     });
     await saveTabWorkspace(backup);
     const loaded = await loadTabWorkspace(42);
     expect(loaded?.activeStepIndex).toBe(2);
+    expect(loaded?.panelOpen).toBe(true);
     expect(loaded?.sessions[0]?.id).toBe('s1');
     expect(loaded?.sessions[0]?.raw).toBe('');
   });

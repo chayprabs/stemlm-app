@@ -448,7 +448,43 @@ async function paste(scheme) {
   }
 }
 
-const STAGES = { selection, keys, copy, trust, paste };
+/**
+ * A table wider than the column scrolls inside its own box, which fades on the side that has more,
+ * as a long equation does. The table itself stays a table, and the reading column never scrolls sideways.
+ */
+async function table(scheme) {
+  const tag = `table-${scheme}`;
+  const fail = (text) => problems.push(`${tag}: ${text}`);
+  const page = await openAnswer(scheme, { capsule: LONG, question: 'Newton table' }, { width: 1100, height: 760 });
+  const record = (report[tag] = {});
+  try {
+    const box = page.locator('.slm-table-scroll').first();
+    await box.scrollIntoViewIfNeeded();
+    const measure = () => box.evaluate((el) => ({
+      scrollW: el.scrollWidth,
+      clientW: el.clientWidth,
+      display: getComputedStyle(el.querySelector('table')).display,
+      mask: getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage,
+      readScrollsSideways: el.closest('.slm-read').scrollWidth > el.closest('.slm-read').clientWidth,
+    }));
+    Object.assign(record, await measure());
+    if (!(record.scrollW > record.clientW)) fail(`the table fits (${record.scrollW} <= ${record.clientW}), so this stage proves nothing`);
+    if (record.display !== 'table') fail(`the table is drawn as "${record.display}", losing its table semantics`);
+    if (!/gradient/.test(record.mask)) fail('the table box has no edge fade');
+    if (record.readScrollsSideways) fail('the reading column scrolls sideways');
+    await shot(page, `${tag}-start`);
+    await box.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await page.waitForTimeout(300);
+    await shot(page, `${tag}-end`);
+  } catch (err) {
+    fail(`stopped: ${err.message.split('\n')[0]}`);
+    await page.screenshot({ path: join(out, `${tag}-ERROR.png`) });
+  } finally {
+    await page.close();
+  }
+}
+
+const STAGES = { selection, keys, copy, trust, paste, table };
 
 try {
   for (const [name, run] of Object.entries(STAGES)) {

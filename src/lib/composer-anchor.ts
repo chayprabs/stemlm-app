@@ -110,6 +110,32 @@ function pointIsFree(button: HTMLElement, x: number, y: number): boolean {
   return true;
 }
 
+/**
+ * Where a note about the control may sit (the first-run hint): outside the chat box, which is the
+ * smallest box holding both the attach button and the editor; below it when there is room, else
+ * above it; never over one of the chat's controls. Null when no such place can be vouched for.
+ */
+export function noteSlot(
+  place: ControlPlacement,
+  editor: Element | null,
+  width: number,
+  height: number,
+): { left: number; top: number } | null {
+  let box: Element | null = place.anchor;
+  while (box && editor && !box.contains(editor)) box = box.parentElement;
+  if (!box || !editor || box === document.body || box === document.documentElement) return null;
+  const chat = box.getBoundingClientRect();
+  const margin = 8;
+  const left = Math.max(margin, Math.min(place.left, window.innerWidth - width - margin));
+  for (const top of [chat.bottom + margin, chat.top - margin - height]) {
+    if (top < margin || top + height > window.innerHeight - margin) continue;
+    const xs = [left + 2, left + width / 2, left + width - 2];
+    const ys = [top + 2, top + height / 2, top + height - 2];
+    if (xs.every((x) => ys.every((y) => !hostElementsAt(x, y).some((el) => el.closest(HOST_UI))))) return { left, top };
+  }
+  return null;
+}
+
 function controlSize(b: DOMRect): number {
   return Math.min(MAX_SIZE_PX, Math.max(MIN_SIZE_PX, Math.round(b.height)));
 }

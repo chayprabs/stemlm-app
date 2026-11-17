@@ -435,7 +435,7 @@ describe('Panel save toggle', () => {
     });
 
     const saveBtn = container.querySelector(
-      'button[aria-label="Save session"]',
+      'button[aria-label="Save question"]',
     ) as HTMLButtonElement;
     expect(saveBtn).toBeTruthy();
 
@@ -451,11 +451,11 @@ describe('Panel save toggle', () => {
         capsule: expect.objectContaining({ solution: session.capsule.solution }),
       }),
     );
-    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeTruthy();
 
     isSessionSavedMock.mockResolvedValue(true);
     const savedBtn = container.querySelector(
-      'button[aria-label="Remove from saved sessions"]',
+      'button[aria-label="Remove from saved questions"]',
     ) as HTMLButtonElement;
 
     await act(async () => {
@@ -532,12 +532,12 @@ describe('Panel empty / loading / banner states', () => {
     const { container, unmount } = mountPanel();
 
     const panel = container.querySelector('[role="complementary"]');
-    expect(panel?.getAttribute('aria-label')).toBe('stemlm study panel');
-    expect(container.textContent).toContain('Study workspace');
-    expect(container.textContent).toContain('Type a question in the chat, then start stemlm.');
+    expect(panel?.getAttribute('aria-label')).toBe('stemLM study panel');
+    expect(container.textContent).toContain('Study panel');
+    expect(container.textContent).toContain('Type a question in the chat, then press the stemLM button.');
     expect(container.textContent).not.toContain('beside send');
     expect(container.textContent).not.toContain('Open Gemini');
-    expect(container.textContent).not.toContain('Load conversation from this chat');
+    expect(container.textContent).not.toContain("Load this chat's answers");
     expect(container.querySelector('.slm-empty')).toBeTruthy();
     expect(container.querySelector('.slm-tabs')).toBeNull();
     unmount();
@@ -547,10 +547,10 @@ describe('Panel empty / loading / banner states', () => {
     useStore.setState({ panelOpen: true, status: 'loading' });
     const { container, unmount } = mountPanel();
 
-    expect(container.textContent).toContain('Reading response');
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('Reading response');
+    expect(container.textContent).toContain('Reading the answer');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('Reading the answer');
     expect(container.querySelector('.slm-loading')).toBeTruthy();
-    expect(container.textContent).not.toContain('Study workspace');
+    expect(container.textContent).not.toContain('Study panel');
     unmount();
   });
 
@@ -564,7 +564,7 @@ describe('Panel empty / loading / banner states', () => {
 
     const alert = container.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('Could not parse this answer.');
-    expect(container.textContent).toContain('Study workspace');
+    expect(container.textContent).toContain('Study panel');
     unmount();
   });
 
@@ -595,8 +595,8 @@ describe('Panel ready session', () => {
     await flush();
 
     const panel = container.querySelector('.slm-panel') as HTMLElement;
-    const decrease = container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement;
-    const increase = container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement;
+    const decrease = container.querySelector('button[aria-label*="Smaller text"]') as HTMLButtonElement;
+    const increase = container.querySelector('button[aria-label*="Larger text"]') as HTMLButtonElement;
     const theme = container.querySelector('.slm-theme-btn') as HTMLButtonElement;
     expect(panel.dataset.contentScale).toBe('2');
     expect(decrease).toBeTruthy();
@@ -622,8 +622,8 @@ describe('Panel ready session', () => {
     useStore.getState().addSession(session);
     const { container, unmount } = mountPanel();
     await flush();
-    expect((container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).disabled).toBe(true);
-    expect((container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement).disabled).toBe(false);
+    expect((container.querySelector('button[aria-label*="Larger text"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((container.querySelector('button[aria-label*="Smaller text"]') as HTMLButtonElement).disabled).toBe(false);
     unmount();
 
     useStore.setState({
@@ -634,8 +634,8 @@ describe('Panel ready session', () => {
     useStore.getState().addSession({ ...session, id: 'panel-study-min' });
     const mountedMin = mountPanel();
     await flush();
-    expect((mountedMin.container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement).disabled).toBe(true);
-    expect((mountedMin.container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).disabled).toBe(false);
+    expect((mountedMin.container.querySelector('button[aria-label*="Smaller text"]') as HTMLButtonElement).disabled).toBe(true);
+    expect((mountedMin.container.querySelector('button[aria-label*="Larger text"]') as HTMLButtonElement).disabled).toBe(false);
     mountedMin.unmount();
   });
 
@@ -684,7 +684,7 @@ describe('Panel ready session', () => {
     expect(live.classList.contains('slm-sr-only')).toBe(true);
 
     await act(async () => {
-      (container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement).click();
+      (container.querySelector('button[aria-label*="Larger text"]') as HTMLButtonElement).click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect((group.querySelector('[role="status"]') as HTMLElement).textContent).toContain('level 3 of 5');
@@ -702,8 +702,8 @@ describe('Panel ready session', () => {
     const { container, unmount } = mountPanel();
     await flush();
 
-    const increase = container.querySelector('button[aria-label*="Increase content size"]') as HTMLButtonElement;
-    const decrease = container.querySelector('button[aria-label*="Decrease content size"]') as HTMLButtonElement;
+    const increase = container.querySelector('button[aria-label*="Larger text"]') as HTMLButtonElement;
+    const decrease = container.querySelector('button[aria-label*="Smaller text"]') as HTMLButtonElement;
     increase.focus();
     await act(async () => {
       increase.click();
@@ -753,7 +753,7 @@ describe('Panel ready session', () => {
     await flush();
 
     const panel = container.querySelector('[role="complementary"]') as HTMLElement;
-    expect(panel.getAttribute('aria-label')).toBe('stemlm study panel');
+    expect(panel.getAttribute('aria-label')).toBe('stemLM study panel');
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Show progressive diagrams');
     // The question block: subject and topic as a small label, then the question itself.
     expect(container.querySelector('.slm-question-icon')).toBeNull();
@@ -775,10 +775,8 @@ describe('Panel ready session', () => {
     expect(container.querySelector('.slm-step-badge')).toBeNull();
     expect(container.querySelector('.slm-card-head')?.textContent).not.toMatch(/\b0\d\b/);
     expect(container.querySelector('.slm-card-kicker')?.textContent).toBe('Step 1of 2');
-    // The reader's place: a counter in the bar, for the eye only (the buttons are labelled).
-    const count = container.querySelector('.slm-stepnav-count') as HTMLElement;
-    expect(count.textContent).toBe('1/ 2');
-    expect(count.getAttribute('aria-hidden')).toBe('true');
+    // The reader's place is shown by the strip and the kicker; the bar does not repeat it.
+    expect(container.querySelector('.slm-stepnav-count')).toBeNull();
     expect(container.querySelector('.slm-stepnav--overlay')).toBeTruthy();
     expect(container.querySelector('.slm-stepnav--overlay')?.parentElement?.classList.contains('slm-stepnav-slot')).toBe(true);
     expect(container.querySelector('.slm-steps-layout')).toBeTruthy();
@@ -805,7 +803,7 @@ describe('Panel ready session', () => {
     });
     expect(container.textContent).toContain('Second visual state');
     expect(container.querySelector('.slm-card-title')?.textContent).toBe('Second visual state');
-    expect(container.querySelector('.slm-stepnav-count')?.textContent).toBe('2/ 2');
+    expect(container.querySelector('.slm-card-kicker')?.textContent).toBe('Step 2of 2');
     expect(container.innerHTML).toContain('second-diagram');
     act(() => {
       prev.click();
@@ -856,7 +854,7 @@ describe('Panel ready session', () => {
     const { container, unmount } = mountPanel();
     await flush();
 
-    const saveBtn = container.querySelector('button[aria-label="Save session"]') as HTMLButtonElement;
+    const saveBtn = container.querySelector('button[aria-label="Save question"]') as HTMLButtonElement;
     await act(async () => {
       saveBtn.click();
       await Promise.resolve();
@@ -967,7 +965,7 @@ describe('Panel ready session', () => {
     expect(container.querySelectorAll('.slm-theme-glyph')).toHaveLength(1);
 
     const saveBtn = container.querySelector(
-      'button[aria-label="Save session"]',
+      'button[aria-label="Save question"]',
     ) as HTMLButtonElement;
     expect(saveBtn.querySelector('.slm-icon-save')).toBeTruthy();
     expect(saveBtn.getAttribute('data-active')).toBeNull();
@@ -979,7 +977,7 @@ describe('Panel ready session', () => {
     });
 
     const savedBtn = container.querySelector(
-      'button[aria-label="Remove from saved sessions"]',
+      'button[aria-label="Remove from saved questions"]',
     ) as HTMLButtonElement;
     expect(savedBtn.getAttribute('data-active')).toBe('true');
     expect(savedBtn.getAttribute('aria-pressed')).toBe('true');
@@ -1416,19 +1414,14 @@ describe('Panel chrome: navigation bar, theme glyph, close motion, session strip
     expect(useStore.getState().activeStepIndex).toBe(0);
     expect(prev.disabled).toBe(true);
 
-    // One row: the counter on the left, Prev and Next together on the right.
+    // One row: Prev and Next together on the right; the place is the strip's and the kicker's.
     expect(overlay.tagName).toBe('FOOTER');
     expect(overlay.getAttribute('aria-label')).toBe('Step navigation');
     const overlayCss = cssBlock(PANEL_CSS, '.slm-stepnav--overlay');
-    const countCss = cssBlock(PANEL_CSS, '.slm-stepnav-count');
     const btnCss = cssBlock(PANEL_CSS, '.slm-stepnav-btn');
     expect(overlayCss).toMatch(/justify-content:\s*flex-end/);
     expect(overlayCss).not.toMatch(/position:\s*(?:absolute|fixed)/);
-    expect(countCss).toMatch(/margin-right:\s*auto/);
-    expect(countCss).toMatch(/font-family:\s*var\(--font-mono\)/);
-    expect(countCss).toMatch(/font-variant-numeric:\s*tabular-nums/);
-    const count = overlay.querySelector('.slm-stepnav-count') as HTMLElement;
-    expect(count.textContent).toBe('1/ 2');
+    expect(overlay.querySelector('.slm-stepnav-count')).toBeNull();
     expect(prev.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The bar is part of the sheet (a hairline above it), not a pill floating over the page.
     const slotCss = cssBlock(PANEL_CSS, '.slm-stepnav-slot');

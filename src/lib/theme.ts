@@ -1,6 +1,7 @@
 /**
  * Theme resolution. The default ("auto") follows the user's system preference
- * via prefers-color-scheme; explicit light/dark override it.
+ * via prefers-color-scheme on extension pages, and the chat site's own scheme
+ * beside a chat (resolveHostTheme); explicit light/dark override it.
  */
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type ResolvedTheme = 'light' | 'dark';
@@ -46,6 +47,36 @@ export function detectHostScheme(): ResolvedTheme {
   } catch {
     return systemPrefersDark() ? 'dark' : 'light';
   }
+}
+
+/** The panel's theme beside a chat site: "auto" is the site's own scheme, not the operating system's. */
+export function resolveHostTheme(pref: ThemePref): ResolvedTheme {
+  return pref === 'auto' ? detectHostScheme() : pref;
+}
+
+/**
+ * Call `onChange` with the chat site's scheme whenever it changes: sites switch theme with an
+ * attribute on <html> or <body> (a class, data-mode, a color-scheme style), some only when the
+ * system scheme flips. Checked a moment later, once the site has repainted. Returns an unsubscribe fn.
+ */
+export function watchHostScheme(onChange: (theme: ResolvedTheme) => void): () => void {
+  let last = detectHostScheme();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const check = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const next = detectHostScheme();
+      if (next !== last) onChange((last = next));
+    }, 250);
+  };
+  const observer = new MutationObserver(check);
+  for (const el of [document.documentElement, document.body]) if (el) observer.observe(el, { attributes: true });
+  const unwatchSystem = watchSystemTheme(check);
+  return () => {
+    clearTimeout(timer);
+    observer.disconnect();
+    unwatchSystem();
+  };
 }
 
 function parseColor(c: string): { r: number; g: number; b: number; a: number } | null {

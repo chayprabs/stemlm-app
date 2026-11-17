@@ -21,6 +21,8 @@ export interface TabWorkspaceBackup {
   sessions: Session[];
   activeSessionId?: string;
   activeStepIndex: number;
+  /** The panel was open: it opens again on the restored answer after a reload. */
+  panelOpen?: boolean;
   savedAt: number;
 }
 
@@ -77,13 +79,14 @@ export async function getContentTabId(): Promise<number | undefined> {
 
 export function workspaceFromStore(
   tabId: number,
-  state: Pick<StoreState, 'sessions' | 'activeSessionId' | 'activeStepIndex'>,
+  state: Pick<StoreState, 'sessions' | 'activeSessionId' | 'activeStepIndex'> & { panelOpen?: boolean },
 ): TabWorkspaceBackup {
   return {
     tabId,
     sessions: sessionsForMirror(state.sessions),
     activeSessionId: state.activeSessionId,
     activeStepIndex: state.activeStepIndex,
+    panelOpen: Boolean(state.panelOpen),
     savedAt: Date.now(),
   };
 }

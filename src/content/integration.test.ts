@@ -142,10 +142,11 @@ describe('integration: Gemini adapter + controller capture', () => {
     const c = new StemController(geminiAdapter);
     c.startWatching();
 
-    document.body.insertAdjacentHTML(
+    document.querySelector('input-area-v2')!.insertAdjacentHTML(
       'beforeend',
       '<button aria-label="Stop response">Stop</button>',
     );
+    expect(geminiAdapter.isStreaming()).toBe(true);
     pushAssistantCapsule(CAPSULE_BODY);
 
     await wait(600);

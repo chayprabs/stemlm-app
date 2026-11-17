@@ -62,6 +62,6 @@ describe('PanelHeader save for a cut-off answer (D38)', () => {
   it('keeps Save enabled for a complete answer', () => {
     const { save } = renderHeader(session);
     expect(save.disabled).toBe(false);
-    expect(save.title).toBe('Save session');
+    expect(save.title).toBe('Save question');
   });
 });

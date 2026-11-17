@@ -30,8 +30,8 @@ const READ_MAX = 100;
 /** The first characters of both lines stemLM writes above its own text in a message. */
 const NOTE_MARK = '--- stemLM';
 
-const ROW_LABEL = 'stemlm answer, shown in the panel';
-const ROW_LABEL_WRITING = 'stemlm answer, still being written';
+const ROW_LABEL = 'stemLM answer, shown in the panel';
+const ROW_LABEL_WRITING = 'stemLM answer, still being written';
 
 /**
  * The folded row takes its type and ink from the reply around it (`inherit`), and its surface is a
@@ -121,7 +121,7 @@ const BASE_CSS = `
 }
 [${NOTE_ATTR}] { position: relative !important; }
 [${NOTE_ATTR}]::after {
-  content: 'Show stemlm instructions';
+  content: 'Show the stemLM guide';
   position: absolute;
   white-space: nowrap;
   font-size: 0.8125em;
@@ -130,7 +130,7 @@ const BASE_CSS = `
   opacity: 0.7;
   cursor: pointer;
 }
-[${NOTE_ATTR}][${OPEN_ATTR}]::after { content: 'Hide stemlm instructions'; }
+[${NOTE_ATTR}][${OPEN_ATTR}]::after { content: 'Hide the stemLM guide'; }
 [${NOTE_ATTR}]:hover::after {
   opacity: 1;
   text-decoration: underline;
@@ -185,12 +185,16 @@ interface NoteCut {
 
 const px = (value: string): number => Number.parseFloat(value) || 0;
 
-/** The text nodes of `root` a student would read: not buttons, icons or hidden labels. */
+/** Not the student's text: controls, icons, hidden labels, and the file chips a sent message shows. */
+const NOT_TYPED = 'button, [role="button"], svg, style, script, [aria-hidden="true"], .sr-only, ' +
+  'user-query-file-preview, [data-testid*="file" i], [class*="attachment" i], [class*="file-preview" i]';
+
+/** The text nodes of `root` a student would read. */
 function readableTextNodes(root: HTMLElement): Text[] {
   const nodes: Text[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.parentElement?.closest('button, [role="button"], svg, style, script, [aria-hidden="true"]')) nodes.push(node as Text);
+    if (!node.parentElement?.closest(NOT_TYPED)) nodes.push(node as Text);
   }
   return nodes;
 }
@@ -237,20 +241,26 @@ function measureNote(turn: HTMLElement): { el: HTMLElement; cut: NoteCut } | nul
   const style = getComputedStyle(el);
   const borderTop = px(style.borderTopWidth);
   const padTop = px(style.paddingTop);
-  const padBottom = px(style.paddingBottom);
+  // Measured again once clipped (the column narrowed): the bottom padding is then drawn as our border.
+  const clipped = el.hasAttribute(NOTE_ATTR) && !el.hasAttribute(OPEN_ATTR);
+  const padBottom = px(clipped ? style.borderBottomWidth : style.paddingBottom);
   if (style.position !== 'static' && style.position !== 'relative') return null;
-  if (padBottom > 0 && px(style.borderBottomWidth) > 0) return null;
+  // A flex or grid box given a max-height moves its content (one that packs it at its end shows the
+  // instructions' last lines): only a box of text is cut.
+  if (/flex|grid/.test(style.display)) return null;
+  if (!clipped && padBottom > 0 && px(style.borderBottomWidth) > 0) return null;
   const contentTop = box.top + borderTop + padTop;
   const questionBottom = above ? above.bottom : contentTop;
   // The expander is written on the blank line between the question and stemLM's lines.
   if (mark.top - questionBottom < mark.height * 0.6) return null;
   const cutAt = mark.top - contentTop;
+  if (cutAt <= 0) return null;
   const inner = style.boxSizing === 'border-box' ? cutAt + padTop + borderTop + padBottom : cutAt;
   return {
     el,
     cut: {
       maxHeight: Math.round(inner),
-      top: Math.round(mark.top - mark.height - (box.top + borderTop)),
+      top: Math.max(0, Math.round(mark.top - mark.height - (box.top + borderTop))),
       lineHeight: Math.round(mark.height),
       left: Math.round(px(style.paddingLeft)),
       padBottom: Math.round(padBottom),

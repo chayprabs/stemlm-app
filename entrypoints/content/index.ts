@@ -7,13 +7,14 @@ import { createElement } from 'react';
 import App from './App';
 import './style.css';
 import { detectAdapter } from '@/src/platforms/detect';
+import { watchComposerRoute } from '@/src/platforms/routes';
 import { CHAT_CONTENT_MATCHES } from '@/src/platforms/hosts';
 import { initController, getController } from '@/src/content/controller';
 import { restorableSessions } from '@/src/content/restored-sessions';
 import { useStore } from '@/src/state/store';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
 import { applyLiveSettings } from '@/src/lib/live-settings';
-import { applyTheme, resolveTheme, watchSystemTheme } from '@/src/lib/theme';
+import { applyTheme, resolveHostTheme, watchHostScheme } from '@/src/lib/theme';
 import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
 import { trackEvent } from '@/src/lib/analytics';
 import {
@@ -25,7 +26,7 @@ import {
 } from '@/src/lib/session-sync';
 import { removeSplit } from '@/src/lib/split-screen';
 import { installFontFaces } from '@/src/lib/fonts';
-import { extensionAssetUrl } from '@/src/lib/extension-context';
+import { extensionAssetUrl, unlessUpdated } from '@/src/lib/extension-context';
 import { removeComposerRoom } from '@/src/lib/composer-anchor';
 import { parseStemLmMessage } from '@/src/lib/messages';
 import { consumePendingPanelAction, handleStemLmPanelMessage } from '@/src/lib/panel-remote';
@@ -54,7 +55,7 @@ async function withStartupDeadline<T>(operation: Promise<T>): Promise<T> {
 /**
  * stemLM content script. Mounts the overlay button + study panel inside an
  * isolated Shadow DOM (per-tab), detects the platform, and wires the
- * orchestration controller. Theme follows the user's system preference unless
+ * orchestration controller. Theme follows the chat site's own scheme unless
  * overridden in settings. Sessions are per-tab unless "Share across tabs" is on.
  */
 export default defineContentScript({
@@ -100,7 +101,7 @@ export default defineContentScript({
       void Promise.resolve(saveTabWorkspace(workspaceFromStore(tabId, state))).then((saved) => {
         if (saved !== false) return;
         workspaceDirty = true;
-        if (active) useStore.getState().setStatus('error', 'Could not preserve this panel for reload. Your answer is still open; try saving it.');
+        if (active) useStore.getState().setStatus('error', unlessUpdated('Could not preserve this panel for reload. Your answer is still open; try saving it.'));
       });
     };
     // Register before the first await: a reload can invalidate us during boot.
@@ -161,7 +162,7 @@ export default defineContentScript({
       });
 
       useStore.getState().setSettings(settings);
-      useStore.getState().setTheme(resolveTheme(settings.theme));
+      useStore.getState().setTheme(resolveHostTheme(settings.theme));
       useStore.getState().setSplitRatio(settings.splitRatio);
       useStore.setState({ view: settings.defaultView });
 
@@ -202,6 +203,11 @@ export default defineContentScript({
 
       cleanup.push(useStore.subscribe((state, previous) => {
         if (host) applyTheme(host, state.theme);
+        // The site may have switched theme while the panel was closed: look again as it opens.
+        if (state.panelOpen && !previous.panelOpen && state.settings.theme === 'auto') {
+          const scheme = resolveHostTheme('auto');
+          if (scheme !== state.theme) state.setTheme(scheme);
+        }
         if (hydrating) return;
         if (state.sessions !== previous.sessions || state.status !== previous.status ||
             state.buttonInjected !== previous.buttonInjected) actionGeneration++;
@@ -210,7 +216,7 @@ export default defineContentScript({
           void mirrorActiveSessions(state.sessions, previous.sessions.filter((s) => !kept.has(s.id)).map((s) => s.id));
         }
         if (state.sessions !== previous.sessions || state.activeSessionId !== previous.activeSessionId ||
-            state.activeStepIndex !== previous.activeStepIndex) {
+            state.activeStepIndex !== previous.activeStepIndex || state.panelOpen !== previous.panelOpen) {
           workspaceDirty = true;
           clearTimeout(workspaceTimer);
           if (tabId != null) workspaceTimer = setTimeout(persistTabWorkspace, 300);
@@ -224,7 +230,7 @@ export default defineContentScript({
         // chat's answers, which it withholds under an error (src/components/EmptyState.tsx).
         useStore.getState().setStatus(
           some ? 'ready' : 'idle',
-          `${what} could not be restored. Nothing you saved was changed.${some ? ' The others are here.' : ' If this chat has stemlm answers, load them again below.'}`,
+          `${what} could not be restored. Nothing you saved was changed.${some ? ' The others are here.' : ' If this chat has stemLM answers, load them again below.'}`,
         );
       };
       cleanup.push(onMirroredSessionsChanged((shared) => {
@@ -258,6 +264,7 @@ export default defineContentScript({
               // A different answer opening here opens on the student's chosen view.
               ...(kept ? {} : { view: current.settings.defaultView }),
             });
+            useStore.getState().setChat(location.pathname);
             if (admitted.rejected) restoreError(admitted.rejected);
           } finally {
             hydrating = false;
@@ -267,12 +274,15 @@ export default defineContentScript({
         }
       }));
 
-      cleanup.push(watchSystemTheme((theme) => {
+      // "auto" is the chat site's scheme: the panel follows the site when it switches theme.
+      cleanup.push(watchHostScheme((theme) => {
         if (useStore.getState().settings.theme === 'auto') {
           useStore.getState().setTheme(theme);
         }
       }));
       cleanup.push(watchAndApplyToolbarIcon());
+      // Questions belong to the chat they were asked in, also when the site changes chat in place.
+      cleanup.push(watchComposerRoute(() => controller.onChatRoute()));
 
       let lastSettings = settings;
       cleanup.push(onSettingsChanged((next) => {
@@ -319,9 +329,13 @@ export default defineContentScript({
               hydrating = true;
               try {
                 useStore.setState({ sessions, activeSessionId: activeSession.id, activeStepIndex, status: 'ready', errorMessage: undefined });
+                // This tab may now show another chat than the one these answers were stored in.
+                useStore.getState().setChat(location.pathname);
               } finally {
                 hydrating = false;
               }
+              // Open before the reload: open again on the answer, leaving the keyboard in the chat.
+              if (backup?.panelOpen && useStore.getState().activeSessionId) useStore.getState().openPanel(false);
               if (settings.shareAcrossTabs && !sharedRecords.sessions.length && !rejected) void mirrorActiveSessions(sessions);
             }
             if (rejected) restoreError(rejected);
@@ -338,7 +352,7 @@ export default defineContentScript({
           await consumePendingPanelAction(tabId, adapter.id, startupStillCurrent, true);
         } catch {
           if (startupStillCurrent()) {
-            useStore.getState().setStatus('error', 'Could not finish the requested action. Please try stemlm again.');
+            useStore.getState().setStatus('error', 'Could not finish the requested action. Try stemLM again.');
             useStore.getState().openPanel();
           }
         }

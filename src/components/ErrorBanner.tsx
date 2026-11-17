@@ -1,4 +1,5 @@
 import { REMOVED_NOTICE, useStore } from '@/src/state/store';
+import { EXTENSION_UPDATED_NOTICE } from '@/src/lib/extension-context';
 import { IconClose } from './icons';
 import { focusPanel } from './move-focus';
 
@@ -43,6 +44,11 @@ export function ErrorBanner({ message, tone }: { message: string; tone: 'error' 
         {canUndo && (
           <button type="button" className="slm-banner-undo" onClick={(e) => undo(e.currentTarget)}>
             Undo
+          </button>
+        )}
+        {message === EXTENSION_UPDATED_NOTICE && (
+          <button type="button" className="slm-banner-undo" onClick={() => window.location.reload()}>
+            Reload
           </button>
         )}
         <button

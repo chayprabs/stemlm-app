@@ -97,7 +97,7 @@ function Figure({
       {note?.corrected && (
         // A page has no hover, so the note carries its own explanation.
         <p className="slm-report-diagram-note">
-          Auto-corrected. stemlm corrected this figure&apos;s notation before drawing it. Its content is unchanged.
+          Auto-corrected. stemLM corrected this figure&apos;s notation before drawing it. Its content is unchanged.
         </p>
       )}
     </figure>
@@ -342,7 +342,7 @@ function ReportFoot({ note }: { note?: string }) {
     <footer className="slm-report-foot">
       {note && <p className="slm-report-smallprint">{note}</p>}
       <p className="slm-report-made">
-        <span>PDF made using stemlm</span>
+        <span>PDF made using stemLM</span>
         <a className="slm-report-foot-link" href={BRAND_SITE} target="_blank" rel="noopener noreferrer">
           stemlm.app
         </a>

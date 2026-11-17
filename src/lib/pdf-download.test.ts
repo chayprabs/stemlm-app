@@ -138,7 +138,7 @@ describe('PDF file download', () => {
     expect(print).not.toHaveBeenCalled();
     expect(downloadMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        filename: 'stemlm - arithmetic - 2026-09-26.pdf',
+        filename: 'stemLM - arithmetic - 2026-09-26.pdf',
         saveAs: false,
       }),
     );
@@ -224,9 +224,9 @@ describe('running footer', () => {
     await pagesToPdfBlob(pages(1032, 1032, 240), 'Arithmetic');
 
     expect(drawn).toEqual([
-      ['page 1 of 3', 'stemlm', 'Arithmetic'],
-      ['page 2 of 3', 'stemlm', 'Arithmetic'],
-      ['page 3 of 3', 'stemlm', 'Arithmetic'],
+      ['page 1 of 3', 'stemLM', 'Arithmetic'],
+      ['page 2 of 3', 'stemLM', 'Arithmetic'],
+      ['page 3 of 3', 'stemLM', 'Arithmetic'],
     ]);
     const footers = addImage.mock.calls.filter((call) => String(call[0]).includes('footer-'));
     expect(footers.map((call) => call[0])).toEqual([1, 2, 3].map((n) => `data:image/png;base64,footer-${n}`));
@@ -261,10 +261,10 @@ describe('running footer', () => {
   it('names the topic of one answer and the count of a merged file', async () => {
     const drawn = recordCanvases();
     await downloadSessionPdf(session());
-    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', 'Arithmetic']);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemLM', 'Arithmetic']);
 
     await downloadSessionsPdf([session('a'), session('b'), session('c')]);
-    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '3 questions']);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemLM', '3 questions']);
   });
 
   it('names nothing beside the brand when the topic only opens the question or needs typesetting', async () => {
@@ -272,12 +272,12 @@ describe('running footer', () => {
     const opening = session('o', 'What is 2 + 2 when both are counted twice?');
     opening.capsule.meta.topic = 'What is 2 + 2 when…';
     await downloadSessionPdf(opening);
-    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '']);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemLM', '']);
 
     const tex = session('t');
     tex.capsule.meta.topic = 'Evaluate $\\int_0^1 x\\,dx$';
     await downloadSessionPdf(tex);
-    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '']);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemLM', '']);
   });
 });
 
@@ -298,9 +298,9 @@ describe('merged PDF download', () => {
   });
 
   it('names the file after how many questions it holds', () => {
-    expect(mergedPdfFileName(3)).toBe('stemlm - 3 questions - 2026-09-27.pdf');
-    expect(mergedPdfFileName(12)).toBe('stemlm - 12 questions - 2026-09-27.pdf');
-    expect(mergedPdfFileName(1)).toBe('stemlm - 2026-09-27.pdf');
+    expect(mergedPdfFileName(3)).toBe('stemLM - 3 questions - 2026-09-27.pdf');
+    expect(mergedPdfFileName(12)).toBe('stemLM - 12 questions - 2026-09-27.pdf');
+    expect(mergedPdfFileName(1)).toBe('stemLM - 2026-09-27.pdf');
   });
 
   it('renders one continuous document for several questions', async () => {
@@ -320,14 +320,14 @@ describe('merged PDF download', () => {
     expect(body).toContain('Solve the quadratic.');
     expect(body).toContain('3 questions');
     // Brand header and sign-off appear exactly once for the whole document.
-    expect(body.match(/PDF made using stemlm/g)).toHaveLength(1);
+    expect(body.match(/PDF made using stemLM/g)).toHaveLength(1);
     expect(body.match(/slm-report-wordmark/g)).toHaveLength(1);
     expect(body.match(/slm-report-foot"/g)).toHaveLength(1);
     // Every question keeps its own answer section.
     expect(body.match(/class="slm-report-entry"/g)).toHaveLength(3);
 
     expect(downloadMock).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: 'stemlm - 3 questions - 2026-09-27.pdf', saveAs: false }),
+      expect.objectContaining({ filename: 'stemLM - 3 questions - 2026-09-27.pdf', saveAs: false }),
     );
   });
 
@@ -342,7 +342,7 @@ describe('merged PDF download', () => {
     // A single report does not number its question.
     expect(body).not.toContain('slm-report-label');
     expect(downloadMock).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: 'stemlm - arithmetic - 2026-09-26.pdf' }),
+      expect.objectContaining({ filename: 'stemLM - arithmetic - 2026-09-26.pdf' }),
     );
   });
 

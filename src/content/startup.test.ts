@@ -27,7 +27,7 @@ vi.mock('@/src/lib/session-sync', () => ({
   loadMirroredSessions: async () => [], mergeMirroredSessions: vi.fn(), mirrorActiveSessions: vi.fn(),
   onMirroredSessionsChanged: () => () => {}, sessionsMirrorFingerprint: vi.fn(),
 }));
-vi.mock('@/src/lib/theme', () => ({ applyTheme: vi.fn(), resolveTheme: () => 'light', watchSystemTheme: () => () => {} }));
+vi.mock('@/src/lib/theme', () => ({ applyTheme: vi.fn(), resolveTheme: () => 'light', resolveHostTheme: () => 'light', watchSystemTheme: () => () => {}, watchHostScheme: () => () => {} }));
 vi.mock('@/src/lib/toolbar-icon', () => ({ watchAndApplyToolbarIcon: () => () => {} }));
 vi.mock('@/src/lib/analytics', () => ({ trackEvent: vi.fn() }));
 

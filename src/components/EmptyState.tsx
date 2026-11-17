@@ -6,7 +6,7 @@ import { NO_ANSWER_NOTICE, useStore } from '@/src/state/store';
 
 const HOW_IT_WORKS: Array<[string, string]> = [
   ['Ask', 'Type a question in the chat, or attach a photo of the problem.'],
-  ['Attach', 'Press the stemlm button beside the chat box, then send.'],
+  ['Attach', 'Press the stemLM button beside the chat box, then send.'],
   ['Study', 'The answer opens here as steps with formulas, figures and quick checks.'],
 ];
 
@@ -56,7 +56,7 @@ function PasteAnswer() {
     >
       <label className="slm-paste-label" htmlFor={`slm-paste-${id}`}>Paste an answer</label>
       <p className="slm-paste-help" id={`slm-paste-help-${id}`}>
-        Copy a whole answer from any chat and paste it here. stemlm arranges it into steps. It does not check it.
+        Copy a whole answer from any chat and paste it here. stemLM arranges it into steps. It does not check it.
       </p>
       <textarea
         id={`slm-paste-${id}`}
@@ -74,7 +74,7 @@ function PasteAnswer() {
       />
       {refused && (
         <p className="slm-paste-error" id={`slm-paste-error-${id}`} role="alert">
-          stemlm found no worked answer in this text. Paste the whole answer, from its first line to its last.
+          stemLM found no worked answer in this text. Paste the whole answer, from its first line to its last.
         </p>
       )}
       <div className="slm-paste-actions">
@@ -137,14 +137,14 @@ export function EmptyState() {
       <div className="slm-empty-preview" aria-hidden="true">
         <StemMark size={40} variant={themeToBrandVariant(theme)} />
       </div>
-      <h2 className="slm-empty-title">Study workspace</h2>
+      <h2 className="slm-empty-title">Study panel</h2>
       {loadable === 'capsules' && !failed && !unanswered && !drafting ? (
         <>
           <p className="slm-empty-text">
-            This chat has stemlm answers that aren't loaded yet.
+            This chat has stemLM answers that aren't loaded yet.
           </p>
           <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load} disabled={busy} aria-busy={busy}>
-            <IconLayers /> Load conversation from this chat
+            <IconLayers /> Load this chat's answers
           </button>
         </>
       ) : loadable === 'answer' ? (
@@ -154,23 +154,23 @@ export function EmptyState() {
           <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load} disabled={busy} aria-busy={busy}>
             <IconLayers /> Study the latest answer
           </button>
-          <p className="slm-empty-note">stemlm arranges the answer as it was written. It does not check it.</p>
+          <p className="slm-empty-note">stemLM arranges the answer as it was written. It does not check it.</p>
           <p className="slm-empty-or">Or ask a new question</p>
-          <p className="slm-empty-text">Type a question in the chat, then start stemlm.</p>
+          <p className="slm-empty-text">Type a question in the chat, then press the stemLM button.</p>
           {howItWorks}
         </>
       ) : (
         <>
-          <p className="slm-empty-text">Type a question in the chat, then start stemlm.</p>
-          {/* The note above says the chat did not answer. This student has just used stemlm: no lesson in how. */}
+          <p className="slm-empty-text">Type a question in the chat, then press the stemLM button.</p>
+          {/* The note above says the chat did not answer. This student has just used stemLM: no lesson in how. */}
           {!unanswered && howItWorks}
         </>
       )}
       {status === 'none' && (
         <p className="slm-empty-hint" role="status">
           {/* Only point at the status line when there is one to read. */}
-          The response could not be loaded.{' '}
-          {explained ? 'See the message above for details.' : 'Ask the question again with the stemlm button.'}
+          The answer could not be loaded.{' '}
+          {explained ? 'See the message above for details.' : 'Ask the question again with the stemLM button.'}
         </p>
       )}
       <PasteAnswer />

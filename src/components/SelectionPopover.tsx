@@ -87,7 +87,7 @@ export function SelectionPopover({
     if (!ctrl) {
       useStore
         .getState()
-        .setStatus('error', 'stemlm is not ready on this page. Reload the tab and try again.');
+        .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
       return;
     }
     try {
@@ -99,7 +99,7 @@ export function SelectionPopover({
     if (useStore.getState().status !== 'error') {
       useStore
         .getState()
-        .setStatus('error', 'Could not send the follow-up to the chat box. Click in the input and try again.');
+        .setStatus('error', 'Could not send the follow-up to the chat box. Click in the chat box and try again.');
     }
   }
 

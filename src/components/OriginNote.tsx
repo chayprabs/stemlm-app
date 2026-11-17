@@ -5,11 +5,11 @@ import type { Session } from '@/src/protocol/types';
  * answer; the PDF report says the same sentence in its foot.
  */
 export const REPORT_NOTE =
-  'The steps and figures were written by the chat model and laid out by stemlm, which does not verify them.';
+  'The steps and figures were written by the chat model and laid out by stemLM, which does not verify them.';
 
 /** The same for an answer structured from a plain chat reply, where stemLM did the arranging. */
 export const ORIGIN_NOTE_DETAIL =
-  'stemlm arranged this answer into steps without changing its wording. It did not verify the working.';
+  'stemLM arranged this answer into steps without changing its wording. It did not verify the working.';
 
 /** Where such an answer came from, under its question. What was checked is said under the answer. */
 export const ORIGIN_NOTE = 'Structured from the chat answer.';

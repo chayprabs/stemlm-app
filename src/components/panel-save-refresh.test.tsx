@@ -156,7 +156,7 @@ describe('Panel save membership', () => {
       Object.assign(storageData, items);
     });
     try {
-      act(() => { (container.querySelector('button[aria-label="Save session"]') as HTMLButtonElement).click(); });
+      act(() => { (container.querySelector('button[aria-label="Save question"]') as HTMLButtonElement).click(); });
       await flush();
       act(() => { useStore.getState().setActiveSession(b.id); });
       await flush();
@@ -164,8 +164,8 @@ describe('Panel save membership', () => {
       await flush();
       expect(await isSessionSaved(a.id)).toBe(true);
       expect(await isSessionSaved(b.id)).toBe(false);
-      expect(container.querySelector('button[aria-label="Save session"]')).toBeTruthy();
-      expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeNull();
+      expect(container.querySelector('button[aria-label="Save question"]')).toBeTruthy();
+      expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeNull();
     } finally {
       release();
       unmount();
@@ -179,7 +179,7 @@ describe('Panel save membership', () => {
     const { container, unmount } = mountPanel();
     await flush();
     try {
-      await act(async () => { (container.querySelector('button[aria-label="Save session"]') as HTMLButtonElement).click(); });
+      await act(async () => { (container.querySelector('button[aria-label="Save question"]') as HTMLButtonElement).click(); });
       await flush();
       const saved = () => (storageData[SAVED_SESSIONS_KEY] as Array<Record<string, unknown>>).find((row) => row.id === plain.id);
       expect(saved()).toMatchObject({ origin: 'ingest' });
@@ -206,7 +206,7 @@ describe('Panel save membership', () => {
     await flush();
 
     const unsave = container.querySelector(
-      'button[aria-label="Remove from saved sessions"]',
+      'button[aria-label="Remove from saved questions"]',
     ) as HTMLButtonElement;
     expect(unsave).toBeTruthy();
 
@@ -216,8 +216,8 @@ describe('Panel save membership', () => {
     });
     await flush();
 
-    expect(container.querySelector('button[aria-label="Save session"]')).toBeTruthy();
-    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Save question"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeNull();
     expect(storedIds()).not.toContain(session.id);
     expect(await isSessionSaved(session.id)).toBe(false);
     unmount();
@@ -236,10 +236,10 @@ describe('Panel save membership', () => {
     await flush();
 
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Question Alpha');
-    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeTruthy();
 
     const unsave = container.querySelector(
-      'button[aria-label="Remove from saved sessions"]',
+      'button[aria-label="Remove from saved questions"]',
     ) as HTMLButtonElement;
     await act(async () => {
       unsave.click();
@@ -247,7 +247,7 @@ describe('Panel save membership', () => {
     });
     await flush();
 
-    expect(container.querySelector('button[aria-label="Save session"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Save question"]')).toBeTruthy();
     expect(storedIds()).not.toContain(sessionA.id);
     expect(storedIds()).toContain(sessionB.id);
 
@@ -257,7 +257,7 @@ describe('Panel save membership', () => {
     await flush();
 
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Question Beta');
-    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeTruthy();
     expect(await isSessionSaved(sessionB.id)).toBe(true);
 
     act(() => {
@@ -266,8 +266,8 @@ describe('Panel save membership', () => {
     await flush();
 
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Question Alpha');
-    expect(container.querySelector('button[aria-label="Save session"]')).toBeTruthy();
-    expect(container.querySelector('button[aria-label="Remove from saved sessions"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Save question"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-label="Remove from saved questions"]')).toBeNull();
     expect(await isSessionSaved(sessionA.id)).toBe(false);
     expect(await isSessionSaved(sessionB.id)).toBe(true);
     expect(storedIds()).not.toContain(sessionA.id);

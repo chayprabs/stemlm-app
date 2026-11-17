@@ -74,15 +74,15 @@ function launchErrorMessage(err: unknown): string {
   }
   if (code === 'no-active-tab') return 'No active tab found.';
   if (code === 'no-tab') return 'Could not open a new tab.';
-  if (code === 'stemlm-disabled') return 'Turn stemlm on in the toolbar popup, then try again.';
-  if (code === 'content-chat-changed') return 'The chat changed. Open stemlm again in the chat you want to use.';
+  if (code === 'stemlm-disabled') return 'Turn stemLM on in the toolbar popup, then try again.';
+  if (code === 'content-chat-changed') return 'The chat changed. Open stemLM again in the chat you want to use.';
   if (code === 'content-script-startup-failed' || code === 'content-script-no-acknowledgement') {
-    return 'Could not start stemlm. Keep a copy of your draft, then refresh the chat and try again.';
+    return 'Could not start stemLM. Keep a copy of your draft, then refresh the chat and try again.';
   }
   if (code === 'content-script-timeout' || code === 'content-script-starting') {
-    return 'stemlm is not ready yet. Try again shortly. If it stays unavailable, keep a copy of your draft before refreshing the chat.';
+    return 'stemLM is not ready yet. Try again shortly. If it stays unavailable, keep a copy of your draft before refreshing the chat.';
   }
-  return 'Could not start stemlm. Try refreshing the page.';
+  return 'Could not start stemLM. Try refreshing the page.';
 }
 
 /** Open the study panel without loading the conversation. */

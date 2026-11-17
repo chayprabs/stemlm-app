@@ -133,11 +133,11 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(html).not.toContain('slm-extension-logo');
     // The glyph is decoration: the control's name says what pressing it does.
     expect(btn.querySelector('.slm-inject-glyph')?.getAttribute('aria-hidden')).toBe('true');
-    expect(btn.getAttribute('aria-label')).toBe('Add the stemlm guide to this question');
+    expect(btn.getAttribute('aria-label')).toBe('Add the stemLM guide to this question');
     expect(btn.getAttribute('aria-pressed')).toBe('false');
     expect(btn.getAttribute('data-state')).toBe('idle');
     // The same words are beside the control for a pointer or the keyboard; no native title doubles them.
-    expect(container.querySelector('.slm-inject-tip')?.textContent).toBe('Add the stemlm guide to this question');
+    expect(container.querySelector('.slm-inject-tip')?.textContent).toBe('Add the stemLM guide to this question');
     expect(btn.hasAttribute('title')).toBe(false);
   });
 
@@ -160,7 +160,7 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(btn.querySelector('.slm-inject-tick path')).toBeTruthy();
     expect(btn.getAttribute('aria-pressed')).toBe('true');
     expect(btn.getAttribute('data-state')).toBe('attached');
-    expect(btn.getAttribute('aria-label')).toBe('stemlm is on for this question. Open the panel');
+    expect(btn.getAttribute('aria-label')).toBe('stemLM is on for this question. Open the panel');
 
     ed.textContent = '';
     await act(async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { useStore, useActiveSession } from '@/src/state/store';
+import { useStore, useActiveSession, chatSessions } from '@/src/state/store';
 import { PanelHeader } from './PanelHeader';
 import { StepCard } from './StepCard';
 import { StepList } from './StepList';
@@ -27,6 +27,7 @@ import { normalizeContentScale, setSettings } from '@/src/lib/settings';
 import { requestSessionPdf } from '@/src/lib/pdf-export-request';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
+import { unlessUpdated } from '@/src/lib/extension-context';
 import { panelSelectionRange, selectionText } from '@/src/lib/followup-selection';
 import { focusPanel } from './move-focus';
 import { panelMotion, type StepDirection } from './step-motion';
@@ -46,6 +47,12 @@ function focusedElement(): Element | null {
 function holdsDraft(el: Element | null): boolean {
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return el.value.trim() !== '';
   return el instanceof HTMLElement && el.isContentEditable && (el.textContent ?? '').trim() !== '';
+}
+
+/** A locale the model wrote, kept only when it reads as a language tag (`en`, `pt-BR`). */
+function answerLang(locale: string | undefined): string | undefined {
+  const tag = locale?.trim().replace('_', '-');
+  return tag && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(tag) ? tag : undefined;
 }
 
 function shouldHandleStepArrow(e: KeyboardEvent, panel: HTMLElement): boolean {
@@ -68,7 +75,8 @@ export function Panel() {
     errorMessage,
     view,
     theme,
-    sessions,
+    sessions: allSessions,
+    chat,
     activeStepIndex,
     closePanel,
     setView,
@@ -84,6 +92,8 @@ export function Panel() {
     settings,
     writingId,
   } = useStore();
+  // Questions belong to the chat they were asked in: the strip shows this chat's.
+  const sessions = useMemo(() => chatSessions({ sessions: allSessions, chat }), [allSessions, chat]);
   const session = useActiveSession();
   const reducedMotion = useReducedMotion();
   const viewport = useViewportWidth();
@@ -173,9 +183,28 @@ export function Panel() {
   }
   const direction = travel.current.direction;
   const readRef = useRef<HTMLDivElement>(null);
+  const switchRef = useRef<HTMLDivElement>(null);
+  // The question being read is never off the end of a narrow question strip. Only the strip scrolls.
+  useEffect(() => {
+    const strip = switchRef.current;
+    const chip = strip?.querySelector('.slm-session-chip.is-active');
+    if (!strip || !chip) return;
+    const box = strip.getBoundingClientRect();
+    const at = chip.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+    const left = at.left < box.left + pad ? at.left - box.left - pad : at.right > box.right - pad ? at.right - box.right + pad : 0;
+    if (left) strip.scrollBy?.({ left });
+  }, [session?.id, sessions.length]);
   // A new step starts at its top, wherever the previous one was scrolled to.
+  // A short panel scrolls as a whole (assets/panel.css): there the strip comes back under the bar.
   useEffect(() => {
     readRef.current?.scrollTo?.({ top: 0 });
+    const panel = panelRef.current;
+    const strip = panel?.querySelector('.slm-step-rail');
+    const bar = panel?.querySelector('.slm-header-bar');
+    if (!panel?.scrollTop || !strip || !bar) return;
+    const above = strip.getBoundingClientRect().top - bar.getBoundingClientRect().bottom;
+    if (above < 0) panel.scrollBy?.({ top: above });
   }, [activeStepIndex, session?.id]);
   // The page reserves a gutter for its scrollbar where scrollbars take room. The step strip above
   // it has none, so it is told the width and can stay exactly on the reading column's edge.
@@ -186,15 +215,6 @@ export function Panel() {
     if (!read || !panel) return;
     panel.style.setProperty('--slm-scroll-gutter', `${Math.max(0, read.offsetWidth - read.clientWidth)}px`);
   }, [hasReadingPage, panelOpen]);
-  // Where the reader is, counted in steps. A follow-up belongs to the step it was asked about,
-  // so the counter agrees with the page's own "Step n of N" and with the numerals on the strip.
-  const stepTotal = session?.capsule.steps.length ?? 0;
-  const stepPlace =
-    activeEntry?.kind === 'step'
-      ? activeEntry.stepNumber
-      : activeEntry?.kind === 'followup'
-        ? activeEntry.anchorStepIndex + 1
-        : Math.min(activeStepIndex + 1, stepTotal);
   const step =
     activeEntry?.kind === 'step'
       ? activeEntry.step
@@ -222,9 +242,9 @@ export function Panel() {
         err instanceof StorageQuotaError
           ? err.message
           : saved
-            ? 'Could not remove saved session. Try again.'
-            : 'Could not save session. Try again.';
-      useStore.getState().setStatus('error', msg);
+            ? 'Could not remove the saved question. Try again.'
+            : 'Could not save the question. Try again.';
+      useStore.getState().setStatus('error', unlessUpdated(msg));
     }
   }
 
@@ -252,7 +272,7 @@ export function Panel() {
       setStoreSettings(updated);
     } catch {
       setStoreSettings({ ...settings, contentScale: previous });
-      useStore.getState().setStatus('error', 'Could not save the content size. Try again.');
+      useStore.getState().setStatus('error', 'Could not save the text size. Try again.');
     } finally {
       setContentScaleBusy(false);
     }
@@ -263,7 +283,7 @@ export function Panel() {
     // pdf.html builds and downloads the file in its own window (D7).
     if (await requestSessionPdf(session)) return;
     if (useStore.getState().status !== 'error') {
-      useStore.getState().setStatus('error', 'Could not start the PDF export. Reload this tab and try again.');
+      useStore.getState().setStatus('error', unlessUpdated('Could not start the PDF export. Reload this tab and try again.'));
     }
   }
 
@@ -327,7 +347,9 @@ export function Panel() {
       onPointerDown={onPanelPointerDown}
       {...panelMotion(Boolean(reducedMotion))}
       role="complementary"
-      aria-label="stemlm study panel"
+      aria-label="stemLM study panel"
+      // The answer's language when the model named it, else the chat page's.
+      lang={answerLang(session?.capsule.meta.locale) ?? (document.documentElement.lang || undefined)}
     >
       {!isOverlayViewport(viewport) && <ResizeHandle />}
       <PanelHeader
@@ -345,7 +367,7 @@ export function Panel() {
         onClose={closePanel}
       >
         {sessions.length > 1 && (
-          <div className="slm-session-switch" role="group" aria-label="Questions in this chat">
+          <div className="slm-session-switch" ref={switchRef} role="group" aria-label="Questions in this chat">
             {sessions.map((s, i) => (
               <div
                 key={s.id}
@@ -443,10 +465,6 @@ export function Panel() {
                       >
                         <IconNavPrev /> Prev
                       </button>
-                      <span className="slm-stepnav-count" aria-hidden="true">
-                        <span className="slm-stepnav-count-now">{stepPlace}</span>
-                        <span className="slm-stepnav-count-of">/ {stepTotal}</span>
-                      </span>
                       <button
                         type="button"
                         className="slm-stepnav-btn slm-stepnav-btn--next"

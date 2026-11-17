@@ -313,9 +313,11 @@ describe('Gemini adapter', () => {
     expect(caps[0]).toContain('@meta');
   });
 
-  it('reports streaming when stop button present', () => {
+  it('reports streaming when the composer shows its Stop button, never for a Stop elsewhere on the page', () => {
     expect(geminiAdapter.isStreaming()).toBe(false);
-    document.body.insertAdjacentHTML('beforeend', '<button aria-label="Stop response">Stop</button>');
+    document.body.insertAdjacentHTML('beforeend', '<button aria-label="Stop dictation">Stop</button>');
+    expect(geminiAdapter.isStreaming()).toBe(false);
+    document.querySelector('.send-button-container')!.insertAdjacentHTML('beforeend', '<button aria-label="Stop response">Stop</button>');
     expect(geminiAdapter.isStreaming()).toBe(true);
   });
 });
@@ -461,10 +463,11 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
     expect(caps[0]).toContain(HOST_CAPSULE.split('\n')[0]);
   });
 
-  it('reports streaming when a stop control is present', () => {
+  it('reports streaming when the composer shows a stop control', () => {
     expect(spec.adapter.isStreaming()).toBe(false);
-    document.body.insertAdjacentHTML(
-      'beforeend',
+    // The Stop button takes the send button's place.
+    spec.adapter.getComposerAnchor()!.insertAdjacentHTML(
+      'afterend',
       `<button aria-label="${spec.stopLabel}" data-testid="stop-button">Stop</button>`,
     );
     expect(spec.adapter.isStreaming()).toBe(true);

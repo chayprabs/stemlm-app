@@ -725,7 +725,9 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     getCapsuleSources: capsuleSources,
 
     isStreaming() {
-      return config.streaming.length > 0 && firstMatch(config.streaming) !== null;
+      // A Stop button counts only in the composer: a dictation "Stop" elsewhere is not the chat writing.
+      const composer = () => this.getComposerRoot?.() ?? this.getComposerBox();
+      return allMatches(config.streaming).some((el) => el.tagName !== 'BUTTON' || (composer()?.contains(el) ?? true));
     },
 
     getUserQuestionBefore(block: Element) {

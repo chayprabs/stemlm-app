@@ -73,9 +73,12 @@ function QuestionBlock({ session }: { session: Session }) {
         {showTopic && <span className="slm-question-topic">{topic}</span>}
       </div>
       <div className="slm-question-body">
+        {/* The question heads the panel: a screen reader user finds it by heading, above the step's title. */}
         <div
           ref={textRef}
           id={regionId}
+          role="heading"
+          aria-level={2}
           className={`slm-topic-scroll ${expanded ? 'is-expanded' : 'is-single'}`}
         >
           <MathMarkdown content={heading} className="slm-topic" promote={false} />
@@ -201,13 +204,13 @@ export function PanelHeader({
           <div
             className="slm-content-scale"
             role="group"
-            aria-label={`Solution content size, level ${contentScale} of 5`}
+            aria-label={`Text size, level ${contentScale} of 5`}
           >
             <button
               ref={decreaseRef}
               type="button"
               className="slm-content-scale-btn"
-              aria-label={`Decrease content size from level ${contentScale}`}
+              aria-label={`Smaller text, from level ${contentScale}`}
               title="Smaller text"
               onClick={() => changeScale(-1)}
               disabled={contentScaleBusy || contentScale <= 1}
@@ -219,7 +222,7 @@ export function PanelHeader({
               ref={increaseRef}
               type="button"
               className="slm-content-scale-btn"
-              aria-label={`Increase content size from level ${contentScale}`}
+              aria-label={`Larger text, from level ${contentScale}`}
               title="Larger text"
               onClick={() => changeScale(1)}
               disabled={contentScaleBusy || contentScale >= 5}
@@ -227,7 +230,7 @@ export function PanelHeader({
               <IconTextLarger />
             </button>
             <span className="slm-sr-only" role="status" aria-live="polite">
-              {`Content size level ${contentScale} of 5`}
+              {`Text size level ${contentScale} of 5`}
             </span>
           </div>
           )}
@@ -243,9 +246,9 @@ export function PanelHeader({
           <button
             type="button"
             className="slm-icon-btn slm-icon-btn--save"
-            aria-label={saved ? 'Remove from saved sessions' : 'Save session'}
+            aria-label={saved ? 'Remove from saved questions' : 'Save question'}
             aria-pressed={saved}
-            title={saved ? 'Remove from saved' : session?.cutOff ? 'Save when the full answer arrives' : 'Save session'}
+            title={saved ? 'Remove from saved' : session?.cutOff ? 'Save when the full answer arrives' : 'Save question'}
             onClick={onToggleSave}
             disabled={!session || session.cutOff}
             data-active={saved ? 'true' : undefined}

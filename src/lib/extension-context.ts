@@ -18,6 +18,14 @@ export function isExtensionContextValid(): boolean {
   }
 }
 
+/** Shown, with a Reload button, when an action fails because stemLM was updated under an open tab. */
+export const EXTENSION_UPDATED_NOTICE = 'stemLM was updated. Reload this page to keep using it.';
+
+/** `message` for a failed action, unless the extension was updated under this tab: then the one way out. */
+export function unlessUpdated(message: string): string {
+  return isExtensionContextValid() ? message : EXTENSION_UPDATED_NOTICE;
+}
+
 /** Safe `runtime.getURL` — returns the path unchanged when the context is dead. */
 export function extensionAssetUrl(path: string): string {
   if (!isExtensionContextValid()) return path;

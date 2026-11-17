@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import Markdown from 'react-markdown';
+import Markdown, { type Components } from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
@@ -13,6 +13,15 @@ function safeUrl(url: string): string {
   if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed;
   return '';
 }
+
+/** A table wider than the column scrolls inside its own box, which fades on the side that has more. */
+const BLOCK_COMPONENTS: Components = {
+  table: ({ node: _node, ...props }) => (
+    <div className="slm-table-scroll">
+      <table {...props} />
+    </div>
+  ),
+};
 
 export interface MathMarkdownProps {
   content: string;
@@ -43,7 +52,7 @@ export const MathMarkdown = memo(function MathMarkdown({
         remarkPlugins={[remarkMath, remarkGfm]} // math first so GFM cannot italicize A_{safe}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, trust: false }]]}
         urlTransform={safeUrl}
-        components={inline ? { p: 'span' } : undefined}
+        components={inline ? { p: 'span' } : BLOCK_COMPONENTS}
       >
         {prepareMathForRender(content, mathMode, true, promote)}
       </Markdown>

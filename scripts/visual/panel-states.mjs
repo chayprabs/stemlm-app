@@ -7,6 +7,7 @@
  * Every file is `state-<suite>-<scheme>-<what>.png`.
  */
 import { CIRCUIT, INCLINE } from './capsules.mjs';
+import { HOST_IDS } from './hosts.mjs';
 import {
   FIGURE_SHAPES,
   FOLLOWUP_ANSWER,
@@ -37,6 +38,9 @@ export async function panelStateSuites(h) {
     longq: longQuestionSuite,
     followup: followupSuite,
     scale: contentScaleSuite,
+    short: shortPanelSuite,
+    sitetheme: siteThemeSuite,
+    firsthint: firstHintSuite,
   };
   for (const [name, run] of Object.entries(suites)) {
     if (!h.want(`state-${name}`)) continue;
@@ -391,6 +395,76 @@ async function followupSuite(h, scheme, tag) {
   // Past the follow-up: its mark stays in the strip, filled like any visited step.
   await step(h, page, panel);
   await h.shot(page, `${tag}-after`, { locator: panel });
+}
+
+/** A short window, the same CSS viewport as 200% zoom on 1440x900: only the bar stays pinned. */
+async function shortPanelSuite(h, scheme, tag) {
+  const { page, panel } = await openAnswer(h, scheme, {
+    viewport: { width: 720, height: 450 },
+    beforeLoad: (p) => appendTurn(p, 'A 12 V source feeds a loaded divider. Find the load voltage.', asQuestion(CIRCUIT, 'q2')),
+  });
+  await h.shot(page, `${tag}-top`, { locator: panel });
+  await panel.evaluate((el) => el.scrollTo({ top: 260 }));
+  await h.settle(page, 300);
+  await h.shot(page, `${tag}-scrolled`, { locator: panel });
+  await page.locator('.slm-stepnav-btn--next').click();
+  await h.settle(page, 800);
+  await h.shot(page, `${tag}-next`, { locator: panel });
+  const bar = await page.locator('.slm-header-bar').boundingBox();
+  const box = await panel.boundingBox();
+  if (!bar || !box || Math.abs(bar.y - box.y) > 1) throw new Error('the bar is not pinned to the top of a short panel');
+}
+
+/**
+ * The one-time hint after install, on every stand-in: beside the control, clear of the chat box and
+ * of the chat's controls, still clear once a long question is typed, and gone after the first press.
+ */
+async function firstHintSuite(h, scheme, tag) {
+  for (const id of HOST_IDS) {
+    await h.setStored({ stemlm_first_run_hint: true });
+    const page = h.track(await h.openHost(id, scheme, { empty: true }));
+    const btn = page.locator('[data-stemlm-inject="true"]').first();
+    await btn.waitFor({ state: 'visible', timeout: 15_000 });
+    const hint = page.locator('.slm-first-hint[data-side]');
+    await hint.waitFor({ state: 'visible', timeout: 5_000 });
+    await h.settle(page, 500);
+    const check = async (when) => {
+      const box = await page.locator('[data-hc-composer]').first().boundingBox();
+      const note = await hint.boundingBox();
+      if (!box || !note) throw new Error(`${id} ${when}: no chat box or no hint`);
+      const overlaps = note.x < box.x + box.width && note.x + note.width > box.x && note.y < box.y + box.height && note.y + note.height > box.y;
+      if (overlaps) throw new Error(`${id} ${when}: the hint covers the chat box`);
+      const top = Math.max(0, Math.min(box.y, note.y) - 24);
+      const bottom = Math.max(box.y + box.height, note.y + note.height) + 24;
+      return { x: Math.max(0, box.x - 24), y: top, width: Math.min(1440 - Math.max(0, box.x - 24), box.width + 48), height: bottom - top };
+    };
+    await h.shot(page, `${tag}-${id}`, { clip: await check('at rest') });
+    await page.locator('.editor').first().click();
+    await page.keyboard.type('A 5.0 kg block slides down a 30 degree incline.');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+Enter');
+    await page.keyboard.type('Find its acceleration and its speed after 2.0 m.');
+    await h.settle(page, 500);
+    await h.shot(page, `${tag}-${id}-typed`, { clip: await check('typed') });
+    await btn.click();
+    await h.settle(page, 600);
+    if (await page.locator('.slm-first-hint').count()) throw new Error(`${id}: the hint stayed after the first press`);
+    await page.close();
+  }
+  await h.clearStored(['stemlm_first_run_hint']);
+}
+
+/** The chat site dark while the system is light (and the reverse): "auto" follows the site. */
+async function siteThemeSuite(h, scheme, tag) {
+  const os = scheme === 'dark' ? 'light' : 'dark';
+  const page = h.track(await h.openHost(HOST, os, { question: INCLINE_QUESTION, capsule: INCLINE, scheme }));
+  await page.locator('[data-stemlm-inject="true"]').first().waitFor({ state: 'attached', timeout: 15_000 });
+  await h.sendToTab(page, 'stemlm:load-conversation');
+  const panel = page.locator('.slm-panel');
+  await panel.waitFor({ state: 'visible', timeout: 20_000 });
+  await h.settle(page, 1200);
+  await h.shot(page, `${tag}-site-${scheme}-os-${os}`);
+  const worn = await panel.getAttribute('data-stemlm-theme');
+  if (worn !== scheme) throw new Error(`the panel is ${worn} beside a ${scheme} site`);
 }
 
 async function contentScaleSuite(h, scheme, tag) {

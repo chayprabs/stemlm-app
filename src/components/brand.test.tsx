@@ -161,7 +161,7 @@ describe('Loading processing mark', () => {
   it('inlines SMIL animate on the therefore mark', () => {
     const html = renderToStaticMarkup(<Loading theme="light" />);
     expect(html).toMatch(/<animate/i);
-    expect(html).toContain('Reading response');
+    expect(html).toContain('Reading the answer');
     const { circles } = thereforeParts(parseSvg(html));
     expect(circles).toHaveLength(2);
   });
@@ -266,7 +266,7 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).toContain('<path');
     const header = html.slice(html.indexOf('slm-report-wordmark'), html.indexOf('</header>'));
     expect(thereforeParts(parseSvg(header)).signal.length).toBeGreaterThan(0);
-    expect(html).toContain('PDF made using stemlm');
+    expect(html).toContain('PDF made using stemLM');
     expect(html).toContain('https://stemlm.app');
   });
 
@@ -280,7 +280,7 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
       root.render(<Panel />);
     });
     const html = container.innerHTML;
-    expect(html).toContain('Reading response');
+    expect(html).toContain('Reading the answer');
     expect(html).toMatch(/<animate/i);
     expect(html).not.toContain('slm-wordmark-lm');
     act(() => {

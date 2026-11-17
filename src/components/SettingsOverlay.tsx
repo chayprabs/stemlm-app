@@ -138,7 +138,7 @@ function Toggle({
 function ReadingSize({ value, onChange }: { value: ContentScale; onChange: (value: ContentScale) => void }) {
   return (
     <div className="slm-set-row slm-set-row--stack">
-      <Row label="Reading size" hint="Size of answer text in the panel.">
+      <Row label="Text size" hint="Size of answer text in the panel.">
         <span className="slm-set-scale">
           <IconTextSmaller width={15} height={15} aria-hidden="true" />
           <span className="slm-set-scale-track">
@@ -152,7 +152,7 @@ function ReadingSize({ value, onChange }: { value: ContentScale; onChange: (valu
               max={MAX_CONTENT_SCALE}
               step={1}
               value={value}
-              aria-label="Reading size"
+              aria-label="Text size"
               aria-valuetext={`Level ${value} of ${MAX_CONTENT_SCALE}`}
               onChange={(e) => onChange(normalizeContentScale(Number(e.target.value)))}
             />
@@ -286,7 +286,7 @@ export function SettingsOverlay({
             <ReadingSize
               value={settings.contentScale}
               onChange={(contentScale) =>
-                void update({ contentScale }, `Reading size: level ${contentScale} of ${MAX_CONTENT_SCALE}`)}
+                void update({ contentScale }, `Text size: level ${contentScale} of ${MAX_CONTENT_SCALE}`)}
             />
           </section>
 
@@ -306,11 +306,11 @@ export function SettingsOverlay({
               />
             </Row>
             <Toggle
-              label="Share sessions across tabs"
+              label="Share questions across tabs"
               hint="Every chat tab shows the same open questions. When off, each tab starts fresh."
               checked={settings.shareAcrossTabs}
               onChange={(shareAcrossTabs) =>
-                void update({ shareAcrossTabs }, `Share sessions across tabs: ${shareAcrossTabs ? 'on' : 'off'}`)}
+                void update({ shareAcrossTabs }, `Share questions across tabs: ${shareAcrossTabs ? 'on' : 'off'}`)}
             />
             <Toggle
               label="Open the panel automatically"
@@ -326,16 +326,23 @@ export function SettingsOverlay({
               onChange={(collapseHostSidebar) =>
                 void update({ collapseHostSidebar }, `Collapse the chat's sidebar while the panel is open: ${collapseHostSidebar ? 'on' : 'off'}`)}
             />
+            <Toggle
+              label="Fold stemLM's text in the chat"
+              hint="An answer shows as one line in the chat, and your message shows only your question. Each opens with a click."
+              checked={settings.tidyChat}
+              onChange={(tidyChat) =>
+                void update({ tidyChat }, `Fold stemLM's text in the chat: ${tidyChat ? 'on' : 'off'}`)}
+            />
           </section>
         </div>
 
         <footer className="slm-settings-foot">
           <div className="slm-settings-foot-row">
             <p className="slm-settings-foot-note">Changes save automatically</p>
-            {version && <span className="slm-settings-version">stemlm {version}</span>}
+            {version && <span className="slm-settings-version">stemLM {version}</span>}
           </div>
           <span className="slm-sr-only" role="status" aria-live="polite">{saved}</span>
-          <nav className="slm-settings-links" aria-label="About stemlm">
+          <nav className="slm-settings-links" aria-label="About stemLM">
             {SETTINGS_LEGAL_LINKS.map((item, i) => (
               <Fragment key={item.id}>
                 {i > 0 && <span className="slm-settings-links-sep" aria-hidden="true" />}

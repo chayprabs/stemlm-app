@@ -3,6 +3,8 @@
  * between steps, and the switch between the questions of one chat.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Panel } from './Panel';
@@ -100,20 +102,63 @@ async function turnPage(index: number) {
   await act(async () => { await new Promise((r) => setTimeout(r, 450)); });
 }
 
-const counter = (el: HTMLElement) => el.querySelector('.slm-stepnav-count')?.textContent;
+const kicker = (el: HTMLElement) => el.querySelector('.slm-card-kicker, .slm-followup-card-kicker')?.textContent;
 
 describe('finding your place', () => {
-  it('agrees in three places: the mark, the page kicker and the counter', async () => {
+  it('agrees in two places, the mark and the page kicker, and the bar does not repeat it', async () => {
     useStore.getState().addSession(buildSession(4));
     const el = mount();
     for (const index of [0, 2, 3]) {
       await turnPage(index);
       const current = el.querySelector('.slm-step-rail-btn[aria-current="step"]')!;
       expect(current.getAttribute('aria-label')).toBe(`Step ${index + 1}: Step title ${index + 1}`);
-      expect(el.querySelector('.slm-card-kicker')?.textContent).toBe(`Step ${index + 1}of 4`);
-      expect(counter(el)).toBe(`${index + 1}/ 4`);
+      expect(kicker(el)).toBe(`Step ${index + 1}of 4`);
     }
+    expect(el.querySelector('.slm-stepnav-count')).toBeNull();
     expect((el.querySelector('button[aria-label="Next step"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('makes the strip one Tab stop that follows the current mark, with Home and End for the ends', async () => {
+    useStore.getState().addSession(buildSession(6));
+    const el = mount();
+    const marks = () => [...el.querySelectorAll<HTMLButtonElement>('.slm-step-rail-btn')];
+    expect(marks().map((mark) => mark.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
+    marks()[0]!.focus();
+    const key = (k: string) => act(() => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    });
+    key('ArrowRight');
+    expect(useStore.getState().activeStepIndex).toBe(1);
+    expect(document.activeElement).toBe(marks()[1]);
+    expect(marks().filter((mark) => mark.tabIndex === 0)).toEqual([marks()[1]]);
+    key('End');
+    expect(useStore.getState().activeStepIndex).toBe(5);
+    expect(document.activeElement).toBe(marks()[5]);
+    key('Home');
+    expect(useStore.getState().activeStepIndex).toBe(0);
+    expect(document.activeElement).toBe(marks()[0]);
+    // Home and End in the text are the text's: they scroll it and leave the step alone.
+    act(() => useStore.getState().setActiveStep(3));
+    (el.querySelector('.slm-read') as HTMLElement).focus();
+    key('Home');
+    expect(useStore.getState().activeStepIndex).toBe(3);
+  });
+
+  it('heads the panel with the question and declares the answer\'s language, else the page\'s', () => {
+    document.documentElement.lang = 'en';
+    useStore.getState().addSession(buildSession(2, { question: 'Solve x + 2 = 5.' }));
+    const el = mount();
+    const heading = el.querySelector('[role="heading"]')!;
+    expect(heading.getAttribute('aria-level')).toBe('2');
+    expect(heading.textContent).toContain('Solve x + 2 = 5.');
+    expect(heading.compareDocumentPosition(el.querySelector('h2.slm-card-title')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.querySelector('.slm-panel')!.getAttribute('lang')).toBe('en');
+
+    const spanish = buildSession(2, { id: 'es' });
+    spanish.capsule = { ...spanish.capsule, meta: { ...spanish.capsule.meta, locale: 'es_MX' } };
+    act(() => useStore.getState().addSession(spanish));
+    expect(el.querySelector('.slm-panel')!.getAttribute('lang')).toBe('es-MX');
+    document.documentElement.removeAttribute('lang');
   });
 
   it('counts steps, not pages: a follow-up answer belongs to the step it was asked about', async () => {
@@ -127,22 +172,20 @@ describe('finding your place', () => {
       'Step 2: Step title 2',
       'Step 3: Step title 3',
     ]);
-    expect(counter(el)).toBe('1/ 3');
+    expect(kicker(el)).toBe('Step 1of 3');
 
     await turnPage(1);
     expect(el.querySelector('.slm-card--followup')).toBeTruthy();
-    expect(el.querySelector('.slm-followup-card-kicker')?.textContent).toBe('Follow-up · after step 1');
-    expect(counter(el)).toBe('1/ 3');
+    expect(kicker(el)).toBe('Follow-up · after step 1');
     expect(marks[1]!.getAttribute('aria-current')).toBe('step');
     expect(marks[1]!.closest('li')?.classList.contains('slm-step-rail-item--followup')).toBe(true);
 
     // The next real step is step 2 of 3 everywhere, although it is the third page.
     await turnPage(2);
-    expect(el.querySelector('.slm-card-kicker')?.textContent).toBe('Step 2of 3');
-    expect(counter(el)).toBe('2/ 3');
+    expect(kicker(el)).toBe('Step 2of 3');
 
     await turnPage(3);
-    expect(counter(el)).toBe('3/ 3');
+    expect(kicker(el)).toBe('Step 3of 3');
     expect((el.querySelector('button[aria-label="Next step"]') as HTMLButtonElement).disabled).toBe(true);
     expect((el.querySelector('button[aria-label="Previous step"]') as HTMLButtonElement).disabled).toBe(false);
   });
@@ -233,6 +276,30 @@ describe('step strip', () => {
     expect(onSelect).toHaveBeenCalledWith(13);
   });
 
+  it('in a short panel, pins only the bar: the question and the strip scroll with the page', () => {
+    const css = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
+    const short = css.slice(css.indexOf('@media (max-height: 560px)'));
+    expect(short).toMatch(/^@media \(max-height: 560px\) \{\s+\.slm-panel \{[^}]*overflow-y: auto;/);
+    expect(short).toMatch(/\.slm-header \{\s*display: contents;/);
+    expect(short).toMatch(/\.slm-header-bar \{\s*position: sticky;\s*top: 0;/);
+    expect(short).toMatch(/\.slm-read,\s*\.slm-solution-wrap,\s*\.slm-empty \{\s*overflow-x: clip;\s*overflow-y: visible;/);
+
+    // Turning the page there brings the new step's strip back to just under the bar.
+    useStore.getState().addSession(buildSession(5));
+    const el = mount();
+    const panel = el.querySelector<HTMLElement>('.slm-panel')!;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const top = this.classList.contains('slm-header-bar') ? 0 : this.classList.contains('slm-step-rail') ? -220 : 0;
+      const bottom = this.classList.contains('slm-header-bar') ? 56 : top + 40;
+      return { left: 0, right: 300, width: 300, top, bottom, height: bottom - top, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    });
+    Object.defineProperty(panel, 'scrollTop', { configurable: true, value: 400 });
+    const scrollBy = vi.fn();
+    panel.scrollBy = scrollBy;
+    act(() => useStore.getState().setActiveStep(2));
+    expect(scrollBy).toHaveBeenCalledWith({ top: -276 });
+  });
+
   it('tells the strip how wide the page\'s scrollbar gutter is, to stay on the reading column', () => {
     // The page is 640 wide and its content box 628: a 12px scrollbar gutter.
     const widths = { offsetWidth: 640, clientWidth: 628 } as const;
@@ -282,6 +349,32 @@ describe('questions of one chat', () => {
     expect(header.querySelector('.slm-header-title')?.textContent).toContain('First question');
   });
 
+  it('scrolls the question strip, and only it, to bring the active question into a narrow panel', () => {
+    // A 340 wide strip with 150 wide chips: chip 3 (300..450) runs off its right end.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const rect = (left: number, width: number) => ({ left, right: left + width, width, top: 0, bottom: 30, height: 30, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+      if (this.classList.contains('slm-session-switch')) return rect(0, 340);
+      if (this.classList.contains('slm-session-chip')) return rect([...this.parentElement!.children].indexOf(this) * 150, 150);
+      return rect(0, 0);
+    });
+    const scrollBy = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollBy', { configurable: true, writable: true, value: scrollBy });
+    for (const id of ['q-1', 'q-2', 'q-3']) useStore.getState().addSession(buildSession(5, { id }));
+    const el = mount();
+    const strip = el.querySelector('.slm-session-switch')!;
+    expect(scrollBy.mock.contexts.at(-1)).toBe(strip);
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: 110 });
+
+    // Back to question 1, left at step 4: the place is kept, and chip 1 (0..150) is in view.
+    act(() => useStore.getState().setActiveSession('q-1'));
+    act(() => useStore.getState().setActiveStep(3));
+    act(() => (el.querySelectorAll<HTMLButtonElement>('.slm-session-pill')[2]!).click());
+    act(() => (el.querySelectorAll<HTMLButtonElement>('.slm-session-pill')[0]!).click());
+    expect(useStore.getState().activeStepIndex).toBe(3);
+    expect(el.querySelector('.slm-step-rail-btn[aria-current="step"]')?.getAttribute('aria-label')).toBe('Step 4: Step title 4');
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollBy');
+  });
+
   it('shows no list for a single question', () => {
     useStore.getState().addSession(buildSession(2));
     const el = mount();
@@ -295,7 +388,7 @@ describe('loading', () => {
     const status = el.querySelector('.slm-loading')!;
     expect(status.getAttribute('role')).toBe('status');
     expect(status.getAttribute('aria-live')).toBe('polite');
-    expect(status.textContent).toContain('Reading response');
+    expect(status.textContent).toContain('Reading the answer');
     expect(status.textContent).toContain('Each step appears here as the chat finishes writing it.');
     const strip = status.querySelector('.slm-loading-strip')!;
     const page = status.querySelector('.slm-loading-page')!;

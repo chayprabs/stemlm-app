@@ -97,7 +97,7 @@ describe('a reply that is not an answer', () => {
       root!.render(<Panel />);
     });
     const banner = host!.querySelector('.slm-banner')!;
-    expect(banner.textContent).toContain('This reply has no stemlm answer.');
+    expect(banner.textContent).toContain('The chat answered without stemLM steps.');
     expect(banner.classList.contains('slm-banner-info')).toBe(true);
     expect(banner.getAttribute('role')).toBe('status');
     expect(host!.querySelector('.slm-banner-details')).toBeNull();
