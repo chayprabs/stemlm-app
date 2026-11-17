@@ -28,6 +28,7 @@ export function FollowupBar({
   intent = 'dig-deeper',
   anchor,
   hint,
+  suggestion,
 }: {
   followup: string;
   subject: Subject;
@@ -35,8 +36,10 @@ export function FollowupBar({
   intent?: FollowupIntent;
   /** When set, the answer is attached inline after this step in the rail. */
   anchor?: { sessionId: string; anchorStepId: string };
-  /** Optional helper text shown under the label (e.g. suggested question). */
+  /** Optional helper text shown under the label. */
   hint?: string;
+  /** A question the answer itself suggests: one press puts it in the chat box, nothing to retype. */
+  suggestion?: string;
 }) {
   const [copyState, copyText] = useCopy(() => useStore.getState().setStatus('error', COPY_FAILED));
   const [sendState, setSendState] = useState<SendState>('idle');
@@ -62,7 +65,8 @@ export function FollowupBar({
     if (!isEmptyFollowupSelection(followup)) await copyText(buildPrompt);
   }
 
-  async function ask() {
+  /** Put the follow-up in the chat box. `question`: the suggestion, written into the slot for the student. */
+  async function ask(question?: string) {
     if (isEmptyFollowupSelection(followup) || sendingRef.current) return;
     const ctrl = getController();
     if (!ctrl) {
@@ -74,7 +78,7 @@ export function FollowupBar({
     sendingRef.current = true;
     setSendState('sending');
     try {
-      const ok = await ctrl.followUp(followup, stepTitle, subject, { intent, anchor });
+      const ok = await ctrl.followUp(followup, stepTitle, subject, { intent, anchor, question });
       if (ok !== false) {
         setSendState('added');
         resetTimer.current = setTimeout(() => setSendState('idle'), RESET_MS);
@@ -93,6 +97,10 @@ export function FollowupBar({
     sendingRef.current = false;
     return;
   }
+
+  const send = (question?: string) => void ask(question).finally(() => {
+    sendingRef.current = false;
+  });
 
   function askFinished() {
     if (sendState === 'sending') return 'Adding…';
@@ -119,7 +127,21 @@ export function FollowupBar({
     <div className={`slm-followup ${isAsk ? 'slm-followup--ask' : 'slm-followup--deeper'}`}>
       <div className="slm-followup-copyblock">
         <span className="slm-followup-label">{isAsk ? 'Ask in chat' : 'Dig deeper'}</span>
-        {displayFollowup && <p className="slm-followup-text"><MathMarkdown content={displayFollowup} inline /></p>}
+        {suggestion ? (
+          <p className="slm-followup-text">
+            <button
+              type="button"
+              className="slm-followup-suggest"
+              onClick={() => send(suggestion)}
+              disabled={sendState === 'sending'}
+              title="Put this question in the chat box"
+            >
+              Try: <MathMarkdown content={suggestion} inline />
+            </button>
+          </p>
+        ) : (
+          displayFollowup && <p className="slm-followup-text"><MathMarkdown content={displayFollowup} inline /></p>
+        )}
       </div>
       <div className="slm-followup-actions">
         <button
@@ -134,9 +156,7 @@ export function FollowupBar({
         <button
           type="button"
           className="slm-followup-action slm-followup-action--ask"
-          onClick={() => void ask().finally(() => {
-            sendingRef.current = false;
-          })}
+          onClick={() => send()}
           disabled={sendState === 'sending'}
           aria-busy={sendState === 'sending'}
           data-state={sendState === 'idle' ? undefined : sendState}

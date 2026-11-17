@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DiagramRenderer } from './DiagramRenderer';
+import { DiagramRenderer, FIGURE_OMITTED } from './DiagramRenderer';
 import { StepCard } from './StepCard';
 import { SolutionView } from './SolutionView';
 import { FollowupAnswerBody } from './FollowupCard';
@@ -56,6 +56,10 @@ describe('figure failure is absent from the entire reading surface', () => {
     expectHidden(container);
     expect(container.textContent).toContain('Keep this explanation.');
     expect(container.querySelector('.slm-formula')).not.toBeNull();
+    // What is left where the figure was: one quiet sentence, so the text's "see the figure" is not a riddle.
+    const left = container.querySelectorAll('.slm-figure-omitted');
+    expect(left).toHaveLength(1);
+    expect(left[0]!.textContent).toBe(FIGURE_OMITTED);
   });
 
   it('does not expose a source, caption, box, or skeleton while validation is pending', () => {
@@ -63,6 +67,8 @@ describe('figure failure is absent from the entire reading surface', () => {
     const container = mount(<StepCard session={session} index={0} theme="light" />);
     expectHidden(container);
     expect(container.querySelector('.slm-diagram-skeleton')).toBeNull();
+    // Nothing has failed yet, so nothing is said to be missing.
+    expect(container.querySelector('.slm-figure-omitted')).toBeNull();
   });
 
   it('retains one compiler failure internally instead of retrying it', async () => {
@@ -80,6 +86,8 @@ describe('figure failure is absent from the entire reading surface', () => {
     const container = mount(<StepCard session={omitted} index={0} theme="light" />);
     await settle();
     expectHidden(container);
+    // A step the model gave no figure has nothing left out.
+    expect(container.querySelector('.slm-figure-omitted')).toBeNull();
   });
 
   it('hides failures in individual and merged reports without mutating saved source', () => {

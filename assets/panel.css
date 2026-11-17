@@ -628,10 +628,12 @@
   transform: rotate(180deg);
 }
 
-/* Where an answer came from, when stemLM only arranged it. Said once and quietly, and in the
-   reading face: it is a sentence, not a label. Balanced, so a narrow panel breaks it between its
-   two sentences instead of stranding the last word. */
-.slm-origin-note {
+/* Small print about the answer itself: where it came from, what stemLM did and did not check,
+   a figure that was left out. Said once and quietly, and in the reading face: each is a
+   sentence, not a label. Balanced, so a narrow panel breaks it between its sentences instead
+   of stranding the last word. */
+.slm-origin-note,
+.slm-figure-omitted {
   margin: 0;
   font-size: var(--slm-text-xs);
   line-height: 1.45;
@@ -641,8 +643,10 @@
 .slm-header-title .slm-origin-note {
   margin-top: 0.1rem;
 }
-/* Closing the Solution document it is a footnote to the working, at the size of the page's other asides. */
-.slm-solution .slm-origin-note {
+/* Under an answer and in the working it is a footnote, at the size of the page's other asides. */
+.slm-card .slm-origin-note,
+.slm-solution .slm-origin-note,
+.slm-figure-omitted {
   font-size: var(--slm-text-sm);
 }
 
@@ -1113,6 +1117,7 @@
 .slm-quickcheck-badge,
 .slm-followup-label,
 .slm-answer-label,
+.slm-answer-note-label,
 .slm-quickcheck-a-label,
 .slm-followup-card-kicker {
   font-family: var(--font-mono);
@@ -1501,16 +1506,33 @@
 .slm-answer .slm-step-diagram {
   margin-top: 0.6rem;
 }
-/* Assumptions and check notes the model stated, as plain small print under the answer. */
-/* The element is itself prose, whose `font-size: inherit` comes later in the sheet: the doubled
-   class keeps the small print small and on the reading-size scale. */
-.slm-answer-notes.slm-prose,
+/* What the model said about its own answer, as small print under it: its check and what it
+   assumed, each under a label that names it as the model's. */
 .slm-answer-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
   padding-left: calc(var(--slm-plate-pad) - 1px);
   border-left: 2px solid var(--slm-border);
   color: var(--slm-fg-muted);
   font-size: calc(var(--slm-content-read-size) - 1.5px);
   line-height: 1.55;
+}
+.slm-answer-note-label {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.slm-answer-notes .slm-prose p {
+  margin-bottom: 0.35em;
+}
+/* A check the model itself reported as failed: said in words, in the reading colour. */
+.slm-answer-note-failed {
+  margin: 0 0 0.35em;
+  color: var(--slm-fg);
+  font-weight: 550;
+}
+.slm-answer-note[data-failed] .slm-answer-note-label {
+  color: var(--slm-amber);
 }
 
 /* ---------- ask in chat ---------- */
@@ -1534,6 +1556,32 @@
   font-size: var(--slm-text-sm);
   line-height: 1.45;
   color: var(--slm-fg-muted);
+}
+/* The question the answer suggests: text that is pressed, not retyped. Underlined like a link in
+   the working, so it reads as something to press without becoming a third button in the row. */
+.slm-followup-suggest {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--slm-border-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.slm-followup-suggest:hover:not(:disabled) {
+  color: var(--slm-fg);
+  text-decoration-color: var(--slm-fg);
+}
+.slm-followup-suggest:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-followup-suggest:disabled {
+  cursor: progress;
 }
 .slm-followup-actions {
   display: flex;
@@ -1905,7 +1953,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Centred while it fits; from the top once an offer or the paste form makes it taller than the panel. */
+  justify-content: safe center;
   gap: 0.5rem;
   padding: 2rem var(--slm-pad-x);
   text-align: center;
@@ -1993,11 +2042,6 @@
   font-size: var(--slm-text-sm);
   color: var(--slm-fg-subtle);
 }
-/* An answer already in the chat is on offer above the usual way in. The view is taller, so it
-   starts from the top when the panel is too short to centre it. */
-.slm-empty--offer {
-  justify-content: safe center;
-}
 .slm-empty-note {
   margin: 0.25rem 0 0;
   max-width: 26rem;
@@ -2016,6 +2060,65 @@
 }
 .slm-empty--offer .slm-empty-steps {
   margin-top: 0.75rem;
+}
+
+/* The manual way in: an answer pasted from any chat. A quiet button under the usual way, which
+   opens a form in its place. Label above the field, help under the label, the error under the field. */
+.slm-paste-open {
+  margin-top: 1rem;
+  color: var(--slm-fg-muted);
+}
+.slm-paste {
+  width: 100%;
+  /* The same edges as the list above it. */
+  max-width: 24rem;
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+.slm-paste-label {
+  font-size: var(--slm-text-sm);
+  font-weight: 600;
+  color: var(--slm-fg);
+}
+.slm-paste-help,
+.slm-paste-error {
+  margin: 0;
+  font-size: var(--slm-text-sm);
+  line-height: 1.45;
+  color: var(--slm-fg-muted);
+}
+.slm-paste-error {
+  color: var(--slm-error);
+}
+.slm-paste-field {
+  width: 100%;
+  min-height: 7rem;
+  max-height: 40vh;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--slm-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--slm-bg-elevated);
+  color: var(--slm-fg);
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-xs);
+  line-height: 1.5;
+  resize: vertical;
+}
+.slm-paste-field:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-paste-field[aria-invalid='true'] {
+  border-color: var(--slm-error);
+}
+.slm-paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 /* ---------- solution: the whole answer as one document ---------- */

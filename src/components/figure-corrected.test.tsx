@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { DiagramRenderer } from './DiagramRenderer';
+import { DiagramRenderer, FIGURE_OMITTED } from './DiagramRenderer';
 import type { Diagram } from '@/src/protocol/types';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,10 +54,10 @@ describe('a figure drawn from corrected notation', () => {
     expect(el.querySelector('.slm-diagram-note')).toBeNull();
   });
 
-  it('draws nothing, and no empty plate, when repair would have to guess', async () => {
-    // Nothing to wait for: give the compile and the repair attempt time to finish, then look.
-    const el = await mount(UNKNOWN, () => false, 700);
-    expect(el.querySelector('.slm-step-diagram')).toBeNull();
-    expect(el.textContent).toBe('');
+  it('draws nothing, and no empty plate, when repair would have to guess: one line says a figure was left out', async () => {
+    const el = await mount(UNKNOWN, (host) => host.textContent !== '');
+    expect(el.querySelector('.slm-step-diagram, figure, svg')).toBeNull();
+    expect(el.querySelector('.slm-figure-omitted')?.textContent).toBe(FIGURE_OMITTED);
+    expect(el.textContent).toBe('A figure here could not be drawn correctly, so it is left out.');
   });
 });

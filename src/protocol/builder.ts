@@ -308,7 +308,8 @@ export function guideNeeded(question: string, sent: readonly string[], lastAnswe
   return true;
 }
 
-const FOLLOWUP_QUESTION_SLOT = 'Ask your question here:\n\n\n';
+/** Above the context: this label, the line the question goes on, a blank line. */
+const FOLLOWUP_QUESTION_LABEL = 'Ask your question here:';
 
 export const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
 
@@ -326,6 +327,8 @@ export interface FollowupOptions {
   intent?: FollowupIntent;
   /** `qid:` of the answer being asked about, when it has one: the reply must repeat it to be matched. */
   qid?: string;
+  /** A question already worded for the student (the answer's own suggestion): it fills the slot. */
+  question?: string;
 }
 
 function followupLead(opt: FollowupOptions): string {
@@ -361,7 +364,9 @@ function followupFormat(opt: FollowupOptions): string[] {
 /** A follow-up about a step or the whole answer: a slot for the student's question, then the context. */
 export function buildFollowupCopyText(opt: FollowupOptions): string {
   const quoted = normalizeFollowupSelection(opt.selection).split('\n').map((line) => `> ${line}`);
-  return FOLLOWUP_QUESTION_SLOT + [FOLLOWUP_CONTEXT_HEADER, followupLead(opt), ...quoted, ...followupFormat(opt)].join('\n');
+  // The slot keeps its label either way, so a filled question is read back the way a typed one is.
+  const slot = `${FOLLOWUP_QUESTION_LABEL}\n${opt.question?.replace(/\s+/g, ' ').trim() ?? ''}\n\n`;
+  return slot + [FOLLOWUP_CONTEXT_HEADER, followupLead(opt), ...quoted, ...followupFormat(opt)].join('\n');
 }
 
 export function isEmptyFollowupSelection(selection: string): boolean {

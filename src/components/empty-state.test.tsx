@@ -4,10 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { LOAD_FROM_CHAT_LABEL } from '@/src/lib/saved-library';
 import { useStore } from '@/src/state/store';
 
-const { hasConversationToLoad, plainAnswer, loadConversation } = vi.hoisted(() => ({
+const { hasConversationToLoad, plainAnswer, loadConversation, loadFromText } = vi.hoisted(() => ({
   hasConversationToLoad: vi.fn(() => false),
   plainAnswer: vi.fn(() => false),
   loadConversation: vi.fn(async () => 2),
+  loadFromText: vi.fn((_text: string) => true),
 }));
 
 vi.mock('@/src/content/controller', () => ({
@@ -16,6 +17,7 @@ vi.mock('@/src/content/controller', () => ({
     // The panel asks what kind of thing the chat holds: stemlm answers win over a plain one.
     conversationToLoad: () => (hasConversationToLoad() ? 'capsules' : plainAnswer() ? 'answer' : null),
     loadConversation,
+    loadFromText,
   }),
 }));
 
@@ -51,6 +53,7 @@ afterEach(() => {
   plainAnswer.mockReturnValue(false);
   loadConversation.mockReset();
   loadConversation.mockResolvedValue(2);
+  loadFromText.mockReset();
 });
 
 describe('EmptyState', () => {
@@ -202,6 +205,84 @@ describe('EmptyState while a question is being prepared', () => {
 
     act(() => useStore.getState().setStatus('idle', 'The chat is still writing its answer.'));
     expect(hint?.textContent).toBe('The response could not be loaded. See the message above for details.');
+    unmount();
+  });
+});
+
+describe('pasting an answer', () => {
+  const open = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.slm-paste-open');
+  const field = (container: HTMLElement) => container.querySelector<HTMLTextAreaElement>('.slm-paste-field')!;
+  const submit = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.slm-paste button[type="submit"]')!;
+  /** React reads a controlled field through the native setter. */
+  function type(el: HTMLTextAreaElement, value: string) {
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('is offered in every empty panel: the plain one, beside answers to load, beside an answer to study', () => {
+    for (const setup of [() => undefined, () => hasConversationToLoad.mockReturnValue(true), () => plainAnswer.mockReturnValue(true)]) {
+      setup();
+      const { container, unmount } = mount();
+      expect(open(container)?.textContent?.trim()).toBe('Paste an answer');
+      expect(container.querySelector('.slm-paste')).toBeNull();
+      unmount();
+      hasConversationToLoad.mockReturnValue(false);
+      plainAnswer.mockReturnValue(false);
+    }
+  });
+
+  it('opens a labelled field, and studies what is pasted', () => {
+    loadFromText.mockReturnValue(true);
+    const { container, unmount } = mount();
+    act(() => open(container)!.click());
+    const area = field(container);
+    expect(document.activeElement).toBe(area);
+    expect(container.querySelector(`label[for="${area.id}"]`)?.textContent).toBe('Paste an answer');
+    expect(document.getElementById(area.getAttribute('aria-describedby')!)?.textContent).toMatch(/does not check it/);
+    // Nothing to study yet.
+    expect(submit(container).disabled).toBe(true);
+    type(area, '@meta\nsubject: Physics\n@endmeta');
+    expect(submit(container).disabled).toBe(false);
+    act(() => submit(container).click());
+    expect(loadFromText).toHaveBeenCalledWith('@meta\nsubject: Physics\n@endmeta');
+    expect(container.querySelector('.slm-paste-error')).toBeNull();
+    unmount();
+  });
+
+  it('says so under the field when the text holds no answer, until the text changes', () => {
+    loadFromText.mockReturnValue(false);
+    const { container, unmount } = mount();
+    act(() => open(container)!.click());
+    type(field(container), 'thanks');
+    act(() => submit(container).click());
+    const error = container.querySelector('.slm-paste-error')!;
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.textContent).toMatch(/no worked answer/);
+    expect(field(container).getAttribute('aria-invalid')).toBe('true');
+    expect(field(container).getAttribute('aria-describedby')).toContain(error.id);
+    // The pasted text is kept for the student to fix.
+    expect(field(container).value).toBe('thanks');
+    type(field(container), 'thanks, and');
+    expect(container.querySelector('.slm-paste-error')).toBeNull();
+    unmount();
+  });
+
+  it('is put away by Cancel and by Escape, which does not go on to close the panel', () => {
+    const { container, unmount } = mount();
+    // Where the panel around this view, and the chat page behind it, would hear the key.
+    const heard = vi.fn();
+    document.body.addEventListener('keydown', heard);
+    act(() => open(container)!.click());
+    act(() => { field(container).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
+    expect(container.querySelector('.slm-paste')).toBeNull();
+    expect(heard).not.toHaveBeenCalled();
+    document.body.removeEventListener('keydown', heard);
+    act(() => open(container)!.click());
+    act(() => [...container.querySelectorAll<HTMLButtonElement>('.slm-paste button')].find((b) => b.textContent === 'Cancel')!.click());
+    expect(open(container)).not.toBeNull();
+    expect(loadFromText).not.toHaveBeenCalled();
     unmount();
   });
 });

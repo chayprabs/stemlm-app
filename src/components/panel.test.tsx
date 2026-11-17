@@ -267,7 +267,7 @@ describe('Panel step diagram', () => {
     const { container, unmount } = mountPanel();
 
     expect(container.textContent).not.toContain('Redo s3');
-    expect(container.textContent).toContain('Ask a question about this step');
+    expect(container.textContent).toContain('Ask about this step: its working and formula go into the chat box');
     unmount();
   });
 
@@ -279,7 +279,7 @@ describe('Panel step diagram', () => {
     const { container, unmount } = mountPanel();
 
     expect(container.textContent).not.toContain('mode: patch');
-    expect(container.textContent).toContain('Ask a question about this step');
+    expect(container.textContent).toContain('Ask about this step: its working and formula go into the chat box');
     unmount();
   });
 
@@ -1940,7 +1940,7 @@ describe('Panel verification and uncertainty', () => {
     unmount();
   });
 
-  it('shows real assumptions and fail corrections as unlabeled answer lines', async () => {
+  it('shows real assumptions and a failed check with its correction, each named as the model\'s own', async () => {
     const session = verifyFailSession();
     useStore.getState().resetSessions();
     useStore.getState().addSession(session);
@@ -1969,6 +1969,9 @@ describe('Panel verification and uncertainty', () => {
     expect(notesClone?.textContent).toContain('if used');
     expect(notes?.querySelector('h2, h3, h4')).toBeNull();
     expect(notes?.querySelector('.katex')).toBeTruthy();
+    // The model reported its check as failed: that is said, not dropped with the status line.
+    expect([...notes!.querySelectorAll('.slm-answer-note-label')].map((el) => el.textContent)).toEqual(['The model\'s own check', 'The model assumed']);
+    expect(notes!.querySelector('.slm-answer-note-failed')?.textContent).toBe('The model reported that this answer did not pass its own check.');
     unmount();
   });
 

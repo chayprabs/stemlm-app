@@ -122,7 +122,8 @@ describe('header question block', () => {
     const question = 'A 5.0 kg block is released from rest on a 30° incline. Find its acceleration.';
     const el = renderHeader(buildSession({ origin: 'ingest' }, { topic: 'A 5.0 kg block is released from rest…', question }));
     const note = el.querySelector('.slm-header-title .slm-origin-note')!;
-    expect(note.textContent).toBe('Structured from the chat answer. Not checked by stemlm.');
+    // Where it came from, here; what was and was not checked is said once, under the answer.
+    expect(note.textContent).toBe('Structured from the chat answer.');
     // The explanation is a hover away, and the label sits after the question, never before it.
     expect(note.getAttribute('title')).toMatch(/did not verify/);
     expect(el.querySelector('.slm-question-body')!.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

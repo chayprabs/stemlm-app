@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SolutionView } from './SolutionView';
+import { REPORT_NOTE } from './OriginNote';
 import { parse } from '@/src/protocol/parser';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import type { Session } from '@/src/protocol/types';
@@ -52,8 +53,12 @@ describe('SolutionView', () => {
     // The conclusion lifted out of the reply leads the document.
     expect(root.querySelector('.slm-answer')?.textContent).toContain('The roots are three and minus one.');
 
-    const stemlm = renderToStaticMarkup(<SolutionView session={buildSession()} theme="light" />);
-    expect(stemlm).not.toContain('slm-origin-note');
+    // A stemLM answer closes the same way, with the sentence its PDF report carries: no answer
+    // is left looking as if it had been checked.
+    const stemlm = document.createElement('div');
+    stemlm.innerHTML = renderToStaticMarkup(<SolutionView session={buildSession()} theme="light" />);
+    expect(stemlm.querySelector('.slm-solution > .slm-origin-note')!.textContent).toBe(REPORT_NOTE);
+    expect(stemlm.querySelectorAll('.slm-origin-note')).toHaveLength(1);
   });
 
   it('keeps the affected solution explanation usable without a repair prompt', () => {

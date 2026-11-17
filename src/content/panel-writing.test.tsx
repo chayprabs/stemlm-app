@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Panel } from '@/src/components/Panel';
-import { useStore } from '@/src/state/store';
+import { getController, initController } from './controller';
+import { geminiAdapter } from '@/src/platforms/gemini';
+import { NO_ANSWER_NOTICE, useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import type { Session } from '@/src/protocol/types';
 
@@ -85,5 +87,42 @@ describe('an answer the chat is still writing', () => {
       root!.render(<Panel />);
     });
     expect(writingLine()).toBeUndefined();
+  });
+});
+
+describe('a reply that is not an answer', () => {
+  it('is a neutral note over a short empty panel, not a red error over the how-to', () => {
+    act(() => {
+      useStore.getState().setStatus('idle', NO_ANSWER_NOTICE);
+      root!.render(<Panel />);
+    });
+    const banner = host!.querySelector('.slm-banner')!;
+    expect(banner.textContent).toContain('This reply has no stemlm answer.');
+    expect(banner.classList.contains('slm-banner-info')).toBe(true);
+    expect(banner.getAttribute('role')).toBe('status');
+    expect(host!.querySelector('.slm-banner-details')).toBeNull();
+    expect(host!.querySelector('.slm-empty')).not.toBeNull();
+    expect(host!.querySelector('.slm-empty-steps')).toBeNull();
+  });
+
+  it('does not offer to load stemlm answers from a chat whose reply was not one', () => {
+    // The student's sent message carries stemLM's lines, which reads as "answers may be here".
+    initController({ ...geminiAdapter, getAssistantBlocks: () => [], extractCapsules: () => [], isStreaming: () => false });
+    document.body.insertAdjacentHTML('beforeend', '<main id="chat"><user-query>Find it.\n--- stemLM ---</user-query></main>');
+    try {
+      act(() => {
+        useStore.getState().setStatus('idle', NO_ANSWER_NOTICE);
+        root!.render(<Panel />);
+      });
+      expect(getController()!.conversationToLoad()).toBe('capsules');
+      expect(host!.querySelector('.slm-empty-load')).toBeNull();
+    } finally {
+      document.getElementById('chat')!.remove();
+    }
+  });
+
+  it('leaves the how-to in an empty panel that has nothing to say', () => {
+    act(() => root!.render(<Panel />));
+    expect(host!.querySelector('.slm-empty-steps')).not.toBeNull();
   });
 });

@@ -9,17 +9,16 @@ import { repeatsQuestion, resolveSessionQuestion } from '@/src/lib/session-quest
 import type { Overlay } from '@/src/lib/figure/types';
 import { overlayPrintStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
-import { OriginNote } from './OriginNote';
+import { OriginNote, REPORT_NOTE } from './OriginNote';
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import { svgDrawsCaption } from '@/src/lib/svg-present';
 import { CHAT_HOST_LAUNCH } from '@/src/platforms/hosts';
 
 /**
- * The report's small print. An answer structured from a plain chat reply says where it came from
- * in its own words instead (OriginNote).
+ * The report's small print, the sentence the panel says under every answer. An answer structured
+ * from a plain chat reply says where it came from in its own words instead (OriginNote).
  */
-export const REPORT_NOTE =
-  'The steps and figures were written by the chat model and laid out by stemlm, which does not verify them.';
+export { REPORT_NOTE };
 
 export function diagramKey(scope: string, i: number, prefix = ''): string {
   return `${prefix}${scope}-${i}`;

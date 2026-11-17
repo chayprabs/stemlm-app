@@ -13,13 +13,12 @@ vi.mock('@/src/lib/file-inject', () => ({
 }));
 
 import { StemController } from './controller';
-import { INGEST_NOTICE } from './plain-answer';
 import { claudeAdapter } from '@/src/platforms/claude';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import type { Session } from '@/src/protocol/types';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
 import { buildComposerAppendix } from '@/src/protocol/builder';
-import { useStore } from '@/src/state/store';
+import { NO_ANSWER_NOTICE, useStore } from '@/src/state/store';
 
 const CAPSULE = FENCED_ELECTRICAL.replace(/```stemlm\n/, '').replace(/\n```$/, '');
 const STUB = buildComposerAppendix({ hasQuestion: true });
@@ -476,8 +475,8 @@ describe('capture fallback: the chat answered a stemLM question in its own words
     expect(state.sessions[0]?.origin).toBe('ingest');
     expect(state.sessions[0]?.question).toBe('Find the range of the projectile.');
     expect(state.status).toBe('ready');
-    expect(state.errorMessage).toBe(INGEST_NOTICE);
-    expect(state.errorMessage).toBe('The chat did not use the stemlm format, so this view was structured from its answer.');
+    // No status line: the panel says where the answer came from under its question, once.
+    expect(state.errorMessage).toBeUndefined();
     expect(state.buttonInjected).toBe(false);
     expect(state.activeSessionId).toBe(state.sessions[0]?.id);
   });
@@ -494,15 +493,17 @@ describe('capture fallback: the chat answered a stemLM question in its own words
     expect(sessions()).toHaveLength(1);
   });
 
-  it('keeps the existing error when the reply is not an answer', async () => {
+  // A refusal or a usage limit is the chat's reply, not a failure of stemLM's: a note, not an error.
+  it('says so in a note, not an error, when the reply is not an answer', async () => {
     await sendWithGuide('Find the range.');
     reply(`<p>${REFUSAL} You have reached your usage limit for today.</p>`);
     await vi.advanceTimersByTimeAsync(11_000);
 
-    const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
-    expect(useStore.getState().status).toBe('error');
-    expect(lead).toMatch(/no stemlm answer/i);
-    expect(detail.join('\n')).toBe('Parser code: no_capsule.');
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
+    expect(NO_ANSWER_NOTICE).toMatch(/no stemlm answer/i);
+    // One line for the student: no parser code under it.
+    expect(NO_ANSWER_NOTICE).not.toMatch(/\n|parser|capsule/i);
     expect(sessions()).toHaveLength(0);
   });
 
@@ -510,14 +511,14 @@ describe('capture fallback: the chat answered a stemLM question in its own words
     await sendWithGuide('Find the range.');
     const turn = reply('<p>One moment while I think about this problem.</p>');
     await vi.advanceTimersByTimeAsync(11_000);
-    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
 
     turn.querySelector('.standard-markdown')!.innerHTML = worked('the range');
     await vi.advanceTimersByTimeAsync(12_000);
     expect(sessions()).toHaveLength(1);
     expect(sessions()[0]?.origin).toBe('ingest');
     expect(useStore.getState().status).toBe('ready');
-    expect(useStore.getState().errorMessage).toBe(INGEST_NOTICE);
+    expect(useStore.getState().errorMessage).toBeUndefined();
   });
 
   it('does not change what happens to an incomplete capsule', async () => {
@@ -536,7 +537,7 @@ describe('capture fallback: the chat answered a stemLM question in its own words
     earlier.querySelector('.standard-markdown')!.insertAdjacentHTML('beforeend', '<p>Rendered late.</p>');
     await vi.advanceTimersByTimeAsync(11_000);
     expect(sessions()).toHaveLength(0);
-    expect(useStore.getState().status).toBe('error');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
   });
 
   it('adds beside a stemLM answer to the same question rather than replacing it', async () => {
@@ -602,7 +603,7 @@ describe('capture fallback: the chat answered a stemLM question in its own words
 
     expect(sessions().map((s) => s.origin)).toEqual([undefined, 'ingest']);
     expect(sessions()[1]?.question).toBe('Find the range of the projectile.');
-    expect(useStore.getState().errorMessage).toBe(INGEST_NOTICE);
+    expect(useStore.getState().errorMessage).toBeUndefined();
   });
 
   it('never opens an Ask-in-chat reply as a session of its own', async () => {
@@ -632,8 +633,8 @@ describe('capture fallback: the chat answered a stemLM question in its own words
     reply(worked('the follow-up'));
     await vi.advanceTimersByTimeAsync(12_000);
     expect(sessions()).toHaveLength(1);
-    expect(useStore.getState().status).toBe('error');
-    expect(useStore.getState().errorMessage).toMatch(/no stemlm answer/i);
+    expect(useStore.getState().status).toBe('ready');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
   });
 
   it('a stemLM answer that replaces a structured one in place is a stemLM session again', async () => {
@@ -681,7 +682,7 @@ describe('capture fallback when the guide was attached to an empty chat box', ()
     expect(sessions()).toHaveLength(1);
     expect(sessions()[0]?.origin).toBe('ingest');
     expect(sessions()[0]?.question).toBe('Find the range of the projectile.');
-    expect(useStore.getState().errorMessage).toBe(INGEST_NOTICE);
+    expect(useStore.getState().errorMessage).toBeUndefined();
   });
 
   it('leaves a reply alone when the turn it answers was sent without the guide', async () => {
@@ -706,8 +707,8 @@ describe('capture fallback when the guide was attached to an empty chat box', ()
     reply(`<p>${REFUSAL}</p>`);
     await vi.advanceTimersByTimeAsync(11_000);
     expect(sessions()).toHaveLength(0);
-    expect(useStore.getState().status).toBe('error');
-    expect(useStore.getState().errorMessage ?? '').toMatch(/no stemlm answer/i);
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
   });
 });
 
@@ -738,5 +739,87 @@ describe('a stemLM patch never rewrites an answer structured from the chat', () 
     expect(useStore.getState().status).toBe('error');
     expect(useStore.getState().errorMessage).toMatch(/couldn't apply this change/);
     expect(useStore.getState().errorMessage).toMatch(/structured from a plain chat reply/);
+  });
+});
+
+// Finding 13: a finished reply sat under "Reading response" for ten seconds because only quiet was
+// measured. A chat that showed it was writing and has stopped showing it has finished.
+describe('a reply the chat has visibly finished is not kept waiting', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  /** The chat shows its Stop control while it writes `html`, then takes it away. */
+  async function chatWrites(html: string): Promise<void> {
+    adapter.streaming = true;
+    reply(html);
+    await vi.advanceTimersByTimeAsync(1_500);
+    adapter.streaming = false;
+  }
+
+  it('opens a plain worked answer about two seconds after the chat stops writing', async () => {
+    await sendWithGuide('Find the range.');
+    await chatWrites(worked('the range'));
+    expect(sessions()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sessions()).toHaveLength(1);
+    expect(sessions()[0]?.origin).toBe('ingest');
+    expect(useStore.getState().status).toBe('ready');
+  });
+
+  it('says a refusal is not an answer about two seconds after the chat stops writing', async () => {
+    await sendWithGuide('Find the range.');
+    await chatWrites(`<p>${REFUSAL}</p>`);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
+  });
+
+  it('does so for a short reply that was whole, with the Stop control already gone, before it was first seen', async () => {
+    await sendWithGuide('Find the range.');
+    // The chat shows Stop while it thinks; nothing of the reply is on the page yet.
+    adapter.streaming = true;
+    thread().append(document.createElement('span'));
+    await vi.advanceTimersByTimeAsync(600);
+    adapter.streaming = false;
+    reply(`<p>${REFUSAL}</p>`);
+    await vi.advanceTimersByTimeAsync(2_500);
+    expect(useStore.getState().status).toBe('idle');
+    expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
+  });
+
+  it('keeps waiting while the chat still shows that it is writing', async () => {
+    await sendWithGuide('Find the range.');
+    adapter.streaming = true;
+    reply(`<p>${REFUSAL}</p>`);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(useStore.getState().status).toBe('loading');
+    expect(useStore.getState().errorMessage).toBeUndefined();
+  });
+
+  it('still allows ten quiet seconds where the chat never showed that it was writing', async () => {
+    await sendWithGuide('Find the range.');
+    reply(worked('the range'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(sessions()).toHaveLength(0);
+    expect(useStore.getState().status).toBe('loading');
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(sessions()).toHaveLength(1);
+  });
+
+  it('does not take what the chat showed for an earlier reply as the end of the next one', async () => {
+    await sendWithGuide('Find the range.');
+    await chatWrites(worked('the range'));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sessions()).toHaveLength(1);
+
+    // The next question; this time the chat shows nothing while it writes, and pauses mid-reply.
+    await sendWithGuide('Find the maximum height.');
+    const turn = reply('<p>Here is how to find the maximum height, one stage at a time.</p>');
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(useStore.getState().status).toBe('loading');
+    turn.querySelector('.standard-markdown')!.innerHTML = worked('the maximum height');
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(sessions()).toHaveLength(2);
   });
 });

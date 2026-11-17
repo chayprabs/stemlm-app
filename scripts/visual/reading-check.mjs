@@ -348,7 +348,107 @@ async function copy(scheme) {
   }
 }
 
-const STAGES = { selection, keys, copy };
+/** The incline answer with a figure the compiler must refuse and a check the model reported as failed. */
+const DOUBTFUL = INCLINE
+  .replace('fn: sqrt(2*3.2*x)\ndomain: 0 3', 'fn: sqrt(2*3.2*x)\ndomain: 0 3\nmystery_key: 7')
+  .replace('status: pass\nnotes: Work-energy gives', 'status: fail\ncorrection: The speed is 3.6 m/s, not 3.2 m/s.\nnotes: Work-energy gives');
+
+/**
+ * What stemLM did and did not check is said once under every answer; what the model said about
+ * its own answer is named as the model's, a failed check included; a figure that could not be
+ * drawn leaves one line where it was.
+ */
+async function trust(scheme) {
+  const tag = `trust-${scheme}`;
+  const fail = (text) => problems.push(`${tag}: ${text}`);
+  const page = await openAnswer(scheme, { capsule: DOUBTFUL });
+  const record = (report[tag] = {});
+  const text = (selector) => page.locator(selector).allInnerTexts();
+  try {
+    record.firstStep = await text('.slm-card .slm-origin-note');
+    if (record.firstStep.length) fail('the check line shows before the answer');
+    await page.locator('.slm-step-rail-btn').nth(3).click();
+    await page.waitForTimeout(900);
+    record.omitted = await text('.slm-figure-omitted');
+    if (record.omitted.length !== 1) fail(`step 4's refused figure left ${record.omitted.length} lines`);
+    if (await page.locator('.slm-card .slm-step-diagram').count()) fail('the refused figure was drawn');
+    await shot(page, `${tag}-figure-left-out`);
+    await page.locator('.slm-step-rail-btn').nth(4).click();
+    await page.waitForTimeout(900);
+    record.labels = await text('.slm-answer-note-label');
+    record.failed = await text('.slm-answer-note-failed');
+    record.under = await text('.slm-card .slm-origin-note');
+    if (record.labels.join('|').toLowerCase() !== "the model's own check|the model assumed") fail(`the notes are labelled ${JSON.stringify(record.labels)}`);
+    if (record.failed.length !== 1) fail('the failed check is not said');
+    if (record.under.length !== 1 || !/does not verify/.test(record.under[0])) fail(`under the answer: ${JSON.stringify(record.under)}`);
+    await page.evaluate(() => { const read = document.querySelector('stemlm-root').shadowRoot.querySelector('.slm-read'); read.scrollTop = read.scrollHeight; });
+    await page.waitForTimeout(300);
+    await shot(page, `${tag}-last-step`);
+    await page.locator('#slm-tab-solution').click();
+    await page.waitForTimeout(600);
+    record.solution = await text('.slm-solution .slm-origin-note');
+    if (record.solution.length !== 1) fail(`the Solution view closes with ${record.solution.length} check lines`);
+    if (await page.locator('.slm-header .slm-origin-note').count()) fail('a stemLM answer carries an origin note under its question');
+  } catch (err) {
+    fail(`stopped: ${err.message.split('\n')[0]}`);
+    await page.screenshot({ path: join(out, `${tag}-ERROR.png`) });
+  } finally {
+    await page.close();
+  }
+}
+
+/**
+ * The manual way in: an empty panel takes a pasted answer, in the stemLM format or as plain
+ * prose, and studies it like any other. Text that holds no answer is refused under the field.
+ */
+async function paste(scheme) {
+  const tag = `paste-${scheme}`;
+  const fail = (text) => problems.push(`${tag}: ${text}`);
+  const page = await ctx.newPage();
+  const record = (report[tag] = {});
+  try {
+    await page.setViewportSize(WINDOW);
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.route(`${hostOrigin(HOST)}/**`, (route) =>
+      route.fulfill({ contentType: 'text/html; charset=utf-8', body: hostPage(HOST, { scheme, empty: true }) }));
+    await page.goto(hostUrl(HOST), { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-stemlm-inject="true"]').first().waitFor({ state: 'attached', timeout: 15_000 });
+    await page.waitForTimeout(600);
+    const res = await sendToTab(page, 'stemlm:open-panel');
+    if (!res?.ok) throw new Error(`open-panel: ${JSON.stringify(res)}`);
+    await panel(page).waitFor({ state: 'visible', timeout: 15_000 });
+    await page.waitForTimeout(900);
+    await shot(page, `${tag}-empty`);
+
+    await page.locator('.slm-paste-open').click();
+    const field = page.locator('.slm-paste-field');
+    await field.waitFor({ state: 'visible' });
+    record.focused = await focusedIn(page);
+    if (record.focused !== 'slm-paste-field') fail(`the opened form put focus on "${record.focused}"`);
+    await field.fill('Thanks, that helps.');
+    await page.locator('.slm-paste button[type="submit"]').click();
+    await page.waitForTimeout(300);
+    if (!(await page.locator('.slm-paste-error').isVisible())) fail('text with no answer in it was not refused under the field');
+    await shot(page, `${tag}-refused`);
+
+    await field.fill(INCLINE);
+    await shot(page, `${tag}-form`);
+    await page.locator('.slm-paste button[type="submit"]').click();
+    await page.locator('.slm-card').first().waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(700);
+    record.pasted = { steps: await page.locator('.slm-step-rail-btn').count(), title: await page.locator('.slm-card-title').first().innerText() };
+    if (record.pasted.steps !== 5) fail(`the pasted answer opened with ${record.pasted.steps} steps`);
+    if (await page.locator('.slm-header .slm-origin-note').count()) fail('a pasted stemLM answer is labelled as structured from the chat');
+    await shot(page, `${tag}-studied`);
+  } catch (err) {
+    fail(`stopped: ${err.message.split('\n')[0]}`);
+    await page.screenshot({ path: join(out, `${tag}-ERROR.png`) });
+  } finally {
+    await page.close();
+  }
+}
+
+const STAGES = { selection, keys, copy, trust, paste };
 
 try {
   for (const [name, run] of Object.entries(STAGES)) {
