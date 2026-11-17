@@ -13,7 +13,7 @@ import { useStore } from '@/src/state/store';
 import { CONTENT_SCALE_DIAGRAM_FACTOR } from '@/src/lib/settings';
 import { MAX_DIAGRAM_UPSCALE } from '@/src/lib/diagram-bounds';
 import { FigureLightbox, type LightboxOrigin } from './FigureLightbox';
-import { IconExpand } from './icons';
+import { IconExpand, IconWand } from './icons';
 import { svgDrawsCaption } from '@/src/lib/svg-present';
 
 export interface DiagramCompileFailure {
@@ -139,7 +139,15 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
   return (
     <div className="slm-step-diagram">
       <div className="slm-step-diagram-head">
-        <span className="slm-step-diagram-label">Diagram</span>
+        <span className="slm-step-diagram-label">
+          Diagram
+          {resolved.corrected && (
+            // Drawn from repaired notation, not the model's text verbatim: say so (content is never changed).
+            <span className="slm-diagram-note" title="stemlm corrected this figure's notation before drawing it. Its content is unchanged.">
+              <IconWand width={11} height={11} /> Auto-corrected
+            </span>
+          )}
+        </span>
         <button type="button" className="slm-icon-btn slm-diagram-enlarge" aria-label="Enlarge diagram" title="Enlarge diagram" aria-haspopup="dialog" onClick={openLightbox}>
           <IconExpand width={15} height={15} />
         </button>
