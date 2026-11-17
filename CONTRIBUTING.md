@@ -71,7 +71,9 @@ Do not add a dependency without discussing it in an issue first. Size, licence a
 
 - Every behaviour change comes with a test. Show that the new test fails before your change and passes after it.
 - Never delete, skip (`.skip`, `.only`) or loosen an existing test to make your change pass. If an existing test fails, the change is wrong, not the test.
-- Tests run in [Vitest](https://vitest.dev/) with happy-dom and sit next to the code they cover as `*.test.ts` or `*.test.tsx`.
+- Tests run in [Vitest](https://vitest.dev/) and sit next to the code they cover as `*.test.ts` or `*.test.tsx`. Files under `src/lib`, `src/protocol` and `src/ingest` run in Node; a file there that needs a page goes on the `NEEDS_DOM` list in `vitest.config.ts`, and everything else runs in happy-dom.
+- While you work, `pnpm test:changed` runs the tests your uncommitted changes touch, and `pnpm test:related <file>` the tests that depend on a file. Run the whole suite (`pnpm test`) before you open a pull request.
+- A test that holds code to a time budget measures CPU with `cpuMs` or `fastestCpuMs` (`src/lib/cpu-time.ts`), never the wall clock: the suite runs in parallel, and a busy machine stretches wall-clock time many times over. Leave the budget about ten times the quiet cost.
 - For figures, write rule-level tests that exercise the class of spec (for example, "a force at an angle from the incline"), not a snapshot of one question.
 
 ## Common changes
