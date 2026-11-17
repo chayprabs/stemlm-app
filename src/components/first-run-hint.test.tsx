@@ -77,7 +77,7 @@ describe('the first-run hint', () => {
     expect(note.dataset.side).toBe('above');
     expect(note.style.left).toBe('90px');
     expect(note.style.top).toBe('140px');
-    expect(note.style.getPropertyValue('--slm-hint-caret')).toBe('26px');
+    expect(note.style.getPropertyValue('--slm-inject-hint-caret')).toBe('26px');
     // It is part of the control's own shadow-root box, and the control is described by it.
     expect(note.closest('.slm-fab-wrap')?.classList.contains('has-hint')).toBe(true);
     expect(container.querySelector('.slm-inject-btn')?.getAttribute('aria-describedby')).toBe('slm-first-hint-text');

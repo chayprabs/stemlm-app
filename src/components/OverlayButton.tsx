@@ -44,7 +44,7 @@ function paint(wrap: HTMLElement | null, place: ControlPlacement | null): void {
   hint.dataset.side = slot.top > place.top ? 'below' : 'above';
   hint.style.left = `${slot.left}px`;
   hint.style.top = `${slot.top}px`;
-  hint.style.setProperty('--slm-hint-caret', `${place.left + place.size / 2 - slot.left}px`);
+  hint.style.setProperty('--slm-inject-hint-caret', `${place.left + place.size / 2 - slot.left}px`);
 }
 
 /**
