@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import type { Session } from '@/src/protocol/types';
 import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
-import { resolveSessionQuestion, sessionQuestionHeading } from '@/src/lib/session-question';
+import { repeatsQuestion, resolveSessionQuestion, sessionQuestionHeading } from '@/src/lib/session-question';
 import { MathMarkdown } from './MathMarkdown';
 import { OriginNote } from './OriginNote';
 import { BrandWordmark, themeToBrandVariant } from './brand';
@@ -30,16 +30,6 @@ function fullQuestion(session: Session): string {
   if (lines.length === 0) return sessionQuestionHeading(session);
   // Lettered parts keep their own lines; anything else is one paragraph so markdown cannot split it.
   return lines.some((line) => /^\([a-z]\)/i.test(line)) ? lines.join('\n') : lines.join(' ');
-}
-
-/**
- * A topic that is the question, or only its opening words, says nothing the question below it
- * does not. An answer structured from the chat has no title of its own, so its topic is exactly that.
- */
-export function repeatsQuestion(topic: string, question: string): boolean {
-  const flat = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
-  const opening = flat(topic).replace(/(?:…|\.{3})$/, '').trimEnd();
-  return opening === '' || flat(question).startsWith(opening);
 }
 
 /** The question block: what is being studied, in the student's own words. */

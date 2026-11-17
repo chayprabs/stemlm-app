@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MergedReport } from '@/src/components/Report';
+import type { Session } from '@/src/protocol/types';
 import { measureBreaks } from './pdf-raster';
 import {
   A4_HEIGHT_PT,
@@ -208,6 +212,77 @@ describe('planPages', () => {
     const pages = planPages({ totalHeight: 1_000_000, pageHeight: 100, candidates: [] });
     expect(pages.length).toBeLessThanOrEqual(MAX_PAGES + 1);
     covers(pages, 1_000_000);
+  });
+});
+
+describe('a line of text', () => {
+  it('keeps its descenders: a page ends below the measured line, never on its bottom edge', () => {
+    const root = document.createElement('div');
+    root.innerHTML = '<p>first line</p><p>second line</p>';
+    root.getBoundingClientRect = () => new DOMRect(0, 0, 688, 2000);
+    // 14px text on a 21px line: each line box is 18.2px tall and the next starts 2.8px below it.
+    const lineTop = (text: string | null) => (text === 'first line' ? 1000 : 1021);
+    // The DOM Range, not this file's page-range type of the same name.
+    const dom = globalThis.Range.prototype;
+    const measured = dom.getClientRects;
+    dom.getClientRects = function (this: globalThis.Range) {
+      return [new DOMRect(0, lineTop(this.startContainer.textContent), 300, 18.2)] as unknown as DOMRectList;
+    };
+    try {
+      const { candidates, forbidden } = measureBreaks(root);
+      // The rasteriser can draw the glyphs a pixel lower than layout measured them.
+      expect(insideForbidden(1018.2, forbidden)).toBe(true);
+      expect(insideForbidden(1019, forbidden)).toBe(true);
+      const [page] = planPages({ totalHeight: 2000, pageHeight: 1020.5, candidates, forbidden });
+      expect(page?.height).toBeGreaterThan(1019.2);
+      // And still above the line that follows.
+      expect(page?.height).toBeLessThanOrEqual(1021);
+    } finally {
+      dom.getClientRects = measured;
+    }
+  });
+});
+
+describe('the blocks of a report', () => {
+  it('are all measured as blocks a page break must not cut through', () => {
+    const session: Session = {
+      id: 'blocks', createdAt: 0, updatedAt: 0, platform: 'claude', question: 'Find x.', raw: '',
+      capsule: {
+        meta: { version: 2, subject: 'Math', topic: 'Linear equation' },
+        steps: [{
+          id: 's1', index: 1, title: 'Isolate x', formula: '$2x = 6$', body: 'Divide both sides by two.',
+          diagram: { type: 'plot', content: 'fn: 2*x' },
+          takeaway: 'Do the same to both sides.',
+          quickCheck: { question: 'What is x if 3x = 6?', answer: 'x = 2, because 6 / 3 = 2.' },
+        }],
+        solution: 'x = 3.',
+        solutionDiagrams: [],
+      },
+    };
+    const root = document.createElement('div');
+    root.innerHTML = renderToStaticMarkup(createElement(MergedReport, {
+      sessions: [session, { ...session, id: 'second' }],
+      diagramSvg: { 'q1-step-1': '<svg viewBox="0 0 20 20"><circle r="5"/></svg>' },
+    }));
+    root.getBoundingClientRect = () => new DOMRect(0, 0, 688, 4000);
+
+    // The cover with its contents list, a question's heading, the answer, a step's opening,
+    // the key relation, a figure, a takeaway and a quick check.
+    const whole = [
+      '.slm-report-head', '.slm-report-entry-head', '.slm-report-answer', '.slm-report-step-intro',
+      '.slm-formula', '.slm-step-diagram', '.slm-takeaway:not(.slm-report-answer):not(.slm-report-check)', '.slm-report-check',
+    ];
+    whole.forEach((selector, i) => {
+      const block = root.querySelector<HTMLElement>(selector);
+      expect(block, selector).not.toBeNull();
+      block!.getBoundingClientRect = () => new DOMRect(0, 100 + i * 300, 688, 200);
+    });
+    const { forbidden } = measureBreaks(root);
+    whole.forEach((selector, i) => {
+      expect(forbidden, selector).toContainEqual([100 + i * 300, 300 + i * 300]);
+    });
+    // A question's heading also holds the opening of the question on its page.
+    expect(forbidden.some(([start, end]) => start === 400 && end > 600)).toBe(true);
   });
 });
 

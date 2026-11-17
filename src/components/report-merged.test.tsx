@@ -70,7 +70,7 @@ describe('MergedReport', () => {
     const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
 
     expect(html.match(/<h1\b/g)).toHaveLength(1);
-    expect(html).toContain('class="slm-report-topic">Study questions</h1>');
+    expect(html).toContain('<h1 class="slm-report-title">Study questions</h1>');
   });
 
   it('keeps each step heading, formula, and first work block in one print group', () => {
@@ -98,9 +98,10 @@ describe('MergedReport', () => {
     const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
 
     expect(html).toContain('3 questions');
-    expect(html).toContain('slm-report-label">Q1.<');
-    expect(html).toContain('slm-report-label">Q2.<');
-    expect(html).toContain('slm-report-label">Q3.<');
+    for (const label of ['Q1', 'Q2', 'Q3']) {
+      // Once in the contents, once heading its question.
+      expect(html.split(`slm-report-label">${label}<`)).toHaveLength(3);
+    }
     expect(html).toContain('RLC impedance');
     expect(html).toContain('Quadratic formula');
     expect(html).toContain('Electrical');
@@ -117,6 +118,19 @@ describe('MergedReport', () => {
     expect(html.indexOf('a step')).toBeGreaterThan(q1);
     expect(html.indexOf('a step')).toBeLessThan(q2);
     expect(html.indexOf('b step')).toBeLessThan(q3);
+  });
+
+  it('lists the questions on the first page, in order and without page numbers', () => {
+    const html = renderToStaticMarkup(<MergedReport sessions={sessions} diagramSvg={{}} />);
+    const contents = html.slice(html.indexOf('<ol class="slm-report-contents">'), html.indexOf('</ol>'));
+    // Inside the header, so the paginator keeps the list with the title.
+    expect(html.indexOf('<ol class="slm-report-contents">')).toBeLessThan(html.indexOf('</header>'));
+    expect(contents.match(/<li>/g)).toHaveLength(3);
+    expect(contents.indexOf('RLC impedance')).toBeGreaterThan(-1);
+    expect(contents.indexOf('Newton second law')).toBeGreaterThan(contents.indexOf('RLC impedance'));
+    expect(contents.indexOf('Quadratic formula')).toBeGreaterThan(contents.indexOf('Newton second law'));
+    // The list is laid out before the document is cut into pages, so it cannot name them.
+    expect(contents).not.toMatch(/\bp(?:age|\.)\s*\d/i);
   });
 
   it('flows continuously — no forced page break between questions', () => {
@@ -136,6 +150,7 @@ describe('MergedReport', () => {
     const html = renderToStaticMarkup(<MergedReport sessions={one} diagramSvg={{}} />);
     expect(html).toContain('1 question');
     expect(html).not.toContain('1 questions');
+    expect(html).not.toContain('slm-report-contents');
     expect(mergedReportKicker(1)).toBe('1 question');
     expect(mergedReportKicker(4)).toBe('4 questions');
   });
