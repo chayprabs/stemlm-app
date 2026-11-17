@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boxOf, compile, draw, expectCleanLabels, reason, type Drawn } from '../cs/testing';
+import { compileDiagram, presentCompiledDiagram } from '@/src/lib/resolve-diagram';
 
 const chart = (content: string) => draw('chart', content);
 const refused = (content: string) => reason('chart', content);
@@ -345,5 +346,15 @@ describe('chart: tolerant reading', () => {
       const result = await compile('chart', content);
       if (!result.ok) expect(`${result.code}: ${result.reason}`, content).not.toMatch(/^throw|undefined|Cannot read/);
     }
+  });
+});
+
+describe('chart: a currency unit reaches the page', () => {
+  it('keeps the dollar sign through theming, in the value labels and the axis title', async () => {
+    const compiled = await compileDiagram({ type: 'chart', content: 'labels: Rent, Food\nvalues: 900, 450\nunit: $\nylabel: Cost ($)' });
+    expect(compiled.ok).toBe(true);
+    const shown = presentCompiledDiagram(compiled, 'light');
+    expect(shown.svg).toContain('$900');
+    expect(shown.svg).toContain('Cost ($)');
   });
 });

@@ -9,6 +9,16 @@ describe('decodeSvgText', () => {
     expect(decodeSvgText('$X_L = 18.85 \\Omega$')).toBe('X_L = 18.85 Ω');
     expect(decodeSvgText('\\alpha (rad/s^2)')).toBe('α (rad/s²)');
   });
+
+  it('removes math delimiters and keeps currency signs', () => {
+    expect(decodeSvgText('$$E = mc^2$$')).toBe('E = mc²');
+    expect(decodeSvgText('$10 \\Omega$')).toBe('10 Ω');
+    expect(decodeSvgText('speed $v$ (m/s)')).toBe('speed v (m/s)');
+    expect(decodeSvgText('Cost ($)')).toBe('Cost ($)');
+    expect(decodeSvgText('$5')).toBe('$5');
+    expect(decodeSvgText('$5 and $10')).toBe('$5 and $10');
+    expect(decodeSvgText('$5 to $10 for $x$ units')).toBe('$5 to $10 for x units');
+  });
 });
 
 describe('presentSvg', () => {

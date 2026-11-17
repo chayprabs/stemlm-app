@@ -31,9 +31,16 @@ const LATEX_IN_TEXT: [RegExp, string][] = [
   [/\\pm/g, '±'],
   [/\^2\b/g, '²'],
   [/\\text\{([^}]*)\}/g, '$1'],
-  [/\$\$/g, ''],
-  [/\$/g, ''],
 ];
+
+/**
+ * `$…$` around math is a delimiter and goes. A lone `$`, or a pair that only encloses plain amounts
+ * ("$5 and $10"), is a currency sign and stays: an axis titled "Cost ($)" must not read "Cost ()".
+ */
+function stripMathDelimiters(text: string): string {
+  return text.replace(/\$\$?([^$]+?)\$\$?/g, (whole, inner: string) =>
+    /^\s*\d/.test(inner) && !/[\\^_=]/.test(inner) ? whole : inner);
+}
 
 const NAMED_COLORS: Record<string, string> = {
   black: '#000000',
@@ -58,7 +65,8 @@ export function svgDrawsCaption(svg: string, caption: string): boolean {
 
 /** Decode common LaTeX fragments inside SVG <text> nodes. */
 export function decodeSvgText(text: string): string {
-  let s = text;
+  // Delimiters first, while the TeX inside them still tells math from money.
+  let s = stripMathDelimiters(text);
   for (const [re, rep] of LATEX_IN_TEXT) {
     s = s.replace(re, rep);
   }
