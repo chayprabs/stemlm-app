@@ -28,16 +28,55 @@ function stripCompactBeforeSubscript(text: string): string {
   );
 }
 
+/** A value as the rendered glyphs spell it: no TeX punctuation, no spacing, `\Omega` as Ω. */
+function compactValue(value: string): string {
+  return value.replace(/\\Omega/g, 'Ω').replace(/[\\_{}\s,]/g, '');
+}
+
 /**
- * Drop a trailing compact repeat after a subscript assignment was kept —
- * again only when both name the same symbol, so a second, unrelated
- * assignment (`R_1 = 2 and V=12`) is never deleted.
+ * Where the text at `from` stops spelling `expected` (a compact value), or -1 when it spells
+ * anything else. The repeat must end at a token boundary: `48` is not a repeat inside `485`.
+ */
+function compactRepeatEnd(text: string, from: number, expected: string): number {
+  if (!expected) return -1;
+  let end = from;
+  let spelled = '';
+  while (spelled.length < expected.length && end < text.length) {
+    const omega = text.startsWith('\\Omega', end);
+    spelled += compactValue(omega ? 'Ω' : text[end]!);
+    end += omega ? '\\Omega'.length : 1;
+    if (!expected.startsWith(spelled)) return -1;
+  }
+  return spelled === expected && !/[A-Za-z0-9]/.test(text[end] ?? '') ? end : -1;
+}
+
+/**
+ * Drop the editor's glyph copy when it trails the LaTeX it duplicates: `V_s = 48 Vs=48`.
+ *
+ * Only an exact repeat goes: the compact name must be the kept symbol with its subscript
+ * (`Vs` for `V_s`) and the compact value must spell the kept value. Anything else is the
+ * student's own text, so `x_1 = 5 and x2=7 are given` and `R_1 = 2 and V=12` come through whole.
  */
 function stripTrailingCompactRepeat(text: string): string {
-  return text.replace(
-    /([A-Za-z])(_\{?[A-Za-z0-9]+\}?\s*=\s*[^,;.\n=_]+?)\s+\1[A-Za-z0-9]*=[^,;.\n=_]+/g,
-    '$1$2',
-  );
+  const kept =
+    /\b(?<letter>[A-Za-z])_(?<subscript>\{[A-Za-z0-9]+\}|[A-Za-z0-9]+)\s*=\s*(?<value>[^,;\n=]*?[^\s,;=])(?<gap>\s+)(?<name>[A-Za-z][A-Za-z0-9]*)=/g;
+  let out = '';
+  let cursor = 0;
+  for (let match = kept.exec(text); match; match = kept.exec(text)) {
+    const { letter = '', subscript = '', value = '', gap = '', name = '' } = match.groups ?? {};
+    const twin = match.index + match[0].length;
+    const sameSymbol = name === letter + subscript.replace(/[{}]/g, '');
+    const end = sameSymbol ? compactRepeatEnd(text, twin, compactValue(value)) : -1;
+    if (end < 0) {
+      // Not a repeat. This match may have swallowed the next assignment, so look again from there.
+      kept.lastIndex = match.index + 1;
+      continue;
+    }
+    out += text.slice(cursor, twin - 1 - name.length - gap.length);
+    cursor = end;
+    kept.lastIndex = end;
+  }
+  return out + text.slice(cursor);
 }
 
 /** Merge lines broken when each symbol was its own block (Vs / =48 V). */
