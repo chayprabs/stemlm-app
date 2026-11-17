@@ -27,7 +27,7 @@ describe('generated vocabulary', () => {
   it('holds the keys the engines declare themselves', () => {
     // PLOT_DECLARATION_KEYS, GRAPH_KEYS and CONTROL_KEYS are private to their engines; these are their documented members.
     expect(Object.keys(GENERATED_VOCABULARY.plot!)).toEqual(expect.arrayContaining(['fn', 'fn2', 'domain', 'var', 'data', 'xlabel', 'ylabel', 'eq', 'eq_slot', 'point', 'point_label', 'marker', 'asymptote', 'region', 'shade', 'scale', 'logx', 'logy']));
-    expect(Object.keys(GENERATED_VOCABULARY.graph!).sort()).toEqual(['accept', 'decision', 'edge', 'highlight', 'node', 'rankdir', 'start', 'terminal']);
+    expect(Object.keys(GENERATED_VOCABULARY.graph!).sort()).toEqual(['accept', 'caption', 'decision', 'edge', 'highlight', 'node', 'rankdir', 'start', 'terminal']);
     expect(Object.keys(GENERATED_VOCABULARY.circuit!).sort()).toEqual(['caption', 'highlight', 'kind', 'label', 'port', 'probe', 'std', 'title', 'wire']);
     expect(GENERATED_VOCABULARY.plot!.fn).toBe('many');
     expect(GENERATED_VOCABULARY.plot!.domain).toBe('one');

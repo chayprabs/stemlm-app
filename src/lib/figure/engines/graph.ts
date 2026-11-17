@@ -63,7 +63,9 @@ interface GraphLayout {
   starts: Map<string, Point[]>;
 }
 
-const GRAPH_KEYS = new Set(['node', 'edge', 'rankdir', 'highlight', 'start', 'accept', 'decision', 'terminal']);
+// `caption` is not drawn here: the panel sets it under the figure. It is accepted so that a titled
+// graph, which models write constantly, is not rejected for a key that carries no geometry.
+const GRAPH_KEYS = new Set(['node', 'edge', 'rankdir', 'highlight', 'start', 'accept', 'decision', 'terminal', 'caption']);
 const SPATIAL_CUE = /\b(map|raster|coastline|projection|latitude|longitude|color[- ]band)\b/i;
 const SUPPORTING_SPATIAL_CUE = /\b(world|legend|region|site|density|shading|species)\b/i;
 const NODE_FRAME_PAD = 2;

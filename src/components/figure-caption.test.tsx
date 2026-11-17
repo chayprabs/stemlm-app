@@ -41,6 +41,13 @@ describe('figure captions', () => {
     return host!;
   }
 
+  it('sets the caption of a graph under the figure, since the graph engine does not draw one', async () => {
+    const el = await mount({ type: 'graph', content: 'node: a Lexer\nnode: b Parser\nedge: a b tokens\ncaption: Compiler front end', caption: 'Compiler front end' });
+    const caption = el.querySelector('figcaption');
+    expect(caption?.textContent).toBe('Compiler front end');
+    expect(caption?.classList.contains('slm-sr-only')).toBe(false);
+  });
+
   it('shows a caption the figure already draws only to screen readers', async () => {
     const el = await mount(TABLE);
     expect(el.querySelector('.slm-diagram-svg svg')?.textContent).toContain('Concentrations in M');

@@ -143,15 +143,14 @@ describe('L4 graph fail-closed probes', () => {
     if (!result.ok) expect(result.reason).toContain('spatial map');
   });
 
-  it('rejects an unsupported caption instead of silently dropping it', async () => {
-    const result = await graph([
-      'node: source Source',
-      'node: target Target',
-      'edge: source target flow',
-      'caption: compiler structure',
-    ].join('\n'));
-    expect(result).toMatchObject({ ok: false, code: 'malformed' });
-    if (!result.ok) expect(result.reason).toContain('unsupported graph key caption');
+  // The engine draws no caption; the panel sets it under the figure (figure-caption.test.tsx), so a
+  // titled graph is drawn rather than rejected for a key that carries no geometry.
+  it('accepts a caption and still rejects a key it does not know', async () => {
+    const spec = ['node: source Source', 'node: target Target', 'edge: source target flow'];
+    expect((await graph([...spec, 'caption: compiler structure'].join('\n'))).ok).toBe(true);
+    const unknown = await graph([...spec, 'subtitle: compiler structure'].join('\n'));
+    expect(unknown).toMatchObject({ ok: false, code: 'malformed' });
+    if (!unknown.ok) expect(unknown.reason).toContain('unsupported graph key subtitle');
   });
 
   it('uses conventional process circles and resource squares for wait graphs', async () => {
