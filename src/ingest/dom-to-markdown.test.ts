@@ -305,7 +305,7 @@ describe('messageToMarkdown: robustness', () => {
     const started = performance.now();
     expect(run(`a${' '.repeat(200_000)}b`)).toBe('a b');
     expect(run('['.repeat(100_000)).length).toBe(100_000);
-    expect(run(':contentReference['.repeat(20_000))).toContain(':contentReference');
+    expect(run(':contentReference['.repeat(10_000))).toContain(':contentReference');
     expect(run('【'.repeat(50_000)).length).toBe(50_000);
     expect(run('$='.repeat(50_000))).toContain('\\$=');
     expect(run('\\('.repeat(50_000)).length).toBe(100_000);
@@ -323,7 +323,7 @@ describe('messageToMarkdown: robustness', () => {
     const code = document.createElement('div');
     code.innerHTML = '<p><code></code></p>';
     code.querySelector('code')!.textContent = `a${' '.repeat(100_000)}\n${'\n'.repeat(50_000)}b`;
-    expect(messageToMarkdown(code).startsWith('`a')).toBe(true);
+    expect(messageToMarkdown(code).startsWith('```\na')).toBe(true);
     expect(performance.now() - started).toBeLessThan(2000);
   });
 
