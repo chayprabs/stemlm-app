@@ -17,6 +17,7 @@ import { renderOverlayHtml } from './figure/overlay';
 import { parseSpec } from './figure/spec';
 import { validateSfdSemantics } from './figure/leftovers/sfd';
 import { repairDiagram } from './figure/intel/repair';
+import { translateForeignDiagram } from './figure/intel/foreign';
 
 export const DIAGRAM_COMPILE_TIMEOUT_MS = 12_000;
 
@@ -109,9 +110,13 @@ function admitSvg(family: string, source: string, overlays: Overlay[]): Compiled
  * Compile a diagram to sanitized SVG without baking panel theme colors.
  *
  * The spec is compiled exactly as written first, so a correct spec is never touched. Only when
- * that fails is its notation repaired (spelling, separators, wrappers: never content) and the
- * result put through the same strict compiler; a repair that still does not compile is discarded
- * and the original failure stands.
+ * that fails:
+ * 1. a notation the model brought from elsewhere (Mermaid, Graphviz DOT, a Markdown pipe table, an
+ *    arrow list) is translated whole into a native spec (src/lib/figure/intel/foreign), which
+ *    refuses rather than draw a construct the native grammar cannot say;
+ * 2. otherwise the spec's own notation is repaired (spelling, separators, wrappers: never content).
+ * Either result goes through the same strict compiler; one that still does not compile is
+ * discarded and the original failure stands.
  */
 export async function compileDiagram(
   diagram: Diagram,
@@ -119,10 +124,22 @@ export async function compileDiagram(
 ): Promise<CompiledDiagram> {
   const strict = await compileDiagramStrict(diagram, profile);
   if (strict.ok) return strict;
+  const foreign = translateForeignDiagram(diagram);
+  if (foreign) {
+    const translated = await compileDiagramStrict(foreign.diagram, profile);
+    if (translated.ok) return { ...translated, corrected: true };
+    const mended = await compileRepaired(foreign.diagram, profile);
+    if (mended) return mended;
+  }
+  return (await compileRepaired(diagram, profile)) ?? strict;
+}
+
+/** The diagram with its notation repaired, compiled strictly; null when nothing was repaired or it still fails. */
+async function compileRepaired(diagram: Diagram, profile: DiagramSizeProfile): Promise<CompiledDiagram | null> {
   const { diagram: repaired, repairs } = repairDiagram(diagram);
-  if (!repairs.length) return strict;
-  const second = await compileDiagramStrict(repaired, profile);
-  return second.ok ? { ...second, corrected: true } : strict;
+  if (!repairs.length) return null;
+  const compiled = await compileDiagramStrict(repaired, profile);
+  return compiled.ok ? { ...compiled, corrected: true } : null;
 }
 
 /** Compile the spec exactly as written: no notation repair. The repair tests measure against this. */

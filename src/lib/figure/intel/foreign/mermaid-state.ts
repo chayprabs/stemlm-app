@@ -5,14 +5,14 @@
  * states are flattened (their substates are drawn at the top level); a composite with its own
  * `[*]` is refused, because a scoped initial state drawn flat would read as the machine's start.
  */
-import { GraphDraft, type Notes, applyDirection, refuse } from './native';
+import { GraphDraft, type Notes, applyDirection, oneLine, refuse } from './native';
 import { mermaidLabel } from './text';
 
 const PSEUDO = '[*]';
 const SKIPPED = /^(classDef|class|style|scale|hide|accTitle|accDescr)(\s|:|$)/;
 
 function stateId(text: string): string {
-  const id = text.replace(/:::[\w-]+$/, '').trim();
+  const id = text.trim().replace(/:::[\w-]+$/, '').trim();
   if (id === PSEUDO) return id;
   if (!id || /[\s[\]{}"<>:]/.test(id)) refuse('a state name cannot be read');
   return id;
@@ -23,7 +23,7 @@ export function translateState(lines: string[], notes: Notes): string {
   const descriptions = new Map<string, string[]>();
   let depth = 0;
   for (const raw of lines) {
-    let line = raw.trim().replace(/;$/, '').trim();
+    let line = oneLine(raw).replace(/;$/, '').trim();
     while (line.startsWith('}')) {
       if (!depth) refuse('a composite state closes without opening');
       depth--;

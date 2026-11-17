@@ -296,6 +296,7 @@ class DotParser {
 
   private build(strict: boolean, graphName: string): Translation {
     const draft = new GraphDraft();
+    if (this.tokens.some((token) => (token.quoted && /\\[nlr]/.test(token.text)) || (token.html && /<br/i.test(token.text)))) this.notes.add(LINE_BREAK_NOTE);
     const direction = this.graph.get('rankdir');
     if (direction) applyDirection(draft, direction.text.trim(), this.notes);
     const title = this.graph.get('label');
