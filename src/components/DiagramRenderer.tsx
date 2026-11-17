@@ -71,7 +71,6 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
   const failureCallback = useRef(onCompileFailure);
   failureCallback.current = onCompileFailure;
   const captionId = `slm-diagram-caption-${useId().replaceAll(':', '')}`;
-  const accessibleLabel = diagram.caption || `${canonicalizeDiagramType(diagram.type)} diagram`;
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -105,6 +104,9 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
 
   if (!resolved?.ok) return null;
   const { svg, overlays } = resolved;
+  // A title that repair or translation surfaced (a `title:` line, a Mermaid title) is the caption too.
+  const caption = diagram.caption ?? resolved.caption;
+  const accessibleLabel = caption || `${canonicalizeDiagramType(diagram.type)} diagram`;
   const viewBox = /viewBox\s*=\s*["']([^"']+)["']/i.exec(svg)?.[1];
   const bounds = viewBox?.trim().split(/[\s,]+/).map(Number);
   const aspect = bounds && bounds[2]! / bounds[3]!;
@@ -113,8 +115,8 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
     <figure
       className={`slm-diagram slm-diagram--${size}`}
       role="img"
-      aria-label={diagram.caption ? undefined : accessibleLabel}
-      aria-labelledby={diagram.caption ? captionId : undefined}
+      aria-label={caption ? undefined : accessibleLabel}
+      aria-labelledby={caption ? captionId : undefined}
     >
         <div
           ref={frameRef}
@@ -129,9 +131,9 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
           />
           {renderOverlays(overlays)}
         </div>
-      {diagram.caption && (
+      {caption && (
         // A caption the figure already draws stays for screen readers only, so it is not shown twice.
-        <figcaption id={captionId} className={svgDrawsCaption(svg, diagram.caption) ? 'slm-sr-only' : undefined}>{diagram.caption}</figcaption>
+        <figcaption id={captionId} className={svgDrawsCaption(svg, caption) ? 'slm-sr-only' : undefined}>{caption}</figcaption>
       )}
     </figure>
   );
@@ -158,7 +160,7 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
           origin={lightbox}
           aspect={aspect || 300 / 165}
           label={accessibleLabel}
-          caption={diagram.caption}
+          caption={caption}
           theme={theme}
           onClose={() => setLightbox(null)}
         >
