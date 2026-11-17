@@ -1825,7 +1825,7 @@ body.slm-settings-page::-webkit-scrollbar {
 .slm-demo-frame {
   display: grid;
   grid-template-columns: minmax(0, 0.4fr) minmax(0, 1fr);
-  height: clamp(560px, 74vh, 700px);
+  height: clamp(600px, 84vh, 780px);
   border: 1px solid var(--slm-border);
   border-radius: var(--radius-xl);
   background: var(--slm-bg-subtle);
