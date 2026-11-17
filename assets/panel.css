@@ -1699,21 +1699,6 @@
   justify-content: flex-end;
   background: var(--slm-bg);
 }
-.slm-stepnav-count {
-  margin-right: auto;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-  font-family: var(--font-mono);
-  font-size: var(--slm-text-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--slm-fg-subtle);
-  order: -1;
-}
-.slm-stepnav-count-now {
-  color: var(--slm-fg);
-  font-weight: 500;
-}
 .slm-stepnav-btn {
   display: inline-flex;
   align-items: center;

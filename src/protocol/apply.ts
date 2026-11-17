@@ -178,7 +178,7 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
   const unknown = (id: string, kind: string) => {
     ok = false;
     errorCode ??= 'invalid_structure';
-    warnings.push(`Patch ${kind} referenced unknown id "${id}".`);
+    warnings.push(`The change named a step that is not in this answer (${kind} "${id}").`);
     warningCodes.push('patch_unknown_id');
   };
 
@@ -191,7 +191,7 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
 
   for (const op of ops) {
     if (op.op !== 'replace' && op.op !== 'insert' && op.op !== 'delete') {
-      invalid('invalid_patch_op', `Patch declared unsupported operation "${String(op.op)}".`);
+      invalid('invalid_patch_op', `The change asked for an edit stemlm cannot make ("${String(op.op)}").`);
       continue;
     }
     if (op.solution != null) solution = op.solution;
@@ -214,7 +214,7 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
         const idx = after === -1 ? steps.length : after + 1;
         const id = op.step.id || `step-${idx + 1}`;
         if (steps.some((s) => s.id === id)) {
-          invalid('duplicate_step_id', `Patch insert would duplicate step id "${id}".`);
+          invalid('duplicate_step_id', `The change would add a second step called "${id}".`);
           continue;
         }
         steps.splice(idx, 0, { ...op.step, id });
@@ -222,7 +222,7 @@ export function applyStepPatch(capsule: Capsule, ops: PatchOp[]): ApplyPatchResu
         const idx = steps.length;
         const id = op.step.id || `step-${idx + 1}`;
         if (steps.some((s) => s.id === id)) {
-          invalid('duplicate_step_id', `Patch insert would duplicate step id "${id}".`);
+          invalid('duplicate_step_id', `The change would add a second step called "${id}".`);
           continue;
         }
         steps.splice(idx, 0, { ...op.step, id });
