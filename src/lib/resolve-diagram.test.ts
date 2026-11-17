@@ -216,3 +216,22 @@ describe('content-size scaling is panel-only', () => {
     expect(widthOf(print.svg)).toBe(widthOf(printAgain.svg));
   });
 });
+
+describe('captions surfaced by a rewrite', () => {
+  it('carries a title line that repair turned into the caption', async () => {
+    const compiled = await compileDiagram({ type: 'graph', content: 'title: Shortest path\nnode: A\nnode: B\nedge: A B' });
+    expect(compiled).toMatchObject({ ok: true, corrected: true, caption: 'Shortest path' });
+    expect(presentCompiledDiagram(compiled, 'light')).toMatchObject({ ok: true, caption: 'Shortest path' });
+  });
+
+  it('carries the title of a translated Mermaid diagram', async () => {
+    const compiled = await compileDiagram({ type: 'mermaid', content: '---\ntitle: Login flow\n---\nflowchart LR\n  A[Enter password] --> B[Signed in]' });
+    expect(compiled).toMatchObject({ ok: true, corrected: true, caption: 'Login flow' });
+  });
+
+  it('reports no caption for a spec that compiled as written', async () => {
+    const compiled = await compileDiagram({ type: 'plot', content: 'fn: x^2\ndomain: -2 2\ncaption: Parabola', caption: 'Parabola' });
+    expect(compiled.ok).toBe(true);
+    expect(compiled.caption).toBeUndefined();
+  });
+});

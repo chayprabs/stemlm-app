@@ -36,6 +36,11 @@ interface DiagramMarkup {
    * The figure says so, because the student should know the drawing is not the model's text verbatim.
    */
   corrected?: boolean;
+  /**
+   * The caption of the diagram that was actually drawn, when the rewrite surfaced one the spec as
+   * written did not carry under `caption:` (a `title:` line, a Mermaid or DOT title).
+   */
+  caption?: string;
 }
 
 export type ResolvedDiagramMarkup = DiagramMarkup & (
@@ -127,7 +132,7 @@ export async function compileDiagram(
   const foreign = translateForeignDiagram(diagram);
   if (foreign) {
     const translated = await compileDiagramStrict(foreign.diagram, profile);
-    if (translated.ok) return { ...translated, corrected: true };
+    if (translated.ok) return corrected(translated, foreign.diagram);
     const mended = await compileRepaired(foreign.diagram, profile);
     if (mended) return mended;
   }
@@ -139,7 +144,12 @@ async function compileRepaired(diagram: Diagram, profile: DiagramSizeProfile): P
   const { diagram: repaired, repairs } = repairDiagram(diagram);
   if (!repairs.length) return null;
   const compiled = await compileDiagramStrict(repaired, profile);
-  return compiled.ok ? { ...compiled, corrected: true } : null;
+  return compiled.ok ? corrected(compiled, repaired) : null;
+}
+
+/** A figure drawn from `drawn`, a rewrite of the spec, rather than from the spec as written. */
+function corrected(compiled: CompiledDiagram, drawn: Diagram): CompiledDiagram {
+  return { ...compiled, corrected: true, ...(drawn.caption ? { caption: drawn.caption } : {}) };
 }
 
 /** Compile the spec exactly as written: no notation repair. The repair tests measure against this. */
@@ -180,7 +190,13 @@ export function presentCompiledDiagram(
   try {
     const svg = presentSvg(compiled.svg, theme, profile, displayScale);
     if (svg && svgMarkupHasGraphicShapes(svg)) {
-      return { ok: true, svg, overlays: compiled.overlays, ...(compiled.corrected ? { corrected: true } : {}) };
+      return {
+        ok: true,
+        svg,
+        overlays: compiled.overlays,
+        ...(compiled.corrected ? { corrected: true } : {}),
+        ...(compiled.caption ? { caption: compiled.caption } : {}),
+      };
     }
   } catch {
     // A presentation failure must not discard the surrounding answer or report.
