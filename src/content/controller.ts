@@ -113,7 +113,7 @@ const STREAMING_STALL_MS = 60_000;
 const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end']);
 
 const CUT_OFF_NOTICE =
-  'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemLM button.';
+  'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm button.';
 
 /** "Load conversation" on a chat of plain answers opens the most recent ones, not the whole history. */
 const PLAIN_SESSIONS_MAX = 5;
@@ -144,8 +144,8 @@ export interface AttachNotice {
 }
 const NOTICE_INLINE: AttachNotice = { tone: 'info', text: GUIDE_PASTED_NOTICE };
 const NO_MESSAGE_BOX =
-  "stemLM cannot find this site's message box. Use Paste an answer in the panel, or Copy the guide from the toolbar button.";
-const NOTICE_FAILED: AttachNotice = { tone: 'error', text: 'stemLM could not add its guide. Check the chat box and try again.' };
+  "stemlm cannot find this site's message box. Use Paste an answer in the panel, or Copy the guide from the toolbar button.";
+const NOTICE_FAILED: AttachNotice = { tone: 'error', text: 'stemlm could not add its guide. Check the chat box and try again.' };
 
 /**
  * Closing blocks a finished full answer may lack (D11): its steps are still
@@ -367,7 +367,7 @@ export class StemController {
   private abandonAttach(operation: ComposerOperation): false {
     const store = useStore.getState();
     if (!operation.superseded() && store.settings.stemlmEnabled !== false) {
-      store.setStatus('error', 'Your chat box changed while stemLM was attaching its guide, so it stopped. Check the chat box, then press the stemLM button again.');
+      store.setStatus('error', 'Your chat box changed while stemlm was attaching its guide, so it stopped. Check the chat box, then press the stemlm button again.');
     }
     return false;
   }
@@ -406,7 +406,7 @@ export class StemController {
       timer = setTimeout(() => {
         // Whatever the stalled attempt does later, it is no longer the current one.
         this.composerGeneration += 1;
-        useStore.getState().setStatus('error', 'stemLM took too long to add its guide and stopped. Check the chat box, then press the stemLM button again.');
+        useStore.getState().setStatus('error', 'stemlm took too long to add its guide and stopped. Check the chat box, then press the stemlm button again.');
         resolve(false);
       }, ATTACH_DEADLINE_MS);
     });
@@ -566,7 +566,7 @@ export class StemController {
     if (!ok) {
       store.setStatus(
         'error',
-        'Could not add the stemLM guide to the chat box. Click in the chat box and press the stemLM button again.',
+        'Could not add the stemlm guide to the chat box. Click in the chat box and press the stemlm button again.',
       );
       return false;
     }
@@ -578,7 +578,7 @@ export class StemController {
     const pasted = attachGuide && !attached.ok ? GUIDE_PASTED_NOTICE : undefined;
     if (!hasUserContent) {
       this.adapter.focusComposerQuestionSlot();
-      store.setStatus('idle', `${pasted ?? 'Guide attached.'} Type your question above the stemLM line, then send when ready.`);
+      store.setStatus('idle', `${pasted ?? 'Guide attached.'} Type your question above the stemlm line, then send when ready.`);
     } else {
       // Not "loading": nothing is on its way until the student sends (maybeQuestionSent).
       store.setStatus(useStore.getState().sessions.length ? 'ready' : 'idle', pasted);
@@ -1285,8 +1285,8 @@ export class StemController {
     } else {
       // A missing @end on a stable reply means the chat stopped writing.
       const lead = code === 'missing_end'
-        ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemLM button.'
-        : "stemLM couldn't read this answer. Press the stemLM button and send your question again.";
+        ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemlm button.'
+        : "stemlm couldn't read this answer. Press the stemlm button and send your question again.";
       store.setStatus('error', lead);
     }
     this.streamSeen = false;
@@ -1404,7 +1404,7 @@ export class StemController {
   private rejectPatch(detail: string): void {
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    useStore.getState().setStatus('error', `stemLM couldn't apply this change, so the answer on screen is unchanged.\n${detail}`);
+    useStore.getState().setStatus('error', `stemlm couldn't apply this change, so the answer on screen is unchanged.\n${detail}`);
     this.resetInjection();
   }
 
@@ -1459,7 +1459,7 @@ export class StemController {
         return;
       }
       if (!sessionAcceptsPatch(active)) {
-        this.rejectPatch('This change was written for a stemLM answer, but the answer on screen was arranged from a plain chat answer.');
+        this.rejectPatch('This change was written for a stemlm answer, but the answer on screen was arranged from a plain chat answer.');
         return;
       }
       const patched = applyStepPatch(active.capsule, result.patch);
@@ -1759,7 +1759,7 @@ export class StemController {
       } else {
         store.setStatus(
           'error',
-          'No answer to study in this chat yet. Ask a question, then open stemLM again once the chat has answered.',
+          'No answer to study in this chat yet. Ask a question, then open stemlm again once the chat has answered.',
         );
       }
     }
@@ -1956,7 +1956,7 @@ export class StemController {
     this.awaitingAnswer = false;
     // Nothing of stemLM's is on its way any more: the next reply is not one to open the panel for.
     this.answerStarted = true;
-    useStore.getState().setStatus('idle', 'The stemLM guide was removed from the chat box. Press the stemLM button to attach it again.');
+    useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Press the stemlm button to attach it again.');
   }
 
   resetInjection(): void {

@@ -87,7 +87,7 @@ export function SelectionPopover({
     if (!ctrl) {
       useStore
         .getState()
-        .setStatus('error', 'stemLM is not ready on this page. Reload the tab and try again.');
+        .setStatus('error', 'stemlm is not ready on this page. Reload the tab and try again.');
       return;
     }
     try {

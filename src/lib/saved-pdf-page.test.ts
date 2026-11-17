@@ -79,7 +79,7 @@ describe('saved-pdf page', () => {
     expect(exportSessionPdf).not.toHaveBeenCalled();
     expect(window.print).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain('VIEW-REPORT');
-    expect(document.title).toBe('stemLM');
+    expect(document.title).toBe('stemlm');
   });
 
   // D7: "download" saves a real PDF file (it used to open the print dialog).
@@ -168,7 +168,7 @@ describe('what the export window shows and offers', () => {
     expect(app().dataset.state).toBe('done');
     expect(app().querySelector('.slm-saved-pdf-progress')).toBeNull();
     expect(buttons()).toHaveLength(0);
-    expect(document.title).toBe('PDF saved - stemLM');
+    expect(document.title).toBe('PDF saved - stemlm');
   });
 
   it('a failed build interrupts, can be run again from the same window, and can be closed', async () => {

@@ -23,7 +23,7 @@ export const REMOVED_NOTICE = 'Question removed from the panel.';
  * question back). A note, not an error: the empty panel under it drops its how-to.
  */
 export const NO_ANSWER_NOTICE =
-  'The chat answered without stemLM steps. If it showed an error or a usage limit, wait a moment, then send your question again with the stemLM button.';
+  'The chat answered without stemlm steps. If it showed an error or a usage limit, wait a moment, then send your question again with the stemlm button.';
 export type PanelView = 'steps' | 'solution';
 
 export interface StoreState {

@@ -117,7 +117,7 @@ describe('SettingsOverlay', () => {
       'Share questions across tabs',
       'Open the panel automatically',
       "Collapse the chat's sidebar while the panel is open",
-      "Fold stemLM's text in the chat",
+      "Fold stemlm's text in the chat",
     ]);
     expect(container.textContent).not.toMatch(/usage data|analytics/i);
     unmount();
@@ -443,7 +443,7 @@ describe('SettingsOverlay', () => {
       'Share questions across tabs',
       'Open the panel automatically',
       "Collapse the chat's sidebar while the panel is open",
-      "Fold stemLM's text in the chat",
+      "Fold stemlm's text in the chat",
     ]);
     for (const row of rows) {
       expect(row.querySelector('.slm-settings-hint')?.textContent?.length, row.textContent ?? '').toBeGreaterThan(10);

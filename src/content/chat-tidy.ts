@@ -30,8 +30,8 @@ const READ_MAX = 100;
 /** The first characters of both lines stemLM writes above its own text in a message. */
 const NOTE_MARK = '--- stemLM';
 
-const ROW_LABEL = 'stemLM answer, shown in the panel';
-const ROW_LABEL_WRITING = 'stemLM answer, still being written';
+const ROW_LABEL = 'stemlm answer, shown in the panel';
+const ROW_LABEL_WRITING = 'stemlm answer, still being written';
 
 /**
  * The folded row takes its type and ink from the reply around it (`inherit`), and its surface is a
@@ -121,7 +121,7 @@ const BASE_CSS = `
 }
 [${NOTE_ATTR}] { position: relative !important; }
 [${NOTE_ATTR}]::after {
-  content: 'Show the stemLM guide';
+  content: 'Show the stemlm guide';
   position: absolute;
   white-space: nowrap;
   font-size: 0.8125em;
@@ -130,7 +130,7 @@ const BASE_CSS = `
   opacity: 0.7;
   cursor: pointer;
 }
-[${NOTE_ATTR}][${OPEN_ATTR}]::after { content: 'Hide the stemLM guide'; }
+[${NOTE_ATTR}][${OPEN_ATTR}]::after { content: 'Hide the stemlm guide'; }
 [${NOTE_ATTR}]:hover::after {
   opacity: 1;
   text-decoration: underline;

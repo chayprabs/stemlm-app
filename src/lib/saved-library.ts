@@ -25,7 +25,7 @@ export const ALL_SAVED_TIME = 'all';
 export const SAVED_SEARCH_PLACEHOLDER = 'Search a question to find it';
 export const OPEN_STUDY_PANEL_LABEL = 'Open study panel';
 export const SAVED_QUESTIONS_LABEL = 'Saved questions';
-export const STEMLM_TOGGLE_LABEL = 'stemLM';
+export const STEMLM_TOGGLE_LABEL = 'stemlm';
 export const SETTINGS_LABEL = 'Settings';
 export const LOAD_FROM_CHAT_LABEL = "Load this chat's answers";
 /** Compact toolbar action popup (well below the old 492px launch grid). */

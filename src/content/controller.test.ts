@@ -204,7 +204,7 @@ describe('production protocol delivery', () => {
     const controller = initController(adapter);
     expect(await controller.inject()).toBe(false);
     expect(useStore.getState().status).toBe('error');
-    expect(useStore.getState().errorMessage).toMatch(/Could not add the stemLM guide/);
+    expect(useStore.getState().errorMessage).toMatch(/Could not add the stemlm guide/);
     // A press of the stemlm button never opens the panel: the button itself shows the failure.
     expect(useStore.getState().panelOpen).toBe(false);
     expect(controller.takeAttachNotice()).toMatchObject({ tone: 'error' });
@@ -1073,7 +1073,7 @@ describe('INJ-01 attach abandoned mid-way', () => {
     const c = new StemController(adapter);
     expect(await c.inject()).toBe(false);
     expect(useStore.getState().status).toBe('error');
-    expect(useStore.getState().errorMessage).toMatch(/changed while stemLM was attaching/);
+    expect(useStore.getState().errorMessage).toMatch(/changed while stemlm was attaching/);
     expect(useStore.getState().buttonInjected).toBe(false);
     c.stopWatching();
   });
@@ -1781,7 +1781,7 @@ describe('StemController capture', () => {
       await vi.advanceTimersByTimeAsync(11_000);
       // The chat asked back instead of answering: the panel stops waiting and says so in a note.
       expect(useStore.getState().status).toBe('idle');
-      expect(useStore.getState().errorMessage).toMatch(/without stemLM steps/i);
+      expect(useStore.getState().errorMessage).toMatch(/without stemlm steps/i);
       expect(useStore.getState().buttonInjected).toBe(false);
       adapter.editorText = 'The applied force acts horizontally. Find the acceleration.';
       const retry = c.inject();
@@ -1945,7 +1945,7 @@ describe('StemController capture', () => {
     const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
     expect(lead).not.toMatch(/parser|code|capsule/i);
     // The message names the control to press, as it is drawn now: the stemLM button, not a plus.
-    expect(lead).toMatch(/\bstemLM button\b/);
+    expect(lead).toMatch(/\bstemlm button\b/);
     expect(lead).not.toMatch(/\+/);
     expect(detail).toEqual([]);
     c.stopWatching();
@@ -1971,7 +1971,7 @@ describe('StemController capture', () => {
       expect(lead).toMatch(/stopped before the end/i);
       expect(lead).toMatch(/continue/i);
       // The message names the control to press, as it is drawn now: the stemLM button, not a plus.
-      expect(lead).toMatch(/\bstemLM button\b/);
+      expect(lead).toMatch(/\bstemlm button\b/);
       expect(lead).not.toMatch(/\+/);
       expect(lead).not.toMatch(/parser|code|capsule/i);
       // D38: its closed steps are shown (cut off, unsaveable) with this notice, not an error.
@@ -2000,10 +2000,10 @@ describe('StemController capture', () => {
 
       const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
       console.log('NO_CAPSULE_MESSAGE', JSON.stringify(useStore.getState().errorMessage));
-      expect(lead).toMatch(/without stemLM steps/i);
+      expect(lead).toMatch(/without stemlm steps/i);
       expect(lead).toMatch(/error|limit/i);
       // The message names the control to press, as it is drawn now: the stemLM button, not a plus.
-      expect(lead).toMatch(/\bstemLM button\b/);
+      expect(lead).toMatch(/\bstemlm button\b/);
       expect(lead).not.toMatch(/\+/);
       expect(lead).not.toMatch(/parser|code|capsule/i);
       // A note about the chat's reply, not an error of stemLM's: no parser code under it, no red.

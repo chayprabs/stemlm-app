@@ -89,7 +89,7 @@ describe('Claude empty question staging', () => {
     await expectStagedProtocol();
     expect(useStore.getState()).toMatchObject({
       status: 'idle', buttonInjected: true,
-      errorMessage: 'Guide attached. Type your question above the stemLM line, then send when ready.',
+      errorMessage: 'Guide attached. Type your question above the stemlm line, then send when ready.',
     });
   });
 

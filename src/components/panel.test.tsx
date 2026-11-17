@@ -532,9 +532,9 @@ describe('Panel empty / loading / banner states', () => {
     const { container, unmount } = mountPanel();
 
     const panel = container.querySelector('[role="complementary"]');
-    expect(panel?.getAttribute('aria-label')).toBe('stemLM study panel');
+    expect(panel?.getAttribute('aria-label')).toBe('stemlm study panel');
     expect(container.textContent).toContain('Study panel');
-    expect(container.textContent).toContain('Type a question in the chat, then press the stemLM button.');
+    expect(container.textContent).toContain('Type a question in the chat, then press the stemlm button.');
     expect(container.textContent).not.toContain('beside send');
     expect(container.textContent).not.toContain('Open Gemini');
     expect(container.textContent).not.toContain("Load this chat's answers");
@@ -753,7 +753,7 @@ describe('Panel ready session', () => {
     await flush();
 
     const panel = container.querySelector('[role="complementary"]') as HTMLElement;
-    expect(panel.getAttribute('aria-label')).toBe('stemLM study panel');
+    expect(panel.getAttribute('aria-label')).toBe('stemlm study panel');
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Show progressive diagrams');
     // The question block: subject and topic as a small label, then the question itself.
     expect(container.querySelector('.slm-question-icon')).toBeNull();

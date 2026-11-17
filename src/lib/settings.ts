@@ -34,7 +34,7 @@ export interface Settings {
   autoOpenOnAnswer: boolean;
   /** Fold the chat site's own sidebar while the panel is open, and unfold it afterwards. */
   collapseHostSidebar: boolean;
-  /** Fold stemLM's answer blocks, and its lines under the student's question, in the chat itself. */
+  /** Fold stemlm's answer blocks, and its lines under the student's question, in the chat itself. */
   tidyChat: boolean;
   /** Tab shown when an answer opens: step-by-step or the full solution. */
   defaultView: DefaultView;

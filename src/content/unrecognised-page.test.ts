@@ -15,7 +15,7 @@ import { StemController } from './controller';
 import type { PlatformAdapter } from '@/src/platforms/types';
 import { useStore } from '@/src/state/store';
 
-const MESSAGE_BOX = "stemLM cannot find this site's message box. Use Paste an answer in the panel, or Copy the guide from the toolbar button.";
+const MESSAGE_BOX = "stemlm cannot find this site's message box. Use Paste an answer in the panel, or Copy the guide from the toolbar button.";
 const CAPSULE = [
   '@meta', 'version: 2', 'subject: Physics', 'topic: Incline', '@endmeta',
   '@step id=s1', 'title: Draw the forces', '@body', 'Weight, normal force and friction.', '@endbody', '@endstep',

@@ -347,7 +347,7 @@ export function Panel() {
       onPointerDown={onPanelPointerDown}
       {...panelMotion(Boolean(reducedMotion))}
       role="complementary"
-      aria-label="stemLM study panel"
+      aria-label="stemlm study panel"
       // The answer's language when the model named it, else the chat page's.
       lang={answerLang(session?.capsule.meta.locale) ?? (document.documentElement.lang || undefined)}
     >

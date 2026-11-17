@@ -266,7 +266,7 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).toContain('<path');
     const header = html.slice(html.indexOf('slm-report-wordmark'), html.indexOf('</header>'));
     expect(thereforeParts(parseSvg(header)).signal.length).toBeGreaterThan(0);
-    expect(html).toContain('PDF made using stemLM');
+    expect(html).toContain('PDF made using stemlm');
     expect(html).toContain('https://stemlm.app');
   });
 
