@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { prepareMathForRender } from './math-content';
+import { cpuMs } from './cpu-time';
 import {
   KNOWN_GAPS,
   PROSE_MATH_CORPUS,
@@ -116,19 +117,19 @@ describe('budget for text that is parsed and then left alone', () => {
     ['relations', 'x = 5 y '.repeat(4_000)],
     ['indexing', 'd[u] + w(u, v) '.repeat(2_500)],
     ['spelled words', 'mu_k g sin(theta) '.repeat(2_000)],
-  ])('prepares a long run of %s without slowing down on its length', (_label, input) => {
-    // The work is linear: 15-45 ms for these inputs on a quiet machine, about twice that at twice
-    // the length. The budget is for a runaway regression (backtracking, a quadratic pass), which
-    // takes seconds; it is wide because the suite runs in parallel and a busy machine can make even
-    // the fastest of three runs 20 times slower.
+  ])('prepares a long run of %s within 600 ms of CPU', (_label, input) => {
+    // The work is linear: 15-50 ms of CPU for these inputs, about twice that at twice the length.
+    // CPU time, the fastest of three runs: the budget measures the code, and its headroom covers a
+    // machine busy enough to slow every core (two full suites at once took about 300 ms). A runaway
+    // regression (backtracking, a quadratic pass) takes seconds.
     let output = '';
     let fastest = Infinity;
     for (let run = 0; run < 3; run++) {
-      const start = performance.now();
+      const start = cpuMs();
       output = md(input);
-      fastest = Math.min(fastest, performance.now() - start);
+      fastest = Math.min(fastest, cpuMs() - start);
     }
-    expect(fastest).toBeLessThan(2_000);
+    expect(fastest).toBeLessThan(600);
     expect(output.length).toBeGreaterThanOrEqual(input.trimEnd().length);
   }, 60_000);
 });

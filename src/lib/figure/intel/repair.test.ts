@@ -7,6 +7,7 @@ import { repairDiagram, type RepairCode } from './repair';
 import { parseLoose, readItems } from './structure';
 import { parseArrows, repairEdge, repairForce } from './records';
 import { closestTarget, editDistance, foldKey, foldType } from './fuzzy';
+import { cpuMs } from '../../cpu-time';
 
 const repair = (type: string, content: string) => repairDiagram({ type, content });
 const codes = (type: string, content: string): RepairCode[] => repair(type, content).repairs.map((entry) => entry.code);
@@ -97,13 +98,13 @@ describe('repairDiagram contract', () => {
       ['plot', fill('a:\n  - b:\n    c: d\n')],
       ['unknown-type-token', fill('&amp;lt; &#x41; &nbsp;key\u200b: value,\n')],
     ];
-    const started = performance.now();
+    const started = cpuMs();
     for (const [type, content] of inputs) {
-      const before = performance.now();
+      const before = cpuMs();
       expect(() => repairDiagram({ type, content })).not.toThrow();
-      expect(performance.now() - before, `${type}: ${content.slice(0, 30)}`).toBeLessThan(1000);
+      expect(cpuMs() - before, `${type}: ${content.slice(0, 30)}`).toBeLessThan(1000);
     }
-    expect((performance.now() - started) / inputs.length).toBeLessThan(400);
+    expect((cpuMs() - started) / inputs.length).toBeLessThan(400);
   });
 
   it('does not touch the DOM', () => {

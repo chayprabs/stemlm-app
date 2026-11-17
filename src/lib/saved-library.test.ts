@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { cpuMs } from './cpu-time';
 import {
   ALL_SAVED_SUBJECTS,
   ALL_SAVED_TIME,
@@ -70,9 +71,9 @@ it('PERS-02 filters a hundred records with a pasted question within 500 ms', () 
   let result: ReturnType<typeof filterSavedSessions> = [];
   let ms = Infinity;
   for (let run = 0; run < 3; run++) {
-    const start = performance.now();
+    const start = cpuMs();
     result = filterSavedSessions(items, { query });
-    ms = Math.min(ms, performance.now() - start);
+    ms = Math.min(ms, cpuMs() - start);
   }
   console.log(`PERS-02 items=${items.length} queryChars=${query.length} milliseconds=${ms.toFixed(1)}`);
   expect(result[0]!.id).toBe('s-3');

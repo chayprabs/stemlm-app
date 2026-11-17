@@ -6,6 +6,7 @@ import { PROTOCOL_VERSION } from '@/src/protocol/protocol';
 import type { Capsule } from '@/src/protocol/types';
 import { MAX_ANSWER_CHARS, structureAnswer, type StructuredAnswer } from './structure';
 import { ANSWERS, MANY_STEPS, type AnswerFixture } from './__fixtures__/answers';
+import { cpuMs } from '../lib/cpu-time';
 
 function structured(markdown: string, question?: string): StructuredAnswer {
   const result = structureAnswer(markdown, { question });
@@ -473,16 +474,16 @@ describe('structureAnswer: robustness', () => {
     const section = (n: number) => `### Step ${n}: Section ${n}\n\n${'A sentence of ordinary prose with $x_{1} = 2$ in it. '.repeat(40)}\n\n$$\ny = ${n}\n$$`;
     let big = '';
     for (let n = 1; big.length < MAX_ANSWER_CHARS + 60_000; n++) big += `${section(n)}\n\n`;
-    const started = performance.now();
+    const started = cpuMs();
     const result = structured(big);
-    expect(performance.now() - started).toBeLessThan(1500);
+    expect(cpuMs() - started).toBeLessThan(1500);
     expect(result.capsule.steps).toHaveLength(20);
     expect(JSON.stringify(result.capsule).length).toBeLessThan(MAX_ANSWER_CHARS * 1.2);
 
     const pathological = `${'a '.repeat(60_000)}\n\n${'$'.repeat(20_000)}\n\n${'**b** '.repeat(20_000)}`;
-    const again = performance.now();
+    const again = cpuMs();
     expect(() => structureAnswer(pathological)).not.toThrow();
-    expect(performance.now() - again).toBeLessThan(1500);
+    expect(cpuMs() - again).toBeLessThan(1500);
   });
 
   it('stays linear on lines built to make a pattern backtrack', () => {
@@ -500,11 +501,11 @@ describe('structureAnswer: robustness', () => {
       `Answer${' '.repeat(100_000)}x`,
       `${'x '.repeat(50_000)}\n${' '.repeat(100_000)}\n${'y '.repeat(50_000)}`,
     ];
-    const started = performance.now();
+    const started = cpuMs();
     for (const line of lines) {
       expect(() => structureAnswer(`${filler}\n\n${line}\n\n${filler}`, { question: line })).not.toThrow();
       expect(() => structureAnswer(`### Step 1: A\n\n${line}\n\n### Step 2: ${line}\n\n${filler}`)).not.toThrow();
     }
-    expect(performance.now() - started).toBeLessThan(3000);
+    expect(cpuMs() - started).toBeLessThan(3000);
   });
 });

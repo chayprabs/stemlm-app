@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { sanitizeSvg, extractSvg } from './sanitize';
+import { cpuMs } from './cpu-time';
 
 describe('sanitizeSvg', () => {
   it('SEC-02 refuses dense markup before expensive DOM sanitization', () => {
     const svg = `<svg>${'<circle cx="1" cy="1" r="1"/>'.repeat(20_000)}</svg>`;
-    const start = performance.now();
+    const start = cpuMs();
     expect(sanitizeSvg(svg)).toBe('');
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(cpuMs() - start).toBeLessThan(100);
   });
 
   it('SEC-02 refuses attribute-heavy markup before DOM sanitization', () => {
