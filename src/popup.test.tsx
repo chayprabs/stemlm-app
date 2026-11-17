@@ -13,6 +13,7 @@ import {
   STEMLM_TOGGLE_LABEL,
 } from '@/src/lib/popup-launch';
 import type { SavedSessionSnapshot } from '@/src/lib/saved-sessions';
+import { STEMLM_SENTINEL, buildInjectionPrompt } from '@/src/protocol/builder';
 
 const localStore: Record<string, unknown> = {};
 const sessionStore = new Map<string, unknown>();
@@ -320,14 +321,19 @@ describe('popup chrome', () => {
   it('opens the study panel on ChatGPT, Claude and Grok tabs and rejects unsupported tabs', async () => {
     tabsSendMessage.mockClear();
     activeTab = { id: 20, url: 'https://example.com/' };
+    // Off a chat the button is not on offer, and the reason is on the page before anything is pressed.
     const rejected = await renderPopup();
+    const unavailable = rejected.container.querySelector('[data-launch="open-study-panel"]') as HTMLButtonElement;
+    expect(unavailable.disabled).toBe(true);
+    const why = rejected.container.querySelector(`#${unavailable.getAttribute('aria-describedby')}`);
+    expect(why?.textContent).toBe('Open a chat tab (ChatGPT, Claude, Gemini, Grok) to use the study panel.');
+    expect(rejected.container.querySelector('[role="alert"]')).toBeNull();
     await act(async () => {
-      clickLaunch(rejected.container, 'open-study-panel');
+      unavailable.click();
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(tabsSendMessage).not.toHaveBeenCalled();
-    expect(rejected.container.querySelector('[role="alert"]')?.textContent).toContain('ChatGPT, Claude, Gemini, Grok');
     expect(window.close).not.toHaveBeenCalled();
     rejected.unmount();
 
@@ -578,6 +584,53 @@ describe('popup chrome', () => {
       });
       expect(tabsCreate).toHaveBeenCalledWith({ url: host.url, active: true });
     }
+    unmount();
+  });
+
+  it('shows on a chat that the panel can be opened, with nothing to explain', async () => {
+    activeTab = { id: 4, url: 'https://claude.ai/chat/abc' };
+    const { container, unmount } = await renderPopup();
+    const open = container.querySelector('[data-launch="open-study-panel"]') as HTMLButtonElement;
+    expect(open.disabled).toBe(false);
+    expect(open.hasAttribute('aria-describedby')).toBe(false);
+    expect(container.querySelector('.slm-popup-open-hint')).toBeNull();
+    unmount();
+  });
+
+  it('Copy the guide puts the compact guide on the clipboard, as the builder writes it, and stays open', async () => {
+    const writeText = vi.fn(async (_text: string) => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { container, unmount } = await renderPopup();
+    const row = container.querySelector('[data-launch="copy-guide"]') as HTMLButtonElement;
+    expect(row.querySelector('.slm-popup-row-title')?.textContent).toBe('Copy the guide');
+    expect(container.querySelector(`#${row.getAttribute('aria-describedby')}`)?.textContent).toMatch(/paste it under your question/);
+    await act(async () => {
+      row.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = writeText.mock.calls[0]![0];
+    // The builder's own text for a chat that takes no file: nothing is retyped in the popup.
+    expect(copied).toBe(buildInjectionPrompt('').prompt);
+    expect(copied.startsWith(STEMLM_SENTINEL)).toBe(true);
+    expect(copied).toContain('@meta');
+    expect(copied.length).toBeGreaterThan(2000);
+    expect(row.querySelector('.slm-popup-row-title')?.textContent).toBe('Guide copied');
+    expect(container.querySelector('[role="status"]')?.textContent).toMatch(/on the clipboard/);
+    expect(window.close).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('says so on the row when the clipboard refuses the guide', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn(async () => { throw new Error('denied'); }) }, configurable: true });
+    const { container, unmount } = await renderPopup();
+    const row = container.querySelector('[data-launch="copy-guide"]') as HTMLButtonElement;
+    await act(async () => {
+      row.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(row.querySelector('.slm-popup-row-title')?.textContent).toBe('Could not copy the guide');
+    expect(row.dataset.state).toBe('failed');
     unmount();
   });
 });

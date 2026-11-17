@@ -288,7 +288,7 @@ describe('restyle: one design system across the panel', () => {
     expect(ruleFor(pages, '.slm-set-switch')).toMatch(/border:\s*1\.5px solid var\(--slm-fg-subtle\)/);
     expect(optionsHtml).not.toMatch(/slm-set-switch|#0e7c76|#3dcdc4/);
     // A long label can never push the switch out of the row.
-    expect(pages).toMatch(/\.slm-popup-toggle \.slm-popup-row-title\s*\{[^}]*min-width:\s*0/);
+    expect(ruleFor(pages, '.slm-popup-toggle .slm-popup-row-title')).toMatch(/min-width:\s*0/);
     expect(pages).toMatch(/\.slm-popup-actions\s*\{[^}]*flex-direction:\s*column/);
 
     // Every interactive thing on the pages shows the shared 2px ring on keyboard focus.

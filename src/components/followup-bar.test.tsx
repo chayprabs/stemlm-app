@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { FollowupBar } from './FollowupBar';
+import { buildFollowupCopyText } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -94,7 +95,8 @@ describe('FollowupBar states and announcements', () => {
           subject="Math"
           stepTitle="Substitute"
           intent="ask"
-          hint="Try: why does the sign flip here?"
+          anchor={{ sessionId: 'q', anchorStepId: 's2' }}
+          suggestion="Why does the sign flip here?"
         />,
       );
     });
@@ -166,8 +168,46 @@ describe('FollowupBar states and announcements', () => {
   it('shows a learner-facing suggestion rather than the raw quoted context', () => {
     const mounted = mountBar();
     const text = mounted.container.querySelector('.slm-followup-text') as HTMLElement;
-    expect(text.textContent).toContain('why does the sign flip here?');
+    expect(text.textContent).toBe('Try: Why does the sign flip here?');
     expect(text.textContent).not.toContain('Explain the next step.');
     mounted.unmount();
+  });
+
+  it('makes the suggestion a button that puts that question in the chat box, nothing to retype', async () => {
+    followUpMock.mockResolvedValue(true);
+    const mounted = mountBar();
+    const suggest = mounted.container.querySelector('.slm-followup-suggest') as HTMLButtonElement;
+    expect(suggest.tagName).toBe('BUTTON');
+    expect(suggest.textContent).toBe('Try: Why does the sign flip here?');
+    await act(async () => {
+      suggest.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(followUpMock).toHaveBeenCalledTimes(1);
+    expect(followUpMock).toHaveBeenCalledWith('Explain the next step.', 'Substitute', 'Math', {
+      intent: 'ask',
+      anchor: { sessionId: 'q', anchorStepId: 's2' },
+      question: 'Why does the sign flip here?',
+    });
+    // The same confirmation as the main button, which still sends an empty slot to type in.
+    const ask = mounted.container.querySelector('.slm-followup-action--ask') as HTMLButtonElement;
+    expect(ask.textContent).toContain('Added to chat');
+    followUpMock.mockClear();
+    await act(async () => {
+      ask.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(followUpMock.mock.calls[0]![3]).toEqual({ intent: 'ask', anchor: { sessionId: 'q', anchorStepId: 's2' }, question: undefined });
+    mounted.unmount();
+  });
+
+  it('writes a suggested question into the slot of the message, under its label and above the context', () => {
+    const base = { selection: 'Problem: a block on an incline', stepTitle: 'Normal force', intent: 'ask' as const };
+    const empty = buildFollowupCopyText(base);
+    const filled = buildFollowupCopyText({ ...base, question: 'Why does $N$ depend on  the angle?\n' });
+    expect(empty.startsWith('Ask your question here:\n\n\n--- stemLM follow-up context')).toBe(true);
+    expect(filled.startsWith('Ask your question here:\nWhy does $N$ depend on the angle?\n\n--- stemLM follow-up context')).toBe(true);
+    // Nothing else of the message changes.
+    expect(filled.slice(filled.indexOf('--- stemLM'))).toBe(empty.slice(empty.indexOf('--- stemLM')));
   });
 });

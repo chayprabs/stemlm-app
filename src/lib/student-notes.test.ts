@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Capsule } from '@/src/protocol/types';
 import {
-  foldStudentNotes,
+  studentNotes,
   isProtocolPlaceholder,
   isStudentVerifyPrompt,
   normalizeStudentLine,
@@ -22,9 +22,9 @@ function capsule(over: Partial<Capsule> = {}): Capsule {
   };
 }
 
-describe('foldStudentNotes', () => {
+describe('studentNotes', () => {
   it('keeps a contentful verify note and drops screenshot chrome', () => {
-    const notes = foldStudentNotes(
+    const notes = studentNotes(
       capsule({
         verification: {
           methods: ['units', 'backsub', 'oom'],
@@ -38,12 +38,12 @@ describe('foldStudentNotes', () => {
         },
       }),
     );
-    expect(notes).toEqual([BACK_SUB]);
-    expect(notes.join('\n')).not.toMatch(/status:|methods:|student check|low-confidence|\bnone\b|Verify that/i);
+    expect(notes).toEqual({ check: [BACK_SUB], checkFailed: false, assumptions: [] });
+    expect(JSON.stringify(notes)).not.toMatch(/status:|methods:|student check|low-confidence|\bnone\b|Verify that/i);
   });
 
-  it('folds real assumptions and fail corrections as ordinary lines', () => {
-    const notes = foldStudentNotes(
+  it('keeps real assumptions and a failed check with its correction, each as what it is', () => {
+    const notes = studentNotes(
       capsule({
         verification: {
           methods: ['units'],
@@ -58,19 +58,38 @@ describe('foldStudentNotes', () => {
         },
       }),
     );
-    expect(notes).toEqual([
-      'mA vs A',
-      'I is 2 A, not 2 mA',
-      'g = 9.81 m/s^2 (not given)',
-      'rms not peak',
-    ]);
-    expect(notes.join('\n')).not.toContain('s2');
-    expect(notes.join('\n')).not.toContain('photo labels');
+    expect(notes).toEqual({
+      check: ['mA vs A', 'I is 2 A, not 2 mA'],
+      // The model said its own check did not pass: that is not dropped with the status line.
+      checkFailed: true,
+      assumptions: ['g = 9.81 m/s^2 (not given)', 'rms not peak'],
+    });
+    expect(JSON.stringify(notes)).not.toContain('s2');
+    expect(JSON.stringify(notes)).not.toContain('photo labels');
+  });
+
+  it('reports a failed check that came with no words at all', () => {
+    expect(studentNotes(capsule({ verification: { methods: ['units'], status: 'fail', notes: 'none' } }))).toEqual({
+      check: [],
+      checkFailed: true,
+      assumptions: [],
+    });
+  });
+
+  it('says a line once, where it first appears', () => {
+    expect(
+      studentNotes(
+        capsule({
+          verification: { methods: ['units'], status: 'pass', notes: 'g = 9.81 m/s^2 (not given)' },
+          uncertainty: { assumptions: ['G = 9.81 m/s^2 (not given)', 'rms not peak'], lowConfidenceSteps: [], studentChecks: [] },
+        }),
+      ),
+    ).toEqual({ check: ['g = 9.81 m/s^2 (not given)'], checkFailed: false, assumptions: ['rms not peak'] });
   });
 
   it('returns nothing when every field is a placeholder or student check', () => {
     expect(
-      foldStudentNotes(
+      studentNotes(
         capsule({
           verification: { methods: ['units'], status: 'pass', notes: 'none' },
           uncertainty: {
@@ -80,11 +99,11 @@ describe('foldStudentNotes', () => {
           },
         }),
       ),
-    ).toEqual([]);
+    ).toEqual({ check: [], checkFailed: false, assumptions: [] });
   });
 
   it('strips assumption:/correction: prefixes but drops status/methods lines', () => {
-    const notes = foldStudentNotes(
+    const notes = studentNotes(
       capsule({
         verification: {
           methods: ['units'],
@@ -98,7 +117,7 @@ describe('foldStudentNotes', () => {
         },
       }),
     );
-    expect(notes).toEqual(['I is 2 A, not 2 mA', 'g = 9.81 m/s^2 (not given)']);
+    expect(notes).toEqual({ check: ['I is 2 A, not 2 mA'], checkFailed: false, assumptions: ['g = 9.81 m/s^2 (not given)'] });
   });
 });
 

@@ -99,10 +99,12 @@ async function popupSuite(scheme) {
   await seedSaved(0);
   {
     const page = await openPage('popup.html', scheme, viewport);
+    // Off a chat the panel button is not on offer and says why; the guide can still be copied by hand.
+    if (!(await page.locator('[data-launch="open-study-panel"]').isDisabled())) throw new Error('"Open study panel" is enabled off a chat');
     await shot(page, `popup-${scheme}-1-other-tab`, { locator: page.locator('.slm-popup') });
-    await page.locator('[data-launch="open-study-panel"]').click();
+    await page.locator('[data-launch="copy-guide"]').click();
     await settle(page, 500);
-    await shot(page, `popup-${scheme}-2-other-tab-error`, { locator: page.locator('.slm-popup') });
+    await shot(page, `popup-${scheme}-2-guide-copied`, { locator: page.locator('.slm-popup') });
     await page.close();
   }
   await seedSaved(12);

@@ -33,7 +33,7 @@ import {
   THREAD_PROTOCOL_SELECTORS,
 } from '@/src/protocol/builder';
 import { buildStepEntries } from '@/src/lib/step-entries';
-import { INGEST_NOTICE, questionFromUserTurn, readPlainAnswer, type PlainAnswer } from './plain-answer';
+import { questionFromUserTurn, readPlainAnswer, structurePlainAnswer, type PlainAnswer } from './plain-answer';
 import { attachTextFile, hasConfirmedAttachment } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import {
@@ -54,7 +54,7 @@ import type {
   Subject,
 } from '@/src/protocol/types';
 import type { FollowupIntent } from '@/src/protocol/builder';
-import { useStore } from '@/src/state/store';
+import { NO_ANSWER_NOTICE, useStore } from '@/src/state/store';
 import { trackEvent } from '@/src/lib/analytics';
 import { rememberCurrentChat } from '@/src/lib/last-chat';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
@@ -311,6 +311,11 @@ export class StemController {
   // Stability tracking for the no-`@end` fallback.
   private stableText = '';
   private stableSince = 0;
+  /**
+   * The chat's own sign that it is writing was seen on since the last reply was dealt with. When
+   * it is off again, the reply is over and need not be measured for quiet.
+   */
+  private streamSeen = false;
 
   constructor(adapter: PlatformAdapter, private readonly delivery: 'auto' | 'file' = 'auto') {
     this.adapter = adapter;
@@ -480,7 +485,8 @@ export class StemController {
     const attachGuide = guideNeeded(
       question,
       sentStudentMessages(document, this.adapter.findEditor()),
-      store.status !== 'error' && store.sessions[store.sessions.length - 1]?.origin !== 'ingest',
+      store.status !== 'error' && store.errorMessage !== NO_ANSWER_NOTICE &&
+        store.sessions[store.sessions.length - 1]?.origin !== 'ingest',
     );
     const attached = attachGuide
       ? await this.attachGuideFile(payload.fileContent, hasImageAttachment, operation)
@@ -575,6 +581,8 @@ export class StemController {
       intent?: FollowupIntent;
       /** Attach the answer inline after this step instead of replacing the session. */
       anchor?: { sessionId: string; anchorStepId: string };
+      /** A question to put in the slot (the answer's own suggestion), so nothing has to be retyped. */
+      question?: string;
     },
   ): Promise<boolean> {
     const normalized = normalizeFollowupSelection(selection);
@@ -603,6 +611,7 @@ export class StemController {
       subject,
       intent: opt?.intent,
       qid: store.sessions.find((s) => s.id === opt?.anchor?.sessionId)?.capsule.meta.qid,
+      question: opt?.question,
     };
     const operation = this.beginComposerOperation();
     // The follow-up text carries its own answer shape, so no file is uploaded with it.
@@ -732,8 +741,7 @@ export class StemController {
     this.sentBaseline = sentStudentMessages(document, this.adapter.findEditor()).length;
     this.streamingAtArm = this.adapter.isStreaming();
     this.baselineAssistantText = this.adapter.getLatestAssistantText();
-    this.stableText = '';
-    this.stableSince = 0;
+    this.resetQuiet();
     try {
       const blocks = this.adapter.getAssistantBlocks();
       this.baselineBlocks = blocks.length;
@@ -790,8 +798,14 @@ export class StemController {
       clearTimeout(this.stabilityTimer);
       this.stabilityTimer = null;
     }
+    this.resetQuiet();
+  }
+
+  /** Measure the next reply afresh: nothing seen of an earlier one counts for it. */
+  private resetQuiet(): void {
     this.stableText = '';
     this.stableSince = 0;
+    this.streamSeen = false;
   }
 
   /**
@@ -831,6 +845,9 @@ export class StemController {
     this.checkGuideStillAttached();
     this.maybeQuestionSent();
     this.maybeAnswerStarted();
+    const streaming = this.adapter.isStreaming();
+    // Seen before the reply has any text too: a short reply can be whole by the next look.
+    if (streaming) this.streamSeen = true;
 
     const capsules = this.adapter.extractCapsules();
     const latest = capsules[capsules.length - 1];
@@ -856,12 +873,13 @@ export class StemController {
     }
     // The chat is writing this answer now (its text moved, or the chat says so): show the steps
     // it has finished instead of waiting for the last one.
-    if (candidate.includes('@meta') && (changed || this.adapter.isStreaming()) && this.inNewestReply(norm)) {
+    if (candidate.includes('@meta') && (changed || streaming) && this.inNewestReply(norm)) {
       this.showClosedSteps(candidate, false);
     }
-    // Re-evaluate once mutations go quiet for STABILITY_MS.
+    // Re-evaluate once mutations go quiet. A chat whose own sign of writing has been seen is asked
+    // again soon: when that sign goes off the reply is over, capsule or not.
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
-    const delay = candidate.includes('@meta') ? STABILITY_MS : NO_CAPSULE_STABILITY_MS;
+    const delay = candidate.includes('@meta') || this.streamSeen ? STABILITY_MS : NO_CAPSULE_STABILITY_MS;
     this.stabilityTimer = setTimeout(() => this.evaluateStable(), delay);
   }
 
@@ -905,7 +923,9 @@ export class StemController {
     // A paused stream is not an error: keep waiting, and keep any follow-up
     // anchor, so the finished answer still lands where the student asked.
     const quietFor = Date.now() - this.stableSince;
-    const stall = this.adapter.isStreaming() ? STREAMING_STALL_MS : PARTIAL_STALL_MS;
+    // The chat showed it was writing and no longer does: the reply is over, and need not sit
+    // under "loading" for as long as a stream that may only have paused.
+    const stall = this.adapter.isStreaming() ? STREAMING_STALL_MS : this.streamSeen ? STABILITY_MS : PARTIAL_STALL_MS;
     if (quietFor < stall) {
       this.stabilityTimer = setTimeout(() => this.evaluateStable(), Math.min(STABILITY_MS, stall - quietFor));
       return;
@@ -955,14 +975,14 @@ export class StemController {
         ? last : undefined;
     this.commitSession(this.plainSession(answer, question, replaced), Boolean(replaced));
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
-    this.stableText = '';
-    this.stableSince = 0;
+    this.resetQuiet();
     void rememberCurrentChat(this.adapter.id);
     this.forgetCutOff();
     this.awaitingAnswer = false;
     this.lastQuestion = '';
     this.resetInjection();
-    useStore.getState().setStatus('ready', INGEST_NOTICE);
+    // No status line: the panel says where this answer came from under its question, once.
+    useStore.getState().setStatus('ready');
     void trackEvent('question_solved', {
       platform: this.adapter.id,
       subject: answer.capsule.meta.subject,
@@ -1010,7 +1030,8 @@ export class StemController {
     // answer waits for its continuation, a reply still being written is left until it ends.
     const shown = pending && result.raw.startsWith(pending.raw) ? pending : undefined;
     if (pending && !shown && !stopped) return false;
-    if (shown?.raw !== result.raw) {
+    const fresh = shown?.raw !== result.raw;
+    if (fresh) {
       const session: Session = {
         id: shown?.id ?? makeId(),
         createdAt: shown?.createdAt ?? Date.now(),
@@ -1027,10 +1048,14 @@ export class StemController {
       void rememberCurrentChat(this.adapter.id);
       this.resetInjection();
     }
+    const wasWriting = store.writingId === this.cutOffId;
     if (stopped) {
-      useStore.setState({ writingId: undefined, status: 'ready', errorMessage: CUT_OFF_NOTICE });
-    } else if (store.writingId !== this.cutOffId || store.errorMessage === CUT_OFF_NOTICE) {
-      // Writing again after a pause that looked like the end: the notice no longer holds.
+      // Said once: a notice the student dismissed does not come back while nothing changes.
+      if (fresh || wasWriting) useStore.setState({ writingId: undefined, status: 'ready', errorMessage: CUT_OFF_NOTICE });
+      // The chat's sign of writing was wrong about this reply, or is gone: go by quiet from here.
+      this.streamSeen = false;
+    } else if (!wasWriting) {
+      // Writing (again, after a pause that looked like the end): that notice no longer holds.
       useStore.setState((s) => ({
         writingId: this.cutOffId ?? undefined,
         ...(s.errorMessage === CUT_OFF_NOTICE ? { errorMessage: undefined } : {}),
@@ -1121,8 +1146,7 @@ export class StemController {
 
     this.rememberCaptured(key);
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
-    this.stableText = '';
-    this.stableSince = 0;
+    this.resetQuiet();
     const turn = this.studentTurnAbove(onPage);
     this.captureFromText(candidate, this.askedQuestion(turn), result, turn);
   }
@@ -1167,14 +1191,19 @@ export class StemController {
     // same-topic capsule without a qid can replace the active session.
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    // No capsule at all is usually the chat's own error or usage-limit reply, not a garbled answer;
-    // a missing @end on a stable reply means the chat stopped writing.
-    const lead = code === 'no_capsule'
-      ? 'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm button.'
-      : code === 'missing_end'
+    const store = useStore.getState();
+    if (code === 'no_capsule') {
+      // The chat replied, but not with an answer: a refusal, a usage limit, a question back.
+      // Nothing of stemLM's failed, so this is a note, not an error.
+      store.setStatus(store.sessions.length ? 'ready' : 'idle', NO_ANSWER_NOTICE);
+    } else {
+      // A missing @end on a stable reply means the chat stopped writing.
+      const lead = code === 'missing_end'
         ? 'This answer is incomplete: the chat stopped before the end. Ask the chat to continue it, or send your question again with the stemlm button.'
         : "stemlm couldn't read this answer. Click the stemlm button and send your question again.";
-    useStore.getState().setStatus('error', `${lead}\nParser code: ${code}.`);
+      store.setStatus('error', `${lead}\nParser code: ${code}.`);
+    }
+    this.streamSeen = false;
     this.resetInjection();
     void trackEvent('extension_error', {
       platform: this.adapter.id,
@@ -1758,6 +1787,25 @@ export class StemController {
     });
     this.adoptLoaded(sessions);
     return sessions.length;
+  }
+
+  /**
+   * Study an answer the student pasted, for a page stemLM cannot read or a chat it does not
+   * support. A stemLM answer is read as one; anything else is arranged into steps as a plain
+   * answer. Nothing on the page is touched. False when the text holds no answer to study.
+   */
+  loadFromText(text: string): boolean {
+    const result = parse(text);
+    const capsule = hasCaptureContract(result) && result.capsule?.steps.length ? result.capsule : null;
+    const plain = capsule ? null : structurePlainAnswer(text, '');
+    if (!capsule && !plain) return false;
+    const now = Date.now();
+    this.adoptLoaded([
+      capsule
+        ? { id: makeId(), createdAt: now, updatedAt: now, platform: this.adapter.id, question: capsule.meta.question?.trim() || capsule.meta.topic, capsule, raw: result.raw }
+        : this.plainSession(plain!, ''),
+    ]);
+    return true;
   }
 
   /**

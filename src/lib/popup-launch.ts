@@ -45,6 +45,16 @@ export function unsupportedHostNotice(labels: string[] = supportedChatLabels()):
   return `Open a chat tab (${names}) to use the study panel.`;
 }
 
+/**
+ * The compact guide as text for any chat box: the way to use stemLM by hand, in a chat it does
+ * not run on. Written by the builder that writes it into a chat box, and loaded only when asked
+ * for, so the popup opens without the guide's text.
+ */
+export async function guideForPasting(): Promise<string> {
+  const { buildInjectionPrompt } = await import('@/src/protocol/builder');
+  return buildInjectionPrompt('').prompt;
+}
+
 export type LaunchResult =
   | { ok: true; loaded?: number }
   | { ok: false; empty: true }

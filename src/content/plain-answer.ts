@@ -11,10 +11,6 @@ import { messageToMarkdown, structureAnswer } from '@/src/ingest';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { LEGACY_GUIDE_FILENAME, STUDY_GUIDE_FILENAME } from '@/src/lib/study-guide';
 
-/** Status line shown when an answer the student asked stemLM for arrived without the format. */
-export const INGEST_NOTICE =
-  'The chat did not use the stemlm format, so this view was structured from its answer.';
-
 /**
  * A closing token of the capsule grammar alone on a line. `@meta` anywhere already makes a message
  * a capsule candidate for the adapters; this also catches a capsule that lost its opening. Opening
@@ -79,7 +75,11 @@ function isReasoning(message: Element): boolean {
  */
 export function readPlainAnswer(message: Element, question: string): PlainAnswer | null {
   if (isReasoning(message) || carriesStemlmText(message.textContent ?? '')) return null;
-  const markdown = messageToMarkdown(message);
+  return structurePlainAnswer(messageToMarkdown(message), question);
+}
+
+/** The same for an answer already in hand as Markdown or plain text: one the student pasted. */
+export function structurePlainAnswer(markdown: string, question: string): PlainAnswer | null {
   if (!markdown.trim() || carriesStemlmText(markdown)) return null;
   const structured = structureAnswer(markdown, { question });
   if (!structured) return null;

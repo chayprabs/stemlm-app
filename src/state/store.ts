@@ -18,6 +18,12 @@ export type PanelStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** The status line after a question is removed from the strip; Undo is offered beside it. */
 export const REMOVED_NOTICE = 'Question removed from the panel.';
+/**
+ * The status line when the chat's reply is not an answer at all (a refusal, a usage limit, a
+ * question back). A note, not an error: the empty panel under it drops its how-to.
+ */
+export const NO_ANSWER_NOTICE =
+  'This reply has no stemlm answer. If the chat showed an error or a usage limit, wait a moment, then send your question again with the stemlm button.';
 export type PanelView = 'steps' | 'solution';
 
 export interface StoreState {

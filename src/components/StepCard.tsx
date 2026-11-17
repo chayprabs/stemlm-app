@@ -11,22 +11,21 @@ import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
 import { AnswerBlock } from './AnswerBlock';
+import { OriginNote } from './OriginNote';
 import { IconTherefore } from './icons';
 import { stepMotion, type StepDirection } from './step-motion';
 
-function learnerFacingFollowupHint(raw: string | undefined): string {
+/** The follow-up question the answer suggests for a step, when it is one a student could ask as written. */
+function suggestedQuestion(raw: string | undefined): string | undefined {
   const cleaned = raw ? stripProtocolMarkers(raw).trim() : '';
   const internalInstruction =
     /\b(?:mode\s*:\s*(?:patch|new|resolve|full)|op\s*=\s*(?:replace|insert|delete)|qid|step\s+id|figure\s+repair|(?:replace|insert|delete|repair)\s+(?:the\s+|this\s+|a\s+)?(?:diagram|figure|step|patch))\b/i;
-  if (
+  const askable =
     cleaned &&
     !/\b(?:q\d+\.)?s\d+\b/i.test(cleaned) &&
     !/@(?:meta|step|patch|diagram|end)\b/i.test(cleaned) &&
-    !internalInstruction.test(cleaned)
-  ) {
-    return `Try: ${cleaned}`;
-  }
-  return 'Ask a question about this step; its work and formula will be added to chat.';
+    !internalInstruction.test(cleaned);
+  return askable ? cleaned : undefined;
 }
 
 export function StepCard({
@@ -46,10 +45,9 @@ export function StepCard({
   if (!step) return null;
 
   // Every step carries its own Ask-in-chat: step-specific context goes into
-  // the composer, the student types the question, and the answer comes back
-  // anchored right after this step in the rail.
+  // the composer, the student types the question (or takes the one the answer
+  // suggests), and the answer comes back anchored right after this step in the rail.
   const followupSelection = buildStepFollowupSelection(session, step);
-  const suggested = learnerFacingFollowupHint(step.followup);
   // Answer-level flags open the answer; its checks and assumptions close it.
   // Printing either inside every step makes them read as that step's work.
   const total = session.capsule.steps.length;
@@ -91,6 +89,7 @@ export function StepCard({
 
       {isLast && <AnswerBlock capsule={session.capsule} theme={theme} />}
       {isLast && <StudentAnswerNotes capsule={session.capsule} />}
+      {isLast && <OriginNote session={session} variant="detail" />}
 
       <FollowupBar
         followup={followupSelection}
@@ -98,7 +97,8 @@ export function StepCard({
         stepTitle={step.title}
         intent="ask"
         anchor={{ sessionId: session.id, anchorStepId: step.id }}
-        hint={suggested}
+        hint="Ask about this step: its working and formula go into the chat box with your question."
+        suggestion={suggestedQuestion(step.followup)}
       />
     </motion.article>
   );

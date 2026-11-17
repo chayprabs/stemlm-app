@@ -1779,7 +1779,9 @@ describe('StemController capture', () => {
       adapter.editorText = '';
       adapter.capsules = ['Please clarify which force acts horizontally.'];
       await vi.advanceTimersByTimeAsync(11_000);
-      expect(useStore.getState().status).toBe('error');
+      // The chat asked back instead of answering: the panel stops waiting and says so in a note.
+      expect(useStore.getState().status).toBe('idle');
+      expect(useStore.getState().errorMessage).toMatch(/no stemlm answer/i);
       expect(useStore.getState().buttonInjected).toBe(false);
       adapter.editorText = 'The applied force acts horizontally. Find the acceleration.';
       const retry = c.inject();
@@ -2004,7 +2006,9 @@ describe('StemController capture', () => {
       expect(lead).toMatch(/\bstemlm button\b/);
       expect(lead).not.toMatch(/\+/);
       expect(lead).not.toMatch(/parser|code|capsule/i);
-      expect(detail.join('\n')).toBe('Parser code: no_capsule.');
+      // A note about the chat's reply, not an error of stemLM's: no parser code under it, no red.
+      expect(detail).toEqual([]);
+      expect(useStore.getState().status).toBe('idle');
     } finally {
       c.stopWatching();
       vi.useRealTimers();

@@ -15,17 +15,20 @@ import {
   type ResolvedTheme,
 } from '@/src/lib/theme';
 import { BrandWordmark, themeToBrandVariant } from '@/src/components/brand';
-import { IconChevronRight, IconPanel, IconSettings } from '@/src/components/icons';
+import { IconCheck, IconChevronRight, IconCopy, IconPanel, IconSettings } from '@/src/components/icons';
+import { useCopy } from '@/src/components/use-copy';
 import { HostLogo } from '@/src/components/host-logos';
 import { getActiveTab } from '@/src/lib/tab-bridge';
 import {
   CHAT_HOST_LAUNCH,
   STEMLM_TOGGLE_LABEL,
+  guideForPasting,
   openChatHost,
   openSavedQuestionsLibrary,
   openSettingsOverlay,
   openStudyPanel,
   openWelcomePage,
+  unsupportedHostNotice,
   type LaunchResult,
 } from '@/src/lib/popup-launch';
 import { adapterForUrl, isSupportedChatUrl } from '@/src/platforms/detect';
@@ -50,6 +53,7 @@ export default function App() {
   const [stemlmEnabled, setStemlmEnabled] = useState(stemlmEnabledFromBootCache);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [guideCopy, copyGuide] = useCopy();
 
   useLayoutEffect(() => {
     applyTheme(document.documentElement, theme);
@@ -140,19 +144,25 @@ export default function App() {
 
   const onChat = tab.status === 'chat';
 
+  // The panel lives on a chat page. Anywhere else the button is not on offer, and the line under
+  // it says where it is: nothing has to be pressed to find that out.
   const openPanel = (
     <div key="panel" className="slm-popup-primary">
       <button
         type="button"
         data-launch="open-study-panel"
         className={`slm-popup-open${onChat ? ' is-primary' : ''}`}
-        disabled={launching}
+        disabled={launching || !onChat}
         aria-busy={launching}
+        aria-describedby={tab.status === 'other' ? 'slm-popup-open-hint' : undefined}
         onClick={() => void launchAndClose(openStudyPanel)}
       >
         <IconPanel width={16} height={16} aria-hidden="true" />
         <span>Open study panel</span>
       </button>
+      {tab.status === 'other' && (
+        <p className="slm-popup-open-hint" id="slm-popup-open-hint">{unsupportedHostNotice()}</p>
+      )}
       {sendError && <p className="slm-popup-error" role="alert">{sendError}</p>}
     </div>
   );
@@ -217,6 +227,28 @@ export default function App() {
         )}
         <IconChevronRight className="slm-popup-row-chevron" width={14} height={14} aria-hidden="true" />
       </button>
+      {/* The manual way: the guide as text for any chat box, where stemlm cannot put it there itself. */}
+      <button
+        type="button"
+        data-launch="copy-guide"
+        className="slm-popup-row slm-popup-copy"
+        data-state={guideCopy === 'idle' ? undefined : guideCopy}
+        aria-describedby="slm-popup-guide-hint"
+        onClick={() => void copyGuide(guideForPasting)}
+      >
+        <span className="slm-popup-row-title">
+          {guideCopy === 'copied' ? 'Guide copied' : guideCopy === 'failed' ? 'Could not copy the guide' : 'Copy the guide'}
+        </span>
+        {guideCopy === 'copied'
+          ? <IconCheck className="slm-popup-copy-icon" width={15} height={15} aria-hidden="true" />
+          : <IconCopy className="slm-popup-copy-icon" width={15} height={15} aria-hidden="true" />}
+        <span className="slm-popup-row-hint" id="slm-popup-guide-hint">
+          For any other chat: paste it under your question, then paste the answer into the study panel.
+        </span>
+      </button>
+      <span className="slm-sr-only" role="status" aria-live="polite">
+        {guideCopy === 'copied' ? 'The stemlm guide is on the clipboard.' : guideCopy === 'failed' ? 'The guide could not be copied.' : ''}
+      </span>
     </div>
   );
 

@@ -1,6 +1,7 @@
 /**
  * Student-facing fold of protocol @verify / @uncertainty.
- * Keep parsing those blocks internally; never surface their chrome.
+ * Keep parsing those blocks internally; never surface their chrome. What they say is shown as
+ * the model's own words, never as something stemLM checked.
  */
 import type { Capsule } from '@/src/protocol/types';
 
@@ -40,36 +41,36 @@ export function normalizeStudentLine(text: string): string | null {
   return t;
 }
 
-/**
- * Contentful statements trapped in verification/uncertainty, as ordinary
- * unlabeled answer lines. Drops status, methods, low-confidence ids,
- * student-check prompts, and empty/`none` placeholders.
- */
-export function foldStudentNotes(capsule: Capsule): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-
-  const push = (raw: string | undefined) => {
-    if (!raw) return;
-    for (const piece of raw.split(/\n+/)) {
-      const t = normalizeStudentLine(piece);
-      if (!t) continue;
-      const key = t.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(t);
-    }
-  };
-
-  push(capsule.verification?.notes);
-  push(capsule.verification?.correction);
-  for (const assumption of capsule.uncertainty?.assumptions ?? []) {
-    push(assumption);
-  }
-
-  return out;
+export interface StudentNotes {
+  /** What the model wrote about checking its own answer, and any correction it made. */
+  check: string[];
+  /** The model itself reported that its check did not pass. */
+  checkFailed: boolean;
+  /** What the model assumed that the question did not give. */
+  assumptions: string[];
 }
 
-export function foldStudentNotesMarkdown(capsule: Capsule): string {
-  return foldStudentNotes(capsule).join('\n\n');
+/**
+ * Contentful statements trapped in verification/uncertainty, by what they are. Drops status,
+ * methods, low-confidence ids, student-check prompts, and empty/`none` placeholders. A failed
+ * self-check is kept as a fact of its own: without it a "fail" reads exactly like a pass.
+ */
+export function studentNotes(capsule: Capsule): StudentNotes {
+  const seen = new Set<string>();
+  const lines = (...raw: Array<string | undefined>) => {
+    const out: string[] = [];
+    for (const piece of raw.flatMap((text) => text?.split(/\n+/) ?? [])) {
+      const t = normalizeStudentLine(piece);
+      if (!t || seen.has(t.toLowerCase())) continue;
+      seen.add(t.toLowerCase());
+      out.push(t);
+    }
+    return out;
+  };
+
+  return {
+    check: lines(capsule.verification?.notes, capsule.verification?.correction),
+    checkFailed: capsule.verification?.status === 'fail',
+    assumptions: lines(...(capsule.uncertainty?.assumptions ?? [])),
+  };
 }

@@ -246,6 +246,14 @@ body.slm-popup-page[data-stemlm-theme] {
 .slm-popup-open:disabled {
   opacity: 0.6;
 }
+/* Why the button is not on offer here, said under it. */
+.slm-popup-open-hint {
+  margin: 8px 0 0;
+  font-size: var(--slm-text-xs);
+  line-height: 1.45;
+  color: var(--slm-fg-muted);
+  text-align: center;
+}
 .slm-popup-error {
   margin: 10px 0 0;
   padding: 1px 0 1px 10px;
@@ -295,22 +303,37 @@ body.slm-popup-page[data-stemlm-theme] {
   line-height: 1.45;
   color: var(--slm-fg-muted);
 }
-/* Title and switch share a line; the explanation runs the full width beneath them. */
-.slm-popup-toggle {
+/* Title and its control share a line; the explanation runs the full width beneath them. */
+.slm-popup-toggle,
+.slm-popup-copy {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 12px;
   row-gap: 4px;
 }
-.slm-popup-toggle .slm-popup-row-title {
+.slm-popup-toggle .slm-popup-row-title,
+.slm-popup-copy .slm-popup-row-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.slm-popup-toggle .slm-popup-row-hint {
+.slm-popup-toggle .slm-popup-row-hint,
+.slm-popup-copy .slm-popup-row-hint {
   grid-column: 1 / -1;
+}
+.slm-popup-copy-icon {
+  color: var(--slm-fg-subtle);
+}
+.slm-popup-copy:hover .slm-popup-copy-icon {
+  color: var(--slm-fg);
+}
+.slm-popup-copy[data-state='copied'] .slm-popup-copy-icon {
+  color: var(--slm-success);
+}
+.slm-popup-copy[data-state='failed'] .slm-popup-row-title {
+  color: var(--slm-error);
 }
 .slm-popup-link-row .slm-popup-row-title {
   flex: 1 1 auto;

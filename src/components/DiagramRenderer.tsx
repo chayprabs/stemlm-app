@@ -33,6 +33,9 @@ export interface DiagramRendererProps {
   onCompileFailure?: (failure: DiagramCompileFailure | null) => void;
 }
 
+/** Shown in place of a figure the compiler refused. */
+export const FIGURE_OMITTED = 'A figure here could not be drawn correctly, so it is left out.';
+
 /** Wider than the step's 300 x 165 budget box (FIG-SIZE-02). */
 const WIDE_FIGURE_ASPECT = 1.8;
 
@@ -102,7 +105,9 @@ export function DiagramRenderer({ diagram, theme, size = 'step', section = false
     }
   }, [resolved, diagram.type, diagram.content]);
 
-  if (!resolved?.ok) return null;
+  // A figure that cannot be drawn correctly is left out, never drawn wrong. On a reading surface
+  // one quiet line says so: the text may refer to it, and silence would read as nothing missing.
+  if (!resolved?.ok) return resolved && section ? <p className="slm-figure-omitted">{FIGURE_OMITTED}</p> : null;
   const { svg, overlays } = resolved;
   // A title that repair or translation surfaced (a `title:` line, a Mermaid title) is the caption too.
   const caption = diagram.caption ?? resolved.caption;

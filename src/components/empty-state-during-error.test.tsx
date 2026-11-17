@@ -20,7 +20,9 @@ it('does not promise unloaded answers while the banner says this answer could no
   try {
     await act(async () => { root.render(<EmptyState />); });
     expect(container.textContent).not.toContain("aren't loaded yet");
-    expect(container.querySelector('button')).toBeNull();
+    expect(container.querySelector('.slm-empty-load')).toBeNull();
+    // The manual way in is what is left when an answer could not be read.
+    expect([...container.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Paste an answer']);
     expect(container.textContent).toContain('Study workspace');
   } finally {
     act(() => root.unmount());

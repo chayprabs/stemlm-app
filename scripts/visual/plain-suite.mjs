@@ -11,7 +11,7 @@ import { hostOrigin, hostPage, plainAssistant, userTurn } from './hosts.mjs';
 import { BINARY_SEARCH, DERIVATIVE, MOLARITY, PROJECTILE, REFUSAL } from './plain-answers.mjs';
 
 const QUADRATIC_QUESTION = 'Solve 2x² − 4x − 6 = 0.';
-const ORIGIN_NOTE = 'Structured from the chat answer. Not checked by stemlm.';
+const ORIGIN_NOTE = 'Structured from the chat answer.';
 
 /** One plain answer per host, each in a different shape the structurer reads. */
 const HOSTED = [
@@ -274,9 +274,8 @@ async function captureSuite(h, scheme) {
 
   // The reply is read only once it has stopped changing for ten seconds.
   await expectStructured(page);
-  const notice = await panel.locator('.slm-banner').innerText();
-  if (!/did not use the stemlm format/.test(notice)) throw new Error(`status line reads "${notice}"`);
-  if (await panel.locator('.slm-banner-error').count()) throw new Error('the fallback was reported as an error');
+  // The note under the question is the one place the origin is said: no status line repeats it.
+  if (await panel.locator('.slm-banner').count()) throw new Error(`a status line as well as the origin note: "${await panel.locator('.slm-banner').innerText()}"`);
   await h.settle(page, 900);
   await h.shot(page, `plain-capture-${scheme}`);
   await h.shot(page, `plain-capture-${scheme}-crop`, { locator: panel });

@@ -286,6 +286,9 @@ body{font:10.5pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-a
 .slm-report-check .slm-prose{padding-bottom:26px;border-bottom:1px dotted ${T.fgMuted};}
 .slm-report-solution{margin:0 0 22px;}
 .slm-answer-notes{margin:0 0 16px;padding-left:12px;border-left:1px solid ${T.rule};font-size:9pt;line-height:1.45;color:${T.fgMuted};}
+.slm-answer-note + .slm-answer-note{margin-top:8px;}
+.slm-answer-note-label{display:block;margin:0 0 2px;${LABEL}color:${T.fgMuted};}
+.slm-answer-note-failed{margin:0 0 2px;font-weight:600;color:${T.fg};}
 .slm-report-check-answers{margin:0 0 16px;font-size:9pt;line-height:1.45;color:${T.fgMuted};}
 .slm-report-check-answers .slm-takeaway-label{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid ${T.rule};}
 .slm-report-check-answer{display:flex;align-items:baseline;gap:10px;margin:3px 0 0;}
