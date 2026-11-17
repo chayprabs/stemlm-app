@@ -64,7 +64,7 @@ import {
   pagesToPdfBlob,
   triggerPdfFileDownload,
 } from './pdf';
-import { CONTENT_WIDTH_PT, MARGIN_X_PT, MARGIN_Y_PT } from './pdf-paginate';
+import { A4_HEIGHT_PT, CONTENT_HEIGHT_PT, CONTENT_WIDTH_PT, MARGIN_X_PT, MARGIN_Y_PT } from './pdf-paginate';
 
 /** Saved at local 2026-09-26 14:00; merged exports are dated by the clock (faked to the next day). */
 const SAVED_AT = new Date(2026, 8, 26, 14, 0).getTime();
@@ -185,6 +185,102 @@ describe('PDF file download', () => {
   });
 });
 
+describe('running footer', () => {
+  const spies: { mockRestore: () => void }[] = [];
+
+  /** A 2D context that records the text drawn on each canvas. Text measures 6px a character. */
+  function recordCanvases(): string[][] {
+    const drawn: string[][] = [];
+    spies.push(
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
+        const texts: string[] = [];
+        drawn.push(texts);
+        return {
+          scale: () => undefined,
+          fillRect: () => undefined,
+          fillText: (text: string) => texts.push(text),
+          measureText: (text: string) => ({ width: text.length * 6 }),
+        } as unknown as CanvasRenderingContext2D;
+      }),
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockImplementation(() => `data:image/png;base64,footer-${drawn.length}`),
+    );
+    return drawn;
+  }
+
+  beforeEach(() => {
+    downloadMock.mockClear();
+    addImage.mockClear();
+    addPage.mockClear();
+    renderHtmlToPageImages.mockReset();
+    renderHtmlToPageImages.mockResolvedValue(pages(1032));
+  });
+
+  afterEach(() => {
+    for (const spy of spies.splice(0)) spy.mockRestore();
+  });
+
+  it('puts the brand, the topic and the folio on every page, under the page box and inside the sheet', async () => {
+    const drawn = recordCanvases();
+    await pagesToPdfBlob(pages(1032, 1032, 240), 'Arithmetic');
+
+    expect(drawn).toEqual([
+      ['page 1 of 3', 'stemlm', 'Arithmetic'],
+      ['page 2 of 3', 'stemlm', 'Arithmetic'],
+      ['page 3 of 3', 'stemlm', 'Arithmetic'],
+    ]);
+    const footers = addImage.mock.calls.filter((call) => String(call[0]).includes('footer-'));
+    expect(footers.map((call) => call[0])).toEqual([1, 2, 3].map((n) => `data:image/png;base64,footer-${n}`));
+    for (const call of footers) {
+      expect(call[2]).toBeCloseTo(MARGIN_X_PT, 5);
+      expect(call[4]).toBeCloseTo(CONTENT_WIDTH_PT, 5);
+      // The same place on every page, a short last page included: clear of the page's content
+      // box, and at least 4mm from the edge of the paper.
+      expect(call[3]).toBe(footers[0]?.[3]);
+      expect(call[3]).toBeGreaterThan(MARGIN_Y_PT + CONTENT_HEIGHT_PT + 6);
+      expect(call[3] + call[5]).toBeLessThan(A4_HEIGHT_PT - 11.4);
+    }
+    // The page images are placed exactly as without a footer.
+    const sheets = addImage.mock.calls.filter((call) => String(call[0]).includes('page-'));
+    expect(sheets).toHaveLength(3);
+    for (const call of sheets) expect(call[3]).toBeCloseTo(MARGIN_Y_PT, 5);
+    expect(addPage).toHaveBeenCalledTimes(2);
+  });
+
+  it('cuts a long topic short of the folio instead of drawing under it', async () => {
+    const drawn = recordCanvases();
+    await pagesToPdfBlob(pages(600), 'A topic that goes on and on '.repeat(12));
+    const [folio, brand, topic] = drawn[0] as [string, string, string];
+    expect(topic.endsWith('…')).toBe(true);
+    expect(topic.startsWith('A topic that goes on')).toBe(true);
+    // 688px column: the folio is right-aligned, the brand starts at the 40px text edge.
+    const topicRight = 40 + brand.length * 6 + 12 + topic.length * 6;
+    expect(topicRight).toBeLessThanOrEqual(688 - folio.length * 6 - 24);
+    expect(topicRight).toBeGreaterThan(688 - folio.length * 6 - 24 - 14);
+  });
+
+  it('names the topic of one answer and the count of a merged file', async () => {
+    const drawn = recordCanvases();
+    await downloadSessionPdf(session());
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', 'Arithmetic']);
+
+    await downloadSessionsPdf([session('a'), session('b'), session('c')]);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '3 questions']);
+  });
+
+  it('names nothing beside the brand when the topic only opens the question or needs typesetting', async () => {
+    const drawn = recordCanvases();
+    const opening = session('o', 'What is 2 + 2 when both are counted twice?');
+    opening.capsule.meta.topic = 'What is 2 + 2 when…';
+    await downloadSessionPdf(opening);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '']);
+
+    const tex = session('t');
+    tex.capsule.meta.topic = 'Evaluate $\\int_0^1 x\\,dx$';
+    await downloadSessionPdf(tex);
+    expect(drawn.at(-1)).toEqual(['page 1 of 1', 'stemlm', '']);
+  });
+});
+
 describe('merged PDF download', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -219,9 +315,7 @@ describe('merged PDF download', () => {
     expect(renderHtmlToPageImages).toHaveBeenCalledOnce();
     const body = bodyOf(String(renderHtmlToPageImages.mock.calls[0]?.[0] ?? ''));
     expect(body).toContain('slm-report slm-report--merged');
-    expect(body).toContain('Q1.');
-    expect(body).toContain('Q2.');
-    expect(body).toContain('Q3.');
+    for (const label of ['Q1', 'Q2', 'Q3']) expect(body).toContain(`slm-report-label">${label}<`);
     expect(body).toContain('Find the impedance.');
     expect(body).toContain('Solve the quadratic.');
     expect(body).toContain('3 questions');
@@ -245,7 +339,8 @@ describe('merged PDF download', () => {
     const body = bodyOf(String(renderHtmlToPageImages.mock.calls[0]?.[0] ?? ''));
     expect(body).not.toContain('slm-report--merged');
     expect(body).toContain('Just one.');
-    expect(body).toContain('slm-report-label">Q.<');
+    // A single report does not number its question.
+    expect(body).not.toContain('slm-report-label');
     expect(downloadMock).toHaveBeenCalledWith(
       expect.objectContaining({ filename: 'stemlm - arithmetic - 2026-09-26.pdf' }),
     );

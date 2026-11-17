@@ -83,6 +83,9 @@ describe('stored snapshot → report document', () => {
     expect(html).toContain('Write the impedance');
     expect(html).toContain('slm-report-q-text');
     expect(html).not.toContain('class="slm-report-solution"');
-    expect(html).not.toContain('Z = 12.4 Ω inductive');
+    // The stored solution is the answer block that leads the working.
+    const answer = html.slice(html.indexOf('slm-report-answer"'), html.indexOf('class="slm-report-step"'));
+    expect(answer).toContain('<span class="slm-takeaway-label">Answer</span>');
+    expect(answer).toContain('12.4');
   });
 });

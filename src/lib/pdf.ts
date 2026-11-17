@@ -16,21 +16,34 @@ import {
   Report,
   collectDiagrams,
   collectMergedDiagrams,
+  localDate,
+  mergedReportKicker,
+  plainText,
+  type DiagramNote,
 } from '@/src/components/Report';
 import { resolveDiagram } from './resolve-diagram';
 import type { Overlay } from './figure/types';
 import { PRINT_DIAGRAM_MM } from './diagram-bounds';
-import { CONTENT_WIDTH_PX, sliceRectPt } from './pdf-paginate';
+import {
+  CONTENT_HEIGHT_PT,
+  CONTENT_WIDTH_PT,
+  CONTENT_WIDTH_PX,
+  MARGIN_X_PT,
+  MARGIN_Y_PT,
+  PX_TO_PT,
+  sliceRectPt,
+} from './pdf-paginate';
 import {
   BlankRenderError,
   RENDER_CLASS,
+  RENDER_SCALE,
   renderHtmlToPageImages,
   type RenderOptions,
   type RenderedPage,
 } from './pdf-raster';
+import { repeatsQuestion, resolveSessionQuestion } from './session-question';
 import { trackEvent } from './analytics';
 import { FONT_MONO, FONT_SANS, fontFaceCss } from './fonts';
-import { BRAND_SIGNAL } from '@/src/components/brand';
 /** KaTeX layout rules; the report embeds the bundled faces of fonts.ts (no CDN, works offline). */
 import katexCssRaw from './katex.min.css.txt?raw';
 const embeddedFonts = {
@@ -80,23 +93,29 @@ export function describePdfError(err: unknown): string {
   return raw.replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
-/** Light reading canvas — same inks as the panel, paper white for print. */
+/**
+ * Paper and ink: the panel's light tokens, set for a page that is printed, often in greyscale.
+ * Nothing needs colour or a tint to be read: every surface also has a rule.
+ */
 const T = {
   bg: '#ffffff',
   fg: '#121212',
+  // Labels, captions and small print. Kept above the normal-text contrast threshold: a
+  // decorative grey fades on paper.
   fgMuted: '#5c5c63',
-  // The footer is 8.5pt on white paper; keep it above the normal-text
-  // contrast threshold instead of using a decorative gray that fades in print.
-  fgSubtle: '#5c5c63',
-  border: '#e2e2e4',
-  borderSubtle: '#ebebed',
-  signal: BRAND_SIGNAL,
-  bgSubtle: '#f5f5f5',
-  formulaBg: '#efefef',
-  formulaFg: '#121212',
-  formulaBorder: '#e2e2e4',
-  radiusMd: '10px',
+  // Hairlines, dark enough to hold when a laser printer halftones them.
+  rule: '#bdbdb6',
+  tint: '#f4f4f2',
+  // The signal as ink (the panel's --slm-signal-ink), on the step numerals only. Prints as dark grey.
+  signal: '#c2410c',
+  mat: '#ebebe8',
+  radius: '3px',
 } as const;
+
+/** Reading measure: about 75 characters of body text. The rest of the column is margin for notes. */
+const MEASURE_PX = 544;
+/** Inset of the text from the left page margin: room to punch or bind the sheet, and for the step numerals. */
+const GUTTER_PX = 40;
 
 function embeddedFont(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1);
@@ -110,11 +129,6 @@ function reportFontCss(): string {
 }
 
 const PDF_NAME_MAX = 60;
-
-/** Local calendar date, so a PDF saved in the evening is not dated tomorrow (UTC). */
-function localDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('sv-SE'); // yyyy-mm-dd
-}
 
 /** ASCII lowercase-hyphen words, cut at a word boundary to fit `max`. */
 function slug(text: string, max: number): string {
@@ -152,6 +166,7 @@ export function reportPrintTitle(_session?: Session): string {
 interface ResolvedDiagrams {
   svg: Record<string, string>;
   overlays: Record<string, Overlay[]>;
+  notes: Record<string, DiagramNote>;
 }
 
 /**
@@ -164,6 +179,7 @@ async function resolveKeyedDiagrams(
 ): Promise<ResolvedDiagrams> {
   const svg: Record<string, string> = {};
   const overlays: Record<string, Overlay[]> = {};
+  const notes: Record<string, DiagramNote> = {};
   const deadline = Date.now() + DIAGRAM_BUDGET_MS;
   for (const { key, diagram } of entries) {
     if (Date.now() > deadline) {
@@ -178,101 +194,147 @@ async function resolveKeyedDiagrams(
       }
       svg[key] = resolved.svg;
       overlays[key] = resolved.overlays;
+      if (resolved.corrected || resolved.caption) {
+        notes[key] = { corrected: resolved.corrected, caption: resolved.caption };
+      }
     } catch (err) {
       reportPdfIssue(`diagram ${key}`, err);
     }
   }
-  return { svg, overlays };
+  return { svg, overlays, notes };
 }
 
 async function resolveDiagrams(session: Session): Promise<ResolvedDiagrams> {
   return resolveKeyedDiagrams(collectDiagrams(session));
 }
 
+/** The instrument voice: small mono capitals for the name of an object on the page. */
+const LABEL = `font:500 7.5pt/1.6 ${FONT_MONO};letter-spacing:.07em;text-transform:uppercase;`;
+
+/**
+ * The print sheet. Type sizes are points that land on whole CSS pixels (7.5pt = 10px, 10.5pt = 14px,
+ * 12pt = 16px), so the rasteriser never sets a line on a half pixel. Colour carries nothing: the
+ * answer is a ruled box, the key relation a tinted well with a hairline, a takeaway a ruled note.
+ *
+ * A page can end at the edge of any block the paginator keeps whole, and that edge is rounded to a
+ * pixel. A rule drawn exactly on it would be cut in two, leaving a ghost line on the page before.
+ * So no kept block carries a rule on its own top or bottom edge: the rule sits on a child, a pixel
+ * inside (the answer box, the formula well, a code block, a table's rows), or under a label.
+ */
 export function printStyles(): string {
   return `
 *{box-sizing:border-box;}
 @page{size:A4;margin:12mm 14mm;}
 html,body{margin:0;padding:0;background:${T.bg};color:${T.fg};}
-body{font:11pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-.slm-report{max-width:680px;margin:0 auto;}
-.slm-report-head{margin:0 0 6px;}
-.slm-report-head-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid ${T.signal};}
-.slm-report-brand-wrap{display:flex;align-items:center;gap:8px;min-width:0;}
+body{font:10.5pt/1.5 ${FONT_SANS};-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.slm-report{max-width:${CONTENT_WIDTH_PX}px;margin:0 auto;padding-left:${GUTTER_PX}px;}
+.slm-report-head{margin:0 0 20px;}
+.slm-report-head-row{display:flex;align-items:center;padding-bottom:9px;border-bottom:1px solid ${T.fg};}
 .slm-report-wordmark{display:inline-flex;line-height:0;}
-.slm-report-wordmark svg{display:block;height:22px;width:auto;}
-.slm-report-subject{font-size:9pt;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:${T.fgMuted};line-height:1;}
-.slm-report-topic{margin:0;font-size:13pt;font-weight:600;letter-spacing:-.03em;line-height:1.25;color:${T.fg};}
-.slm-report-q-block{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:start;margin:0 0 8px;padding:4px 0 8px;border-bottom:0.5px solid ${T.border};}
-.slm-report-label{margin-top:1px;font-family:${FONT_SANS};font-weight:600;font-size:10pt;letter-spacing:.02em;color:${T.fgMuted};line-height:1.5;}
-.slm-report-q{min-width:0;}
-.slm-report-q-text{font-weight:500;font-size:11pt;line-height:1.5;color:${T.fg};}
-.slm-report-a{display:flex;flex-direction:column;width:100%;}
-.slm-report-step{margin:0;padding:6px 0 8px;border:0;border-bottom:0.5px solid ${T.borderSubtle};background:transparent;}
-.slm-report-step:last-of-type{border-bottom:0;padding-bottom:0;}
-.slm-report-step-head{display:flex;align-items:center;gap:8px;margin:0 0 5px;}
-.slm-report-step-head .slm-step-index{flex:0 0 auto;width:16px;height:16px;color:${T.fg};}
-.slm-report-step-title{margin:0;flex:1;min-width:0;font-size:11pt;font-weight:600;letter-spacing:-.02em;line-height:1.3;color:${T.fg};}
-.slm-formula{margin:2px 0 6px;padding:7px 12px;background:${T.formulaBg};border:0.5px solid ${T.formulaBorder};border-radius:${T.radiusMd};overflow-x:auto;text-align:center;color:${T.formulaFg};}
-.slm-formula-label,.slm-step-work-label,.slm-takeaway-label,.slm-step-diagram-label{display:block;font-size:8.5pt;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:${T.fgMuted};margin-bottom:3px;text-align:left;}
-.slm-formula .slm-prose{text-align:center;}
+.slm-report-wordmark svg{display:block;height:18px;width:auto;}
+.slm-report-title{margin:22px 0 0;font-size:18pt;font-weight:600;letter-spacing:-.02em;line-height:1.2;}
+.slm-report-meta{display:flex;flex-wrap:wrap;gap:0 14px;margin:8px 0 0;font:400 7.5pt/1.6 ${FONT_MONO};color:${T.fgMuted};}
+.slm-report-contents{list-style:none;max-width:${MEASURE_PX}px;margin:16px 0 0;padding:0;}
+.slm-report-contents li{display:flex;align-items:baseline;gap:10px;margin:0;padding:3px 0;line-height:1.4;}
+.slm-report-contents .slm-report-label{flex:0 0 24px;}
+.slm-report-contents .slm-prose{flex:1;min-width:0;}
+.slm-report-entry-head{display:flex;align-items:baseline;gap:8px;margin:0 0 6px;font:400 7.5pt/1.6 ${FONT_MONO};color:${T.fgMuted};}
+.slm-report--merged .slm-report-entry-head{margin:30px 0 12px;padding-bottom:7px;border-bottom:1px solid ${T.fg};}
+.slm-report-label{flex:0 0 auto;${LABEL}color:${T.fg};}
+.slm-report-subject{flex:0 0 auto;${LABEL}color:${T.fgMuted};white-space:nowrap;}
+.slm-report-sep{color:${T.rule};}
+.slm-report-topic{min-width:0;margin:0;font:inherit;color:inherit;}
+.slm-report-topic .katex{font-size:1em;}
+.slm-report-q-block{max-width:${MEASURE_PX}px;margin:0 0 22px;}
+.slm-report-q-text{font-size:13.5pt;font-weight:500;line-height:1.4;letter-spacing:-.008em;}
+.slm-report-q-text .katex{font-size:1.1em;}
+.slm-signals{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px;}
+.slm-signal--flag{padding:2px 8px;border:1px solid ${T.fg};border-radius:${T.radius};${LABEL}}
+.slm-report-a{max-width:${MEASURE_PX}px;}
+.slm-report-step{margin:0 0 22px;}
+.slm-report-step-head{position:relative;margin:0 0 6px;}
+.slm-report-step-n{position:absolute;left:-29px;top:0;line-height:0;}
+.slm-report-step-n .slm-step-index{display:block;width:20px;height:20px;color:${T.signal};}
+.slm-report-step-title{margin:0;font-size:12pt;font-weight:600;letter-spacing:-.012em;line-height:1.3;}
+.slm-report-step-title .katex{font-size:1.05em;}
+.slm-formula{margin:8px 0 10px;padding:1px 0;}
+.slm-formula .slm-prose{padding:10px 14px;background:${T.tint};border:1px solid ${T.rule};border-radius:${T.radius};text-align:center;}
 .slm-formula .katex-display{margin:0;}
-.slm-formula .katex{font-size:1.22em;color:${T.formulaFg};}
-.slm-step-work{margin:1px 0 6px;}
-.slm-step-work-body{font-size:11pt;line-height:1.5;color:${T.fg};}
-.slm-step-diagram{margin:6px 0 6px;padding:8px 10px;background:${T.formulaBg};border:0.5px solid ${T.formulaBorder};border-radius:${T.radiusMd};}
-.slm-takeaway{margin:6px 0 0;padding:7px 10px;border:0.5px solid ${T.border};background:${T.bgSubtle};border-radius:${T.radiusMd};font-size:11pt;line-height:1.45;color:${T.fg};}
-.slm-takeaway p{margin:0;}
-.slm-report-solution{margin:0;padding:0;border:0;background:transparent;}
-.slm-report-entry{display:block;}
-.slm-report-entry+.slm-report-entry{margin-top:13px;padding-top:11px;border-top:0.5px solid ${T.border};}
-.slm-report-entry-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 3px;}
-.slm-report-entry-head .slm-report-topic{margin:0;font-size:12pt;}
-.slm-report-entry-subject{flex:0 0 auto;font-size:8.5pt;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:${T.fgMuted};line-height:1.4;white-space:nowrap;}
-.slm-report--merged .slm-report-q-block{padding-top:0;}
-.slm-report-diagram{display:flex;justify-content:center;align-items:center;width:100%;max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:4px auto 0;padding:0;}
+.slm-formula .katex{font-size:1.15em;}
+.slm-step-work{margin:0 0 8px;}
+.slm-step-diagram{margin:14px 0 16px;}
+.slm-report-diagram{display:flex;justify-content:center;align-items:center;width:100%;max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:0 auto;padding:0;}
 .slm-diagram-frame{position:relative;display:inline-block;line-height:0;max-width:100%;overflow:visible;}
 .slm-diagram-svg{display:inline-block;line-height:0;max-width:100%;}
-.slm-report-diagram svg{display:block;width:auto;max-width:100%;height:auto;max-height:${PRINT_DIAGRAM_MM.maxH}mm;}
-.slm-report-diagram-caption{max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:3px auto 0;text-align:center;font-size:8.5pt;line-height:1.4;color:${T.fgSubtle};}
+/* The figure's own drawing only: a math label on it holds KaTeX's SVGs (a radical, a brace), which size themselves. */
+.slm-report-diagram .slm-diagram-svg>svg{display:block;width:auto;max-width:100%;height:auto;max-height:${PRINT_DIAGRAM_MM.maxH}mm;}
+.slm-report-diagram-caption,.slm-report-diagram-note{max-width:${PRINT_DIAGRAM_MM.maxW}mm;margin:6px auto 0;text-align:center;font-size:9pt;line-height:1.4;color:${T.fgMuted};}
+.slm-report-diagram-note{margin-top:3px;font-size:8.25pt;}
 .slm-diagram-overlay{position:absolute;pointer-events:none;white-space:nowrap;color:${T.fg};font-size:9.5pt;line-height:1;}
 .slm-diagram-overlay .katex{font-size:1em;}
-.slm-report-foot{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:8px;border-top:0.5px solid ${T.border};font-size:8.5pt;color:${T.fgSubtle};break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}
-.slm-report-foot-link{display:inline-flex;line-height:0;color:inherit;text-decoration:none;}
-.slm-report-foot-link svg{display:block;}
+.slm-takeaway{margin:12px 0 0;padding:1px 0 2px 12px;border-left:2px solid ${T.fg};line-height:1.45;}
+.slm-takeaway-label{display:block;margin:0 0 2px;${LABEL}color:${T.fgMuted};}
+.slm-takeaway .slm-prose,.slm-takeaway p{font-weight:500;}
+.slm-takeaway p{margin:0;}
+.slm-report-answer{margin:0 0 26px;padding:1px 0;border:0;}
+.slm-report-answer-box{padding:10px 14px 12px;border:1px solid ${T.fg};border-radius:${T.radius};}
+.slm-report-answer .slm-step-diagram{margin:10px 0 4px;}
+.slm-report-check{margin-top:14px;padding:0 0 1px;border-left:0;}
+.slm-report-check-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 2px;}
+.slm-report-check-head .slm-takeaway-label{margin:0;color:${T.fg};}
+.slm-report-check-hint{font-size:8.25pt;font-weight:400;line-height:1.4;color:${T.fgMuted};}
+.slm-report-check .slm-prose{padding-bottom:26px;border-bottom:1px dotted ${T.fgMuted};}
+.slm-report-solution{margin:0 0 22px;}
+.slm-answer-notes{margin:0 0 16px;padding-left:12px;border-left:1px solid ${T.rule};font-size:9pt;line-height:1.45;color:${T.fgMuted};}
+.slm-report-check-answers{margin:0 0 16px;font-size:9pt;line-height:1.45;color:${T.fgMuted};}
+.slm-report-check-answers .slm-takeaway-label{margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid ${T.rule};}
+.slm-report-check-answer{display:flex;align-items:baseline;gap:10px;margin:3px 0 0;}
+.slm-report-check-n{flex:0 0 14px;font:500 7.5pt/1.6 ${FONT_MONO};color:${T.fg};}
+.slm-report-check-answer .slm-prose{flex:1;min-width:0;}
+.slm-report-origin{margin:0;font-size:8.25pt;line-height:1.45;color:${T.fgMuted};}
+.slm-report-foot{margin-top:28px;padding-top:9px;border-top:1px solid ${T.fg};font-size:8.25pt;line-height:1.45;color:${T.fgMuted};break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}
+.slm-report-smallprint{max-width:${MEASURE_PX}px;margin:0 0 3px;}
+.slm-report-made{display:flex;gap:14px;margin:0;font:400 7.5pt/1.6 ${FONT_MONO};}
+.slm-report-foot-link{color:inherit;text-decoration:none;}
 .slm-prose{overflow-wrap:anywhere;word-wrap:break-word;}
-.slm-prose p{margin:0 0 5px;orphans:3;widows:3;}
+.slm-prose p{margin:0 0 7px;orphans:3;widows:3;}
 .slm-prose :first-child{margin-top:0;}
 .slm-prose :last-child{margin-bottom:0;}
-.slm-report-topic,.slm-report-step-head,.slm-report-step-title{break-after:avoid;page-break-after:avoid;}
+.slm-prose strong,.slm-prose b{font-weight:600;}
+.slm-prose h1,.slm-prose h2,.slm-prose h3,.slm-prose h4,.slm-prose h5,.slm-prose h6{margin:10px 0 4px;font-size:10.5pt;font-weight:600;line-height:1.35;}
+.slm-prose .katex-display{margin:9px 0;}
+.slm-report-entry-head,.slm-report-topic,.slm-report-step-head,.slm-report-step-title,.slm-takeaway-label{break-after:avoid;page-break-after:avoid;}
 .slm-report-step-intro{break-inside:avoid;page-break-inside:avoid;}
 .slm-step-work{break-before:avoid;page-break-before:avoid;}
-.slm-step-work-label{break-after:avoid;page-break-after:avoid;}
 .slm-step-work-body{break-before:avoid;page-break-before:avoid;}
-.slm-formula,.slm-takeaway,.slm-step-diagram,pre,table{break-inside:avoid;page-break-inside:avoid;}
+.slm-report-head,.slm-formula,.slm-takeaway,.slm-step-diagram,pre,table{break-inside:avoid;page-break-inside:avoid;}
 thead{display:table-header-group;}
-ul,ol{margin:0 0 6px;padding-left:20px;}
+ul,ol{margin:0 0 7px;padding-left:20px;}
 li{margin:2px 0;}
-table{border-collapse:collapse;width:100%;margin:0 0 6px;font-size:10.5pt;}
-th,td{border:1px solid ${T.border};padding:5px 8px;text-align:left;}
-pre{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};padding:8px;font-size:10pt;overflow-x:auto;}
-code{font-family:${FONT_MONO};font-size:.88em;}
-.katex-error{font-family:${FONT_MONO};font-size:.88em;color:${T.fg}!important;background:${T.bgSubtle};padding:0 3px;border-radius:3px;overflow-wrap:anywhere;}
+table{border-collapse:separate;border-spacing:0;width:100%;margin:8px 0 10px;padding:1px 0;font-size:9.75pt;line-height:1.4;}
+th,td{padding:4px 12px 4px 0;text-align:left;vertical-align:top;}
+th:last-child,td:last-child{padding-right:0;}
+th{border-top:1.5px solid ${T.fg};border-bottom:1px solid ${T.fg};font-weight:600;}
+tbody tr:last-child td{border-bottom:1.5px solid ${T.fg};}
+pre{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;margin:8px 0 10px;padding:1px 0;font:9pt/1.45 ${FONT_MONO};}
+code{font-family:${FONT_MONO};font-size:.9em;}
+pre code{display:block;padding:8px 10px;background:${T.tint};border:1px solid ${T.rule};border-radius:${T.radius};font-size:1em;}
+blockquote{margin:8px 0;padding:0 0 0 12px;border-left:1px solid ${T.rule};color:${T.fgMuted};}
+hr{margin:12px 0;border:0;border-top:1px solid ${T.rule};}
+a{color:inherit;}
+.katex-error{font-family:${FONT_MONO};font-size:.88em;color:${T.fg}!important;background:${T.tint};padding:0 3px;border-radius:${T.radius};overflow-wrap:anywhere;}
 .katex .katex-mathml{position:absolute!important;clip:rect(1px,1px,1px,1px)!important;padding:0!important;border:0!important;height:1px!important;width:1px!important;overflow:hidden!important;}
-.slm-signals{margin:0 0 8px;}
-.slm-signal--flag{font-size:10.5pt;font-weight:600;color:${T.fg};background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};padding:6px 10px;margin:0 0 6px;}
-.slm-answer-notes{margin:8px 0 0;font-size:11pt;line-height:1.5;color:${T.fg};}
-.slm-report-answer{margin-top:12px;}
-.slm-report-origin{margin:10px 0 0;font-size:8.5pt;line-height:1.4;color:${T.fgSubtle};}
+/* On screen the report is one continuous A4-wide sheet with the page's own margins. */
 @media screen{
-body{padding:18px 14px 36px;background:${T.bgSubtle};}
-.slm-report{background:${T.bg};padding:18px 24px 20px;border:0.5px solid ${T.border};border-radius:${T.radiusMd};box-shadow:0 8px 28px rgba(15,15,18,.08);}
+html,body{background:${T.mat};}
+body{padding:24px 16px 48px;}
+.slm-report{width:794px;max-width:100%;padding:45px 53px 48px ${53 + GUTTER_PX}px;background:${T.bg};box-shadow:0 1px 2px rgba(16,16,18,.05),0 8px 28px rgba(16,16,18,.08);}
 }
 /* Off-screen render surface: the column is exactly the A4 text box, so the
    rasteriser can slice it into pages without re-measuring margins. */
 html.${RENDER_CLASS}{overflow:hidden;background:${T.bg};}
 html.${RENDER_CLASS} body{width:${CONTENT_WIDTH_PX}px;margin:0;padding:0;background:${T.bg};overflow:hidden;}
-html.${RENDER_CLASS} .slm-report{width:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:${T.bg};}
+html.${RENDER_CLASS} .slm-report{width:100%;max-width:none;margin:0;padding:0 0 0 ${GUTTER_PX}px;box-shadow:none;background:${T.bg};}
 html.${RENDER_CLASS} *{animation:none!important;transition:none!important;}
 `;
 }
@@ -299,9 +361,10 @@ export function buildReportDocument(
   session: Session,
   diagramSvg: Record<string, string>,
   diagramOverlays: Record<string, Overlay[]> = {},
+  diagramNotes: Record<string, DiagramNote> = {},
 ): string {
   const body =
-    tryRender('report', () => createElement(Report, { session, diagramSvg, diagramOverlays })) ??
+    tryRender('report', () => createElement(Report, { session, diagramSvg, diagramOverlays, diagramNotes })) ??
     // Same content, no markdown / KaTeX / figures — always renders.
     tryRender('plain report', () => createElement(PlainReport, { sessions: [session] }));
   if (body === null) throw new Error('report markup failed');
@@ -320,9 +383,10 @@ export function buildMergedReportDocument(
   sessions: readonly Session[],
   diagramSvg: Record<string, string>,
   diagramOverlays: Record<string, Overlay[]> = {},
+  diagramNotes: Record<string, DiagramNote> = {},
 ): string {
   const merged = (list: readonly Session[]) =>
-    createElement(MergedReport, { sessions: [...list], diagramSvg, diagramOverlays });
+    createElement(MergedReport, { sessions: [...list], diagramSvg, diagramOverlays, diagramNotes });
 
   let body = tryRender('merged report', () => merged(sessions));
 
@@ -332,7 +396,7 @@ export function buildMergedReportDocument(
     const usable = sessions.filter(
       (session) =>
         tryRender('merge probe', () =>
-          createElement(Report, { session, diagramSvg, diagramOverlays }),
+          createElement(Report, { session, diagramSvg, diagramOverlays, diagramNotes }),
         ) !== null,
     );
     if (usable.length > 0 && usable.length < sessions.length) {
@@ -349,13 +413,13 @@ export function buildMergedReportDocument(
 /** Self-contained report HTML (print-styled). Used for view + file download. */
 export async function renderSessionReportHtml(session: Session): Promise<string> {
   const resolved = await resolveDiagrams(session);
-  return buildReportDocument(session, resolved.svg, resolved.overlays);
+  return buildReportDocument(session, resolved.svg, resolved.overlays, resolved.notes);
 }
 
 /** One continuous document holding every selected question. */
 export async function renderMergedReportHtml(sessions: readonly Session[]): Promise<string> {
   const resolved = await resolveKeyedDiagrams(collectMergedDiagrams(sessions));
-  return buildMergedReportDocument(sessions, resolved.svg, resolved.overlays);
+  return buildMergedReportDocument(sessions, resolved.svg, resolved.overlays, resolved.notes);
 }
 
 const PRINT_FRAME_TIMEOUT_MS = 15_000;
@@ -395,7 +459,7 @@ export async function exportSessionPdf(session: Session): Promise<PdfExportResul
   let iframe: HTMLIFrameElement | null = null;
   try {
     const resolved = await resolveDiagrams(session);
-    const html = buildReportDocument(session, resolved.svg, resolved.overlays);
+    const html = buildReportDocument(session, resolved.svg, resolved.overlays, resolved.notes);
     const printTitle = reportPrintTitle(session);
 
     iframe = document.createElement('iframe');
@@ -488,16 +552,92 @@ export async function triggerPdfFileDownload(blob: Blob, filename: string): Prom
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** Stitch rasterised A4 pages into one PDF. */
-export async function pagesToPdfBlob(pages: readonly RenderedPage[]): Promise<Blob> {
+/** The running footer: one line of small mono type in the bottom margin of every page. */
+const FOOTER_HEIGHT_PX = 14;
+/** Clear space between the page's content box and the footer line. */
+const FOOTER_GAP_PT = 9;
+const FOOTER_FONT = `10px ${FONT_MONO}`;
+
+/** A canvas draws only faces that are already loaded; the page's stylesheet merely declares them. */
+async function loadFooterFaces(): Promise<void> {
+  try {
+    await Promise.all(['400', '500'].map((weight) => document.fonts.load(`${weight} ${FOOTER_FONT}`)));
+  } catch {
+    /* the footer falls back to the system mono face rather than blocking the export */
+  }
+}
+
+/**
+ * The footer of one page, as an image the width of the page column: the brand and what the report
+ * is about at the text's left edge, the folio at the right margin. The pages are images, so the
+ * line is drawn on a canvas in the report's own mono face instead of one of jsPDF's built-in
+ * fonts. Null where there is no 2D canvas to draw on.
+ */
+function footerImage(label: string, page: number, total: number): string | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = CONTENT_WIDTH_PX * RENDER_SCALE;
+  canvas.height = FOOTER_HEIGHT_PX * RENDER_SCALE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(RENDER_SCALE, RENDER_SCALE);
+  ctx.fillStyle = T.bg;
+  ctx.fillRect(0, 0, CONTENT_WIDTH_PX, FOOTER_HEIGHT_PX);
+  ctx.textBaseline = 'middle';
+  const y = FOOTER_HEIGHT_PX / 2;
+
+  const folio = `page ${page} of ${total}`;
+  ctx.font = `400 ${FOOTER_FONT}`;
+  ctx.fillStyle = T.fgMuted;
+  ctx.textAlign = 'right';
+  ctx.fillText(folio, CONTENT_WIDTH_PX, y);
+  const folioLeft = CONTENT_WIDTH_PX - ctx.measureText(folio).width;
+
+  ctx.textAlign = 'left';
+  ctx.font = `500 ${FOOTER_FONT}`;
+  ctx.fillStyle = T.fg;
+  ctx.fillText('stemlm', GUTTER_PX, y);
+  const labelLeft = GUTTER_PX + ctx.measureText('stemlm').width + 12;
+
+  ctx.font = `400 ${FOOTER_FONT}`;
+  ctx.fillStyle = T.fgMuted;
+  let text = label;
+  // A long topic is cut to the room left of the folio, never drawn under it.
+  while (text.length > 1 && labelLeft + ctx.measureText(text).width > folioLeft - 24) {
+    text = `${text.slice(0, -2).trimEnd()}…`;
+  }
+  ctx.fillText(text, labelLeft, y);
+  return canvas.toDataURL('image/png');
+}
+
+/** What the footer names beside the brand: the answer's topic, when it is a title of its own. */
+function footerLabel(session: Session): string {
+  const topic = plainText(session.capsule.meta.topic);
+  // A canvas line cannot typeset TeX, and a topic that only opens the question is not a title.
+  if (topic.includes('\\') || repeatsQuestion(topic, resolveSessionQuestion(session))) return '';
+  return topic;
+}
+
+/**
+ * Stitch rasterised A4 pages into one PDF. Each page image sits inside the margins; the running
+ * footer is added below it, in the bottom margin, so the paginator's page box is untouched.
+ */
+export async function pagesToPdfBlob(pages: readonly RenderedPage[], label = ''): Promise<Blob> {
   if (pages.length === 0) throw new Error('no pages');
   const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
+  await loadFooterFaces();
 
   pages.forEach((page, i) => {
     if (i > 0) pdf.addPage('a4', 'portrait');
     const rect = sliceRectPt(page.slice);
     pdf.addImage(page.dataUrl, 'PNG', rect.x, rect.y, rect.width, rect.height, undefined, 'FAST');
+    const footer = footerImage(label, i + 1, pages.length);
+    if (footer) {
+      pdf.addImage(
+        footer, 'PNG', MARGIN_X_PT, MARGIN_Y_PT + CONTENT_HEIGHT_PT + FOOTER_GAP_PT,
+        CONTENT_WIDTH_PT, FOOTER_HEIGHT_PX * PX_TO_PT, undefined, 'FAST',
+      );
+    }
   });
 
   const blob = pdf.output('blob');
@@ -521,10 +661,11 @@ async function downloadHtmlAsPdf(
   filename: string,
   options: RenderOptions | undefined,
   platform: PlatformId,
+  footer: string,
 ): Promise<PdfExportResult> {
   try {
     const pages = await renderHtmlToPageImages(html, options);
-    const blob = await pagesToPdfBlob(pages);
+    const blob = await pagesToPdfBlob(pages, footer);
     await triggerPdfFileDownload(blob, filename);
     void trackEvent('pdf_exported', { platform, method: 'download' });
     return { ok: true, method: 'download' };
@@ -540,13 +681,15 @@ export async function downloadSessionPdf(
   options?: RenderOptions,
 ): Promise<PdfExportResult> {
   let html: string;
+  let footer: string;
   try {
     html = await renderSessionReportHtml(session);
+    footer = footerLabel(session);
   } catch (err) {
     void trackEvent('pdf_exported', { platform: session.platform, method: 'failed' });
     return failed('build', err);
   }
-  return downloadHtmlAsPdf(html, pdfFileName(session), options, session.platform);
+  return downloadHtmlAsPdf(html, pdfFileName(session), options, session.platform, footer);
 }
 
 /**
@@ -569,5 +712,7 @@ export async function downloadSessionsPdf(
     void trackEvent('pdf_exported', { platform: first.platform, method: 'failed' });
     return failed('build merged', err);
   }
-  return downloadHtmlAsPdf(html, mergedPdfFileName(sessions.length), options, first.platform);
+  return downloadHtmlAsPdf(
+    html, mergedPdfFileName(sessions.length), options, first.platform, mergedReportKicker(sessions.length),
+  );
 }

@@ -67,6 +67,12 @@ const BLOCK_SELECTOR =
 const KEEP_AHEAD_PX = 46;
 /** Keeps the sign-off attached to the last answer line. */
 const KEEP_BEHIND_PX = 28;
+/**
+ * html2canvas sets a line by its own baseline measurement, which can put the glyphs up to a pixel
+ * below where layout measured them. A cut on the measured bottom edge of a line then leaves the
+ * tips of its descenders on the next page, so a line owns this much below its box as well.
+ */
+const LINE_INK_SLACK_PX = 1.5;
 /** Guard against pathological documents; long reports still measure fully. */
 const MAX_TEXT_NODES = 20_000;
 
@@ -338,8 +344,9 @@ export function measureBreaks(root: HTMLElement): Measurement {
     range.selectNodeContents(node);
     for (const rect of Array.from(range.getClientRects())) {
       if (rect.height <= 0) continue;
-      if (rect.height <= CONTENT_HEIGHT_PX) forbidden.push([rel(rect.top), rel(rect.bottom)]);
-      candidates.push(rel(rect.bottom));
+      const bottom = rel(rect.bottom) + LINE_INK_SLACK_PX;
+      if (rect.height <= CONTENT_HEIGHT_PX) forbidden.push([rel(rect.top), bottom]);
+      candidates.push(bottom);
     }
   }
 

@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MergedReport, PlainReport, Report, collectDiagrams, diagramKey } from './Report';
+import { MergedReport, PlainReport, REPORT_NOTE, Report, collectDiagrams, diagramKey } from './Report';
 import { ORIGIN_NOTE, ORIGIN_NOTE_DETAIL } from './OriginNote';
-import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
+import { buildReportDocument, printStyles, renderSessionReportHtml, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
 import { resolveDiagram, resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { parse } from '@/src/protocol/parser';
 import { FENCED_ELECTRICAL } from '@/src/protocol/__fixtures__';
@@ -50,8 +50,14 @@ describe('Report renderToStaticMarkup', () => {
     );
     expect(wordmark.match(/<circle/g)?.length).toBe(2);
     expect(html).not.toMatch(/Jun \d+, \d{4}/);
-    expect(html).toContain('slm-report-label">Q'); // question label
+    // The cover: subject and topic as the label, the question as the problem statement, one meta line.
+    expect(html).toContain('<span class="slm-report-subject">Electrical</span>');
+    expect(html).toMatch(/<h1 class="slm-report-topic">.*Circuit format check.*<\/h1>/);
     expect(html).toContain('What is the current?'); // the full question
+    expect(html).toContain('<p class="slm-report-meta"><span>Gemini</span><span>2 steps</span></p>');
+    // One question needs no number, and a session with no known date is not given one.
+    expect(html).not.toContain('slm-report-label');
+    expect(html).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(html).not.toContain('slm-report-label">Answer');
     expect(html).toContain('Label the circuit'); // step title
     expect(html).toContain('slm-step-index');
@@ -272,6 +278,8 @@ describe('a report of an answer structured from the chat', () => {
     expect(html.split(note)).toHaveLength(2);
     expect(html).toContain(`<p class="slm-report-origin">${note}</p>`);
     expect(printStyles()).toContain('.slm-report-origin{');
+    // Its own wording stands in for the general small print: the page does not say it twice.
+    expect(html).not.toContain(REPORT_NOTE);
   });
 
   it('prints the conclusion the steps no longer contain, after the last step', () => {
@@ -295,16 +303,22 @@ describe('a report of an answer structured from the chat', () => {
   it('marks only its own entry in a merged report', () => {
     const merged = renderToStaticMarkup(<MergedReport sessions={[buildSession(), plain, buildSession()]} diagramSvg={{}} />);
     expect(merged.split(note)).toHaveLength(2);
+    expect(merged.split(REPORT_NOTE)).toHaveLength(2);
     const entries = merged.split('class="slm-report-entry"').slice(1);
     expect(entries.map((entry) => entry.includes('slm-report-origin'))).toEqual([false, true, false]);
-    expect(entries.map((entry) => entry.includes('slm-report-answer'))).toEqual([false, true, false]);
+    // Every answer prints its conclusion: a stemLM answer leads with it, a structured one ends on it.
+    expect(entries.map(answerFollowsSteps)).toEqual([false, true, false]);
   });
 
-  it('leaves a stemLM answer exactly as it was: no note, no answer block', () => {
+  it('leads a stemLM answer with its conclusion, with no origin note and the general small print', () => {
     for (const origin of [undefined, 'capsule'] as const) {
       const html = renderToStaticMarkup(<Report session={{ ...buildSession(), ...(origin ? { origin } : {}) }} diagramSvg={{}} />);
       expect(html).not.toContain('slm-report-origin');
-      expect(html).not.toContain('slm-report-answer');
+      expect(html.split('slm-report-answer"')).toHaveLength(2);
+      expect(answerFollowsSteps(html)).toBe(false);
+      expect(html.slice(html.indexOf('slm-report-answer"'), html.indexOf('class="slm-report-step"'))).toContain('Structural fixture');
+      expect(html.split(REPORT_NOTE)).toHaveLength(2);
+      expect(html.indexOf(REPORT_NOTE)).toBeGreaterThan(html.indexOf('class="slm-report-foot"'));
     }
   });
 
@@ -313,7 +327,86 @@ describe('a report of an answer structured from the chat', () => {
     expect(html.split(note)).toHaveLength(2);
     expect(html).toContain('The ball lands about 35.3 m away.');
     const entries = html.split('class="slm-report-entry"').slice(1);
-    expect(entries.map((entry) => entry.includes('slm-report-answer'))).toEqual([true, false]);
+    expect(entries.map(answerFollowsSteps)).toEqual([true, false]);
+  });
+});
+
+/** True when the entry's answer block comes after its steps, false when it leads them. */
+function answerFollowsSteps(entry: string): boolean {
+  const answer = entry.indexOf('slm-report-answer"');
+  expect(answer).toBeGreaterThan(-1);
+  return answer > entry.indexOf('class="slm-report-step"');
+}
+
+describe('what a report prints beside the working', () => {
+  const svg = '<svg viewBox="0 0 20 20"><circle r="5"/></svg>';
+  const key = diagramKey('step', 1);
+
+  function withDiagram(caption?: string): Session {
+    const session = buildSession();
+    session.capsule.steps[0]!.diagram = { type: 'plot', content: 'fn: x^2', ...(caption ? { caption } : {}) };
+    return session;
+  }
+
+  it('captions a figure with the title its rewrite surfaced and says it was auto-corrected', () => {
+    const html = renderToStaticMarkup(
+      <Report session={withDiagram()} diagramSvg={{ [key]: svg }} diagramNotes={{ [key]: { corrected: true, caption: 'Surfaced title' } }} />,
+    );
+    expect(html).toContain('<figcaption class="slm-report-diagram-caption">Surfaced title</figcaption>');
+    expect(html.split('Auto-corrected')).toHaveLength(2);
+    expect(html).toContain('Its content is unchanged.');
+  });
+
+  it("keeps the spec's own caption over a surfaced one, and adds no note to a figure drawn as written", () => {
+    const own = renderToStaticMarkup(
+      <Report session={withDiagram('Own caption')} diagramSvg={{ [key]: svg }} diagramNotes={{ [key]: { caption: 'Surfaced title' } }} />,
+    );
+    expect(own).toContain('Own caption');
+    expect(own).not.toContain('Surfaced title');
+    expect(own).not.toContain('Auto-corrected');
+    // A figure that did not resolve leaves nothing behind: no caption, no note.
+    const hidden = renderToStaticMarkup(
+      <Report session={withDiagram('Own caption')} diagramSvg={{}} diagramNotes={{ [key]: { corrected: true } }} />,
+    );
+    expect(hidden).not.toContain('slm-step-diagram');
+    expect(hidden).not.toContain('Own caption');
+    expect(hidden).not.toContain('Auto-corrected');
+  });
+
+  it('marks a figure the exporter drew from repaired notation', async () => {
+    const session = buildSession();
+    // Wrong key names and a worded range: only the repaired spec compiles.
+    session.capsule.steps[0]!.diagram = { type: 'plot', content: 'function: x^2\nrange: -3 to 3' };
+    const html = await renderSessionReportHtml(session);
+    expect(html).toContain('data-stemlm-family="plot"');
+    expect(html).toContain('class="slm-report-diagram-note">Auto-corrected.');
+  });
+
+  it('sets a quick check as an exercise and collects the answers after the last step', () => {
+    const session = buildSession();
+    const [first, second] = session.capsule.steps as [Session['capsule']['steps'][number], Session['capsule']['steps'][number]];
+    first.quickCheck = { question: 'Is the first check asked?', answer: 'First answer, because it is.' };
+    second.quickCheck = { question: 'A check with nothing to check against', answer: '' };
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+
+    const steps = html.slice(html.indexOf('class="slm-report-step"'), html.lastIndexOf('</article>'));
+    expect(steps).toContain('<span class="slm-takeaway-label">Check 1</span>');
+    expect(steps).toContain('Is the first check asked?');
+    // The answer is not beside its exercise: it is in the key that follows the working.
+    expect(steps).not.toContain('First answer');
+    const key = html.slice(html.indexOf('slm-report-check-answers'));
+    expect(html.indexOf('slm-report-check-answers')).toBeGreaterThan(html.lastIndexOf('</article>'));
+    expect(key).toContain('<span class="slm-report-check-n">1</span>');
+    expect(key).toContain('First answer, because it is.');
+    // An exercise is printed only with an answer to check it against.
+    expect(html).not.toContain('A check with nothing to check against');
+    expect(html.split('slm-report-check-n')).toHaveLength(2);
+  });
+
+  it('says where the answer came from: chat host, local date, number of steps', () => {
+    const session: Session = { ...buildSession(), platform: 'chatgpt', createdAt: new Date(2026, 8, 26, 23, 30).getTime() };
+    const html = renderToStaticMarkup(<Report session={session} diagramSvg={{}} />);
+    expect(html).toContain('<p class="slm-report-meta"><span>ChatGPT</span><span>2026-09-26</span><span>2 steps</span></p>');
   });
 });
 
@@ -390,27 +483,53 @@ describe('buildReportDocument (vector print PDF)', () => {
     expect(html).not.toMatch(/<image\b/i);
   });
 
-  it('print styles target A4 and current light reading tokens', () => {
-    expect(printStyles()).toContain('@page');
-    expect(printStyles()).toContain('A4');
-    expect(printStyles()).toContain('#121212');
-    expect(printStyles()).toContain('#efefef');
-    expect(printStyles()).toContain('#FF6B2C');
-    expect(printStyles()).not.toContain('#0ea5a0');
-    expect(printStyles()).toContain('IBM Plex Sans');
-    expect(printStyles()).toContain('IBM Plex Mono');
-    expect(printStyles()).not.toContain('Inter');
-    expect(printStyles()).not.toContain('JetBrains Mono');
-    expect(printStyles()).toContain('max-width:125mm');
-    expect(printStyles()).toContain('max-height:72mm');
-    expect(printStyles()).toContain('font:11pt/1.5');
-    expect(printStyles()).toContain('font-size:8.5pt');
-    expect(printStyles()).toContain('color:#5c5c63');
-    expect(printStyles()).not.toContain('color:#8a8a92');
-    expect(printStyles()).toContain('.slm-step-work{break-before:avoid;page-break-before:avoid;}');
-    expect(printStyles()).toContain('.slm-step-work-label{break-after:avoid;page-break-after:avoid;}');
-    expect(printStyles()).toContain('.slm-step-work-body{break-before:avoid;page-break-before:avoid;}');
-    expect(printStyles()).not.toContain('border-radius:999px');
+  it('print styles target A4 and the print reading tokens', () => {
+    const css = printStyles();
+    expect(css).toContain('@page');
+    expect(css).toContain('A4');
+    expect(css).toContain('#121212');
+    expect(css).not.toContain('#0ea5a0');
+    expect(css).toContain('IBM Plex Sans');
+    expect(css).toContain('IBM Plex Mono');
+    expect(css).not.toContain('Inter');
+    expect(css).not.toContain('JetBrains Mono');
+    // Figures keep the print profile's size. The rule sizes the figure's own drawing and nothing
+    // inside its math labels: KaTeX draws a radical as an SVG, which this rule once flattened.
+    expect(css).toContain('max-width:125mm');
+    expect(css).toContain('.slm-report-diagram .slm-diagram-svg>svg{display:block;width:auto;max-width:100%;height:auto;max-height:72mm;}');
+    expect(css).not.toMatch(/.slm-report-diagram svg{/);
+    expect(css).toContain('font:10.5pt/1.5');
+    // Secondary text stays above the normal-text contrast threshold, and nothing is set smaller than 7.5pt.
+    expect(css).toContain('color:#5c5c63');
+    expect(css).not.toContain('color:#8a8a92');
+    const sizes = [...css.matchAll(/font(?:-size)?:[^;}]*?([\d.]+)pt/g)].map((m) => Number(m[1]));
+    expect(sizes.length).toBeGreaterThan(10);
+    expect(Math.min(...sizes)).toBe(7.5);
+    expect(css).toContain('.slm-step-work{break-before:avoid;page-break-before:avoid;}');
+    expect(css).toContain('.slm-step-work-body{break-before:avoid;page-break-before:avoid;}');
+    expect(css).not.toContain('border-radius:999px');
+  });
+
+  it('keeps the signal to the step numerals and reads without colour', () => {
+    const css = printStyles();
+    // The signal is the ink variant (it prints as a dark grey), in exactly one rule.
+    expect(css.match(/#c2410c/gi)).toHaveLength(1);
+    expect(css).toMatch(/\.slm-report-step-n \.slm-step-index\{[^}]*color:#c2410c/);
+    expect(css).not.toMatch(/#ff6b2c/i);
+    // The key relation is a tint and a rule, the answer a ruled box, a takeaway a ruled note.
+    expect(css).toMatch(/\.slm-formula \.slm-prose\{[^}]*background:#f4f4f2;border:1px solid #bdbdb6/);
+    expect(css).toMatch(/\.slm-report-answer-box\{[^}]*border:1px solid #121212/);
+    expect(css).toMatch(/\.slm-takeaway\{[^}]*border-left:2px solid #121212/);
+  });
+
+  it('draws no rule on the top or bottom edge of a block the paginator keeps whole', () => {
+    // A page can end on such an edge, and the cut is rounded to a pixel: a rule there is split in two.
+    const css = printStyles();
+    for (const selector of ['.slm-formula', '.slm-report-answer', '.slm-report-check', '.slm-step-diagram', 'pre', 'table']) {
+      const rule = new RegExp(`^${selector.replace('.', '\\.')}\\{([^}]*)\\}`, 'm').exec(css)?.[1];
+      expect(rule, selector).toBeTruthy();
+      expect(rule, selector).not.toMatch(/(?:^|;)border(?:-top|-bottom)?:(?!0)/);
+    }
   });
 
   it('embeds admittance triangle with normalized markers for PDF export', async () => {
