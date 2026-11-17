@@ -13,7 +13,7 @@ describe('every pack family', () => {
       expect(typeof FAMILY_COMPILERS[token]).toBe('function');
       for (const profile of ['step', 'solution', 'print'] as const) {
         const compiled = await compileDiagram({ type: token, content: manifest.specimen }, profile);
-        expect(compiled.ok, `${token} at ${profile}: ${compiled.ok ? '' : compiled.reason}`).toBe(true);
+        expect(compiled.ok, `${token} at ${profile}: ${compiled.ok ? '' : compiled.diagnostic.reason}`).toBe(true);
         expect(compiled.corrected, `${token} at ${profile} needed repair`).toBeUndefined();
       }
     },

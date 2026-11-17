@@ -2371,6 +2371,9 @@ describe('AUTO-OPEN-01 the answer-started hook fires only for an answer stemLM a
     adapter.blocks = 2;
     adapter.streaming = true;
     mutate();
+    // The debounce runs on real timers: wait for the call itself, since a fixed pause is too short
+    // when the whole suite is running.
+    await vi.waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1), { timeout: 5000, interval: 50 });
     await settle();
     expect(onStarted).toHaveBeenCalledTimes(1);
     c.stopWatching();
