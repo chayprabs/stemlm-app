@@ -1493,7 +1493,7 @@ export const REFUSED: RefusedCase[] = [
   { name: "flow: new shape syntax", lang: "mermaid", code: r`flowchart TD
   A@{ shape: diamond, label: "Check" } --> B`, reason: "the @{ } shape syntax is not supported" },
   { name: "flow: plain node the engine would draw as a diamond", lang: "mermaid", code: r`flowchart LR
-  A[Input] --> B[Store entity relationship]`, reason: "the graph engine would draw this plain node as a decision diamond because of a word in its name" },
+  A[Student entity] --> B[Enrolls relationship]`, reason: "the graph engine would draw this plain node as a decision diamond because of a word in its name" },
   { name: "state: composite with its own start", lang: "mermaid", code: r`stateDiagram-v2
   [*] --> Active
   state Active {
