@@ -142,6 +142,11 @@ export type CompileResult = CompileSuccess | CompileFailure;
 export interface CompileCtx {
   profile: DiagramSizeProfile;
   family: string;
+  /**
+   * The type token as written, when it was an alias of `family` (`heap` for `tree`, `pie` for
+   * `chart`). An alias often names the variant the model meant, which the keys alone do not.
+   */
+  alias?: string;
 }
 
 export const FONT_MIN = 12;

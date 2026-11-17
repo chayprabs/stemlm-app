@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../geom';
 import { TREE_MAX_NODES, buildBst, heapViolation, parseLevelOrder, traverse, type Tree } from './tree';
-import { boxOf, draw, expectCleanLabels, reason, type Drawn } from './testing';
+import { boxOf, compile, draw, expectCleanLabels, reason, type Drawn } from './testing';
 
 const labels = (tree: Tree, ids: number[]) => ids.map((id) => tree.nodes[id]!.label);
 /** A tree as nested text: label(left,right) with `-` for a missing side. */
@@ -216,5 +216,26 @@ describe('tree: the drawing', () => {
     expect(await reason('tree', `kind: bst\ninsert: ${Array.from({ length: TREE_MAX_NODES + 1 }, (_, i) => i).join(',')}`)).toMatch(/at most 63 nodes/);
     expect(await reason('tree', `kind: bst\ninsert: ${Array.from({ length: 20 }, (_, i) => i).join(',')}`)).toMatch(/too deep to draw legibly: 20 levels/);
     expect(await reason('tree', 'values: 1, 2\ncolor: red')).toMatch(/unconsumed declaration: color/);
+  });
+});
+
+describe('tree: the type alias names the kind', () => {
+  it('checks the heap property for type=heap without a kind line', async () => {
+    const broken = await compile('heap', 'values: 1, 5, 3, 2');
+    expect(broken.ok).toBe(false);
+    if (!broken.ok) expect(broken.reason).toMatch(/heap/);
+    const heap = await draw('heap', 'values: 1, 3, 5, 4');
+    // The backing array with its indices is drawn only for a heap.
+    expect(heap.texts()).toEqual(expect.arrayContaining(['0', '1', '2', '3']));
+  });
+
+  it('builds a search tree for type=bst from values alone', async () => {
+    const bst = await draw('bst', 'values: 8, 3, 10, 1\ntraversal: inorder');
+    expect(bst.texts().join(' ')).toContain('1, 3, 8, 10');
+  });
+
+  it('lets an explicit kind line win over the alias', async () => {
+    const plain = await draw('heap', 'kind: binary\nvalues: 1, 5, 3, 2');
+    expect(plain.texts()).not.toContain('0');
   });
 });

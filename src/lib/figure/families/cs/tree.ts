@@ -1,7 +1,7 @@
 /**
  * Rooted trees: binary tree, binary search tree, binary heap, general (n-ary) tree.
  *
- *   kind:      binary | bst | heap | nary      inferred when absent: heap: -> heap, insert: -> bst, node: -> nary
+ *   kind:      binary | bst | heap | nary      inferred when absent: the type alias (heap, bst), else heap: -> heap, insert: -> bst, node: -> nary
  *   values:    8, 3, 10, 1, 6, null, 14        level order; null, None, nil, -, # or an empty slot is a hole
  *   insert:    8, 3, 10, 1, 6, 14              bst: built here by inserting in this order
  *   heap:      min | max                       the array is checked against the heap property and drawn under the tree
@@ -296,7 +296,9 @@ export function compileTree(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const pathRaw = specGet(spec, 'path');
   const traversalRaw = specGet(spec, 'traversal')?.trim().toLowerCase();
 
-  const named = kindRaw === undefined ? undefined : KINDS.find(([pattern]) => pattern.test(kindRaw))?.[1];
+  // Without `kind:`, a type alias that names a kind (`type=heap`, `type=bst`) is that kind: drawing
+  // it as a plain binary tree would skip the heap check or the insertion the model asked for.
+  const named = KINDS.find(([pattern]) => pattern.test(kindRaw ?? ctx.alias ?? ''))?.[1];
   if (kindRaw !== undefined && !named) return fail(`tree kind: ${kindRaw} is not binary, bst, heap or nary`);
   const kind: Kind = named ?? (heapRaw !== undefined ? 'heap' : insertRaw.length ? 'bst' : nodeLines.length && !valuesRaw.length ? 'nary' : 'binary');
   const heapOrder = /min/.test(heapRaw ?? kindRaw ?? '') ? 'min' : /max/.test(heapRaw ?? kindRaw ?? '') ? 'max' : null;

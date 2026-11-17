@@ -16,7 +16,8 @@ export async function compileDiagramSpec(
   profile: DiagramSizeProfile = 'step',
 ): Promise<CompileResult> {
   const family = canonicalizeDiagramType(diagram.type);
-  const ctx: CompileCtx = { profile, family };
+  const written = typeof diagram.type === 'string' ? diagram.type.trim().toLowerCase() : '';
+  const ctx: CompileCtx = { profile, family, ...(written && written !== family ? { alias: written } : {}) };
 
   if (isRefuseType(family)) {
     return { ok: false, code: 'refused', reason: `refused_family:${family}` };
