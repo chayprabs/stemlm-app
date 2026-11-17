@@ -28,6 +28,7 @@
 - Redesigned study panel on a new token system: step navigation as a strip of numbered marks, a step page set as a typeset page (kicker, title, key relation, working, figure plate, takeaway, quick check), the model's closing answer set apart on the last step and at the top of the Solution view, a two-line question that expands, and page turns that follow the direction of travel.
 - The composer control shows the stemLM mark instead of a second plus sign beside the chat's own attach button.
 - Redesigned toolbar popup (says whether the current tab is a supported chat), welcome page (a live miniature of the panel built from the real components, in place of screenshots), saved questions (search shortcut, subject filters with counts, designed empty and no-results states, an explicit selection bar for merging) and settings (reading size with a live preview).
+- Redesigned PDF report: a cover block, the conclusion first, typeset steps, quick checks printed as exercises with their answers collected after the last step, a contents list for merged files, and a footer with page numbers. Fixed the radical missing from equation labels on figures in the PDF, and descenders clipped at page breaks.
 
 ### For contributors
 
