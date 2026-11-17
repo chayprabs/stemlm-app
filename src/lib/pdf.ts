@@ -262,6 +262,8 @@ code{font-family:${FONT_MONO};font-size:.88em;}
 .slm-signals{margin:0 0 8px;}
 .slm-signal--flag{font-size:10.5pt;font-weight:600;color:${T.fg};background:${T.bgSubtle};border:0.5px solid ${T.border};border-radius:${T.radiusMd};padding:6px 10px;margin:0 0 6px;}
 .slm-answer-notes{margin:8px 0 0;font-size:11pt;line-height:1.5;color:${T.fg};}
+.slm-report-answer{margin-top:12px;}
+.slm-report-origin{margin:10px 0 0;font-size:8.5pt;line-height:1.4;color:${T.fgSubtle};}
 @media screen{
 body{padding:18px 14px 36px;background:${T.bgSubtle};}
 .slm-report{background:${T.bg};padding:18px 24px 20px;border:0.5px solid ${T.border};border-radius:${T.radiusMd};box-shadow:0 8px 28px rgba(15,15,18,.08);}

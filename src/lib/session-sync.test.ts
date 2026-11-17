@@ -1,6 +1,25 @@
-import { describe, it, expect } from 'vitest';
-import { mergeMirroredSessions, sessionsForMirror } from './session-sync';
+import { describe, it, expect, vi } from 'vitest';
 import type { Session } from '@/src/protocol/types';
+
+const shared = vi.hoisted(() => new Map<string, unknown>());
+
+// Chrome hands every reader its own JSON copy of what was stored; the double does the same.
+vi.mock('wxt/browser', () => ({
+  browser: {
+    storage: {
+      session: {
+        get: async (key: string) => (shared.has(key) ? { [key]: JSON.parse(JSON.stringify(shared.get(key))) } : {}),
+        set: async (items: Record<string, unknown>) => {
+          for (const [key, value] of Object.entries(items)) shared.set(key, JSON.parse(JSON.stringify(value)));
+        },
+      },
+      onChanged: { addListener: () => {}, removeListener: () => {} },
+    },
+  },
+}));
+
+import { restorableSessions } from '@/src/content/restored-sessions';
+import { loadMirroredSessions, mergeMirroredSessions, mirrorActiveSessions, sessionsForMirror } from './session-sync';
 
 function makeSession(id: string): Session {
   return {
@@ -53,6 +72,65 @@ describe('mergeMirroredSessions', () => {
     const merged = mergeMirroredSessions([local], [incoming]);
     expect(merged[0]?.raw).toBe('full capsule raw');
     expect(merged[0]?.updatedAt).toBe(99);
+  });
+});
+
+/** The answer's Markdown. Its `stemlm` fence is a figure; read as a capsule it would be a different answer. */
+const MARKDOWN = '### Step 1\n\nDraw the graph.\n\n```stemlm\n@meta\ntopic: Not this answer\n@endmeta\n@end\n```\n\n### Step 2\n\nRead the path.';
+
+function ingestSession(id: string): Session {
+  return {
+    ...makeSession(id),
+    raw: MARKDOWN,
+    origin: 'ingest',
+    capsule: {
+      meta: { version: 1, subject: 'CS', topic: 'Shortest path' },
+      steps: [
+        { id: 's1', index: 1, title: 'Draw the graph', body: 'Draw the graph.' },
+        { id: 's2', index: 2, title: 'Read the path', body: 'Read the path.' },
+      ],
+      solution: '',
+      solutionDiagrams: [],
+    },
+  };
+}
+
+describe('an answer structured from the chat, shared across tabs', () => {
+  it('is mirrored without its Markdown and still says where it came from', () => {
+    const [mirrored] = sessionsForMirror([ingestSession('a')]);
+    expect(mirrored).toEqual({ ...ingestSession('a'), raw: '' });
+  });
+
+  it('arrives in another tab as the same answer: its origin, its steps, nothing to parse', async () => {
+    await mirrorActiveSessions([ingestSession('plain-1')]);
+    const admitted = restorableSessions(await loadMirroredSessions());
+    expect(admitted.rejected).toBe(0);
+    const [arrived] = mergeMirroredSessions([], admitted.sessions);
+    expect(arrived).toEqual({ ...ingestSession('plain-1'), raw: '' });
+  });
+
+  it('gets its Markdown back in the tab that structured it, whichever copy is newer', () => {
+    const local = ingestSession('a');
+    const [mirrored] = sessionsForMirror([{ ...local, updatedAt: 99 }]);
+    expect(mergeMirroredSessions([local], [mirrored!])[0]).toEqual({ ...local, updatedAt: 99 });
+    expect(mergeMirroredSessions([{ ...local, raw: '' }], [local])[0]).toEqual(local);
+  });
+
+  it('does not lend its Markdown to the stemLM answer that replaced it under the same id', () => {
+    const local = ingestSession('a');
+    const { origin: _origin, ...retried } = { ...local, updatedAt: 99, raw: '' };
+    const merged = mergeMirroredSessions([local], [retried])[0]!;
+    expect(merged.raw).toBe('');
+    expect(merged.origin).toBeUndefined();
+  });
+
+  it('does not borrow capsule text from a stemLM answer under the same id', () => {
+    const capsule = { ...makeSession('a'), raw: '@meta\ntopic: T\n@endmeta\n@end' };
+    const restored = { ...ingestSession('a'), raw: '' };
+    // Newer: the structured answer wins as it is.
+    expect(mergeMirroredSessions([capsule], [{ ...restored, updatedAt: 99 }])[0]).toEqual({ ...restored, updatedAt: 99 });
+    // Same age: the local copy stays, and stays without text.
+    expect(mergeMirroredSessions([restored], [capsule])[0]).toEqual(restored);
   });
 });
 

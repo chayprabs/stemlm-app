@@ -635,17 +635,22 @@
   transform: rotate(180deg);
 }
 
-/* Where an answer came from, when stemLM only arranged it: metadata, said once and quietly. */
+/* Where an answer came from, when stemLM only arranged it. Said once and quietly, and in the
+   reading face: it is a sentence, not a label. Balanced, so a narrow panel breaks it between its
+   two sentences instead of stranding the last word. */
 .slm-origin-note {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--slm-text-2xs);
-  letter-spacing: 0.02em;
-  line-height: 1.5;
+  font-size: var(--slm-text-xs);
+  line-height: 1.45;
   color: var(--slm-fg-subtle);
+  text-wrap: balance;
 }
 .slm-header-title .slm-origin-note {
   margin-top: 0.1rem;
+}
+/* Closing the Solution document it is a footnote to the working, at the size of the page's other asides. */
+.slm-solution .slm-origin-note {
+  font-size: var(--slm-text-sm);
 }
 
 /* ---------- session switch: this chat's questions, above the one being read ---------- */

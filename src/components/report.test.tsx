@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Report, collectDiagrams, diagramKey } from './Report';
+import { MergedReport, PlainReport, Report, collectDiagrams, diagramKey } from './Report';
+import { ORIGIN_NOTE, ORIGIN_NOTE_DETAIL } from './OriginNote';
 import { buildReportDocument, printStyles, reportFilename, reportPrintTitle } from '@/src/lib/pdf';
 import { resolveDiagram, resolveDiagramSvg } from '@/src/lib/resolve-diagram';
 import { parse } from '@/src/protocol/parser';
@@ -241,6 +242,78 @@ describe('Report renderToStaticMarkup', () => {
     expect(html).toContain('slm-report-solution');
     expect(html).not.toContain('slm-report-step');
     expect(html).not.toContain('Label the circuit');
+  });
+});
+
+describe('a report of an answer structured from the chat', () => {
+  const QUESTION = 'A ball is thrown at 20 m/s at 30° above the horizontal. How far away does it land?';
+  const plain: Session = {
+    id: 'plain',
+    createdAt: 0,
+    updatedAt: 0,
+    platform: 'claude',
+    question: QUESTION,
+    raw: '',
+    origin: 'ingest',
+    capsule: {
+      meta: { version: 2, subject: 'Physics', topic: 'A ball is thrown at 20 m/s at…', question: QUESTION },
+      steps: [
+        { id: 's1', index: 1, title: 'Resolve the velocity', body: 'The horizontal part is $17.3$ m/s.' },
+        { id: 's2', index: 2, title: 'Find the range', body: 'Multiply by the time of flight.' },
+      ],
+      solution: 'The ball lands about $35.3$ m away.',
+      solutionDiagrams: [],
+    },
+  };
+  const note = `${ORIGIN_NOTE} ${ORIGIN_NOTE_DETAIL}`;
+
+  it('says once, in the small print, that stemlm arranged the answer and did not check it', () => {
+    const html = renderToStaticMarkup(<Report session={plain} diagramSvg={{}} />);
+    expect(html.split(note)).toHaveLength(2);
+    expect(html).toContain(`<p class="slm-report-origin">${note}</p>`);
+    expect(printStyles()).toContain('.slm-report-origin{');
+  });
+
+  it('prints the conclusion the steps no longer contain, after the last step', () => {
+    const html = renderToStaticMarkup(<Report session={plain} diagramSvg={{}} />);
+    const answer = html.slice(html.indexOf('slm-report-answer'));
+    expect(answer).toContain('slm-takeaway-label">Answer');
+    expect(answer).toContain('The ball lands about');
+    expect(html.indexOf('Find the range')).toBeLessThan(html.indexOf('slm-report-answer'));
+    expect(html.indexOf('slm-report-answer')).toBeLessThan(html.indexOf('slm-report-origin'));
+  });
+
+  it('does not head the page with a topic that is only the opening of the question', () => {
+    const html = renderToStaticMarkup(<Report session={plain} diagramSvg={{}} />);
+    expect(html).not.toContain('<h1');
+    expect(html).toContain('How far away does it land?');
+    const merged = renderToStaticMarkup(<MergedReport sessions={[plain, buildSession()]} diagramSvg={{}} />);
+    expect(merged).not.toContain('A ball is thrown at 20 m/s at…');
+    expect(merged).toContain('Circuit format check');
+  });
+
+  it('marks only its own entry in a merged report', () => {
+    const merged = renderToStaticMarkup(<MergedReport sessions={[buildSession(), plain, buildSession()]} diagramSvg={{}} />);
+    expect(merged.split(note)).toHaveLength(2);
+    const entries = merged.split('class="slm-report-entry"').slice(1);
+    expect(entries.map((entry) => entry.includes('slm-report-origin'))).toEqual([false, true, false]);
+    expect(entries.map((entry) => entry.includes('slm-report-answer'))).toEqual([false, true, false]);
+  });
+
+  it('leaves a stemLM answer exactly as it was: no note, no answer block', () => {
+    for (const origin of [undefined, 'capsule'] as const) {
+      const html = renderToStaticMarkup(<Report session={{ ...buildSession(), ...(origin ? { origin } : {}) }} diagramSvg={{}} />);
+      expect(html).not.toContain('slm-report-origin');
+      expect(html).not.toContain('slm-report-answer');
+    }
+  });
+
+  it('keeps the note and the conclusion in the last-resort plain report', () => {
+    const html = renderToStaticMarkup(<PlainReport sessions={[plain, buildSession()]} />);
+    expect(html.split(note)).toHaveLength(2);
+    expect(html).toContain('The ball lands about 35.3 m away.');
+    const entries = html.split('class="slm-report-entry"').slice(1);
+    expect(entries.map((entry) => entry.includes('slm-report-answer'))).toEqual([true, false]);
   });
 });
 

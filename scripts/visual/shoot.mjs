@@ -96,7 +96,17 @@ const settle = (page, ms = 450) => page.waitForTimeout(ms);
 
 /** Seed or clear extension settings, as the options page would, before a page is opened. */
 const setStored = (values) => sw.evaluate((v) => chrome.storage.local.set(v), values);
+const getStored = (key) => sw.evaluate(async (k) => (await chrome.storage.local.get(k))[k], key);
 const clearStored = (keys) => sw.evaluate((k) => chrome.storage.local.remove(k), keys);
+
+/** One of the extension's own pages (popup, pdf, library), as the browser would open it. */
+async function openExtensionPage(path, scheme, viewport) {
+  const page = await ctx.newPage();
+  if (viewport) await page.setViewportSize(viewport);
+  await page.emulateMedia({ colorScheme: scheme });
+  await page.goto(extUrl(path), { waitUntil: 'load' });
+  return page;
+}
 
 async function hostSuite(id, scheme) {
   const tag = `${id}-${scheme}`;
@@ -248,7 +258,7 @@ try {
     for (const scheme of SCHEMES) await hostSuite(id, scheme);
   }
   if (want('subject')) await subjectSuite();
-  await plainSuites({ openHost, sendToTab, shot, settle, failures, only, schemes: SCHEMES });
+  await plainSuites({ openHost, openExtensionPage, sendToTab, shot, settle, setStored, getStored, clearStored, failures, only, schemes: SCHEMES });
   if (want('empty')) await emptyPanelSuite();
   await panelStateSuites({ openHost, sendToTab, shot, settle, setStored, clearStored, failures, want, schemes: SCHEMES });
   await extensionPages();

@@ -36,7 +36,7 @@ function fullQuestion(session: Session): string {
  * A topic that is the question, or only its opening words, says nothing the question below it
  * does not. An answer structured from the chat has no title of its own, so its topic is exactly that.
  */
-function repeatsQuestion(topic: string, question: string): boolean {
+export function repeatsQuestion(topic: string, question: string): boolean {
   const flat = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
   const opening = flat(topic).replace(/(?:…|\.{3})$/, '').trimEnd();
   return opening === '' || flat(question).startsWith(opening);

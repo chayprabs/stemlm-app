@@ -22,6 +22,40 @@ function buildSession(): Session {
 }
 
 describe('SolutionView', () => {
+  it('closes an answer structured from the chat with what stemlm did, and did not do', () => {
+    const plain: Session = {
+      id: 'plain',
+      createdAt: 0,
+      updatedAt: 0,
+      platform: 'chatgpt',
+      question: 'Solve 2x² − 4x − 6 = 0.',
+      raw: '',
+      origin: 'ingest',
+      capsule: {
+        meta: { version: 2, subject: 'Math', topic: 'Solve 2x² − 4x − 6 = 0.' },
+        steps: [
+          { id: 's1', index: 1, title: 'Identify the coefficients', body: 'a = 2, b = −4, c = −6.' },
+          { id: 's2', index: 2, title: 'Apply the quadratic formula', body: 'So x₁ = 3 and x₂ = −1.' },
+        ],
+        solution: 'The roots are three and minus one.',
+        solutionDiagrams: [],
+      },
+    };
+    const root = document.createElement('div');
+    root.innerHTML = renderToStaticMarkup(<SolutionView session={plain} theme="light" />);
+    const note = root.querySelector('.slm-solution > .slm-origin-note')!;
+    expect(note.textContent).toBe('stemlm arranged this answer into steps without changing its wording. It did not verify the working.');
+    // After the working, before the Ask-in-chat bar; the header above it carries the short label.
+    const steps = root.querySelector('.slm-solution-steps')!;
+    expect(steps.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(root.textContent).not.toContain('Structured from the chat answer');
+    // The conclusion lifted out of the reply leads the document.
+    expect(root.querySelector('.slm-answer')?.textContent).toContain('The roots are three and minus one.');
+
+    const stemlm = renderToStaticMarkup(<SolutionView session={buildSession()} theme="light" />);
+    expect(stemlm).not.toContain('slm-origin-note');
+  });
+
   it('keeps the affected solution explanation usable without a repair prompt', () => {
     const session = buildSession();
     session.capsule.steps.push({

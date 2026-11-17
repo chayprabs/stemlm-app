@@ -135,8 +135,8 @@ describe('filterSavedSessions', () => {
     const all = [...library, plain];
     expect(filterSavedSessions(all)[0]).toBe(plain);
     expect(filterSavedSessions(all, { subject: 'Physics' })).toContain(plain);
+    // The same object comes back, so whatever the saved record carries (its origin) is still on it.
     expect(filterSavedSessions(all, { query: 'ball thrown' })[0]).toBe(plain);
-    expect(filterSavedSessions(all, { query: 'ball thrown' })[0]?.origin).toBe('ingest');
     expect(savedSessionQuestion(plain)).toBe('How far does a ball thrown at 20 m/s land?');
   });
 

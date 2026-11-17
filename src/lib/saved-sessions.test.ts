@@ -17,10 +17,11 @@ const { storageData, mockLocalStorage } = vi.hoisted(() => {
   };
 });
 
-const { exportSessionPdfMock, downloadSessionPdfMock, tabsCreateMock, tabsSendMessageMock, windowsCreateMock } =
+const { exportSessionPdfMock, downloadSessionPdfMock, downloadSessionsPdfMock, tabsCreateMock, tabsSendMessageMock, windowsCreateMock } =
   vi.hoisted(() => ({
     exportSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'print' as const })),
-    downloadSessionPdfMock: vi.fn(async () => ({ ok: true, method: 'download' as const })),
+    downloadSessionPdfMock: vi.fn(async (_session: Session) => ({ ok: true, method: 'download' as const })),
+    downloadSessionsPdfMock: vi.fn(async (_sessions: readonly Session[]) => ({ ok: true, method: 'download' as const })),
     tabsCreateMock: vi.fn(async () => ({ id: 1 })),
     tabsSendMessageMock: vi.fn(async () => ({ ok: true })),
     windowsCreateMock: vi.fn(async () => ({ id: 9 })),
@@ -52,6 +53,7 @@ vi.mock('./pdf', async (importOriginal) => {
     ...actual,
     exportSessionPdf: exportSessionPdfMock,
     downloadSessionPdf: downloadSessionPdfMock,
+    downloadSessionsPdf: downloadSessionsPdfMock,
   };
 });
 
@@ -70,7 +72,7 @@ import {
   estimateSnapshotBytes,
   MAX_SAVED_BYTES,
 } from './saved-sessions';
-import { downloadSavedSessionPdf, openSavedSessionPdf } from './saved-session-pdf';
+import { downloadSavedSessionPdf, downloadSavedSessionsPdf, openSavedSessionPdf } from './saved-session-pdf';
 
 function makeSession(overrides: Partial<Session> & { id: string }): Session {
   const now = overrides.updatedAt ?? overrides.createdAt ?? 1_000;
@@ -468,6 +470,69 @@ describe('saved-sessions', () => {
       expect(url).not.toContain('stemlm:load-conversation');
       expect(exportSessionPdfMock).not.toHaveBeenCalled();
       expect(tabsCreateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('an answer structured from the chat', () => {
+    /** The answer's Markdown. Its `stemlm` fence is a figure; read as a capsule it would be another answer. */
+    const MARKDOWN = '1. Factor the quadratic.\n2. Read off the roots.\n\n```stemlm\n@meta\ntopic: Not this answer\n@endmeta\n@end\n```';
+    const plainSession = (id: string, overrides: Partial<Session> = {}): Session =>
+      ({ ...makeSession({ id, ...overrides }), raw: MARKDOWN, origin: 'ingest' });
+    /** What the library holds after the browser has serialised it. */
+    const reread = () => seedStorage(JSON.parse(JSON.stringify(storedSnapshots())));
+
+    it('is saved and listed as one, without the Markdown it was built from', async () => {
+      await saveSession(plainSession('plain'));
+      reread();
+      expect(JSON.stringify(storedSnapshots())).not.toContain('Not this answer');
+      const [listed] = await getSavedSessions();
+      expect(listed?.origin).toBe('ingest');
+
+      const reopened = snapshotToSession(listed!);
+      expect(reopened.origin).toBe('ingest');
+      expect(reopened.raw).toBe('');
+      expect(reopened.capsule.steps).toEqual(plainSession('plain').capsule.steps);
+      expect(reopened.capsule.verification).toBeUndefined();
+    });
+
+    it('leaves a stemLM answer without an origin, as it was always stored', () => {
+      const snapshot = sessionToSnapshot(makeSession({ id: 'capsule' }));
+      expect(snapshot).not.toHaveProperty('origin');
+      expect(snapshotToSession(snapshot)).not.toHaveProperty('origin');
+      expect(sessionToSnapshot({ ...makeSession({ id: 'capsule' }), origin: 'capsule' })).not.toHaveProperty('origin');
+    });
+
+    it('keeps its origin when the saved copy is refreshed', async () => {
+      await saveSession(plainSession('keep'));
+      expect(await refreshSavedSession(plainSession('keep', { question: 'Asked again' }))).toBe(true);
+      reread();
+      expect(await getSavedSession('keep')).toMatchObject({ question: 'Asked again', origin: 'ingest' });
+    });
+
+    it('stops being marked once a stemLM answer has replaced it under the same id', async () => {
+      await saveSession(plainSession('retried'));
+      expect(await refreshSavedSession(makeSession({ id: 'retried' }))).toBe(true);
+      reread();
+      expect(await getSavedSession('retried')).not.toHaveProperty('origin');
+    });
+
+    it('reads back only the origin stemlm writes, from snapshots and from legacy sessions', () => {
+      const snapshot = sessionToSnapshot(plainSession('stored'));
+      expect(normalizeStoredSession(snapshot)?.origin).toBe('ingest');
+      expect(normalizeStoredSession({ ...snapshot, origin: 'verified' })).not.toHaveProperty('origin');
+      expect(normalizeStoredSession(plainSession('legacy'))?.origin).toBe('ingest');
+    });
+
+    it('exports its PDF from the library still marked, alone or merged with stemLM answers', async () => {
+      seedStorage([sessionToSnapshot(plainSession('lib-plain')), sessionToSnapshot(makeSession({ id: 'lib-capsule' }))]);
+      reread();
+
+      await downloadSavedSessionPdf('lib-plain');
+      expect(downloadSessionPdfMock.mock.calls[0]?.[0]).toMatchObject({ id: 'lib-plain', origin: 'ingest', raw: '' });
+
+      await downloadSavedSessionsPdf(['lib-capsule', 'lib-plain']);
+      const merged = downloadSessionsPdfMock.mock.calls[0]?.[0] ?? [];
+      expect(merged.map((session) => [session.id, session.origin])).toEqual([['lib-capsule', undefined], ['lib-plain', 'ingest']]);
     });
   });
 

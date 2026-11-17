@@ -155,6 +155,43 @@ it.each([false, true])('PERS-05 restores healthy records from a mixed batch with
   expect(bootMocks.mirror).not.toHaveBeenCalled();
 });
 
+/** An answer structured from a plain chat reply, as a reload backup or the cross-tab mirror stores it. */
+function plain(id = 'plain'): Session {
+  return {
+    ...sample(id), origin: 'ingest',
+    capsule: { meta: { version: 2, subject: 'Physics', topic: 'Projectile range' }, solution: '', solutionDiagrams: [],
+      steps: [{ id: 's1', index: 1, title: 'Resolve the velocity', body: 'Split it into components.' }] },
+  };
+}
+
+it.each([false, true])('restores an answer structured from the chat as one, beside a stemLM answer, shared=%s', async (shared) => {
+  // The browser hands back JSON copies of what was stored.
+  const stored: unknown = JSON.parse(JSON.stringify([sample('capsule'), plain()]));
+  bootMocks.settings.mockResolvedValue({ ...DEFAULT_SETTINGS, shareAcrossTabs: shared });
+  if (shared) bootMocks.shared.mockResolvedValue(stored);
+  else bootMocks.backup.mockResolvedValue({ sessions: stored, activeSessionId: 'plain', activeStepIndex: 0 });
+  await act(async () => { await boot.main(ctx); });
+  const state = useStore.getState();
+  expect(state.errorMessage).toBeUndefined();
+  expect(state.sessions).toEqual([sample('capsule'), plain()]);
+  expect(state.sessions[0]).not.toHaveProperty('origin');
+  expect(state.activeSessionId).toBe('plain');
+});
+
+it('takes an answer structured in another tab from the mirror with its origin, and keeps its own Markdown', async () => {
+  bootMocks.settings.mockResolvedValue({ ...DEFAULT_SETTINGS, shareAcrossTabs: true });
+  await act(async () => { await boot.main(ctx); });
+  const callback = bootMocks.mirrorWatch.mock.calls[0]![0];
+  act(() => callback(JSON.parse(JSON.stringify([plain('from-other-tab')]))));
+  expect(useStore.getState().sessions).toEqual([plain('from-other-tab')]);
+
+  // The same answer, structured here with its text, then echoed back newer and without it.
+  const own = { ...plain('own'), raw: '1. Resolve the velocity.\n2. Find the range.', createdAt: 5 };
+  act(() => useStore.getState().addSession(own));
+  act(() => callback(JSON.parse(JSON.stringify([plain('from-other-tab'), { ...own, raw: '', updatedAt: 9 }]))));
+  expect(useStore.getState().sessions.find((session) => session.id === 'own')).toEqual({ ...own, updatedAt: 9 });
+});
+
 it('reports starting instead of false success while settings are pending', async () => {
   const pending = deferred<Settings>();
   bootMocks.settings.mockReturnValue(pending.promise);
