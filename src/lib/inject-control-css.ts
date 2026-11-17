@@ -206,11 +206,12 @@ ${s}.slm-inject-tip.is-open {
 /* Once, after install: how to use the control, set clear of the chat box with its caret on the
    control, which wears a ring of the signal until it is pressed. Hidden until it has a place. */
 ${s}.slm-fab-wrap.has-hint .slm-inject-btn {
-  box-shadow: 0 0 0 2px ${INJECT_SIGNAL};
+  outline: 2px solid ${INJECT_SIGNAL};
+  outline-offset: 2px;
 }
 ${s}.slm-first-hint {
-  --slm-hint-bg: #16161a;
-  --slm-hint-fg: #ffffff;
+  --slm-inject-hint-bg: #16161a;
+  --slm-inject-hint-fg: #ffffff;
   position: fixed;
   top: 0;
   left: 0;
@@ -221,8 +222,8 @@ ${s}.slm-first-hint {
   max-width: min(320px, calc(100vw - 16px));
   padding: 4px 4px 4px 12px;
   border-radius: 10px;
-  background: var(--slm-hint-bg);
-  color: var(--slm-hint-fg);
+  background: var(--slm-inject-hint-bg);
+  color: var(--slm-inject-hint-fg);
   font: 500 13px/1.4 ${FONT_SANS};
   letter-spacing: 0;
   box-shadow: 0 8px 24px rgb(22 22 26 / 0.18);
@@ -233,16 +234,16 @@ ${s}.slm-first-hint[data-side] {
   visibility: visible;
 }
 ${dark} .slm-first-hint {
-  --slm-hint-bg: #f2f2f2;
-  --slm-hint-fg: #16161a;
+  --slm-inject-hint-bg: #f2f2f2;
+  --slm-inject-hint-fg: #16161a;
 }
 ${s}.slm-first-hint::after {
   content: '';
   position: absolute;
-  left: clamp(8px, calc(var(--slm-hint-caret, 16px) - 5px), calc(100% - 18px));
+  left: clamp(8px, calc(var(--slm-inject-hint-caret, 16px) - 5px), calc(100% - 18px));
   width: 10px;
   height: 10px;
-  background: var(--slm-hint-bg);
+  background: var(--slm-inject-hint-bg);
   transform: rotate(45deg);
 }
 ${s}.slm-first-hint[data-side="above"]::after {
@@ -268,11 +269,11 @@ ${s}.slm-first-hint-close {
 }
 ${s}.slm-first-hint-close:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--slm-hint-fg) 12%, transparent);
+  background: color-mix(in srgb, var(--slm-inject-hint-fg) 12%, transparent);
 }
 ${s}.slm-first-hint-close:focus-visible {
   opacity: 1;
-  outline: 2px solid var(--slm-hint-fg);
+  outline: 2px solid var(--slm-inject-hint-fg);
   outline-offset: -2px;
 }
 ${s}.slm-inject-live {
