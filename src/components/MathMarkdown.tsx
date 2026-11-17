@@ -21,6 +21,12 @@ export interface MathMarkdownProps {
   mathMode?: MathRenderMode;
   /** Keep prose and math inside a heading without nested block elements. */
   inline?: boolean;
+  /**
+   * Pass `false` for the student's own words (their question). Math they marked up still
+   * renders (`$…$`, `\(…\)`, a TeX command such as `\vec{P}`), but bare text such as
+   * `A-B 4` or `x_1 = 5` is shown exactly as typed.
+   */
+  promote?: boolean;
 }
 
 export const MathMarkdown = memo(function MathMarkdown({
@@ -28,6 +34,7 @@ export const MathMarkdown = memo(function MathMarkdown({
   className,
   mathMode = 'auto',
   inline = false,
+  promote = true,
 }: MathMarkdownProps) {
   const Wrapper = inline ? 'span' : 'div';
   return (
@@ -38,7 +45,7 @@ export const MathMarkdown = memo(function MathMarkdown({
         urlTransform={safeUrl}
         components={inline ? { p: 'span' } : undefined}
       >
-        {prepareMathForRender(content, mathMode, true)}
+        {prepareMathForRender(content, mathMode, true, promote)}
       </Markdown>
     </Wrapper>
   );

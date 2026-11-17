@@ -88,9 +88,24 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Inline or trailing protocol tokens glued to content (e.g. "$$…$$ @formulaend"). */
-const INLINE_MARKER_RE =
-  /[\t ]*@(?:end(?:meta|step|formula|body|diagram|takeaway|quickcheck|followup|solution)|(?:meta|step|formula|body|takeaway|quickcheck|followup|solution|diagram)end|diagram\s+type\s*=\s*[a-z]+|meta|step|formula|body|takeaway|quickcheck|followup|solution|end)(?=\s|$)/gi;
+/**
+ * Tokens no sentence contains: an end marker in either spelling, or the diagram opener. They
+ * are stripped wherever they were glued on (e.g. "$$…$$ @formulaend").
+ */
+const GLUED_MARKER_RE =
+  /[\t ]*@(?:end(?:meta|step|formula|body|diagram|takeaway|quickcheck|followup|solution)|(?:meta|step|formula|body|takeaway|quickcheck|followup|solution|diagram)end|diagram\s+type\s*=\s*[a-z]+)(?=\s|$)/gi;
+
+/**
+ * `@end`, `@step`, `@body` and the other one-word markers are also ordinary words after an
+ * at-sign ("send it @end of day", "see @step two"), so they count as a marker only where the
+ * protocol puts one: closing a line, after the content it was glued to.
+ */
+const TRAILING_WORD_MARKER_RE =
+  /[\t ]+@(?:meta|step|formula|body|takeaway|quickcheck|followup|solution|end)[\t ]*$/gim;
+
+function stripInlineMarkers(text: string): string {
+  return text.replace(GLUED_MARKER_RE, '').replace(TRAILING_WORD_MARKER_RE, '');
+}
 
 function isProtocolOnlyLine(line: string): boolean {
   const t = line.trim();
@@ -135,11 +150,10 @@ export function stripProtocolMarkers(text: string): string {
 
   const lines = text.split('\n').map((line) => {
     if (!line.trim()) return line;
-    if (isProtocolOnlyLine(line)) return null;
-    return line.replace(INLINE_MARKER_RE, '').trimEnd();
+    const kept = isProtocolOnlyLine(line) ? '' : stripInlineMarkers(line).trimEnd();
+    // "@end @endbody": what is left of a line of markers is itself a marker.
+    return kept && !isProtocolOnlyLine(kept) ? kept : null;
   });
 
-  let out = lines.filter((line): line is string => line !== null).join('\n');
-  out = out.replace(INLINE_MARKER_RE, '').trim();
-  return out;
+  return lines.filter((line): line is string => line !== null).join('\n').trim();
 }
