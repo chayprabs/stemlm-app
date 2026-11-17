@@ -20,6 +20,8 @@ describe('pack families in the guide', () => {
     }
     expect(renderDiagramRegistry()).toMatch(new RegExp(`^${token.replace('.', '\.')}\t`, 'm'));
     expect(guide).toContain(`@diagram id=f${token} type=${token}\n${manifest.specimen}\n@enddiagram`);
+    // The guide cuts this prefix off, since its SCHEMA line already names the family.
+    expect(manifest.grammar.startsWith(`${token}: `)).toBe(true);
     // The grammar line names every key the compiler admits the family by.
     const schema = renderFamilyForms().split('\n').find((line) => line.startsWith(`SCHEMA ${token} `));
     for (const key of [...(manifest.required ?? []), ...(manifest.requiredAny ?? [])]) expect(schema, key).toContain(`${key}:`);

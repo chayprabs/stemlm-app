@@ -90,7 +90,7 @@ export function renderFamilyForms(): string {
     'FAMILY FORMS — one grammar line and one specimen per family; replace every value with question content. Where a family computes its result (truth-table rows, a gate network, a fitted line, a shaded probability), give the inputs only and NEVER supply the derived values.',
     ...FAMILY_MANIFESTS.flatMap((manifest) => {
       // The manifest writes its grammar as `token: …`; the SCHEMA line already names the family.
-      const grammar = manifest.grammar.startsWith(`${manifest.token}: `) ? manifest.grammar.slice(manifest.token.length + 2) : manifest.grammar;
+      const grammar = manifest.grammar.slice(manifest.token.length + 2);
       const key = (manifest.required ?? manifest.requiredAny ?? manifest.keys)[0];
       return [
         `SCHEMA ${manifest.token} key=${key} :: ${grammar}. SPECIMEN follows.`,
