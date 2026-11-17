@@ -48,6 +48,17 @@ describe('figure captions', () => {
     expect(caption?.classList.contains('slm-sr-only')).toBe(false);
   });
 
+  it('shows a title the model wrote where a caption belongs, once notation repair has read it', async () => {
+    const el = await mount({ type: 'graph', content: 'title: Shortest path\nnode: a A\nnode: b B\nedge: a b 4' });
+    expect(el.querySelector('figcaption')?.textContent).toBe('Shortest path');
+    expect(el.querySelector('figure')?.getAttribute('aria-labelledby')).toBe(el.querySelector('figcaption')?.id);
+  });
+
+  it('shows the title of a Mermaid diagram it translated', async () => {
+    const el = await mount({ type: 'mermaid', content: '---\ntitle: Login flow\n---\nflowchart LR\n  A[Enter password] --> B[Signed in]' });
+    expect(el.querySelector('figcaption')?.textContent).toBe('Login flow');
+  });
+
   it('shows a caption the figure already draws only to screen readers', async () => {
     const el = await mount(TABLE);
     expect(el.querySelector('.slm-diagram-svg svg')?.textContent).toContain('Concentrations in M');
