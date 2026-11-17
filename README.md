@@ -122,6 +122,7 @@ The figure compiler goes **catalog → engine → Scene IR → layout kernel →
 | Biology | membranes, gel electrophoresis, operons, PCR, neurons, cell division, Ramachandran plots, phylogenetic trees |
 | Computer science | flowcharts, state machines and automata, sequence diagrams, binary, search and heap trees with computed traversals, arrays, linked lists, stacks, hash tables, Gantt charts |
 | Digital logic | truth tables computed from Boolean expressions, logic-gate circuits derived from the same expressions, K-maps, timing diagrams |
+| Statistics and data | bar, grouped and stacked charts, line charts, histograms, pies and donuts, box plots, scatter plots with a fitted line, probability distributions with the shaded probability computed, number lines for intervals and inequalities, Venn diagrams |
 | Tables | matrices, dynamic-programming tables, ICE tables, Punnett squares |
 
 **Exact about content, forgiving about notation.** A spec that compiles as written is drawn as written. One that does not gets a second chance:
