@@ -118,7 +118,8 @@ describe('structureAnswer: corpus of plain answers', () => {
     expect(outline).toMatchSnapshot();
   });
 
-  it('renders every title, body, formula and solution through MathMarkdown without a KaTeX error', () => {
+  // Renders the whole corpus through KaTeX: seconds when the suite runs in parallel, not the default 5.
+  it('renders every title, body, formula and solution through MathMarkdown without a KaTeX error', { timeout: 60_000 }, () => {
     const html = (content: string, props: { inline?: boolean; mathMode?: 'display' } = {}) =>
       renderToStaticMarkup(createElement(MathMarkdown, { content, ...props }));
     for (const answer of WORKED) {
