@@ -1943,7 +1943,9 @@ describe('StemController capture', () => {
 
     const [lead, ...detail] = (useStore.getState().errorMessage ?? '').split('\n');
     expect(lead).not.toMatch(/parser|code|capsule/i);
-    expect(lead).toMatch(/\+/);
+    // The message names the control to press, as it is drawn now: the stemlm button, not a plus.
+    expect(lead).toMatch(/\bstemlm button\b/);
+    expect(lead).not.toMatch(/\+/);
     expect(detail.join('\n')).toMatch(/^Parser code: \w+\.$/);
     c.stopWatching();
   });
@@ -1967,7 +1969,9 @@ describe('StemController capture', () => {
       console.log('MISSING_END_MESSAGE', JSON.stringify(useStore.getState().errorMessage));
       expect(lead).toMatch(/stopped before the end/i);
       expect(lead).toMatch(/continue/i);
-      expect(lead).toMatch(/\+/);
+      // The message names the control to press, as it is drawn now: the stemlm button, not a plus.
+      expect(lead).toMatch(/\bstemlm button\b/);
+      expect(lead).not.toMatch(/\+/);
       expect(lead).not.toMatch(/parser|code|capsule/i);
       // D38: its closed steps are shown (cut off, unsaveable) with this notice, not an error.
       expect(detail).toEqual([]);
@@ -1995,7 +1999,9 @@ describe('StemController capture', () => {
       console.log('NO_CAPSULE_MESSAGE', JSON.stringify(useStore.getState().errorMessage));
       expect(lead).toMatch(/no stemlm answer/i);
       expect(lead).toMatch(/error|limit/i);
-      expect(lead).toMatch(/\+/);
+      // The message names the control to press, as it is drawn now: the stemlm button, not a plus.
+      expect(lead).toMatch(/\bstemlm button\b/);
+      expect(lead).not.toMatch(/\+/);
       expect(lead).not.toMatch(/parser|code|capsule/i);
       expect(detail.join('\n')).toBe('Parser code: no_capsule.');
     } finally {

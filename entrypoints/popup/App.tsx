@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 import {
   getSettings,
@@ -15,7 +15,7 @@ import {
   type ResolvedTheme,
 } from '@/src/lib/theme';
 import { BrandWordmark, themeToBrandVariant } from '@/src/components/brand';
-import { IconPanel, IconPower, IconSave, IconSettings } from '@/src/components/icons';
+import { IconChevronRight, IconPanel, IconSettings } from '@/src/components/icons';
 import { HostLogo } from '@/src/components/host-logos';
 import { getActiveTab } from '@/src/lib/tab-bridge';
 import {
@@ -28,16 +28,28 @@ import {
   openWelcomePage,
   type LaunchResult,
 } from '@/src/lib/popup-launch';
-import { isSupportedChatUrl } from '@/src/platforms/detect';
+import { adapterForUrl, isSupportedChatUrl } from '@/src/platforms/detect';
+import type { PlatformId } from '@/src/platforms/types';
+import { getSavedSessions } from '@/src/lib/saved-sessions';
 import { watchAndApplyToolbarIcon } from '@/src/lib/toolbar-icon';
 
+/** What the popup knows about the tab it was opened over. `pending` until the first tab query answers. */
+type TabState = { status: 'pending' } | { status: 'other' } | { status: 'chat'; id: PlatformId; label: string };
+
+function tabStateFor(url: string | undefined): TabState {
+  if (!isSupportedChatUrl(url)) return { status: 'other' };
+  const adapter = adapterForUrl(url);
+  return adapter ? { status: 'chat', id: adapter.id, label: adapter.label } : { status: 'other' };
+}
+
 export default function App() {
-  const [supported, setSupported] = useState(false);
+  const [tab, setTab] = useState<TabState>({ status: 'pending' });
   const [sendError, setSendError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const launchInFlight = useRef(false);
   const [stemlmEnabled, setStemlmEnabled] = useState(stemlmEnabledFromBootCache);
   const [theme, setTheme] = useState<ResolvedTheme>(() => themeFromBootCache());
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     applyTheme(document.documentElement, theme);
@@ -45,6 +57,7 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    let live = true;
     getSettings().then((s) => {
       const resolved = resolveTheme(s.theme);
       persistThemeBoot(s.theme, resolved);
@@ -54,9 +67,18 @@ export default function App() {
     });
 
     const refreshTab = () => {
-      void getActiveTab().then((tab) => setSupported(isSupportedChatUrl(tab?.url)));
+      void getActiveTab().then((active) => {
+        if (live) setTab(tabStateFor(active?.url));
+      });
     };
     refreshTab();
+
+    // The count is a nicety: it arrives after first paint and its absence is not an error.
+    void getSavedSessions()
+      .then((saved) => {
+        if (live) setSavedCount(saved.length);
+      })
+      .catch(() => undefined);
 
     const onActivated = () => refreshTab();
     const onUpdated = (_id: number, info: { url?: string }) => {
@@ -73,6 +95,7 @@ export default function App() {
       setTheme(resolved);
     });
     return () => {
+      live = false;
       browser.tabs.onActivated.removeListener(onActivated);
       browser.tabs.onUpdated.removeListener(onUpdated);
       stopToolbar();
@@ -112,12 +135,124 @@ export default function App() {
     }
   }
 
+  const onChat = tab.status === 'chat';
+
+  const openPanel = (
+    <div key="panel" className="slm-popup-primary">
+      <button
+        type="button"
+        data-launch="open-study-panel"
+        className={`slm-popup-open${onChat ? ' is-primary' : ''}`}
+        disabled={launching}
+        aria-busy={launching}
+        onClick={() => void launchAndClose(openStudyPanel)}
+      >
+        <IconPanel width={16} height={16} aria-hidden="true" />
+        <span>Open study panel</span>
+      </button>
+      {sendError && <p className="slm-popup-error" role="alert">{sendError}</p>}
+    </div>
+  );
+
+  const hosts = (
+    <section key="hosts" className="slm-popup-hosts" aria-label="Open a supported chat">
+      <p className="slm-popup-label">{onChat ? 'New chat' : 'Choose a chat'}</p>
+      <div className="slm-popup-host-row">
+        {CHAT_HOST_LAUNCH.map((host) => (
+          <button
+            key={host.id}
+            type="button"
+            data-host={host.id}
+            className="slm-popup-host"
+            title={`Open ${host.label}`}
+            aria-label={host.label}
+            disabled={launching}
+            onClick={() => void launchAndClose(() => openChatHost(host.id))}
+          >
+            <span className="slm-popup-host-logo" aria-hidden="true">
+              <HostLogo id={host.id} size={18} />
+            </span>
+            <span className="slm-popup-host-name">{host.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const rows = (
+    <div key="rows" className="slm-popup-actions">
+      <button
+        type="button"
+        role="switch"
+        data-launch="stemlm-enabled"
+        className={`slm-popup-row slm-popup-toggle${stemlmEnabled ? ' is-on' : ''}`}
+        aria-checked={stemlmEnabled}
+        aria-label={STEMLM_TOGGLE_LABEL}
+        aria-describedby="slm-popup-toggle-hint"
+        title={stemlmEnabled ? 'Turn stemlm off' : 'Turn stemlm on'}
+        onClick={() => void toggleStemlm()}
+      >
+        <span className="slm-popup-row-title">{STEMLM_TOGGLE_LABEL}</span>
+        <span className="slm-popup-switch" aria-hidden="true">
+          <span className="slm-popup-switch-knob" />
+        </span>
+        <span className="slm-popup-row-hint" id="slm-popup-toggle-hint">
+          Turn off to hide the stemlm button in the chat box. The panel and your saved questions still work.
+        </span>
+      </button>
+      <button
+        type="button"
+        data-launch="saved-questions"
+        className="slm-popup-row slm-popup-link-row"
+        disabled={launching}
+        onClick={() => void launchAndClose(openSavedQuestionsLibrary)}
+      >
+        <span className="slm-popup-row-title">Saved questions</span>
+        {savedCount != null && savedCount > 0 && (
+          <span className="slm-popup-count" aria-label={`${savedCount} saved`}>{savedCount}</span>
+        )}
+        <IconChevronRight className="slm-popup-row-chevron" width={14} height={14} aria-hidden="true" />
+      </button>
+    </div>
+  );
+
+  // Off a chat there is nothing to open the panel on, so the way to a chat leads instead.
+  const body: ReactNode[] = onChat ? [openPanel, rows, hosts] : [hosts, openPanel, rows];
+
   return (
-    <div className="slm-popup">
+    <div className="slm-popup" data-tab={tab.status}>
       <header className="slm-popup-head">
         <h1>
-          <BrandWordmark variant={themeToBrandVariant(theme)} height={24} />
+          <BrandWordmark variant={themeToBrandVariant(theme)} height={22} />
         </h1>
+        <p className="slm-popup-status">
+          {tab.status === 'chat' && (
+            <>
+              <HostLogo id={tab.id} size={13} />
+              <span>Ready on {tab.label}</span>
+            </>
+          )}
+          {tab.status === 'other' && (
+            <>
+              <span className="slm-popup-status-dot" aria-hidden="true" />
+              <span>Open a chat to start</span>
+            </>
+          )}
+        </p>
+      </header>
+
+      <div className="slm-popup-body">{body}</div>
+
+      <footer className="slm-popup-foot">
+        <button
+          type="button"
+          data-launch="welcome"
+          className="slm-popup-help"
+          disabled={launching}
+          onClick={() => void launchAndClose(openWelcomePage)}
+        >
+          How to use stemlm
+        </button>
         <button
           type="button"
           className="slm-popup-settings"
@@ -127,91 +262,10 @@ export default function App() {
           disabled={launching}
           onClick={() => void launchAndClose(openSettingsOverlay)}
         >
-          <IconSettings />
+          <IconSettings width={15} height={15} aria-hidden="true" />
+          <span aria-hidden="true">Settings</span>
         </button>
-      </header>
-
-      <div className="slm-popup-actions">
-        <button
-          type="button"
-          data-launch="open-study-panel"
-          className="slm-popup-action is-primary"
-          disabled={launching}
-          aria-busy={launching}
-          onClick={() => void launchAndClose(openStudyPanel)}
-        >
-          <span className="slm-popup-action-icon" aria-hidden="true">
-            <IconPanel width={15} height={15} />
-          </span>
-          Open study panel
-        </button>
-        <button
-          type="button"
-          role="switch"
-          data-launch="stemlm-enabled"
-          className={`slm-popup-action slm-popup-toggle${stemlmEnabled ? ' is-on' : ''}`}
-          aria-checked={stemlmEnabled}
-          aria-label={STEMLM_TOGGLE_LABEL}
-          title={stemlmEnabled ? 'Turn stemlm off' : 'Turn stemlm on'}
-          onClick={() => void toggleStemlm()}
-        >
-          <span className="slm-popup-action-icon" aria-hidden="true">
-            <IconPower width={15} height={15} />
-          </span>
-          <span className="slm-popup-toggle-copy">
-            <span className="slm-popup-toggle-label">{STEMLM_TOGGLE_LABEL}</span>
-          </span>
-          <span className="slm-popup-switch" aria-hidden="true">
-            <span className="slm-popup-switch-knob" />
-          </span>
-        </button>
-        <button
-          type="button"
-          data-launch="saved-questions"
-          className="slm-popup-action"
-          disabled={launching}
-          onClick={() => void launchAndClose(openSavedQuestionsLibrary)}
-        >
-          <span className="slm-popup-action-icon" aria-hidden="true">
-            <IconSave width={15} height={15} />
-          </span>
-          Saved questions
-        </button>
-      </div>
-      {sendError && <p className="slm-popup-error" role="alert">{sendError}</p>}
-
-      <section className="slm-popup-hosts" aria-label="Open a supported chat">
-        <p className="slm-popup-hosts-label">{supported ? 'Study on' : 'Open a chat'}</p>
-        <div className="slm-popup-host-row">
-          {CHAT_HOST_LAUNCH.map((host) => (
-            <button
-              key={host.id}
-              type="button"
-              data-host={host.id}
-              className="slm-popup-host"
-              title={host.label}
-              aria-label={host.label}
-              disabled={launching}
-              onClick={() => void launchAndClose(() => openChatHost(host.id))}
-            >
-              <span className="slm-popup-host-logo" aria-hidden="true">
-                <HostLogo id={host.id} size={20} />
-              </span>
-              <span className="slm-popup-host-name">{host.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <button
-        type="button"
-        data-launch="welcome"
-        className="slm-popup-help"
-        disabled={launching}
-        onClick={() => void launchAndClose(openWelcomePage)}
-      >
-        How to use stemlm
-      </button>
+      </footer>
     </div>
   );
 }

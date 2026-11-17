@@ -1,6 +1,8 @@
 /** Inline icons — stroke 1.5 to match stemlm.app / Lucide style. */
 import type { SVGProps } from 'react';
 
+// Every icon sits beside a label or inside a control that has a name, so it is hidden from
+// assistive technology unless a caller says otherwise.
 const base = (props: SVGProps<SVGSVGElement>) => ({
   width: 16,
   height: 16,
@@ -10,6 +12,7 @@ const base = (props: SVGProps<SVGSVGElement>) => ({
   strokeWidth: 1.5,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
+  'aria-hidden': true as const,
   ...props,
 });
 
@@ -258,7 +261,7 @@ export const IconTherefore = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** A wand with sparks: marks a figure whose notation stemLM corrected before drawing it. */
+/** A wand with sparks: marks a figure whose notation was corrected before it was drawn. */
 export const IconWand = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base({ strokeWidth: 1.75, ...p })}>
     <path d="m4 20 11-11" />

@@ -221,18 +221,25 @@ describe('shipped surfaces: header, inject, report, panel loading', () => {
     expect(html).not.toContain('IconMoon');
   });
 
-  it('inject idle glyph is a plus, not the therefore mark', () => {
+  it('inject idle glyph is the therefore mark at glyph size, not a plus', () => {
     const html = renderToStaticMarkup(<OverlayButton />);
     const doc = parseSvg(html);
     const btn = doc.querySelector('.slm-inject-btn');
     expect(btn).toBeTruthy();
-    expect(btn?.getAttribute('data-glyph')).toBe('plus');
-    expect(html).toContain('M12 5v14');
-    expect(html).toContain('slm-inject-plus');
+    expect(btn?.getAttribute('data-glyph')).toBe('mark');
+    expect(html).not.toContain('M12 5v14');
+    expect(html).not.toContain('slm-inject-plus');
     expect(html).toContain('slm-inject-tick');
-    const { circles, signal } = thereforeParts(btn ?? doc);
-    expect(circles).toHaveLength(0);
-    expect(signal).toHaveLength(0);
+    // The same three shapes as the logo: two dots on the baseline and the square apex above them.
+    const mark = btn?.querySelector('.slm-inject-mark');
+    expect(mark).toBeTruthy();
+    const { circles, rects } = thereforeParts(mark!);
+    expect(circles).toHaveLength(2);
+    expect(rects).toHaveLength(1);
+    const apexY = Number(rects[0]!.getAttribute('y')) + Number(rects[0]!.getAttribute('height'));
+    for (const dot of circles) expect(Number(dot.getAttribute('cy'))).toBeGreaterThan(apexY);
+    expect(rects[0]!.classList.contains('slm-inject-apex')).toBe(true);
+    // Drawn for the control, not the app icon or the header lockup pasted in.
     expect(html).not.toContain('slm-extension-logo');
     expect(html).not.toContain('M24 40V17');
   });

@@ -25,7 +25,7 @@ const FIGURE: Record<number, string> = {
 };
 
 /** Horizontal extent of each figure's ink, so a mark is centred on what is drawn, not on its box. */
-const INK: Record<number, readonly [number, number]> = {
+export const FIGURE_INK: Record<number, readonly [number, number]> = {
   0: [6.65, 17.35],
   1: [10.2, 15.7],
   2: [6.85, 17.35],
@@ -40,7 +40,7 @@ const INK: Record<number, readonly [number, number]> = {
 const CENTRE = 12;
 /** Space between the two figures of 10 to 99, and how far they are condensed to share one mark. */
 const PAIR_GAP = 2;
-const PAIR_SQUEEZE = 0.78;
+export const PAIR_SQUEEZE = 0.78;
 
 const round = (value: number) => +value.toFixed(2);
 
@@ -52,15 +52,15 @@ function Figure({ n, tx = 0 }: { n: number; tx?: number }) {
 
 /** Shift that centres a single figure. The 1 keeps part of its offset: its flag is light. */
 function centring(n: number): number {
-  const [left, right] = INK[n] ?? [CENTRE, CENTRE];
+  const [left, right] = FIGURE_INK[n] ?? [CENTRE, CENTRE];
   const shift = CENTRE - (left + right) / 2;
   return n === 1 ? shift / 2 : shift;
 }
 
 /** Offsets and group transform that set two figures side by side, centred as one number. */
 export function pairLayout(tens: number, ones: number): { tensShift: number; onesShift: number; origin: number } {
-  const [tensLeft, tensRight] = INK[tens] ?? [0, 0];
-  const [onesLeft, onesRight] = INK[ones] ?? [0, 0];
+  const [tensLeft, tensRight] = FIGURE_INK[tens] ?? [0, 0];
+  const [onesLeft, onesRight] = FIGURE_INK[ones] ?? [0, 0];
   const tensWidth = tensRight - tensLeft;
   const width = tensWidth + PAIR_GAP + (onesRight - onesLeft);
   return {

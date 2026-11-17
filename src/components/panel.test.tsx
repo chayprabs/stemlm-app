@@ -639,7 +639,7 @@ describe('Panel ready session', () => {
     mountedMin.unmount();
   });
 
-  it('reserves the floating navigation area outside the reading scroller', async () => {
+  it('reserves the navigation row outside the reading scroller', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps' });
@@ -651,8 +651,8 @@ describe('Panel ready session', () => {
     const slot = container.querySelector('.slm-stepnav-slot') as HTMLElement;
     const nav = container.querySelector('.slm-stepnav--overlay') as HTMLElement;
 
-    // The nav lives in its own reserved row, never inside the scrolling content,
-    // so it cannot land on top of the last card (Ask in chat) at any scroll
+    // The bar lives in its own reserved row, never inside the scrolling content,
+    // so it cannot land on top of the end of a step (Ask in chat) at any scroll
     // position or answer length.
     expect(read.contains(nav)).toBe(false);
     expect(slot.contains(nav)).toBe(true);
@@ -663,7 +663,7 @@ describe('Panel ready session', () => {
     const slotCss = cssBlock(PANEL_CSS, '.slm-stepnav-slot');
     expect(slotCss).toMatch(/flex:\s*0 0 [\d.]+rem/);
     expect(slotCss).toMatch(/min-height:\s*[\d.]+rem/);
-    // Only the buttons take pointer input; the reserved strip stays inert.
+    // Only the buttons take pointer input; the rest of the row stays inert.
     expect(slotCss).toMatch(/pointer-events:\s*none/);
     expect(cssBlock(PANEL_CSS, '.slm-stepnav-btn')).toMatch(/pointer-events:\s*auto/);
     unmount();
@@ -715,19 +715,34 @@ describe('Panel ready session', () => {
     unmount();
   });
 
-  it('scales reading content and diagrams while leaving checks and Ask in chat fixed', () => {
+  it('scales everything the student reads, figures included, and leaves the Ask-in-chat chrome fixed', () => {
     expect(cssBlock(PANEL_CSS, ".slm-panel[data-content-scale='5']")).toMatch(/--slm-content-read-size:[^;]*\+ 3px/);
     expect(cssBlock(PANEL_CSS, '.slm-step-work-body')).toContain('var(--slm-content-read-size)');
-    expect(cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-frame')).toContain('var(--slm-content-diagram-width)');
-    expect(cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-svg svg')).toContain('var(--slm-content-diagram-height)');
+    // The frame is the size budget and the SVG fills it, over the presenter's own inline pixels;
+    // otherwise a narrow panel letterboxes the figure and its math labels drift off their anchors.
+    const frame = cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-frame');
+    expect(frame).toContain('var(--slm-content-diagram-width)');
+    expect(frame).toMatch(/display:\s*block/);
+    const svg = cssBlock(PANEL_CSS, '.slm-step-diagram .slm-diagram-svg svg');
+    expect(svg).toContain('var(--slm-content-diagram-height)');
+    expect(svg).toMatch(/width:\s*100%\s*!important/);
+    expect(svg).toMatch(/height:\s*auto\s*!important/);
+    const enlarged = cssBlock(PANEL_CSS, '.slm-lightbox-frame .slm-diagram-svg svg');
+    expect(enlarged).toMatch(/width:\s*100%\s*!important/);
+    expect(enlarged).toMatch(/height:\s*auto\s*!important/);
     // `.slm-prose { font-size: inherit }` comes later in the sheet, so the
     // question keeps its token only through the higher-specificity selector.
     expect(
       cssBlock(PANEL_CSS, ['.slm-topic-row .slm-topic,', '.slm-header-title .slm-topic'].join('\n')),
     ).toContain('var(--slm-content-question-size)');
-    expect(cssBlock(PANEL_CSS, '.slm-quickcheck-q')).toContain('var(--slm-read-size)');
-    expect(cssBlock(PANEL_CSS, '.slm-followup-text')).toMatch(/font-size:\s*13px/);
-    expect(PANEL_CSS).toMatch(/\.slm-panel\[data-content-scale\] \.slm-topic-scroll\.is-single \.slm-topic p\s*\{[^}]*-webkit-line-clamp:\s*2/);
+    // Takeaway, quick check, answer and its small print are reading matter: they follow the setting.
+    for (const selector of ['.slm-takeaway', '.slm-quickcheck-q', '.slm-quickcheck-a-inner', '.slm-answer-body', '.slm-answer-notes']) {
+      expect(cssBlock(PANEL_CSS, selector), selector).toContain('var(--slm-content-read-size)');
+    }
+    // Ask in chat is a control row, not reading matter: it keeps the interface size.
+    expect(cssBlock(PANEL_CSS, '.slm-followup-text')).toMatch(/font-size:\s*var\(--slm-text-sm\)/);
+    expect(cssBlock(PANEL_CSS, '.slm-followup-action')).toMatch(/font-size:\s*var\(--slm-text-sm\)/);
+    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\.is-single \.slm-topic\s*\{[^}]*-webkit-line-clamp:\s*2/);
   });
 
   it('shows question, step content, and switches Steps/Solution', async () => {
@@ -740,9 +755,10 @@ describe('Panel ready session', () => {
     const panel = container.querySelector('[role="complementary"]') as HTMLElement;
     expect(panel.getAttribute('aria-label')).toBe('stemlm study panel');
     expect(container.querySelector('.slm-topic')?.textContent).toContain('Show progressive diagrams');
-    expect(container.querySelector('.slm-question-icon')?.textContent).toMatch(/Q\./);
-    expect(container.querySelector('.slm-question-icon')?.innerHTML).not.toContain('<svg');
-    expect(container.querySelector('.slm-question-icon')?.innerHTML).not.toContain('M9.09 9');
+    // The question block: subject and topic as a small label, then the question itself.
+    expect(container.querySelector('.slm-question-icon')).toBeNull();
+    expect(container.querySelector('.slm-question-subject')?.textContent).toBe('Physics');
+    expect(container.querySelector('.slm-question-topic')?.textContent).toBe('Progressive diagrams');
     const header = container.querySelector('.slm-header') as HTMLElement;
     const bar = header.querySelector('.slm-header-bar') as HTMLElement;
     const brandEl = header.querySelector('.slm-brand') as HTMLElement;
@@ -758,15 +774,17 @@ describe('Panel ready session', () => {
     expect(bar.contains(questionEl)).toBe(false);
     expect(container.querySelector('.slm-step-badge')).toBeNull();
     expect(container.querySelector('.slm-card-head')?.textContent).not.toMatch(/\b0\d\b/);
-    expect(container.querySelector('.slm-stepnav-count')).toBeNull();
-    expect(container.textContent).not.toMatch(/\b1\s*\/\s*[0-9]+\b/);
+    expect(container.querySelector('.slm-card-kicker')?.textContent).toBe('Step 1of 2');
+    // The reader's place: a counter in the bar, for the eye only (the buttons are labelled).
+    const count = container.querySelector('.slm-stepnav-count') as HTMLElement;
+    expect(count.textContent).toBe('1/ 2');
+    expect(count.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelector('.slm-stepnav--overlay')).toBeTruthy();
     expect(container.querySelector('.slm-stepnav--overlay')?.parentElement?.classList.contains('slm-stepnav-slot')).toBe(true);
     expect(container.querySelector('.slm-steps-layout')).toBeTruthy();
     expect(container.querySelector('.slm-step-rail')).toBeTruthy();
     expect(container.querySelector('.slm-read')).toBeTruthy();
     expect(container.querySelector('.slm-subject-chip')).toBeNull();
-    expect(container.textContent).not.toMatch(/\bPhysics\b/);
     expect(container.textContent).toContain('First visual state');
     expect(container.textContent).toContain('Newton second law');
     expect(container.textContent).toContain('Force is mass times acceleration.');
@@ -787,6 +805,7 @@ describe('Panel ready session', () => {
     });
     expect(container.textContent).toContain('Second visual state');
     expect(container.querySelector('.slm-card-title')?.textContent).toBe('Second visual state');
+    expect(container.querySelector('.slm-stepnav-count')?.textContent).toBe('2/ 2');
     expect(container.innerHTML).toContain('second-diagram');
     act(() => {
       prev.click();
@@ -808,7 +827,13 @@ describe('Panel ready session', () => {
     expect(container.textContent).not.toContain('Full solution');
     expect(container.textContent).toContain('First visual state');
     expect(container.textContent).toContain('Newton second law');
-    expect(container.textContent).not.toContain('The net force equals mass times acceleration.');
+    // The model's closing answer opens the document, once, set apart from the working.
+    const answers = container.querySelectorAll('.slm-answer');
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.textContent).toContain('The net force equals mass times acceleration.');
+    expect(answers[0]?.getAttribute('aria-label')).toBe('Answer');
+    const steps = container.querySelector('.slm-solution-steps') as HTMLElement;
+    expect(answers[0]!.compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector('#slm-panel-steps')).toBeNull();
 
     const stepsTab = container.querySelector('#slm-tab-steps') as HTMLButtonElement;
@@ -867,7 +892,7 @@ describe('Panel ready session', () => {
     unmount();
   });
 
-  it('keeps the step rail as index tiles without titles or a connector', async () => {
+  it('keeps the step strip as numbered marks without titles or a connector', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'light' });
@@ -878,7 +903,15 @@ describe('Panel ready session', () => {
     expect(rail).toBeTruthy();
     expect(rail.querySelector('.slm-step-rail-label')).toBeNull();
     expect(rail.textContent?.includes('First visual state')).toBe(false);
+    // Marks only: the strip holds no words at all, and nothing but one mark per step.
+    expect(rail.textContent).toBe('');
     expect(rail.querySelectorAll('.slm-step-index')).toHaveLength(2);
+    expect(rail.querySelectorAll('li')).toHaveLength(2);
+    for (const item of rail.querySelectorAll('li')) {
+      expect(item.children).toHaveLength(1);
+      expect(item.querySelector('button')?.children).toHaveLength(1);
+    }
+    expect(rail.querySelector('.slm-step-rail-track')?.tagName).toBe('OL');
 
     const buttons = [...rail.querySelectorAll<HTMLButtonElement>('.slm-step-rail-btn')];
     expect(buttons[0]?.getAttribute('aria-label')).toBe('Step 1: First visual state');
@@ -887,13 +920,18 @@ describe('Panel ready session', () => {
     expect(buttons[1]?.getAttribute('title')).toBe('Second visual state');
     expect(buttons[0]?.getAttribute('aria-label')).not.toMatch(/\bs1\b/);
     expect(buttons[0]?.getAttribute('title')).not.toMatch(/\bs1\b/);
-    expect(getComputedStyle(buttons[0]!).borderRadius).not.toBe('50%');
+    expect(buttons[0]?.getAttribute('aria-current')).toBe('step');
+    expect(buttons[0]?.closest('li')?.classList.contains('is-active')).toBe(true);
 
     act(() => {
       buttons[1]!.click();
     });
     expect(useStore.getState().activeStepIndex).toBe(1);
     expect(buttons[1]?.getAttribute('aria-current')).toBe('step');
+    // Exactly one mark is the current one; the steps before it are filled in.
+    expect(rail.querySelectorAll('.is-active')).toHaveLength(1);
+    expect(buttons[0]?.getAttribute('aria-current')).toBeNull();
+    expect(buttons[0]?.closest('li')?.classList.contains('is-past')).toBe(true);
 
     unmount();
   });
@@ -1205,16 +1243,18 @@ describe('Panel theme, split, and width density', () => {
     expect(stepBtn.getAttribute('aria-label')).toContain('First visual state');
     expect(stepBtn.getAttribute('title')).toBe('First visual state');
     expect(container.querySelector('.slm-step-index')).toBeTruthy();
-    expect(cssVar(panel, '--slm-rail-size')).not.toBe('13.25rem');
+    // No outline column at any width: the strip is a row, so nothing reserves a rail's width.
+    expect(cssVar(panel, '--slm-rail-size')).toBe('');
+    expect(getComputedStyle(container.querySelector('.slm-step-rail-track') as HTMLElement).flexDirection).toBe('row');
     expect(getComputedStyle(container.querySelector('.slm-brand-name') as HTMLElement).height).toBe(
-      '25px',
+      cssVar(panel, '--slm-brand-size'),
     );
 
     globalThis.ResizeObserver = PrevRO;
     unmount();
   });
 
-  it('sizes the header lockup at 25px, 22px when the panel is narrow', () => {
+  it('sizes the header lockup and the view switch from one token in every width band', () => {
     type ROCb = ResizeObserverCallback;
     let roCb: ROCb | undefined;
     const PrevRO = globalThis.ResizeObserver;
@@ -1242,8 +1282,9 @@ describe('Panel theme, split, and width density', () => {
       );
     });
     expect(panel.dataset.width).toBe('wide');
-    expect(cssVar(panel, '--slm-brand-size')).toBe('25px');
-    expect(getComputedStyle(brand()).height).toBe('25px');
+    expect(cssVar(panel, '--slm-brand-size')).toBe('22px');
+    expect(getComputedStyle(brand()).height).toBe('22px');
+    expect(cssBlock(PANEL_CSS, '.slm-tabs')).toMatch(/height:\s*calc\(var\(--slm-brand-size[^)]*\)\s*\+\s*\d+px\)/);
 
     act(() => {
       roCb?.(
@@ -1253,12 +1294,13 @@ describe('Panel theme, split, and width density', () => {
     });
     expect(panel.dataset.width).toBe('narrow');
     expect(cssVar(panel, '--slm-brand-size')).toBe('22px');
+    expect(getComputedStyle(brand()).height).toBe('22px');
 
     globalThis.ResizeObserver = PrevRO;
     unmount();
   });
 
-  it('applies plex fonts, dark canvas, question scroll, and a rounded shell', async () => {
+  it('applies plex fonts, the dark canvas, a clamped question and a rounded shell', async () => {
     installShippedStyles();
     const session = buildStudySession();
     useStore.getState().addSession(session);
@@ -1277,11 +1319,14 @@ describe('Panel theme, split, and width density', () => {
     expect(cssVar(panel, '--slm-fg').toLowerCase()).toBe('#ededed');
     expect(parseInt(cssVar(panel, '--slm-theme-duration'), 10)).toBeLessThanOrEqual(180);
 
-    expect(container.querySelector('.slm-question-icon')?.textContent).toMatch(/Q\./);
+    expect(container.querySelector('.slm-question-icon')).toBeNull();
+    expect(container.querySelector('.slm-question-meta')).toBeTruthy();
     expect(container.querySelector('.slm-subject-chip')).toBeNull();
     const rail = container.querySelector('.slm-step-rail') as HTMLElement;
     const article = container.querySelector('.slm-read') as HTMLElement;
-    expect(getComputedStyle(rail).overflowY).toBe('auto');
+    // The strip scrolls sideways when the steps outnumber the room; the page scrolls down.
+    expect(getComputedStyle(rail).overflowX).toBe('auto');
+    expect(getComputedStyle(rail).overflowY).toBe('hidden');
     expect(getComputedStyle(article).overflowY).toBe('auto');
     expect(PANEL_CSS).toMatch(/\.slm-step-rail\s*\{[\s\S]*scrollbar-width:\s*none/);
     const scroll = container.querySelector('.slm-topic-scroll') as HTMLElement;
@@ -1291,7 +1336,7 @@ describe('Panel theme, split, and width density', () => {
     expect(getComputedStyle(scroll).maxHeight).toBe('none');
     expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\s*\{[\s\S]*max-height:\s*9\.25rem/);
     expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\s*\{[\s\S]*overflow-y:\s*auto/);
-    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\.is-single \.slm-topic(?: p)?\s*\{[\s\S]*white-space:\s*nowrap/);
+    expect(PANEL_CSS).toMatch(/\.slm-topic-scroll\.is-single \.slm-topic\s*\{[^}]*-webkit-line-clamp:\s*2/);
     expect(getComputedStyle(panel).borderRadius).not.toBe('0px');
 
     const leading = container.querySelector('.slm-header-leading') as HTMLElement;
@@ -1300,9 +1345,7 @@ describe('Panel theme, split, and width density', () => {
     expect(getComputedStyle(leading).display).toBe('flex');
     expect(getComputedStyle(tabs).borderStyle).not.toBe('none');
     expect(getComputedStyle(tabs).borderWidth).not.toBe('0px');
-    expect(PANEL_CSS).toMatch(
-      /\.slm-tabs\s*\{[\s\S]*height:\s*calc\(var\(--slm-brand-size,\s*25px\)\s*\+\s*6px\)/,
-    );
+    expect(cssBlock(PANEL_CSS, '.slm-tabs')).toMatch(/height:\s*calc\(var\(--slm-brand-size/);
 
     const pdfBtn = container.querySelector('button[aria-label="Export PDF"]') as HTMLButtonElement;
     expect(pdfBtn.innerHTML).toContain('M15 2H6');
@@ -1336,12 +1379,12 @@ function hexLuma(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-describe('Panel chrome: overlay, theme glyph, close motion, session strip', () => {
+describe('Panel chrome: navigation bar, theme glyph, close motion, session strip', () => {
   beforeEach(() => {
     installShippedStyles();
   });
 
-  it('packs the Prev/Next overlay as a right-docked rounded rect with shafted arrows', async () => {
+  it('docks Prev, the step counter and a solid Next in a bar under the page', async () => {
     const session = buildStudySession();
     useStore.getState().addSession(session);
     useStore.setState({ panelOpen: true, status: 'ready', view: 'steps', theme: 'dark', activeStepIndex: 0 });
@@ -1373,37 +1416,33 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     expect(useStore.getState().activeStepIndex).toBe(0);
     expect(prev.disabled).toBe(true);
 
-    const navCss = cssBlock(PANEL_CSS, '.slm-stepnav');
+    // One row: the counter on the left, Prev and Next together on the right.
+    expect(overlay.tagName).toBe('FOOTER');
+    expect(overlay.getAttribute('aria-label')).toBe('Step navigation');
     const overlayCss = cssBlock(PANEL_CSS, '.slm-stepnav--overlay');
+    const countCss = cssBlock(PANEL_CSS, '.slm-stepnav-count');
     const btnCss = cssBlock(PANEL_CSS, '.slm-stepnav-btn');
-    expect(navCss).toMatch(/justify-content:\s*center/);
-    expect(navCss).not.toMatch(/space-between/);
-    expect(navCss).toMatch(/width:\s*auto/);
-    expect(overlayCss).toMatch(/width:\s*auto/);
-    expect(overlayCss).not.toMatch(/width:\s*50%/);
-    expect(overlayCss).toMatch(/right:\s*var\(--slm-pad-x\)/);
-    expect(overlayCss).toMatch(/left:\s*auto/);
-    expect(overlayCss).not.toMatch(/left:\s*50%/);
-    expect(overlayCss).not.toMatch(/translateX\(-50%\)/);
-    expect(overlayCss).not.toMatch(/border-radius:\s*999px/);
-    expect(overlayCss).toMatch(/border-radius:\s*var\(--radius-md\)/);
-    expect(btnCss).not.toMatch(/border-radius:\s*999px/);
-    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeLessThan(0.44);
-    expect(remToken(/padding-block:\s*([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.08);
-    expect(remToken(/padding:\s*([\d.]+rem)/.exec(btnCss)?.[1])).toBeLessThan(0.5);
-    expect(remToken(/bottom:\s*calc\(([\d.]+rem)/.exec(overlayCss)?.[1])).toBeGreaterThan(0.85);
-    expect(overlayCss).not.toContain('#2f2e2e');
-    expect(overlayCss).not.toContain('#3f3e3e');
-    expect(overlayCss).not.toContain('#3c3b3b');
-    expect(overlayCss).toMatch(/background:\s*var\(--slm-nav-shell\)/);
-
-    const cs = getComputedStyle(overlay);
-    expect(cs.justifyContent).not.toBe('space-between');
-    expect(cs.width).not.toBe('50%');
-    const padTop = parseFloat(cs.paddingTop);
-    if (Number.isFinite(padTop) && padTop > 0) {
-      expect(padTop).toBeLessThan(0.44 * 16);
-    }
+    expect(overlayCss).toMatch(/justify-content:\s*flex-end/);
+    expect(overlayCss).not.toMatch(/position:\s*(?:absolute|fixed)/);
+    expect(countCss).toMatch(/margin-right:\s*auto/);
+    expect(countCss).toMatch(/font-family:\s*var\(--font-mono\)/);
+    expect(countCss).toMatch(/font-variant-numeric:\s*tabular-nums/);
+    const count = overlay.querySelector('.slm-stepnav-count') as HTMLElement;
+    expect(count.textContent).toBe('1/ 2');
+    expect(prev.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The bar is part of the sheet (a hairline above it), not a pill floating over the page.
+    const slotCss = cssBlock(PANEL_CSS, '.slm-stepnav-slot');
+    expect(slotCss).toMatch(/border-top:\s*1px solid var\(--slm-border-subtle\)/);
+    expect(slotCss).toMatch(/background:\s*var\(--slm-bg\)/);
+    // Next is the one primary action: solid ink, never the accent. Prev is quiet.
+    const nextCss = cssBlock(PANEL_CSS, '.slm-stepnav-btn--next');
+    expect(nextCss).toMatch(/background:\s*var\(--slm-solid\)/);
+    expect(nextCss).toMatch(/color:\s*var\(--slm-solid-fg\)/);
+    expect(next.classList.contains('slm-stepnav-btn--next')).toBe(true);
+    expect(prev.classList.contains('slm-stepnav-btn--next')).toBe(false);
+    expect(btnCss).toMatch(/border-radius:\s*var\(--radius-sm\)/);
+    expect(btnCss).toMatch(/min-height:\s*2\.125rem/);
+    expect(cssBlock(PANEL_CSS, '.slm-stepnav-btn:focus-visible')).toMatch(/outline:\s*2px solid var\(--slm-ring\)/);
 
     expect(prev.innerHTML).not.toContain('m15 18-6-6 6-6');
     expect(next.innerHTML).not.toContain('m9 18 6-6-6-6');
@@ -1411,24 +1450,6 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     expect(prev.innerHTML).toContain('m12 19-7-7 7-7');
     expect(next.innerHTML).toContain('M5 12h14');
     expect(next.innerHTML).toContain('m12 5 7 7-7 7');
-
-    const darkShell = cssVar(overlay, '--slm-nav-shell').toLowerCase();
-    expect(darkShell).not.toBe('#2f2e2e');
-    if (darkShell.startsWith('#')) {
-      expect(hexLuma(darkShell)).toBeLessThan(hexLuma('#2f2e2e'));
-    }
-
-    const panel = container.querySelector('.slm-panel') as HTMLElement;
-    act(() => {
-      useStore.getState().setTheme('light');
-    });
-    applyTheme(panel, 'light');
-    const lightOverlay = container.querySelector('.slm-stepnav--overlay') as HTMLElement;
-    const lightChip = cssVar(lightOverlay, '--slm-nav-chip').toLowerCase();
-    const lightShell = cssVar(lightOverlay, '--slm-nav-shell').toLowerCase();
-    expect(lightChip).not.toBe('#efefef');
-    expect(lightShell).not.toBe('#ffffff');
-    expect(lightShell).not.toBe('#efefef');
 
     unmount();
   });
@@ -1466,7 +1487,7 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     const closeCss = cssBlock(PANEL_CSS, '.slm-icon-btn--close svg');
     const closeHoverCss = cssBlock(PANEL_CSS, '.slm-icon-btn--close:hover:not(:disabled) svg');
     expect(closeCss).toMatch(/transform-origin:\s*center/);
-    expect(closeCss).toMatch(/cubic-bezier\(/);
+    expect(closeCss).toMatch(/transition:\s*transform var\(--slm-dur-3\) var\(--slm-ease-out\)/);
     expect(closeCss).not.toMatch(/transition:\s*[^;]*\s+linear\b/);
     expect(closeHoverCss).toMatch(/rotate\(/);
     expect(PANEL_CSS).toMatch(
@@ -1511,7 +1532,9 @@ describe('Panel chrome: overlay, theme glyph, close motion, session strip', () =
     expect(stripCss).toMatch(/scrollbar-width:\s*none/);
     expect(PANEL_CSS).toMatch(/\.slm-session-switch::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
     expect(cssBlock(PANEL_CSS, '.slm-session-pill-remove')).toMatch(/opacity:\s*0/);
-    expect(cssBlock(PANEL_CSS, '.slm-session-pill-remove')).toMatch(/padding:\s*0 0\.5rem 0 0\.62rem/);
+    // Out of the way until wanted, but never out of reach of the keyboard.
+    expect(cssBlock(PANEL_CSS, '.slm-session-pill-remove')).toMatch(/pointer-events:\s*none/);
+    expect(PANEL_CSS).toMatch(/\.slm-session-pill-remove:focus-visible\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto/);
     expect(PANEL_CSS).toMatch(/\.slm-session-chip:hover \.slm-session-pill-remove/);
     expect(PANEL_CSS).toMatch(/\.slm-session-chip:hover \.slm-session-pill/);
     expect(container.querySelectorAll('.slm-session-pill-remove')).toHaveLength(24);

@@ -48,7 +48,9 @@ describe('the student removes the attached guide before sending', () => {
     expect(state.buttonInjected).toBe(false);
     expect(state.status).toBe('idle');
     expect(state.errorMessage).toMatch(/removed/i);
-    expect(state.errorMessage).toMatch(/\+/);
+    // The message names the control to press, as it is drawn now: the stemlm button, not a plus.
+    expect(state.errorMessage).toMatch(/\bstemlm button\b/);
+    expect(state.errorMessage).not.toMatch(/\+/);
     controller.stopWatching();
   });
 

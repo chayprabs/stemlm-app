@@ -170,6 +170,7 @@
     --slm-amber-dim var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-success var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-success-soft var(--slm-theme-duration) var(--slm-theme-ease),
+    --slm-warning var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-error var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-error-soft var(--slm-theme-duration) var(--slm-theme-ease),
     --slm-formula-bg var(--slm-theme-duration) var(--slm-theme-ease),
