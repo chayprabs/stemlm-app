@@ -1,3 +1,58 @@
 import type { FamilyManifest } from '../types';
 
-export const SCIENCE_MANIFESTS: FamilyManifest[] = [];
+export const SCIENCE_MANIFESTS: FamilyManifest[] = [
+  {
+    token: 'energy',
+    aliases: ['reaction-coordinate', 'energy-profile', 'energy-diagram', 'reaction-profile'],
+    required: ['level'],
+    keys: ['level', 'unit', 'show', 'catalyst'],
+    subjects: ['Chemistry', 'Biology'],
+    grammar: 'energy: level: <id> <energy> [label] (repeat in reaction order: reactants, transition states, intermediates, products; a level above both neighbours is drawn as a transition state) | unit: kJ/mol | show: ea, dh (E_a, ΔH and exothermic/endothermic are computed) | catalyst: <transition-state id> <lower energy> (dashed path)',
+    specimen: 'level: r 0 A + B\nlevel: ts 85 TS\nlevel: p -40 C + D\nunit: kJ/mol\nshow: ea, dh',
+  },
+  {
+    token: 'probtree',
+    aliases: ['probability-tree', 'tree-diagram'],
+    required: ['branch'],
+    keys: ['branch', 'show'],
+    subjects: ['Math', 'Biology'],
+    grammar: 'probtree: branch: <parent-id|root> <id> <probability> [label] (repeat; ids are unique, the label is what is printed; probability as 0.3, 3/10 or 30%; the branches leaving a node must sum to 1) | show: products (each path is multiplied and its probability printed at the leaf)',
+    specimen: 'branch: root R 3/10 Red\nbranch: root B 7/10 Blue\nbranch: R RR 2/9 Red\nbranch: R RB 7/9 Blue\nbranch: B BR 3/9 Red\nbranch: B BB 6/9 Blue\nshow: products',
+  },
+  {
+    token: 'projectile',
+    aliases: ['projectile-motion', 'trajectory'],
+    required: ['v0', 'angle'],
+    keys: ['v0', 'angle', 'h0', 'g', 'show', 'mark'],
+    subjects: ['Physics', 'Math'],
+    grammar: 'projectile: v0: 20 (launch speed, m/s) | angle: 35 (degrees above the horizontal; negative = below) | h0: 0 (launch height, m) | g: 9.81 | show: range, hmax, time (computed and dimensioned; ideal motion, no drag) | mark: 1.2 (seconds, repeat: the point and velocity vector at that instant)',
+    specimen: 'v0: 20\nangle: 35\nshow: range, hmax, time',
+  },
+  {
+    token: 'econfig',
+    aliases: ['electron-configuration', 'orbital-diagram', 'orbital-box', 'aufbau'],
+    required: ['element'],
+    keys: ['element', 'charge', 'show', 'core'],
+    subjects: ['Chemistry'],
+    grammar: 'econfig: element: Fe (symbol, name or Z=26; Fe3+ or Fe(III) also gives the charge) | charge: 3+ | show: boxes|notation|both (orbital box diagram, the 1s² 2s² … line, or both) | core: noble (abbreviate as [Ar] …); the ground-state configuration, the arrows and the unpaired-electron count are computed, never supplied',
+    specimen: 'element: Fe\ncharge: 3+\nshow: both\ncore: noble',
+  },
+  {
+    token: 'bohr',
+    aliases: ['bohr-model', 'shell-model'],
+    required: ['element'],
+    keys: ['element', 'charge', 'mass'],
+    subjects: ['Chemistry', 'Physics'],
+    grammar: 'bohr: element: Na (symbol, name or Z=11) | charge: 1+ | mass: 23 (mass number; the nucleus then shows A − Z neutrons); the electrons in each shell are computed from the element',
+    specimen: 'element: Na\nmass: 23',
+  },
+  {
+    token: 'pedigree',
+    aliases: ['pedigree-chart', 'family-tree'],
+    required: ['person'],
+    keys: ['person', 'couple', 'child'],
+    subjects: ['Biology'],
+    grammar: 'pedigree: person: <id> male|female|unknown [affected|carrier|unaffected] [deceased] (repeat) | couple: <idA> <idB> | child: <parentA> <parentB> <child ids…> (repeat per couple; children left to right); generations I, II, III are computed; one partner per person',
+    specimen: 'person: I-1 male\nperson: I-2 female carrier\nperson: II-1 female\nperson: II-2 male affected\nperson: II-3 female carrier\nchild: I-1 I-2 II-1 II-2 II-3',
+  },
+];
