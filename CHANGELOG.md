@@ -7,6 +7,13 @@
 - The study panel works on answers that are not in the stemLM format. When the chat's reply is ordinary Markdown (the model ignored the guide, or the question was asked without it), stemLM reads the rendered message, recovers its LaTeX, and arranges it into steps. Such a session is labelled "Structured from the chat answer. Not checked by stemlm."; it has no quick checks or takeaways, because stemLM does not write content.
 - The empty panel offers **Study the latest answer** when the chat has one.
 
+### The guide
+
+- The guide the chat model receives is rewritten in plain language at about a third of its old size (about 22,000 characters, down from 65,000), with a test that caps it. Every figure type is described in every subject's guide: those that fit the subject with an example, the rest as one line of keys. It now says what a step can contain (tables, lists, several lines of code), and how to answer later in a long chat.
+- The guide file is attached only when the chat needs it: a new chat, a guide more than five student messages back, or an answer that came back out of format. Every question sent through stemLM carries a short reminder of the answer's shape, and follow-ups upload nothing. Before, the whole guide went with every question and every follow-up.
+- Where the chat takes no file, a compact guide goes into the message as text, with a notice.
+- Code blocks inside a step are kept whole.
+
 ### Figures
 
 - **Notation repair.** A figure whose spec fails only on notation is now drawn: misspelt or aliased keys (`function:` for `fn:`), a worded range (`-3 to 3`), JSON or YAML wrapping, a missing `kind:`, bullets and bold around keys, and expressions written as `2x`, `x²` or `\frac{1}{x}`. Repair never adds, drops or changes content: an unknown key or an ambiguous reading leaves the figure out.
@@ -33,6 +40,16 @@
 - Where a chat will not take a file (ChatGPT signed out), the guide goes into the message as text and a line beside the button says so.
 - Redesigned toolbar popup (says whether the current tab is a supported chat), welcome page (a live miniature of the panel built from the real components, in place of screenshots), saved questions (search shortcut, subject filters with counts, designed empty and no-results states, an explicit selection bar for merging) and settings (reading size with a live preview).
 - Redesigned PDF report: a cover block, the conclusion first, typeset steps, quick checks printed as exercises with their answers collected after the last step, a contents list for merged files, and a footer with page numbers. Fixed the radical missing from equation labels on figures in the PDF, and descenders clipped at page breaks.
+
+- The panel and the chat sit side by side as two columns; the chat is never narrowed below 480 px, and below a 760 px window the panel overlays it. While the panel is open the chat site's own sidebar is folded with the site's own button, and unfolded on close if stemLM folded it (a setting, on by default). Closing puts the page back exactly as it was.
+- Steps appear while the answer is still being written. A finished plain answer or a refusal no longer waits ten seconds under the loading state.
+- A panel that opens because an answer arrived no longer takes the keyboard, and the reading area scrolls with the keyboard.
+- Copying maths copies its LaTeX, and each formula has a Copy LaTeX control. A suggested follow-up question is a button that fills the chat box.
+- Every answer says what stemLM did and did not check; the model's own check is labelled as the model's, and a figure that could not be drawn says so.
+- **Paste an answer** in the empty panel, and **Copy the guide** in the toolbar popup, give a way through on a site stemLM cannot read.
+- Saved questions: Undo after deleting (also Ctrl+Z), a clear message when storage cannot be read, progress while a PDF is built, a retry for a failed export, and a window tall enough for five questions. Removing a question from the panel can be undone.
+- Fixed: a second question asked without pressing the stemLM button overwrote the first answer and its saved copy.
+- Fixed: selecting text in the panel never offered Ask in chat.
 
 ### For contributors
 
