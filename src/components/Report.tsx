@@ -10,6 +10,7 @@ import type { Overlay } from '@/src/lib/figure/types';
 import { overlayPrintStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
 import { OriginNote } from './OriginNote';
+import { repeatsQuestion } from './PanelHeader';
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import { svgDrawsCaption } from '@/src/lib/svg-present';
 
@@ -168,8 +169,11 @@ export function ReportEntry({
   const { meta, steps, solution, solutionDiagrams } = session.capsule;
   const solutionParts = solution.split(solutionDiagramRegexGlobal());
   const question = resolveSessionQuestion(session);
-  const showTopic = Boolean(meta.topic && meta.topic !== question);
+  const showTopic = Boolean(meta.topic) && !repeatsQuestion(meta.topic, question);
   const showSubject = Boolean(meta.subject && meta.subject !== 'General');
+  // A stemLM answer's solution restates its steps, so the steps stand alone. The conclusion of an
+  // answer structured from the chat was lifted out of the reply and is printed nowhere else.
+  const closingAnswer = session.origin === 'ingest' && steps.length > 0 ? solution.trim() : '';
 
   return (
     <section className="slm-report-entry">
@@ -224,6 +228,13 @@ export function ReportEntry({
           </div>
         )}
 
+        {closingAnswer && (
+          <div className="slm-takeaway slm-report-answer">
+            <span className="slm-takeaway-label">Answer</span>
+            <MathMarkdown content={closingAnswer} />
+          </div>
+        )}
+
         <StudentAnswerNotes capsule={session.capsule} />
         <OriginNote session={session} variant="print" />
       </section>
@@ -272,8 +283,7 @@ export function Report({
   diagramOverlays?: Record<string, Overlay[]>;
 }) {
   const { meta } = session.capsule;
-  const question = resolveSessionQuestion(session);
-  const showTopic = Boolean(meta.topic && meta.topic !== question);
+  const showTopic = Boolean(meta.topic) && !repeatsQuestion(meta.topic, resolveSessionQuestion(session));
   const showSubject = Boolean(meta.subject && meta.subject !== 'General');
 
   return (
@@ -355,6 +365,8 @@ interface PlainEntryData {
   topic: string;
   steps: PlainStep[];
   solution: string;
+  /** Structured from a plain chat reply: its conclusion is printed, and the report says so. */
+  ingest: boolean;
 }
 
 /**
@@ -379,9 +391,10 @@ function toPlainEntry(session: Session, i: number): PlainEntryData {
         takeaway: plainText(step?.takeaway),
       })),
       solution: plainText(capsule?.solution),
+      ingest: session?.origin === 'ingest',
     };
   } catch {
-    return { id: `q${i}`, question: '', topic: '', steps: [], solution: '' };
+    return { id: `q${i}`, question: '', topic: '', steps: [], solution: '', ingest: false };
   }
 }
 
@@ -453,6 +466,13 @@ export function PlainReport({ sessions }: { sessions: readonly Session[] }) {
                 </div>
               </div>
             )}
+            {entry.ingest && entry.steps.length > 0 && entry.solution && (
+              <div className="slm-takeaway slm-report-answer">
+                <span className="slm-takeaway-label">Answer</span>
+                <p>{entry.solution}</p>
+              </div>
+            )}
+            {entry.ingest && <OriginNote session={{ origin: 'ingest' }} variant="print" />}
           </section>
         </section>
       ))}

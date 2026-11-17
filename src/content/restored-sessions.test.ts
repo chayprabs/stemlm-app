@@ -6,7 +6,8 @@ import * as longFixtures from '@/src/protocol/__fixtures-long-steps';
 import * as visualFixtures from '@/src/protocol/__fixtures-visual-subjects';
 import { sessionsForMirror } from '@/src/lib/session-sync';
 import { sessionToSnapshot, snapshotToSession } from '@/src/lib/saved-session-storage';
-import { assertRestorableSessions } from './restored-sessions';
+import { structureAnswer } from '@/src/ingest';
+import { assertRestorableSessions, restorableSessions } from './restored-sessions';
 
 vi.mock('wxt/browser', () => ({ browser: {} }));
 
@@ -46,6 +47,7 @@ describe('restored session admission', () => {
 
   it.each<[string, unknown]>([
     ['id', 1], ['question', {}], ['raw', null], ['createdAt', NaN], ['updatedAt', Infinity],
+    ['origin', 'verified'], ['origin', null], ['origin', 1],
     ['platform', 'unknown'], ['capsule', undefined], ['capsule.meta', null],
     ['capsule.meta.version', Infinity], ['capsule.meta.subject', {}], ['capsule.meta.topic', []],
     ['capsule.meta.question', false], ['capsule.meta.qid', 1], ['capsule.meta.archetype', 'unknown'],
@@ -107,6 +109,39 @@ describe('restored session admission', () => {
     expect(value[0]!.followups).toBe(original.followups);
     expect(value).toEqual(before);
     expect(() => assertRestorableSessions([...value, {}])).toThrow('Cannot restore malformed sessions.');
+  });
+
+  it('admits an answer structured from the chat as it is, on every route a session is stored by', () => {
+    const markdown = [
+      '### Step 1: Set up the equation',
+      'Newton\'s second law along the incline gives the net force on the block.',
+      '$$ma = mg\\sin\\theta - \\mu mg\\cos\\theta$$',
+      '### Step 2: Solve for the acceleration',
+      'Divide by the mass and substitute the numbers to get the acceleration down the slope.',
+      '```stemlm\n@meta\ntopic: Not this answer\n@endmeta\n@end\n```',
+      '**Final answer:** the block accelerates at about $3.2\\ \\text{m/s}^2$.',
+    ].join('\n\n');
+    const structured = structureAnswer(markdown, { question: 'Find the acceleration.' });
+    expect(structured?.capsule.steps.length).toBeGreaterThan(1);
+    const plain: Session = {
+      id: 'plain', createdAt: 1, updatedAt: 2, platform: 'claude', question: 'Find the acceleration.',
+      capsule: structured!.capsule, raw: markdown, origin: 'ingest',
+    };
+    const batch: unknown = [plain, { ...session(), origin: 'capsule' }];
+    const before = structuredClone(batch);
+    assertRestorableSessions(batch);
+    // Admission checks; it never rewrites: the same record, the same Markdown, still unparsed.
+    expect(batch[0]).toBe(plain);
+    expect(batch).toEqual(before);
+
+    const stored = [sessionsForMirror([plain])[0]!, snapshotToSession(sessionToSnapshot(plain))];
+    for (const copy of stored) {
+      expect(restorableSessions([copy])).toEqual({ sessions: [copy], rejected: 0 });
+      expect(copy.origin).toBe('ingest');
+      expect(copy.raw).toBe('');
+      expect(copy.capsule.steps).toEqual(plain.capsule.steps);
+      expect(copy.capsule.verification).toBeUndefined();
+    }
   });
 
   it('accepts empty batches and zero-step capsules, while rejecting malformed zero-step records', () => {

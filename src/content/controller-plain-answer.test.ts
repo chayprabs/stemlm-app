@@ -324,6 +324,36 @@ describe('what an empty panel is offered', () => {
     expect(c.hasConversationToLoad()).toBe(false);
   });
 
+  it('the worked answer above a short closing reply, and opening it loads that answer', async () => {
+    ask('Find the range.');
+    reply(worked('the range'));
+    ask('Thanks!');
+    reply('<p>You are welcome. Good luck with the rest of the problem set.</p>');
+    expect(c.conversationToLoad()).toBe('answer');
+
+    expect(await c.loadConversation({ maxWaitMs: 0, quiet: true })).toBe(1);
+    expect(sessions()[0]).toMatchObject({ origin: 'ingest', question: 'Find the range.' });
+  });
+
+  it('nothing while a new reply is being written below an earlier answer', () => {
+    ask('Find the range.');
+    reply(worked('the range'));
+    ask('And the time of flight?');
+    reply('<p>The time of flight follows from</p>');
+    adapter.streaming = true;
+    expect(c.conversationToLoad()).toBeNull();
+  });
+
+  it('an earlier reply that finishes rendering after the first look', () => {
+    ask('Find the range.');
+    const earlier = reply('<p>One moment.</p>');
+    ask('Thanks!');
+    reply('<p>You are welcome.</p>');
+    expect(c.conversationToLoad()).toBeNull();
+    earlier.querySelector('.standard-markdown')!.innerHTML = worked('the range');
+    expect(c.conversationToLoad()).toBe('answer');
+  });
+
   it('nothing while the latest reply is still being written, then the answer once it has finished', () => {
     ask('Find the range.');
     reply(worked('the range'));

@@ -172,6 +172,30 @@ describe('Panel save membership', () => {
     }
   });
 
+  it('saves an answer structured from the chat as one, and keeps it so when the saved copy is refreshed', async () => {
+    const plain: Session = { ...studySession('plain-answer'), raw: '1. Write F = ma.\n2. Solve for a.', origin: 'ingest' };
+    useStore.getState().addSession(plain);
+    useStore.setState({ panelOpen: true, status: 'ready' });
+    const { container, unmount } = mountPanel();
+    await flush();
+    try {
+      await act(async () => { (container.querySelector('button[aria-label="Save session"]') as HTMLButtonElement).click(); });
+      await flush();
+      const saved = () => (storageData[SAVED_SESSIONS_KEY] as Array<Record<string, unknown>>).find((row) => row.id === plain.id);
+      expect(saved()).toMatchObject({ origin: 'ingest' });
+      expect(saved()).not.toHaveProperty('raw');
+
+      // The session object changes (a follow-up arrives): the panel rewrites the saved copy.
+      act(() => {
+        useStore.setState((s) => ({ sessions: s.sessions.map((x) => ({ ...x, question: 'Find the net force on the cart' })) }));
+      });
+      await flush();
+      expect(saved()).toMatchObject({ question: 'Find the net force on the cart', origin: 'ingest' });
+    } finally {
+      unmount();
+    }
+  });
+
   it('shows Save after unsaving the active session', async () => {
     const session = studySession();
     storageData[SAVED_SESSIONS_KEY] = [sessionToSnapshot(session)];

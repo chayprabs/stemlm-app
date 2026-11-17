@@ -11,6 +11,7 @@ import {
   workspaceFromStore,
 } from './tab-workspace';
 import type { Session } from '@/src/protocol/types';
+import { restorableSessions } from '@/src/content/restored-sessions';
 
 const sessionStore = new Map<string, unknown>();
 
@@ -130,6 +131,20 @@ describe('tab-workspace', () => {
     expect(loaded?.activeStepIndex).toBe(2);
     expect(loaded?.sessions[0]?.id).toBe('s1');
     expect(loaded?.sessions[0]?.raw).toBe('');
+  });
+
+  it('brings an answer structured from the chat back as one: its origin and steps, without its Markdown', async () => {
+    const plain: Session = {
+      ...sampleSession('plain'),
+      raw: '### Step 1\n\nbody\n\n```stemlm\n@meta\ntopic: Not this answer\n@endmeta\n@end\n```',
+      origin: 'ingest',
+    };
+    await saveTabWorkspace(workspaceFromStore(42, { sessions: [sampleSession('capsule'), plain], activeSessionId: 'plain', activeStepIndex: 0 }));
+    // Storage hands back a JSON copy, and the content script admits records before using them.
+    const admitted = restorableSessions(JSON.parse(JSON.stringify((await loadTabWorkspace(42))?.sessions)));
+    expect(admitted.rejected).toBe(0);
+    expect(admitted.sessions).toEqual([{ ...sampleSession('capsule'), raw: '' }, { ...plain, raw: '' }]);
+    expect(admitted.sessions[0]).not.toHaveProperty('origin');
   });
 
   it('keeps independent backups per tab id', async () => {

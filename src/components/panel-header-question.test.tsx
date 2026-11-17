@@ -118,6 +118,21 @@ describe('header question block', () => {
     expect(again.querySelector('.slm-question-topic')).toBeNull();
   });
 
+  it('says under the question when the answer was structured from the chat, and nothing for a stemlm answer', () => {
+    const question = 'A 5.0 kg block is released from rest on a 30° incline. Find its acceleration.';
+    const el = renderHeader(buildSession({ origin: 'ingest' }, { topic: 'A 5.0 kg block is released from rest…', question }));
+    const note = el.querySelector('.slm-header-title .slm-origin-note')!;
+    expect(note.textContent).toBe('Structured from the chat answer. Not checked by stemlm.');
+    // The explanation is a hover away, and the label sits after the question, never before it.
+    expect(note.getAttribute('title')).toMatch(/did not verify/);
+    expect(el.querySelector('.slm-question-body')!.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Its topic is only the opening of the question, so it is not printed above it as well.
+    expect(el.querySelector('.slm-question-topic')).toBeNull();
+
+    expect(renderHeader(buildSession()).querySelector('.slm-origin-note')).toBeNull();
+    expect(renderHeader(buildSession({ origin: 'capsule' })).querySelector('.slm-origin-note')).toBeNull();
+  });
+
   it('offers no toggle for a question that fits in two lines', () => {
     renderHeader(buildSession());
     expect(region().classList.contains('is-single')).toBe(true);

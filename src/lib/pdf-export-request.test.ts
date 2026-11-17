@@ -113,6 +113,31 @@ describe('PDF export hand-off (content script → pdf.html)', () => {
     expect(sessionStore.size).toBe(0);
   });
 
+  it('hands an answer structured from the chat over as it was sent: its origin, its Markdown unread', async () => {
+    const plain: Session = {
+      ...session('plain'),
+      raw: '### Step 1\n\nResolve the forces.\n\n```stemlm\n@meta\ntopic: Not this answer\n@endmeta\n@end\n```',
+      origin: 'ingest',
+      capsule: {
+        meta: { version: 1, subject: 'Physics', topic: 'Inclined plane' },
+        steps: [{ id: 's1', index: 1, title: 'Resolve the forces', body: 'Resolve the forces.' }],
+        solution: '',
+        solutionDiagrams: [],
+      },
+    };
+    await openPdfExportWindow(plain);
+    const job = new URL((windowsCreate.mock.calls[0]?.[0] as unknown as { url: string }).url).searchParams.get('job') as string;
+    // The browser stores a JSON copy of the parked session.
+    const key = [...sessionStore.keys()][0]!;
+    sessionStore.set(key, JSON.parse(JSON.stringify(sessionStore.get(key))));
+    expect(await takePdfExportJob(job)).toEqual(plain);
+  });
+
+  it('refuses a session whose origin is not one stemlm writes', async () => {
+    sessionStore.set('stemlm_pdf_job_odd-origin', { ...session(), origin: 'verified' });
+    expect(await takePdfExportJob('odd-origin')).toBeNull();
+  });
+
   it('does not leave a parked session behind when the window cannot open', async () => {
     windowsCreate.mockRejectedValueOnce(new Error('no windows'));
     expect(await openPdfExportWindow(session())).toBe(false);

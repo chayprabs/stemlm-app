@@ -1378,8 +1378,8 @@ export class StemController {
 
   /**
    * What "Load conversation" would find for an empty panel. `capsules`: stemLM answers (or a
-   * sent guide, whose answers may still be rendering). `answer`: no capsule anywhere, but the
-   * latest reply is a finished plain answer that can be studied as it is. Null: nothing.
+   * sent guide, whose answers may still be rendering). `answer`: no capsule anywhere, but one of
+   * the chat's recent replies is a finished plain answer that can be studied as it is. Null: nothing.
    */
   conversationToLoad(): 'capsules' | 'answer' | null {
     if (useStore.getState().sessions.length > 0) return null;
@@ -1393,21 +1393,24 @@ export class StemController {
   }
 
   /**
-   * Capsules win over plain answers, and a reply still being written is neither. The empty panel
-   * asks repeatedly while it waits, so the answer is kept until the latest message changes.
+   * Capsules win over plain answers, and nothing is offered while a reply is being written: the
+   * student is about to want that one. A short reply after a worked answer ("You're welcome")
+   * does not hide the answer above it. The empty panel asks repeatedly while it waits, so the
+   * result is kept until the replies it was read from change.
    */
   private probePage(): 'capsules' | 'answer' | null {
     const blocks = this.adapter.getAssistantBlocks();
     const latest = blocks[blocks.length - 1];
     const streaming = this.adapter.isStreaming();
-    const key = `${blocks.length}:${(latest?.textContent ?? '').length}:${streaming ? 1 : 0}`;
+    const read = blocks.slice(-PLAIN_SCAN_BLOCKS).reduce((n, block) => n + (block.textContent ?? '').length, 0);
+    const key = `${blocks.length}:${read}:${streaming ? 1 : 0}`;
     if (latest && this.pageProbe?.key === key && this.pageProbe.latest.deref() === latest) {
       return this.pageProbe.found;
     }
     let found: 'capsules' | 'answer' | null = null;
     if (this.adapter.extractCapsules().some((candidate) => (findCapsuleRaw(candidate) ?? candidate).includes('@meta'))) {
       found = 'capsules';
-    } else if (latest && !streaming && readPlainAnswer(latest, '')) {
+    } else if (!streaming && this.recentPlainAnswers(1).length > 0) {
       found = 'answer';
     }
     // Without a recognised message there is nothing to key the memory on: look again every time.
@@ -1540,23 +1543,17 @@ export class StemController {
   }
 
   /**
-   * Sessions for the most recent plain answers on the page. Only called for a chat that holds no
-   * capsule: there, every worked answer is one the student may want to study.
+   * Up to `max` of the most recent finished plain answers on the page, oldest first, each with
+   * the question it answers. Replies that are not answers are passed over without counting.
    */
-  private loadPlainAnswers(): number {
-    const store = useStore.getState();
+  private recentPlainAnswers(max: number): Array<{ answer: PlainAnswer; question: string }> {
     let blocks = this.adapter.getAssistantBlocks();
     // The message still being written is not an answer yet.
     if (this.adapter.isStreaming()) blocks = blocks.slice(0, -1);
-    const existing = new Map<string, Session>();
-    for (const s of store.sessions) {
-      if (s.origin === 'ingest') existing.set(plainDedupKey(s.raw, s.capsule), s);
-    }
-
     const found: Array<{ answer: PlainAnswer; question: string }> = [];
     const seen = new Set<string>();
     const oldest = Math.max(0, blocks.length - PLAIN_SCAN_BLOCKS);
-    for (let i = blocks.length - 1; i >= oldest && found.length < PLAIN_SESSIONS_MAX; i--) {
+    for (let i = blocks.length - 1; i >= oldest && found.length < max; i--) {
       const block = blocks[i]!;
       const question = questionFromUserTurn(this.adapter.getUserQuestionBefore?.(block) ?? '');
       const answer = readPlainAnswer(block, question);
@@ -1565,7 +1562,20 @@ export class StemController {
       seen.add(key);
       found.unshift({ answer, question });
     }
+    return found;
+  }
+
+  /**
+   * Sessions for the most recent plain answers on the page. Only called for a chat that holds no
+   * capsule: there, every worked answer is one the student may want to study.
+   */
+  private loadPlainAnswers(): number {
+    const found = this.recentPlainAnswers(PLAIN_SESSIONS_MAX);
     if (!found.length) return 0;
+    const existing = new Map<string, Session>();
+    for (const s of useStore.getState().sessions) {
+      if (s.origin === 'ingest') existing.set(plainDedupKey(s.raw, s.capsule), s);
+    }
 
     const now = Date.now();
     const sessions = found.map(({ answer, question }, i) => {

@@ -7,7 +7,7 @@
  * Files: `plain-answer-<scheme>` (the original shot), then `plain-<what>-<scheme>[-<detail>]`.
  */
 import { PLAIN_MARKDOWN } from './capsules.mjs';
-import { plainAssistant, userTurn } from './hosts.mjs';
+import { hostOrigin, hostPage, plainAssistant, userTurn } from './hosts.mjs';
 import { BINARY_SEARCH, DERIVATIVE, MOLARITY, PROJECTILE, REFUSAL } from './plain-answers.mjs';
 
 const QUADRATIC_QUESTION = 'Solve 2x² − 4x − 6 = 0.';
@@ -21,7 +21,12 @@ const HOSTED = [
   ['grok', DERIVATIVE],
 ];
 
-/** @param {object} h harness: openHost, sendToTab, shot, settle, failures, only, schemes */
+/** 25% of a 1360px window: the narrowest panel the split allows, about 340px. */
+const NARROW = { viewport: { width: 1360, height: 900 }, splitRatio: 0.25 };
+const SPLIT_KEYS = ['stemlm_setting_splitRatio', 'stemlm_split_ratio_user_set'];
+const SAVED_KEYS = ['stemlm_saved_sessions', 'stemlm_saved_sessions_version'];
+
+/** @param {object} h harness: openHost, openExtensionPage, sendToTab, shot, settle, setStored, getStored, clearStored, failures, only, schemes */
 export async function plainSuites(h) {
   const suites = {
     answer: originalSuite,
@@ -30,6 +35,9 @@ export async function plainSuites(h) {
     refusal: refusalSuite,
     offer: offerSuite,
     capture: captureSuite,
+    narrow: narrowSuite,
+    report: reportSuite,
+    restore: restoreSuite,
   };
   // `--only plain` (or any prefix of it) runs everything; `--only plain-capture` runs one suite.
   const wanted = (name) => h.only.length === 0 ||
@@ -45,6 +53,8 @@ export async function plainSuites(h) {
         for (const page of pages) if (!page.isClosed()) await h.shot(page, `plain-${name}-${scheme}-ERROR`);
       } finally {
         for (const page of pages) if (!page.isClosed()) await page.close();
+        // What a suite stored (a split ratio, a saved answer) must not reach the next one.
+        await h.clearStored([...SPLIT_KEYS, ...SAVED_KEYS]);
       }
     }
   }
@@ -157,6 +167,77 @@ async function offerSuite(h, scheme) {
   await expectStructured(page);
   await h.settle(page, 1000);
   await h.shot(page, `plain-offer-${scheme}-opened`, { locator: panel });
+}
+
+/**
+ * The narrowest panel, on a chat with two plain answers: both open, the newest in front, and the
+ * origin line has to wrap under a long question without crowding the question switch above it.
+ */
+async function narrowSuite(h, scheme) {
+  await h.setStored({ stemlm_setting_splitRatio: NARROW.splitRatio, stemlm_split_ratio_user_set: true });
+  const page = h.track(await h.openHost('claude', scheme, { ...MOLARITY, viewport: NARROW.viewport }));
+  await ready(h, page);
+  await appendTurns(page, userTurn('claude', PROJECTILE.question) + plainAssistant('claude', PROJECTILE.markdown));
+  const res = await h.sendToTab(page, 'stemlm:open-panel');
+  if (res?.loaded !== 2) throw new Error(`open-panel on two plain answers: ${JSON.stringify(res)}`);
+  const panel = await expectStructured(page);
+  await h.settle(page, 1200);
+  await h.shot(page, `plain-narrow-${scheme}`);
+  await h.shot(page, `plain-narrow-${scheme}-step1`, { locator: panel });
+  await page.locator('#slm-tab-solution').click();
+  await h.settle(page, 900);
+  await page.locator('.slm-solution-wrap').evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await h.settle(page, 400);
+  await h.shot(page, `plain-narrow-${scheme}-solution-end`, { locator: panel });
+}
+
+/**
+ * Saved from the panel, then opened from the library as its report: the page a PDF is made from
+ * still says the answer was structured and not checked, and still ends on the answer's conclusion.
+ */
+async function reportSuite(h, scheme) {
+  // The report is one paper-white page whatever the theme.
+  if (scheme !== 'light') return;
+  const page = h.track(await h.openHost('claude', scheme, PROJECTILE));
+  await ready(h, page);
+  await h.sendToTab(page, 'stemlm:open-panel');
+  const panel = await expectStructured(page);
+  await panel.locator('.slm-icon-btn--save').click();
+  await panel.locator('.slm-icon-btn--save[aria-pressed="true"]').waitFor({ state: 'visible', timeout: 8_000 });
+  const [snapshot] = (await h.getStored(SAVED_KEYS[0])) ?? [];
+  if (snapshot?.origin !== 'ingest') throw new Error(`the saved answer's origin is ${JSON.stringify(snapshot?.origin)}`);
+  const report = h.track(await h.openExtensionPage(`pdf.html?id=${encodeURIComponent(snapshot.id)}`, scheme, { width: 900, height: 1000 }));
+  await report.locator('.slm-report').waitFor({ state: 'visible', timeout: 20_000 });
+  const text = await report.locator('.slm-report').innerText();
+  if (!text.includes(ORIGIN_NOTE)) throw new Error('the report does not say where the answer came from');
+  if (!(text.split('Multiply the horizontal speed by that time')[1] ?? '').includes('from where it was thrown')) throw new Error("the report lost the answer's conclusion");
+  // The topic of a structured answer is the opening of its question: printing both says it twice.
+  if (await report.locator('h1.slm-report-topic').count()) throw new Error('the report heads the page with the question it prints below');
+  await h.settle(report, 600);
+  await h.shot(report, 'plain-report', { fullPage: true });
+}
+
+/**
+ * A reload brings the structured answer back from the tab's own backup, still marked. The chat is
+ * served empty the second time, so what opens cannot have been read from the page again.
+ */
+async function restoreSuite(h, scheme) {
+  if (scheme !== 'light') return;
+  const page = h.track(await h.openHost('claude', scheme, PROJECTILE));
+  await ready(h, page);
+  await h.sendToTab(page, 'stemlm:open-panel');
+  await expectStructured(page);
+  // The backup is written a moment after the answer lands.
+  await h.settle(page, 1200);
+  await page.route(`${hostOrigin('claude')}/**`, (route) =>
+    route.fulfill({ contentType: 'text/html; charset=utf-8', body: hostPage('claude', { scheme, empty: true }) }));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await ready(h, page);
+  const res = await h.sendToTab(page, 'stemlm:open-panel');
+  if (!res?.ok || res.loaded) throw new Error(`open-panel after the reload: ${JSON.stringify(res)}`);
+  await expectStructured(page);
+  await h.settle(page, 900);
+  await h.shot(page, 'plain-restore');
 }
 
 /**
