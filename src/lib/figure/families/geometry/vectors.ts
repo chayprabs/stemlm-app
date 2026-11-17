@@ -116,7 +116,7 @@ export function compileVectors(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const window = windowAround(marks);
 
   const render = (tall: boolean): CompileResult => {
-    const plane = new Plane({ window, nominal, equal: true, numbers: 'axis', grid: true, fill: true, names: { x: 'x', y: 'y' }, footer: computed.height, ...(tall ? { tallAbove: 0 } : {}) });
+    const plane = new Plane({ window, nominal, equal: true, numbers: 'axis', grid: true, fill: true, footer: computed.height, ...(tall ? { tallAbove: 0 } : {}) });
     const b = new SceneBuilder('vectors', plane.width, plane.height);
     const placer = new Placer({ width: plane.width, height: plane.height });
     plane.drawGrid(b);

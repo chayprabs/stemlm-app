@@ -78,7 +78,7 @@ export function compileSlopefield(spec: SpecDoc, ctx: CompileCtx): CompileResult
   }
 
   const aspect = (window.y1 - window.y0) / (window.x1 - window.x0);
-  const plane = new Plane({ window, nominal: frameSize(ctx.profile), equal: aspect >= 0.4 && aspect <= 2.5, numbers: 'edge', grid: false, fill: false, names: { x: 'x', y: 'y' } });
+  const plane = new Plane({ window, nominal: frameSize(ctx.profile), equal: aspect >= 0.4 && aspect <= 2.5, numbers: 'edge', grid: false, fill: false });
   const b = new SceneBuilder('slopefield', plane.width, plane.height);
   const placer = new Placer({ width: plane.width, height: plane.height });
   plane.drawGrid(b);

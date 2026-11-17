@@ -20,7 +20,6 @@ export interface PlaneOptions {
   fill: boolean;
   /** Window aspect (height / width) above which the canvas goes tall; 0.8 unless given. */
   tallAbove?: number;
-  names?: { x: string; y: string };
   /** Room kept under the plot for a readout, in canvas units. */
   footer?: number;
 }
@@ -105,10 +104,10 @@ export class Plane {
     const spanX = given.x1 - given.x0;
     const spanY = given.y1 - given.y0;
     const footer = options.footer ?? 0;
-    const nameW = options.names ? Math.max(textSize(options.names.x).w, textSize(options.names.y).w) : 0;
+    const nameW = Math.max(textSize('x').w, textSize('y').w);
     const base = options.numbers === 'edge'
-      ? { l: 12, r: options.names ? nameW + 12 : 10, t: options.names ? TEXT_H + 8 : 8, b: TEXT_H + 13 + footer }
-      : { l: 9, r: AXIS_OVERSHOOT + (options.names ? nameW + 12 : 4), t: AXIS_OVERSHOOT + 6, b: 9 + footer };
+      ? { l: 12, r: nameW + 12, t: TEXT_H + 8, b: TEXT_H + 13 + footer }
+      : { l: 9, r: AXIS_OVERSHOOT + nameW + 12, t: AXIS_OVERSHOOT + 6, b: 9 + footer };
     let plan = this.fit(given, spanX, spanY, base);
     // Tick numbers need room that depends on the scale they are drawn at; two passes settle it.
     for (let pass = 0; pass < 2; pass++) {
@@ -231,9 +230,8 @@ export class Plane {
 
   /** Axis lines. In an `axis` plane they carry arrowheads; an `edge` plane is framed, with its numbers and names outside. */
   drawAxes(b: SceneBuilder, placer: Placer): void {
-    const { numbers, names } = this.options;
     const { x: ax, y: ay } = this.axis;
-    if (numbers === 'edge') {
+    if (this.options.numbers === 'edge') {
       const { x0, x1, y0, y1 } = this.window;
       if (y0 < 0 && y1 > 0) b.line('x-axis', this.left, ay, this.right, ay, { color: 'muted', width: 1, role: 'guide', protected: true });
       if (x0 < 0 && x1 > 0) b.line('y-axis', ax, this.bottom, ax, this.top, { color: 'muted', width: 1, role: 'guide', protected: true });
@@ -247,10 +245,8 @@ export class Plane {
         b.line(`y-tick${index}`, this.left - 3, this.y(value), this.left, this.y(value), { color: 'muted', width: 1, role: 'guide', protected: true });
         b.label(`y-number${index}`, text, this.left - 6 - textSize(text).w / 2, this.y(value), { protected: true, priority: 'required' });
       });
-      if (names) {
-        b.label('x-name', names.x, this.right + 6 + textSize(names.x).w / 2, this.bottom, { protected: true, priority: 'required' });
-        b.label('y-name', names.y, this.left, this.top - 3 - TEXT_H / 2, { protected: true, priority: 'required' });
-      }
+      b.label('x-name', 'x', this.right + 6 + textSize('x').w / 2, this.bottom, { protected: true, priority: 'required' });
+      b.label('y-name', 'y', this.left, this.top - 3 - TEXT_H / 2, { protected: true, priority: 'required' });
       placer.path([this.left, this.top, this.right, this.top, this.right, this.bottom, this.left, this.bottom], true);
       return;
     }
@@ -266,19 +262,18 @@ export class Plane {
    * other side of its arrowhead when a line runs through its usual spot.
    */
   drawNames(b: SceneBuilder, placer: Placer): void {
-    const { names, numbers } = this.options;
-    if (!names || numbers !== 'axis') return;
+    if (this.options.numbers !== 'axis') return;
     const { x: ax, y: ay } = this.axis;
     const xEnd = this.right + AXIS_OVERSHOOT;
     const yTop = this.top - AXIS_OVERSHOOT;
-    const xSize = textSize(names.x);
-    const ySize = textSize(names.y);
+    const xSize = textSize('x');
+    const ySize = textSize('y');
     const xSpots = [{ x: xEnd + 5 + xSize.w / 2, y: ay }, { x: xEnd - xSize.w / 2, y: ay + 5 + xSize.h / 2 }, { x: xEnd - xSize.w / 2, y: ay - 5 - xSize.h / 2 }];
     const ySpots = [{ x: ax + 6 + ySize.w / 2, y: yTop + ySize.h / 2 - 0.5 }, { x: ax - 6 - ySize.w / 2, y: yTop + ySize.h / 2 - 0.5 }];
     const xAt = placer.claim(xSize, xSpots, 1) ?? xSpots[0]!;
     const yAt = placer.claim(ySize, ySpots, 1) ?? ySpots[0]!;
-    b.label('x-name', names.x, xAt.x, xAt.y, { protected: true, priority: 'required' });
-    b.label('y-name', names.y, yAt.x, yAt.y, { protected: true, priority: 'required' });
+    b.label('x-name', 'x', xAt.x, xAt.y, { protected: true, priority: 'required' });
+    b.label('y-name', 'y', yAt.x, yAt.y, { protected: true, priority: 'required' });
   }
 
   /**

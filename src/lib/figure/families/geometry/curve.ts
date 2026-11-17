@@ -93,7 +93,7 @@ export function compileCurve(spec: SpecDoc, ctx: CompileCtx): CompileResult {
 
   const nominal = frameSize(ctx.profile);
   const computed = readout(equations, nominal.w);
-  const plane = new Plane({ window: windowAround(points), nominal, equal: true, numbers: 'axis', grid: kind === 'parametric', fill: true, names: { x: 'x', y: 'y' }, footer: computed.height });
+  const plane = new Plane({ window: windowAround(points), nominal, equal: true, numbers: 'axis', grid: kind === 'parametric', fill: true, footer: computed.height });
   const b = new SceneBuilder('curve', plane.width, plane.height);
   const placer = new Placer({ width: plane.width, height: plane.height });
   plane.drawGrid(b);

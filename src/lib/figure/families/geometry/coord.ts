@@ -251,7 +251,7 @@ export function compileCoord(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const render = (tall: boolean): CompileResult => {
     // Lines alone never ask for a tall canvas: the window inferred for them is a convention, not an extent.
     const plane = new Plane({
-      window, nominal, equal: true, numbers: 'axis', grid: true, fill: windowRaw === undefined, names: { x: 'x', y: 'y' }, footer: computed.height,
+      window, nominal, equal: true, numbers: 'axis', grid: true, fill: windowRaw === undefined, footer: computed.height,
       ...(tall ? { tallAbove: 0 } : solid || windowRaw !== undefined ? {} : { tallAbove: Infinity }),
     });
     const b = new SceneBuilder('coord', plane.width, plane.height);
