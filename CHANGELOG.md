@@ -66,6 +66,8 @@
 - Visual tools in `scripts/visual/` drive the built extension in headless Chromium against stand-in pages for the four chat sites and photograph every surface; a gallery tool compiles figure specs with the shipped compiler.
 - The stand-in composers follow the DOM captured from the four sites (`scripts/visual/host-composers.mjs`), and `scripts/visual/control-check.mjs` measures the composer control against the chat's attach button in every state, theme and window width.
 - New figure families are added as packs (a manifest and a compiler) under `src/lib/figure/families/`, with nothing else to register.
+- The test suite runs about 30% faster: code that never touches a page runs in Node, and the controller tests move a fake clock instead of sleeping. `pnpm test:changed` and `pnpm test:related` run just the tests a change touches. Work-budget tests measure CPU rather than the wall clock, so they no longer fail on a busy machine.
+- `scripts/guide-eval/` scores a folder of raw model answers with the shipped parser and figure compiler, for measuring a change to the guide.
 
 ## [2.0.0](https://github.com/chayprabs/stemlm-app/releases/tag/v2.0.0) — 2026-09-29
 
