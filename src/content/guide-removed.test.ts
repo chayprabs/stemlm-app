@@ -11,6 +11,10 @@ vi.mock('@/src/lib/file-inject', async (importOriginal) => ({
 
 const claude = HOST_FIXTURES.find((spec) => spec.id === 'claude')!;
 
+// happy-dom reports DOM changes on a real timer, which a busy machine delays: move the fake clock on
+// in steps until the controller has seen the change, instead of one jump that can come first.
+const settles = (check: () => void) => vi.waitFor(check, { timeout: 5000, interval: 50 });
+
 // Live Claude 2026-09-27: removing the guide chip with the host's own × left the + saying "stemlm guide
 // attached" and the panel waiting on "Reading response" for an answer that could not come.
 describe('the student removes the attached guide before sending', () => {
@@ -34,15 +38,14 @@ describe('the student removes the attached guide before sending', () => {
     expect(await injected).toBe(true);
     const composer = document.querySelector('fieldset, form')!;
     const chip = addNamedChip(composer, 'stemLM Guide.txt');
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(useStore.getState().buttonInjected).toBe(true);
+    await settles(() => expect(useStore.getState().buttonInjected).toBe(true));
     return { controller, chip };
   }
 
   it('goes back to "attach" and says why', async () => {
     const { controller, chip } = await injectWithChip();
     chip.remove();
-    await vi.advanceTimersByTimeAsync(1500);
+    await settles(() => expect(useStore.getState().buttonInjected).toBe(false));
     const state = useStore.getState();
     console.log('GUIDE_REMOVED', JSON.stringify({ injected: state.buttonInjected, status: state.status, message: state.errorMessage }));
     expect(state.buttonInjected).toBe(false);
@@ -63,6 +66,7 @@ describe('the student removes the attached guide before sending', () => {
     chip.remove();
     editor.textContent = '';
     document.getElementById('thread')!.append(sent);
+    await settles(() => expect(useStore.getState().status).toBe('loading'));
     await vi.advanceTimersByTimeAsync(1500);
     expect(useStore.getState().errorMessage ?? '').not.toMatch(/removed/i);
     expect(useStore.getState().status).toBe('loading');

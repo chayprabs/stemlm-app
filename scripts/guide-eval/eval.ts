@@ -144,7 +144,7 @@ function writeTrials(outDir: string, questions: Question[]): void {
       const payload = buildInjectionPayload(question.question);
       writeFileSync(resolve(dir, 'attachment.txt'), payload.fileContent);
       writeFileSync(resolve(dir, 'message.txt'), payload.composerText);
-      writeFileSync(resolve(dir, 'inline.txt'), buildInjectionPrompt(question.question).prompt);
+      writeFileSync(resolve(dir, 'inline.txt'), buildInjectionPrompt(question.question));
     }
   }
 }

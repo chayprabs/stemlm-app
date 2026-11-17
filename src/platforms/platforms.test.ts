@@ -241,7 +241,7 @@ describe('Gemini adapter', () => {
   });
 
   it('inserts the core stemLM template into a Quill-like editor', () => {
-    const { prompt } = buildInjectionPrompt(
+    const prompt = buildInjectionPrompt(
       'Solve this circuit with a 12V source and resistor (Kirchhoff)',
     );
     expect(geminiAdapter.insertPrompt(prompt)).toBe(true);
@@ -256,7 +256,7 @@ describe('Gemini adapter', () => {
   it('appends the protocol below an existing question without erasing it', () => {
     const editor = geminiAdapter.findEditor()!;
     editor.innerHTML = '<p>Find the range of a projectile launched at 60 degrees</p>';
-    const { prompt } = buildInjectionAppendix(
+    const prompt = buildInjectionAppendix(
       'Find the range of a projectile launched at 60 degrees',
     );
     expect(geminiAdapter.insertPrompt(prompt, 'append')).toBe(true);
@@ -298,7 +298,7 @@ describe('Gemini adapter', () => {
     const editor = geminiAdapter.findEditor()!;
     editor.innerHTML = '<p>See attached problem</p><img alt="problem photo" src="blob:test">';
     expect(composerHasAttachments(editor)).toBe(true);
-    const { prompt } = buildInjectionAppendix('See attached problem');
+    const prompt = buildInjectionAppendix('See attached problem');
     expect(appendEditorText(editor, prompt)).toBe(true);
     expect(editor.querySelector('img[alt="problem photo"]')).not.toBeNull();
     expect(getEditorTextOf(editor)).toContain('See attached problem');
@@ -495,7 +495,7 @@ describe('editorReflectsText', () => {
   it('requires protocol markers for stemLM injection prompts', () => {
     setBody('<div id="ed" contenteditable="true"></div>');
     const el = document.getElementById('ed')!;
-    const { prompt } = buildInjectionPrompt('derivative of x^2');
+    const prompt = buildInjectionPrompt('derivative of x^2');
     setEditorText(el, prompt);
     expect(editorReflectsText(el, prompt)).toBe(true);
   });
