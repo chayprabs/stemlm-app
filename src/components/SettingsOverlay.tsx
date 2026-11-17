@@ -268,7 +268,7 @@ export function SettingsOverlay({
             <h3 id="slm-settings-appearance" className="slm-settings-group-title">Appearance</h3>
             <Row
               label="Theme"
-              hint={settings.theme === 'auto' ? 'Follows your system.' : `Always ${settings.theme}.`}
+              hint={settings.theme === 'auto' ? 'Matches the chat site, or your system.' : `Always ${settings.theme}.`}
             >
               <Segmented
                 label="Theme"

@@ -64,6 +64,10 @@ const problems = [];
 const report = {};
 const setStored = (values) => sw.evaluate((v) => chrome.storage.local.set(v), values);
 const clearStored = () => sw.evaluate((k) => chrome.storage.local.remove(k), SETTING_KEYS);
+// This check is about the panel's shell. Folding stemLM's answer in the chat is a chat setting that
+// stays after the panel closes (the folded row reopens it), with checks of its own; with it on, the
+// thread here would be shorter after closing than before opening, by design.
+await setStored({ stemlm_setting_tidyChat: false });
 
 async function sendToTab(page, type) {
   const url = page.url();
