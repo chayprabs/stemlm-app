@@ -100,9 +100,12 @@ export function SavedLibraryOverlay({
         <div className="slm-library-frame">
           <div className="slm-library-dialog-head">
             <h2 id="slm-library-title" className="slm-library-dialog-title">
-              <BrandWordmark variant={themeToBrandVariant(theme)} height={28} />
+              <BrandWordmark variant={themeToBrandVariant(theme)} height={22} />
               <span className="slm-library-kicker">{SAVED_QUESTIONS_LABEL}</span>
             </h2>
+            {items.length > 0 && (
+              <span className="slm-library-count" aria-label={`${items.length} saved`}>{items.length}</span>
+            )}
             <button type="button" className="slm-library-close" aria-label="Close" onClick={onClose}>
               <IconClose width={16} height={16} />
             </button>

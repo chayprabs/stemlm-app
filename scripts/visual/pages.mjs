@@ -163,8 +163,73 @@ async function welcomeSuite(scheme) {
   }
 }
 
+/** The library opens in a 700 x 460 window (src/lib/saved-library.ts); it is shot at that size first. */
+async function librarySuite(scheme) {
+  const windowSize = { width: 700, height: 460 };
+  const page = async (count, viewport = windowSize) => {
+    await seedSaved(count);
+    return openPage('saved-library.html', scheme, viewport);
+  };
+  const search = 'input[aria-label="Search saved questions"]';
+
+  let p = await page(0);
+  await shot(p, `library-${scheme}-1-empty`);
+  await p.close();
+
+  p = await page(1);
+  await shot(p, `library-${scheme}-2-one`);
+  await p.close();
+
+  p = await page(7);
+  await shot(p, `library-${scheme}-3-seven`);
+  await p.locator('.slm-library-row').nth(1).hover();
+  await settle(p, 250);
+  await shot(p, `library-${scheme}-4-row-hover`);
+  await p.locator('[data-action="download"]').first().focus();
+  await p.keyboard.press('Tab');
+  await settle(p, 250);
+  await shot(p, `library-${scheme}-5-action-focus`);
+  await p.locator(search).fill('incline');
+  await settle(p, 400);
+  await shot(p, `library-${scheme}-6-search-results`);
+  await p.locator(search).fill('organic stereochemistry');
+  await settle(p, 400);
+  await shot(p, `library-${scheme}-7-search-none`);
+  await p.locator('[data-library="clear-filters"]').click();
+  await p.locator('button[aria-label="Filter by time"]').click();
+  await settle(p, 300);
+  await shot(p, `library-${scheme}-8-time-menu`);
+  await p.keyboard.press('Escape');
+  await p.locator('[data-merge="start"]').click();
+  await p.locator('.slm-library-check').nth(0).click();
+  await p.locator('.slm-library-check').nth(2).click();
+  await p.mouse.move(690, 450);
+  await settle(p, 400);
+  await shot(p, `library-${scheme}-9-selecting`);
+  await p.close();
+
+  p = await page(300);
+  await shot(p, `library-${scheme}-10-three-hundred`);
+  await p.close();
+
+  if (scheme === 'light') {
+    p = await page(7, { width: 1280, height: 860 });
+    await shot(p, `library-${scheme}-11-large-window`);
+    await p.close();
+    p = await page(7, { width: 400, height: 620 });
+    await shot(p, `library-${scheme}-12-narrow-window`);
+    await p.locator('[data-merge="start"]').click();
+    await p.locator('.slm-library-check').nth(1).click();
+    await settle(p, 400);
+    await shot(p, `library-${scheme}-13-narrow-selecting`);
+    await p.close();
+  }
+  await seedSaved(0);
+}
+
 try {
   for (const scheme of SCHEMES) {
+    if (want('library')) await librarySuite(scheme);
     if (want('popup')) await popupSuite(scheme);
     if (want('welcome')) await welcomeSuite(scheme);
   }
