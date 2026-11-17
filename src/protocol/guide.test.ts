@@ -12,17 +12,13 @@ import { compileDiagramStrict, resolveDiagram } from '@/src/lib/resolve-diagram'
 import { STUDY_GUIDE_END } from '@/src/lib/study-guide';
 import { buildComposerPointer, buildFollowupCopyText } from './builder';
 import { parse } from './parser';
-import { assembleGuide, FIGURE_FORMS, GUIDE_INLINE_MAX_CHARS, GUIDE_MAX_CHARS } from './protocol';
+import { assembleGuide, FIGURE_FORMS, figureType, GUIDE_INLINE_MAX_CHARS, GUIDE_MAX_CHARS } from './protocol';
 import { ALT_END_MARKERS, PROTOCOL_LINE_MARKERS } from './strip-markers';
 import { SUBJECTS, type Diagram } from './types';
 
 const guides = SUBJECTS.map((subject) => [subject, assembleGuide('', subject)] as const);
 /** A question that names as many figure families as words allow, in a subject with many of its own. */
 const GREEDY = `Use a ${FIGURE_FORMS.flatMap((form) => form.cues).join(', ').replace(/-/g, ' ')} in calculus.`;
-
-function typeOf(id: string): string {
-  return /^(?:scene|table)\./.test(id) ? id.slice(0, id.indexOf('.')) : id;
-}
 
 /** Every `@diagram … @enddiagram` block of a guide text. */
 function specimens(text: string): Diagram[] {
@@ -51,7 +47,7 @@ describe('guide size', () => {
     expect(guide.text.length).toBeLessThanOrEqual(GUIDE_MAX_CHARS);
     expect(specimens(guide.text).length).toBeGreaterThan(10);
     expect(specimens(guide.text).length).toBeLessThan(FIGURE_FORMS.length);
-    for (const form of FIGURE_FORMS) expect(guide.text, form.id).toContain(`type=${typeOf(form.id)}: ${form.grammar}`);
+    for (const form of FIGURE_FORMS) expect(guide.text, form.id).toContain(`type=${figureType(form.id)}: ${form.grammar}`);
   });
 
   it.each(guides)('%s: the version pasted into a message stays under its own, smaller ceiling', (subject) => {
@@ -157,7 +153,7 @@ describe('figures in the guide', () => {
   });
 
   it.each(FIGURE_FORMS.map((form) => [form.id, form] as const))('%s: its specimen compiles as written, with nothing for repair to do', async (id, form) => {
-    const diagram = { type: typeOf(id), content: form.specimen };
+    const diagram = { type: figureType(id), content: form.specimen };
     const compiled = await compileDiagramStrict(diagram);
     expect(compiled.ok, compiled.ok ? id : compiled.diagnostic.reason).toBe(true);
     expect(repairDiagram(diagram).repairs).toEqual([]);
@@ -167,7 +163,7 @@ describe('figures in the guide', () => {
   });
 
   it('teaches every family the compiler offers a student, and none it does not', () => {
-    const taught = new Set(FIGURE_FORMS.map((form) => typeOf(form.id)));
+    const taught = new Set(FIGURE_FORMS.map((form) => figureType(form.id)));
     for (const engine of ['plot', 'scene', 'graph', 'table', 'circuit']) expect(taught.has(engine), engine).toBe(true);
     for (const manifest of FAMILY_MANIFESTS) expect(taught.has(manifest.token), manifest.token).toBe(true);
     for (const type of taught) {
@@ -190,7 +186,7 @@ describe('figures in the guide', () => {
   it('teaches every scene and table variant under the kind the catalog knows', () => {
     for (const form of FIGURE_FORMS.filter((entry) => /^(?:scene|table)\./.test(entry.id))) {
       const kind = /^kind:\s*(\S+)/m.exec(form.specimen)?.[1];
-      const variants = FAMILY_CATALOG[typeOf(form.id)]!.variants!;
+      const variants = FAMILY_CATALOG[figureType(form.id)]!.variants!;
       const known = Object.entries(variants).some(([name, variant]) => name === kind || variant.aliases?.includes(kind!));
       expect(known, `${form.id}: kind ${kind}`).toBe(true);
     }
@@ -211,7 +207,7 @@ describe('figures in the guide', () => {
     for (const block of blocks) expect((await compileDiagramStrict(block)).ok, block.type).toBe(true);
     for (const id of guide.forms) {
       const form = FIGURE_FORMS.find((entry) => entry.id === id)!;
-      expect(guide.text).toContain(`@diagram type=${typeOf(id)}\n${form.specimen}\n@enddiagram`);
+      expect(guide.text).toContain(`@diagram type=${figureType(id)}\n${form.specimen}\n@enddiagram`);
     }
   });
 
@@ -277,13 +273,13 @@ describe('coverage', () => {
 
   it.each(guides)('%s: every figure type the guide teaches is there, with an example or with its keys', (_subject, guide) => {
     for (const form of FIGURE_FORMS) {
-      expect(guide.text, form.id).toContain(`type=${typeOf(form.id)}: ${form.grammar}`);
+      expect(guide.text, form.id).toContain(`type=${figureType(form.id)}: ${form.grammar}`);
     }
     expect(guide.text).not.toContain('does not describe');
   });
 
   it('teaches the figure families the compiler draws faithfully, and names the ones it leaves out', () => {
-    const taught = new Set(FIGURE_FORMS.map((form) => typeOf(form.id)));
+    const taught = new Set(FIGURE_FORMS.map((form) => figureType(form.id)));
     // Older template families: still drawn when an old answer uses one, never taught. They were
     // left out of the guide before this one too, because they draw a fixed picture or refuse
     // common inputs (`beam` takes one central point load only).
