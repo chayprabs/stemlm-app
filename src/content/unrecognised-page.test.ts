@@ -40,9 +40,6 @@ class ChangedSite implements PlatformAdapter {
   composerHasAttachments() { return false; }
   focusComposerQuestionSlot() {}
   getComposerBox() { return this.findEditor(); }
-  getComposerActionRow() { return this.findEditor(); }
-  getComposerLayout() { return null; }
-  getComposerAnchor() { return this.findEditor(); }
   getComposerLeadingAnchor() { return null; }
   getComposerShell() { return this.findEditor(); }
   getAssistantBlocks() { return []; }

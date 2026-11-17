@@ -19,13 +19,6 @@ export interface PlatformBrand {
   neutral?: boolean;
 }
 
-export interface ComposerLayout {
-  /** Visual outer shell of the chat input (border, radius). */
-  box: HTMLElement;
-  /** Bottom toolbar row where send + trailing actions live. */
-  actionRow: HTMLElement;
-}
-
 /** One capsule candidate and where in the page it was read from. */
 export interface CapsuleSource {
   text: string;
@@ -79,15 +72,6 @@ export interface PlatformAdapter {
 
   /** Outer composer container for in-box button positioning. */
   getComposerBox(): HTMLElement | null;
-
-  /** Action row inside the composer (send button toolbar). */
-  getComposerActionRow(): HTMLElement | null;
-
-  /** Resolved box + action row together. */
-  getComposerLayout(): ComposerLayout | null;
-
-  /** A stable element near the composer to dock the stemLM button beside. */
-  getComposerAnchor(): HTMLElement | null;
 
   /** The chat's own attach button (upload / +): the composer control sits beside it. */
   getComposerLeadingAnchor(): HTMLElement | null;

@@ -202,9 +202,7 @@ describe('Gemini adapter', () => {
   it('finds the editor and composer shell', () => {
     expect(geminiAdapter.findEditor()).not.toBeNull();
     expect(geminiAdapter.getComposerShell()).not.toBeNull();
-    expect(geminiAdapter.getComposerAnchor()).not.toBeNull();
     expect(geminiAdapter.getComposerBox()).not.toBeNull();
-    expect(geminiAdapter.getComposerLayout()).not.toBeNull();
   });
 
   it('finds the leading upload control inside the composer shell', () => {
@@ -428,10 +426,9 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
     mountHostComposer(spec);
   });
 
-  it('finds the editor, composer shell, leading +, and send/anchor', () => {
+  it('finds the editor, composer shell and leading +', () => {
     expect(spec.adapter.findEditor()).not.toBeNull();
     expect(spec.adapter.getComposerShell()).not.toBeNull();
-    expect(spec.adapter.getComposerAnchor()).not.toBeNull();
     const plus = spec.adapter.getComposerLeadingAnchor();
     expect(plus).not.toBeNull();
     expect(plus!.getAttribute('aria-label')).toBe(spec.plusLabel);
@@ -464,8 +461,8 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
   it('reports streaming when the composer shows a stop control', () => {
     expect(spec.adapter.isStreaming()).toBe(false);
     // The Stop button takes the send button's place.
-    spec.adapter.getComposerAnchor()!.insertAdjacentHTML(
-      'afterend',
+    spec.adapter.getComposerBox()!.insertAdjacentHTML(
+      'beforeend',
       `<button aria-label="${spec.stopLabel}" data-testid="stop-button">Stop</button>`,
     );
     expect(spec.adapter.isStreaming()).toBe(true);

@@ -41,9 +41,6 @@ class Chat implements PlatformAdapter {
   composerHasAttachments = () => false;
   focusComposerQuestionSlot = () => {};
   getComposerBox = () => document.getElementById('composer');
-  getComposerActionRow = () => null;
-  getComposerLayout = () => null;
-  getComposerAnchor = () => null;
   getComposerLeadingAnchor = () => null;
   getComposerShell = () => document.getElementById('composer');
   getAssistantBlocks = () => [...document.querySelectorAll<HTMLElement>('[data-testid="assistant-message"]')];

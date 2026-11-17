@@ -109,16 +109,7 @@ class MockAdapter implements PlatformAdapter {
   getComposerBox() {
     return document.body;
   }
-  getComposerActionRow() {
-    return document.body;
-  }
-  getComposerLayout() {
-    return { box: document.body, actionRow: document.body };
-  }
   getComposerShell() {
-    return document.body;
-  }
-  getComposerAnchor() {
     return document.body;
   }
   getComposerLeadingAnchor() {
