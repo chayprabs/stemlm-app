@@ -153,14 +153,14 @@ function slug(text: string, max: number): string {
  */
 export function reportFilename(session?: Session): string {
   const date = localDate(session && session.createdAt > 0 ? session.createdAt : Date.now());
-  const room = PDF_NAME_MAX - `stemLM -  - ${date}.pdf`.length;
+  const room = PDF_NAME_MAX - `stemlm -  - ${date}.pdf`.length;
   const topic = slug(session?.capsule.meta.topic ?? '', room);
-  return topic ? `stemLM - ${topic} - ${date}` : `stemLM - ${date}`;
+  return topic ? `stemlm - ${topic} - ${date}` : `stemlm - ${date}`;
 }
 
 /** Tab / print-job title. Short and off the question. */
 export function reportPrintTitle(_session?: Session): string {
-  return 'stemLM';
+  return 'stemlm';
 }
 
 interface ResolvedDiagrams {
@@ -519,7 +519,7 @@ function pdfFileName(session?: Session): string {
 /** Basename for a merged export. Says what it is, how much is in it, and when. */
 export function mergedPdfFileName(count: number): string {
   if (count <= 1) return pdfFileName();
-  return `stemLM - ${count} questions - ${localDate(Date.now())}.pdf`;
+  return `stemlm - ${count} questions - ${localDate(Date.now())}.pdf`;
 }
 
 /** Put a PDF blob in the default Downloads folder. Never opens a save/print picker. */
@@ -598,8 +598,8 @@ function footerImage(label: string, page: number, total: number): string | null 
   ctx.textAlign = 'left';
   ctx.font = `500 ${FOOTER_FONT}`;
   ctx.fillStyle = T.fg;
-  ctx.fillText('stemLM', GUTTER_PX, y);
-  const labelLeft = GUTTER_PX + ctx.measureText('stemLM').width + 12;
+  ctx.fillText('stemlm', GUTTER_PX, y);
+  const labelLeft = GUTTER_PX + ctx.measureText('stemlm').width + 12;
 
   ctx.font = `400 ${FOOTER_FONT}`;
   ctx.fillStyle = T.fgMuted;

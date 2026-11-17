@@ -269,7 +269,7 @@ describe('popup chrome', () => {
     });
     expect(toggle.getAttribute('aria-checked')).toBe('false');
     expect(toggle.className).not.toContain('is-on');
-    expect(toggle.getAttribute('title')).toBe('Turn stemLM on');
+    expect(toggle.getAttribute('title')).toBe('Turn stemlm on');
     expect(window.close).not.toHaveBeenCalled();
     expect(localStore.stemlm_settings).toMatchObject({ stemlmEnabled: false });
     expect(localStore.stemlm_enabled).toBe(false);
@@ -475,7 +475,7 @@ describe('popup chrome', () => {
   it('links to the How to use stemLM page (ONBOARD-01)', async () => {
     const { container, unmount } = await renderPopup();
     const link = clickLaunch(container, 'welcome');
-    expect(link.textContent).toContain('How to use stemLM');
+    expect(link.textContent).toContain('How to use stemlm');
     await act(async () => { await Promise.resolve(); });
     expect(tabsCreate).toHaveBeenCalledWith({ url: 'chrome-extension://test/welcome.html', active: true });
     unmount();
@@ -526,7 +526,7 @@ describe('popup chrome', () => {
     const { container, unmount } = await renderPopup();
     const toggle = container.querySelector('[data-launch="stemlm-enabled"]') as HTMLButtonElement;
     const hint = document.getElementById(toggle.getAttribute('aria-describedby') ?? '');
-    expect(hint?.textContent).toMatch(/hide the stemLM button/);
+    expect(hint?.textContent).toMatch(/hide the stemlm button/);
     expect(hint?.textContent).toMatch(/saved questions still work/);
     unmount();
   });
@@ -539,7 +539,7 @@ describe('popup chrome', () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     const hint = document.getElementById(toggle.getAttribute('aria-describedby') ?? '');
-    expect(hint?.textContent).toBe('The stemLM button is hidden in the chat box. The panel and your saved questions still work.');
+    expect(hint?.textContent).toBe('The stemlm button is hidden in the chat box. The panel and your saved questions still work.');
     unmount();
   });
 
@@ -559,7 +559,7 @@ describe('popup chrome', () => {
       });
     }
     expect(toggle.getAttribute('aria-checked')).toBe('true');
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Could not turn stemLM off. Try again.');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('Could not turn stemlm off. Try again.');
     expect(localStorage.getItem(ENABLED_BOOT_KEY)).toBe('1');
 
     // The next change clears the message.

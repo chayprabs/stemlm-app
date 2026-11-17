@@ -63,10 +63,10 @@ export default defineBackground(() => {
     if (details.reason === 'install' || details.reason === 'update') void injectIntoOpenChatTabs();
     if (details.reason === 'install') {
       void trackEvent('extension_installed', {});
-      // First run: a one-time hint at the stemLM button (src/lib/first-run-hint.ts).
-      void browser.storage.local.set({ [FIRST_RUN_HINT_KEY]: true }).catch(() => {});
       // First run: the bundled guide, once. Updates never open a tab (ONBOARD-01).
       void browser.tabs.create({ url: extensionAssetUrl('/welcome.html'), active: true }).catch(() => {});
+      // First run: a one-time hint at the stemlm button (src/lib/first-run-hint.ts).
+      void Promise.resolve(browser.storage?.local?.set({ [FIRST_RUN_HINT_KEY]: true })).catch(() => {});
     }
   });
 

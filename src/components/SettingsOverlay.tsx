@@ -327,11 +327,11 @@ export function SettingsOverlay({
                 void update({ collapseHostSidebar }, `Collapse the chat's sidebar while the panel is open: ${collapseHostSidebar ? 'on' : 'off'}`)}
             />
             <Toggle
-              label="Fold stemLM's text in the chat"
+              label="Fold stemlm's text in the chat"
               hint="An answer shows as one line in the chat, and your message shows only your question. Each opens with a click."
               checked={settings.tidyChat}
               onChange={(tidyChat) =>
-                void update({ tidyChat }, `Fold stemLM's text in the chat: ${tidyChat ? 'on' : 'off'}`)}
+                void update({ tidyChat }, `Fold stemlm's text in the chat: ${tidyChat ? 'on' : 'off'}`)}
             />
           </section>
         </div>
@@ -339,10 +339,10 @@ export function SettingsOverlay({
         <footer className="slm-settings-foot">
           <div className="slm-settings-foot-row">
             <p className="slm-settings-foot-note">Changes save automatically</p>
-            {version && <span className="slm-settings-version">stemLM {version}</span>}
+            {version && <span className="slm-settings-version">stemlm {version}</span>}
           </div>
           <span className="slm-sr-only" role="status" aria-live="polite">{saved}</span>
-          <nav className="slm-settings-links" aria-label="About stemLM">
+          <nav className="slm-settings-links" aria-label="About stemlm">
             {SETTINGS_LEGAL_LINKS.map((item, i) => (
               <Fragment key={item.id}>
                 {i > 0 && <span className="slm-settings-links-sep" aria-hidden="true" />}

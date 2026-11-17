@@ -1,5 +1,5 @@
 /**
- * The one-time hint at the stemLM button. Written at install (entrypoints/background.ts), cleared by
+ * The one-time hint at the stemlm button. Written at install (entrypoints/background.ts), cleared by
  * the first press of the button or the hint's own close button, and then never shown again, in any tab.
  */
 import { browser } from 'wxt/browser';

@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.state.extensionInvalidated) {
         return (
           <div className="slm-error-fallback" role="alert">
-            <p>stemLM was updated. Refresh this page to keep using the panel.</p>
+            <p>stemlm was updated. Refresh this page to keep using the panel.</p>
             <button type="button" className="slm-btn slm-btn-soft" onClick={this.retry}>
               Refresh page
             </button>
@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div className="slm-error-fallback" role="alert">
-          <p>stemLM could not draw this part of the panel. Your questions are still here.</p>
+          <p>stemlm could not draw this part of the panel. Your questions are still here.</p>
           <button type="button" className="slm-btn slm-btn-soft" onClick={this.retry}>
             Try again
           </button>

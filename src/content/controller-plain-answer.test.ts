@@ -501,7 +501,7 @@ describe('capture fallback: the chat answered a stemLM question in its own words
 
     expect(useStore.getState().status).toBe('idle');
     expect(useStore.getState().errorMessage).toBe(NO_ANSWER_NOTICE);
-    expect(NO_ANSWER_NOTICE).toMatch(/without stemLM steps/i);
+    expect(NO_ANSWER_NOTICE).toMatch(/without stemlm steps/i);
     // One line for the student: no parser code under it.
     expect(NO_ANSWER_NOTICE).not.toMatch(/\n|parser|capsule/i);
     expect(sessions()).toHaveLength(0);

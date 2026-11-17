@@ -230,7 +230,7 @@ export default defineContentScript({
         // chat's answers, which it withholds under an error (src/components/EmptyState.tsx).
         useStore.getState().setStatus(
           some ? 'ready' : 'idle',
-          `${what} could not be restored. Nothing you saved was changed.${some ? ' The others are here.' : ' If this chat has stemLM answers, load them again below.'}`,
+          `${what} could not be restored. Nothing you saved was changed.${some ? ' The others are here.' : ' If this chat has stemlm answers, load them again below.'}`,
         );
       };
       cleanup.push(onMirroredSessionsChanged((shared) => {
@@ -352,7 +352,7 @@ export default defineContentScript({
           await consumePendingPanelAction(tabId, adapter.id, startupStillCurrent, true);
         } catch {
           if (startupStillCurrent()) {
-            useStore.getState().setStatus('error', 'Could not finish the requested action. Try stemLM again.');
+            useStore.getState().setStatus('error', 'Could not finish the requested action. Try stemlm again.');
             useStore.getState().openPanel();
           }
         }

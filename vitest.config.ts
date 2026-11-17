@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 const TESTS = ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts'];
 
 /**
- * Mostly pure logic. These run in plain Node, which skips building a happy-dom window per file:
- * that window, not the tests, was most of the suite's time.
+ * Mostly pure logic. These run in plain Node, which skips loading happy-dom and building its
+ * window for every file: that, not the tests, was most of the suite's time.
  */
 const NODE_TESTS = ['src/*.test.ts', 'src/ingest/**/*.test.ts', 'src/lib/**/*.test.ts', 'src/protocol/**/*.test.{ts,tsx}'];
 
@@ -96,8 +96,6 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, '.'),
     },
-  },
-  define: {
   },
   test: {
     environment: 'happy-dom',

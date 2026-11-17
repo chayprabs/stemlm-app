@@ -1,5 +1,5 @@
 /**
- * stemLM was updated while this tab stayed open: the old panel is still on screen but can no longer
+ * stemlm was updated while this tab stayed open: the old panel is still on screen but can no longer
  * reach the extension. Save and Export PDF then say so in one line, with a Reload button, instead of
  * a "try again" that can never work. While the extension is reachable, failures read as before.
  */
@@ -65,7 +65,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('after stemLM was updated under this tab', () => {
+describe('after stemlm was updated under this tab', () => {
   it('Save and Export PDF say so in one line with a Reload button', async () => {
     const reload = vi.fn();
     vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, reload } as Location);

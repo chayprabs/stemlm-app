@@ -1,5 +1,5 @@
 /**
- * The one-time hint at the stemLM button (finding 16): shown once after install, beside the control
+ * The one-time hint at the stemlm button (finding 16): shown once after install, beside the control
  * and clear of the chat box, gone on the first press or its own close button, and gone with the control.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

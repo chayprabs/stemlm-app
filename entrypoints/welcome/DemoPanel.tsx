@@ -89,7 +89,7 @@ export function DemoPanel({ capsule, question, theme }: { capsule: Capsule; ques
       data-content-scale={2}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      aria-label="Live demo of the stemLM study panel. Use the left and right arrow keys to change step."
+      aria-label="Live demo of the stemlm study panel. Use the left and right arrow keys to change step."
     >
       <header className="slm-header">
         <div className="slm-header-bar slm-header-top">

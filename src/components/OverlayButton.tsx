@@ -17,7 +17,7 @@ import { IconClose } from './icons';
 
 /** The control's rules, for the shadow root it is drawn in. */
 const CONTROL_CSS = injectControlCss('', (scheme) => `.slm-fab-wrap[data-scheme="${scheme}"]`);
-const PANEL_UNAVAILABLE = "stemLM couldn't open its panel. Refresh this tab.";
+const PANEL_UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
 /** How long a line about the last press stays beside the control. */
 const NOTICE_MS = 7000;
 
@@ -205,8 +205,8 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         await ctrl.inject();
         setNotice(ctrl.takeAttachNotice());
       } catch {
-        useStore.getState().setStatus('error', 'Could not finish attaching the stemLM guide. Try the stemLM button again.');
-        setNotice({ tone: 'error', text: 'stemLM could not add its guide. Try again.' });
+        useStore.getState().setStatus('error', 'Could not finish attaching the stemlm guide. Try the stemlm button again.');
+        setNotice({ tone: 'error', text: 'stemlm could not add its guide. Try again.' });
       } finally {
         pastingRef.current = false;
         setPasting(false);
@@ -232,12 +232,12 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
   const failed = !pasting && notice?.tone === 'error';
   const state = pasting ? 'busy' : failed ? 'error' : injected ? 'attached' : 'idle';
   const label = pasting
-    ? 'Attaching the stemLM guide'
+    ? 'Attaching the stemlm guide'
     : panelUnavailable
       ? PANEL_UNAVAILABLE
       : injected
-        ? `stemLM is on for this question. ${panelOpen ? 'Close' : 'Open'} the panel`
-        : 'Add the stemLM guide to this question';
+        ? `stemlm is on for this question. ${panelOpen ? 'Close' : 'Open'} the panel`
+        : 'Add the stemlm guide to this question';
   const stateClass = pasting ? 'is-loading' : failed ? 'is-error' : injected ? (panelOpen ? 'is-panel-open' : 'is-attached') : '';
 
   return (
@@ -272,7 +272,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
         {(!pasting && notice?.text) || label}
       </span>
       <span className="slm-inject-live" role="status" aria-live="polite">
-        {pasting ? 'Attaching the stemLM guide' : notice ? notice.text : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemLM is on for this question' : ''}
+        {pasting ? 'Attaching the stemlm guide' : notice ? notice.text : panelUnavailable ? PANEL_UNAVAILABLE : injected ? 'stemlm is on for this question' : ''}
       </span>
       {hintShown && (
         <div className="slm-first-hint">

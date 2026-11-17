@@ -76,7 +76,7 @@ describe('EmptyState', () => {
   it('does not show the load CTA when this chat has nothing to load', () => {
     hasConversationToLoad.mockReturnValue(false);
     const { container, unmount } = mount();
-    expect(container.textContent).toContain('Type a question in the chat, then press the stemLM button.');
+    expect(container.textContent).toContain('Type a question in the chat, then press the stemlm button.');
     expect(container.textContent).not.toContain(LOAD_FROM_CHAT_LABEL);
     unmount();
   });
@@ -93,7 +93,7 @@ describe('EmptyState on a chat that was answered without stemlm', () => {
     expect(button).toBeDefined();
     // The primary action of the view: solid ink, like every primary button in the panel.
     expect(button.className).toContain('slm-btn-soft');
-    expect(container.textContent).toContain('Type a question in the chat, then press the stemLM button.');
+    expect(container.textContent).toContain('Type a question in the chat, then press the stemlm button.');
     expect(container.querySelectorAll('.slm-empty-step')).toHaveLength(3);
     expect(container.textContent).not.toContain(LOAD_FROM_CHAT_LABEL);
     await act(async () => {
@@ -123,7 +123,7 @@ describe('EmptyState on a chat that was answered without stemlm', () => {
 
   it('still offers the answer under an error banner about another reply', () => {
     plainAnswer.mockReturnValue(true);
-    useStore.getState().setStatus('error', 'The chat answered without stemLM steps.');
+    useStore.getState().setStatus('error', 'The chat answered without stemlm steps.');
     try {
       const { container, unmount } = mount();
       expect(studyButton(container)).toBeDefined();
@@ -175,7 +175,7 @@ describe('EmptyState while a question is being prepared', () => {
     const { container, unmount } = mount();
     expect(container.textContent).not.toContain("aren't loaded yet");
     expect(container.textContent).not.toContain(LOAD_FROM_CHAT_LABEL);
-    expect(container.textContent).toContain('Type a question in the chat, then press the stemLM button.');
+    expect(container.textContent).toContain('Type a question in the chat, then press the stemlm button.');
     // Once that question has been asked and answered, or the guide is taken out, the offer is back.
     act(() => useStore.setState({ buttonInjected: false }));
     expect(container.textContent).toContain(LOAD_FROM_CHAT_LABEL);
@@ -201,7 +201,7 @@ describe('EmptyState while a question is being prepared', () => {
     });
     const hint = container.querySelector('.slm-empty-hint');
     expect(hint?.getAttribute('role')).toBe('status');
-    expect(hint?.textContent).toBe('The answer could not be loaded. Ask the question again with the stemLM button.');
+    expect(hint?.textContent).toBe('The answer could not be loaded. Ask the question again with the stemlm button.');
 
     act(() => useStore.getState().setStatus('idle', 'The chat is still writing its answer.'));
     expect(hint?.textContent).toBe('The answer could not be loaded. See the message above for details.');
