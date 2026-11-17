@@ -26,6 +26,15 @@ export interface ComposerLayout {
   actionRow: HTMLElement;
 }
 
+/** One capsule candidate and where in the page it was read from. */
+export interface CapsuleSource {
+  text: string;
+  /** The assistant message holding it; null when it was found by scanning the whole conversation. */
+  message: HTMLElement | null;
+  /** Its code element; null when the model dropped the fence and the message's own text was read. */
+  code: HTMLElement | null;
+}
+
 export interface PlatformAdapter {
   readonly id: PlatformId;
   readonly label: string;
@@ -106,6 +115,9 @@ export interface PlatformAdapter {
    * the rendered code blocks, where the model is told to place the capsule.
    */
   extractCapsules(): string[];
+
+  /** The candidates of `extractCapsules()`, each with the elements it was read from. Optional for test doubles. */
+  getCapsuleSources?(): CapsuleSource[];
 
   /** Best-effort: is the assistant currently generating? */
   isStreaming(): boolean;

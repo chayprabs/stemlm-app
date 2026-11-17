@@ -875,6 +875,16 @@
   scrollbar-color: var(--slm-border) transparent;
   scrollbar-gutter: stable;
 }
+/* The reading area holds the panel's focus, so the keyboard scrolls it. It is not a control and
+   the page is never boxed: while the keyboard is in it, its top edge is drawn in the ring colour. */
+.slm-read:focus,
+.slm-solution-wrap:focus {
+  outline: none;
+}
+.slm-read:focus-visible,
+.slm-solution-wrap:focus-visible {
+  box-shadow: inset 0 2px 0 var(--slm-ring);
+}
 .slm-diagram-svg {
   width: 100%;
   max-width: 100%;
@@ -1113,9 +1123,47 @@
   line-height: 1.4;
   color: var(--slm-fg-subtle);
 }
-.slm-formula-label {
-  display: block;
+/* Label on the left, the copy control on the right, both on the label's line. */
+.slm-formula-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.5rem;
   margin-bottom: 0.15rem;
+}
+.slm-formula-copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.5rem;
+  margin-right: -0.4rem;
+  padding: 0.1rem 0.4rem;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--slm-fg-subtle);
+  font-family: inherit;
+  font-size: var(--slm-text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.slm-formula-copy:hover {
+  color: var(--slm-fg);
+}
+.slm-formula-copy:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+  color: var(--slm-fg);
+}
+.slm-formula-copy[data-state='copied'] {
+  color: var(--slm-success);
+}
+.slm-formula-copy[data-state='failed'] {
+  color: var(--slm-error);
 }
 .slm-formula .slm-prose {
   font-size: calc(var(--slm-content-read-size) * 1.08);

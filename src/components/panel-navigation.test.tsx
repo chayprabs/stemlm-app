@@ -296,7 +296,7 @@ describe('loading', () => {
     expect(status.getAttribute('role')).toBe('status');
     expect(status.getAttribute('aria-live')).toBe('polite');
     expect(status.textContent).toContain('Reading response');
-    expect(status.textContent).toContain('The steps appear here when the chat finishes its answer.');
+    expect(status.textContent).toContain('Each step appears here as the chat finishes writing it.');
     const strip = status.querySelector('.slm-loading-strip')!;
     const page = status.querySelector('.slm-loading-page')!;
     expect(strip.querySelectorAll('.slm-sk-dot').length).toBeGreaterThanOrEqual(3);

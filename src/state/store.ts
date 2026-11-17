@@ -23,6 +23,8 @@ export type PanelView = 'steps' | 'solution';
 export interface StoreState {
   // UI
   panelOpen: boolean;
+  /** False for a panel that opened by itself, on an answer: the keyboard stays where the student left it. */
+  panelTakesFocus: boolean;
   status: PanelStatus;
   errorMessage?: string;
   view: PanelView;
@@ -43,6 +45,11 @@ export interface StoreState {
   // Data
   sessions: Session[];
   activeSessionId?: string;
+  /**
+   * The answer the chat is still writing. That session holds only the steps finished so far and is
+   * replaced by the whole answer when it ends. Set by the controller and never stored.
+   */
+  writingId?: string;
   /** Index into the flattened rail entries (steps + inline follow-up answers). */
   activeStepIndex: number;
   /**
@@ -53,7 +60,8 @@ export interface StoreState {
   removed?: { session: Session; index: number };
 
   // Actions
-  openPanel: () => void;
+  /** `takeFocus: false` when nobody asked for the panel: it opens on an answer and leaves focus alone. */
+  openPanel: (takeFocus?: boolean) => void;
   closePanel: () => void;
   togglePanel: () => void;
   setStatus: (status: PanelStatus, errorMessage?: string) => void;
@@ -82,6 +90,7 @@ export interface StoreState {
 
 export const useStore = create<StoreState>((set, get) => ({
   panelOpen: false,
+  panelTakesFocus: true,
   status: 'idle',
   view: 'steps',
   theme: 'light',
@@ -93,9 +102,9 @@ export const useStore = create<StoreState>((set, get) => ({
   sessions: [],
   activeStepIndex: 0,
 
-  openPanel: () => set({ panelOpen: true }),
+  openPanel: (takeFocus = true) => set({ panelOpen: true, panelTakesFocus: takeFocus }),
   closePanel: () => set({ panelOpen: false }),
-  togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
+  togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen, panelTakesFocus: true })),
   setStatus: (status, errorMessage) => set({ status, errorMessage }),
   setView: (view) => set({ view }),
   setTheme: (theme) => set({ theme }),

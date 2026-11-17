@@ -5,8 +5,8 @@ import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { QuickCheck } from './QuickCheck';
 import { FollowupBar } from './FollowupBar';
-import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { StepWork } from './StepWork';
+import { FormulaBlock } from './FormulaBlock';
 import { buildStepFollowupSelection } from '@/src/lib/followup-selection';
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
@@ -70,12 +70,7 @@ export function StepCard({
       </header>
       {isFirst && <CapsuleSignals capsule={session.capsule} />}
 
-      {shouldShowFormulaBlock(step) && step.formula && (
-        <div className="slm-formula">
-          <span className="slm-formula-label">Formula</span>
-          <MathMarkdown content={step.formula} mathMode="display" />
-        </div>
-      )}
+      <FormulaBlock step={step} />
 
       <StepWork step={step} className="slm-step-work slm-card-body" />
 

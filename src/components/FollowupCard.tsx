@@ -4,8 +4,8 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { StepWork } from './StepWork';
+import { FormulaBlock } from './FormulaBlock';
 import { FollowupBar } from './FollowupBar';
-import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { buildFollowupChainSelection } from '@/src/lib/followup-selection';
 import { cleanSessionQuestion } from '@/src/lib/session-question';
 import { IconTherefore } from './icons';
@@ -20,12 +20,7 @@ export function FollowupAnswerBody({ capsule, theme }: { capsule: Capsule; theme
           {capsule.steps.length > 1 && (
             <h3 className="slm-followup-answer-title"><MathMarkdown content={step.title} inline /></h3>
           )}
-          {shouldShowFormulaBlock(step) && step.formula && (
-            <div className="slm-formula">
-              <span className="slm-formula-label">Formula</span>
-              <MathMarkdown content={step.formula} mathMode="display" />
-            </div>
-          )}
+          <FormulaBlock step={step} />
           <StepWork step={step} className="slm-step-work slm-card-body" />
           {step.diagram && (
             <DiagramRenderer diagram={step.diagram} theme={theme} section />

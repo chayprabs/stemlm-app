@@ -11,8 +11,8 @@ import {
 } from '@/src/protocol/builder';
 import { useStore } from '@/src/state/store';
 import type { Subject } from '@/src/protocol/types';
+import { COPY_FAILED, useCopy } from './use-copy';
 
-type CopyState = 'idle' | 'copied' | 'failed';
 type SendState = 'idle' | 'sending' | 'added';
 
 const RESET_MS = 1400;
@@ -38,17 +38,15 @@ export function FollowupBar({
   /** Optional helper text shown under the label (e.g. suggested question). */
   hint?: string;
 }) {
-  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [copyState, copyText] = useCopy(() => useStore.getState().setStatus('error', COPY_FAILED));
   const [sendState, setSendState] = useState<SendState>('idle');
   const sendingRef = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAsk = isAskIntent(intent);
   const displayFollowup = isAsk ? hint ?? null : stripProtocolMarkers(followup);
 
   useEffect(() => () => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
-    if (copyTimer.current) clearTimeout(copyTimer.current);
   }, []);
 
   function buildPrompt() {
@@ -60,23 +58,8 @@ export function FollowupBar({
     });
   }
 
-  function flashCopy(next: CopyState) {
-    setCopyState(next);
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopyState('idle'), RESET_MS);
-  }
-
   async function copy() {
-    if (isEmptyFollowupSelection(followup)) return;
-    try {
-      await navigator.clipboard.writeText(buildPrompt());
-      flashCopy('copied');
-    } catch {
-      flashCopy('failed');
-      useStore
-        .getState()
-        .setStatus('error', 'Could not copy to clipboard. Select the text and copy manually.');
-    }
+    if (!isEmptyFollowupSelection(followup)) await copyText(buildPrompt);
   }
 
   async function ask() {
@@ -120,7 +103,7 @@ export function FollowupBar({
   function copyLabel() {
     if (copyState === 'copied') return 'Copied';
     if (copyState === 'failed') return 'Copy failed';
-    return 'Copy';
+    return 'Copy prompt';
   }
 
   /** One spoken sentence per completed action — buttons alone are not announced. */
@@ -144,6 +127,7 @@ export function FollowupBar({
           className="slm-followup-action"
           onClick={() => void copy()}
           data-state={copyState === 'idle' ? undefined : copyState}
+          title="Copy this follow-up as a message you can paste into any chat"
         >
           <IconCopy /> {copyLabel()}
         </button>

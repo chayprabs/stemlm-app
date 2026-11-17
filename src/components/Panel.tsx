@@ -27,6 +27,8 @@ import { normalizeContentScale, setSettings } from '@/src/lib/settings';
 import { requestSessionPdf } from '@/src/lib/pdf-export-request';
 import { trackEvent } from '@/src/lib/analytics';
 import { applyTheme } from '@/src/lib/theme';
+import { panelSelectionRange, selectionText } from '@/src/lib/followup-selection';
+import { focusPanel } from './move-focus';
 import { panelMotion, type StepDirection } from './step-motion';
 
 function isArrowKey(key: string) {
@@ -54,14 +56,14 @@ function shouldHandleStepArrow(e: KeyboardEvent, panel: HTMLElement): boolean {
   const tag = target?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
   if (target?.isContentEditable) return false;
-  const sel = window.getSelection();
-  if (sel && !sel.isCollapsed && panel.contains(sel.anchorNode)) return false;
-  return true;
+  // Text is selected in the panel: the arrows belong to the selection, not to the pages.
+  return panelSelectionRange(panel) === null;
 }
 
 export function Panel() {
   const {
     panelOpen,
+    panelTakesFocus,
     status,
     errorMessage,
     view,
@@ -80,6 +82,7 @@ export function Panel() {
     splitRatio,
     hostSidebarPx,
     settings,
+    writingId,
   } = useStore();
   const session = useActiveSession();
   const reducedMotion = useReducedMotion();
@@ -115,21 +118,28 @@ export function Panel() {
     };
   }, [session]);
 
-  // Focus moves into the panel when it opens and back to the opener when it closes, but it is
-  // never taken from where the student is working: an answer that opens the panel by itself
-  // leaves a half-typed chat message alone, and closing leaves focus that has since moved on.
+  // Focus moves into the panel when the student opens it (the stemlm button, the toolbar popup)
+  // and back to the opener when it closes, but it is never taken from where the student is
+  // working: a panel that opens by itself on an answer leaves the keyboard in the chat box, a
+  // half-typed chat message is left alone, and closing leaves focus that has since moved on.
   useEffect(() => {
     const panel = panelRef.current;
     const active = focusedElement();
     if (panelOpen) {
       if (panel?.contains(active)) return;
       openerRef.current = active instanceof HTMLElement ? active : null;
-      if (!holdsDraft(active)) panel?.focus({ preventScroll: true });
+      if (panelTakesFocus && !holdsDraft(active)) focusPanel(panel);
     } else {
       if (openerRef.current?.isConnected && panel?.contains(active)) openerRef.current.focus({ preventScroll: true });
       openerRef.current = null;
     }
-  }, [panelOpen]);
+  }, [panelOpen, panelTakesFocus]);
+
+  // Focus parked on the panel while there was nothing to read moves to the reading area when it
+  // arrives (an answer loaded, the other view chosen), so the keys that scroll have something to scroll.
+  useEffect(() => {
+    if (focusedElement() === panelRef.current) focusPanel(panelRef.current);
+  }, [session?.id, view]);
 
   useEffect(() => {
     const el = panelRef.current;
@@ -283,11 +293,24 @@ export function Panel() {
     }
   }
 
+  // A formula is drawn as a stack of positioned spans: copied as the browser reads it, it is one
+  // symbol per line. A selection that holds maths goes to the clipboard with each formula as its
+  // LaTeX; plain text is left to the browser.
+  function onCopy(e: React.ClipboardEvent) {
+    const panel = panelRef.current;
+    if (!panel || (e.target as HTMLElement).closest?.('input, textarea')) return;
+    const range = panelSelectionRange(panel);
+    const copied = range && selectionText(range);
+    if (!copied?.hasMath) return;
+    e.clipboardData.setData('text/plain', copied.text);
+    e.preventDefault();
+  }
+
   function onPanelPointerDown(e: React.PointerEvent) {
     const target = e.target as HTMLElement | null;
     if (!target || !panelRef.current?.contains(target)) return;
     if (target.closest('button,a,input,textarea,select,[contenteditable="true"],[role="button"],[role="separator"]')) return;
-    panelRef.current.focus({ preventScroll: true });
+    focusPanel(panelRef.current);
   }
 
   return (
@@ -300,6 +323,7 @@ export function Panel() {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onKeyUp={keepFromPage}
+      onCopy={onCopy}
       onPointerDown={onPanelPointerDown}
       {...panelMotion(Boolean(reducedMotion))}
       role="complementary"
@@ -357,6 +381,12 @@ export function Panel() {
       </PanelHeader>
 
       {errorMessage && <ErrorBanner message={errorMessage} tone={status === 'error' ? 'error' : 'info'} />}
+      {/* The chat has not finished this answer: the steps shown are the ones it has finished. */}
+      {session && session.id === writingId && (
+        <div className="slm-banner slm-banner-info" role="status">
+          <span>The chat is still writing this answer. Each step appears here when it is finished.</span>
+        </div>
+      )}
 
       <div className="slm-body">
         {/* What is drawn from an answer can fail to render. It fails here, inside the frame: the
@@ -376,7 +406,8 @@ export function Panel() {
                   onSelect={setActiveStep}
                 />
                 <div className="slm-steps-detail">
-                  <div className="slm-read" ref={readRef}>
+                  {/* The element that scrolls holds the focus, so the keyboard scrolls it. */}
+                  <div className="slm-read" ref={readRef} tabIndex={0} role="region" aria-label="Step text">
                     <AnimatePresence mode="wait" custom={direction} initial={false}>
                       {activeEntry?.kind === 'step' && (
                         <StepCard
@@ -438,6 +469,7 @@ export function Panel() {
               role="tabpanel"
               id="slm-panel-solution"
               aria-labelledby="slm-tab-solution"
+              tabIndex={0}
             >
               <SolutionView session={session} theme={theme} />
             </div>

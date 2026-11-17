@@ -22,7 +22,7 @@ export function Loading({ theme = 'light' }: { theme?: ResolvedTheme }) {
           </span>
           <div>
             <p className="slm-loading-title">Reading response</p>
-            <p className="slm-loading-sub">The steps appear here when the chat finishes its answer.</p>
+            <p className="slm-loading-sub">Each step appears here as the chat finishes writing it.</p>
           </div>
         </div>
 

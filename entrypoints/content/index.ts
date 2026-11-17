@@ -154,7 +154,8 @@ export default defineContentScript({
       // Honour the user's auto-open preference.
       controller.setOnAnswerStarted(() => {
         if (useStore.getState().settings.autoOpenOnAnswer) {
-          useStore.getState().openPanel();
+          // Nobody pressed anything: the keyboard stays in the chat box.
+          useStore.getState().openPanel(false);
           void trackEvent('panel_opened', { platform: adapter.id, source: 'answer' });
         }
       });

@@ -1,5 +1,6 @@
 import { REMOVED_NOTICE, useStore } from '@/src/state/store';
 import { IconClose } from './icons';
+import { focusPanel } from './move-focus';
 
 /**
  * The panel's status line. The first line says what happened and what to do;
@@ -14,7 +15,7 @@ export function ErrorBanner({ message, tone }: { message: string; tone: 'error' 
 
   /** The pressed control leaves with the banner; focus goes to the panel so its keys keep working. */
   function leave(control: HTMLElement) {
-    control.closest<HTMLElement>('.slm-panel')?.focus({ preventScroll: true });
+    focusPanel(control.closest<HTMLElement>('.slm-panel'));
   }
 
   function dismiss(control: HTMLElement) {

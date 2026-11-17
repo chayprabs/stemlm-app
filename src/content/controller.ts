@@ -87,8 +87,8 @@ function withoutOrigin(session: Session): Session {
   return rest;
 }
 
-/** Quiet period after the last DOM mutation before we inspect the page. */
-const DEBOUNCE_MS = 350;
+/** While the page changes it is inspected this often, and once more after its last change. */
+const CHECK_INTERVAL_MS = 350;
 /**
  * If a capsule is present but never terminates with `@end` (the model dropped
  * the token) we still capture it once the assistant text has been completely
@@ -110,6 +110,9 @@ const PARTIAL_STALL_MS = 10_000;
 const STREAMING_STALL_MS = 60_000;
 
 const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end']);
+
+const CUT_OFF_NOTICE =
+  'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm button.';
 
 /** "Load conversation" on a chat of plain answers opens the most recent ones, not the whole history. */
 const PLAIN_SESSIONS_MAX = 5;
@@ -254,7 +257,7 @@ export class StemController {
   private observedRoot: ParentNode | null = null;
   private rootTimer: ReturnType<typeof setInterval> | null = null;
   private guideMissingSince = 0;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private checkTimer: ReturnType<typeof setTimeout> | null = null;
   private stabilityTimer: ReturnType<typeof setTimeout> | null = null;
   private capturedRaw = new Set<string>();
   private static readonly CAPTURED_RAW_MAX = 100;
@@ -586,7 +589,7 @@ export class StemController {
     }
 
     const store = useStore.getState();
-    if (store.status === 'loading') {
+    if (store.status === 'loading' || store.writingId) {
       store.setStatus(
         'error',
         'Wait for the current answer to finish before sending a follow-up.',
@@ -779,9 +782,9 @@ export class StemController {
       clearInterval(this.rootTimer);
       this.rootTimer = null;
     }
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
+    if (this.checkTimer) {
+      clearTimeout(this.checkTimer);
+      this.checkTimer = null;
     }
     if (this.stabilityTimer) {
       clearTimeout(this.stabilityTimer);
@@ -791,10 +794,16 @@ export class StemController {
     this.stableSince = 0;
   }
 
+  /**
+   * One look at the page per CHECK_INTERVAL_MS while it changes, the last one after the final
+   * change. Not a debounce: a reply that streams without a pause would hold that off until it ends.
+   */
   private scheduleCheck(): void {
-    if (!this.watching) return;
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.checkForCapsule(), DEBOUNCE_MS);
+    if (!this.watching || this.checkTimer) return;
+    this.checkTimer = setTimeout(() => {
+      this.checkTimer = null;
+      this.checkForCapsule();
+    }, CHECK_INTERVAL_MS);
   }
 
   /** Fresh inject/follow-up — ignore capsules deduped from a prior request. */
@@ -802,7 +811,7 @@ export class StemController {
     this.captureEpoch += 1;
     this.capturedRaw.clear();
     this.pendingResume = null;
-    this.cutOffId = null;
+    this.forgetCutOff();
   }
 
   /**
@@ -840,9 +849,15 @@ export class StemController {
 
     const norm = candidate.trim();
     const now = Date.now();
+    const changed = this.stableText !== '' && norm !== this.stableText;
     if (norm !== this.stableText) {
       this.stableText = norm;
       this.stableSince = now;
+    }
+    // The chat is writing this answer now (its text moved, or the chat says so): show the steps
+    // it has finished instead of waiting for the last one.
+    if (candidate.includes('@meta') && (changed || this.adapter.isStreaming()) && this.inNewestReply(norm)) {
+      this.showClosedSteps(candidate, false);
     }
     // Re-evaluate once mutations go quiet for STABILITY_MS.
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
@@ -898,7 +913,7 @@ export class StemController {
     // A stable prefix is still a prefix: the chat stopped writing. Show the blocks that closed
     // (D38), else report it; either way the watcher stays alive, so a later @end or continuation
     // replaces it instead of duplicating it.
-    if (this.showCutOff(candidate)) return;
+    if (this.showClosedSteps(candidate, true)) return;
     if (!candidate.includes('@meta')) {
       // No capsule at all: the chat answered in its own words. Study that answer as it is.
       if (this.capturePlainAnswer()) return;
@@ -943,8 +958,9 @@ export class StemController {
     this.stableText = '';
     this.stableSince = 0;
     void rememberCurrentChat(this.adapter.id);
-    this.cutOffId = null;
+    this.forgetCutOff();
     this.awaitingAnswer = false;
+    this.lastQuestion = '';
     this.resetInjection();
     useStore.getState().setStatus('ready', INGEST_NOTICE);
     void trackEvent('question_solved', {
@@ -972,10 +988,12 @@ export class StemController {
   }
 
   /**
-   * D38: a full answer the chat stopped writing shows its closed blocks as a cut-off session
-   * (never saved; never replacing another answer). False when nothing usable closed.
+   * The closed blocks of a full answer that has no @end, as a session of its own: while the chat
+   * is still writing it, and (`stopped`, D38) once the chat has stopped before the end. The block
+   * being written is left out whole, so a step or figure is only ever shown finished. The session
+   * is never saved and is replaced by the finished reply. False when nothing usable has closed.
    */
-  private showCutOff(candidate: string): boolean {
+  private showClosedSteps(candidate: string, stopped: boolean): boolean {
     const prefix = this.pendingFollowUpCapture ? null : closedPrefix(candidate);
     if (!prefix) return false;
     const result = parse(prefix);
@@ -987,27 +1005,61 @@ export class StemController {
     if (!cap || result.patch?.length || cap.meta.mode === 'patch' || cap.meta.mode === 'resolve' ||
         !closedContract) return false;
     const store = useStore.getState();
-    const shown = store.sessions.find((s) => s.id === this.cutOffId);
-    if (shown?.raw === result.raw) return true;
-    const session: Session = {
-      id: shown?.id ?? makeId(),
-      createdAt: shown?.createdAt ?? Date.now(),
-      updatedAt: Date.now(),
-      platform: this.adapter.id,
-      question: cleanSessionQuestion(this.lastQuestion) || cap.meta.question?.trim() || cap.meta.topic,
-      capsule: cap,
-      raw: result.raw,
-      cutOff: true,
-    };
-    this.commitSession(session, Boolean(shown));
-    this.cutOffId = session.id;
-    void rememberCurrentChat(this.adapter.id);
-    this.resetInjection();
-    useStore.getState().setStatus(
-      'ready',
-      'This answer is incomplete: the chat stopped before the end, so only its finished steps are shown. Ask the chat to continue it, or send your question again with the stemlm button.',
-    );
+    const pending = store.sessions.find((s) => s.id === this.cutOffId);
+    // Only the same reply, further along, takes the place of what is shown. While another
+    // answer waits for its continuation, a reply still being written is left until it ends.
+    const shown = pending && result.raw.startsWith(pending.raw) ? pending : undefined;
+    if (pending && !shown && !stopped) return false;
+    if (shown?.raw !== result.raw) {
+      const session: Session = {
+        id: shown?.id ?? makeId(),
+        createdAt: shown?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+        platform: this.adapter.id,
+        question: shown?.question ?? (this.askedQuestion(this.studentTurnAbove(candidate.trim())) ||
+          cap.meta.question?.trim() || cap.meta.topic),
+        capsule: cap,
+        raw: result.raw,
+        cutOff: true,
+      };
+      this.commitSession(session, Boolean(shown));
+      this.cutOffId = session.id;
+      void rememberCurrentChat(this.adapter.id);
+      this.resetInjection();
+    }
+    if (stopped) {
+      useStore.setState({ writingId: undefined, status: 'ready', errorMessage: CUT_OFF_NOTICE });
+    } else if (store.writingId !== this.cutOffId || store.errorMessage === CUT_OFF_NOTICE) {
+      // Writing again after a pause that looked like the end: the notice no longer holds.
+      useStore.setState((s) => ({
+        writingId: this.cutOffId ?? undefined,
+        ...(s.errorMessage === CUT_OFF_NOTICE ? { errorMessage: undefined } : {}),
+      }));
+    }
     return true;
+  }
+
+  /** No answer is being followed as partial any more. */
+  private forgetCutOff(): void {
+    this.cutOffId = null;
+    if (useStore.getState().writingId) useStore.setState({ writingId: undefined });
+  }
+
+  /**
+   * The assistant message `capsule` was read from. Null when it was not read from one message;
+   * undefined when the adapter cannot say.
+   */
+  private replyHolding(capsule: string): HTMLElement | null | undefined {
+    const sources = this.adapter.getCapsuleSources?.();
+    return sources && (sources.findLast((source) => source.text.trim() === capsule)?.message ?? null);
+  }
+
+  /** False only when the page shows `capsule` in a reply that is not the newest one: history, not an answer in progress. */
+  private inNewestReply(capsule: string): boolean {
+    const message = this.replyHolding(capsule);
+    if (!message) return true;
+    const blocks = this.adapter.getAssistantBlocks();
+    return message === blocks[blocks.length - 1];
   }
 
   /** D38: the cut-off answer `incoming` finishes, unless it answers a different question. */
@@ -1033,6 +1085,7 @@ export class StemController {
    */
   private tryCapture(candidate: string, complete: boolean): void {
     if (!this.watching) return;
+    const onPage = candidate.trim();
     const resumeToken = findResumeToken(candidate);
     if (resumeToken && !looksComplete(candidate)) {
       this.pendingResume = { token: resumeToken, raw: candidate };
@@ -1070,7 +1123,38 @@ export class StemController {
     if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
     this.stableText = '';
     this.stableSince = 0;
-    this.captureFromText(candidate, this.lastQuestion, result);
+    const turn = this.studentTurnAbove(onPage);
+    this.captureFromText(candidate, this.askedQuestion(turn), result, turn);
+  }
+
+  /**
+   * The student's message that the reply holding `capsule` answers, as the page shows it (stemLM's
+   * own lines included). Empty when the host's markup for it is not recognised.
+   */
+  private studentTurnAbove(capsule: string): string {
+    const message = this.replyHolding(capsule);
+    return message ? this.adapter.getUserQuestionBefore?.(message) ?? '' : '';
+  }
+
+  /**
+   * The question a captured reply answers: the student's own message when the page shows it.
+   * What was in the chat box when the stemlm button was pressed stands in only for the answer that
+   * press is waiting for. Any later reply was asked without it and is a question of its own.
+   */
+  private askedQuestion(turn: string): string {
+    return questionFromUserTurn(turn) ||
+      (this.awaitingAnswer || this.pendingFollowUpCapture ? cleanSessionQuestion(this.lastQuestion) : '');
+  }
+
+  /**
+   * The student's message above a reply asks something other than `session`'s question, so the
+   * reply is a new answer whatever qid or mode the model copied into it. False when the page does
+   * not show the message, and for stemLM's own follow-up text, which is about that answer.
+   */
+  private asksSomethingElse(session: Session, turn: string): boolean {
+    if (turn.includes(FOLLOWUP_CONTEXT_HEADER)) return false;
+    const asked = questionFromUserTurn(turn);
+    return asked !== '' && asked !== cleanSessionQuestion(session.question);
   }
 
   /** Surface malformed responses without mutating the user's chat composer. */
@@ -1208,7 +1292,11 @@ export class StemController {
     this.resetInjection();
   }
 
-  private captureFromText(text: string, question: string, parsed?: ParseResult): void {
+  /**
+   * `question`: what the student asked, when that is known (askedQuestion). `turn`: their message
+   * above the reply as the page shows it, or '' when it cannot be read.
+   */
+  private captureFromText(text: string, question: string, parsed?: ParseResult, turn = ''): void {
     const result = parsed ?? parse(text);
     const store = useStore.getState();
     const active = store.sessions.find((s) => s.id === store.activeSessionId);
@@ -1284,24 +1372,22 @@ export class StemController {
 
     const incoming = questionCapsules[0]!;
     const cutOff = this.cutOffTarget(incoming);
+    // The model must say it is redoing that answer. A qid alone does not: a model repeats the qid
+    // of its last answer under a new question, and that answer would be written over.
     const nativeSameQid =
       active &&
       questionCapsules.length === 1 &&
-      incoming.meta.mode !== 'new' &&
-      incoming.meta.mode !== 'full' &&
       Boolean(active.capsule.meta.qid) &&
-      Boolean(incoming.meta.qid) &&
       active.capsule.meta.qid === incoming.meta.qid &&
-      (incoming.meta.mode === 'resolve' ||
-        incoming.meta.mode === 'patch' ||
-        incoming.meta.mode == null);
+      (incoming.meta.mode === 'resolve' || incoming.meta.mode === 'patch');
 
     const followUpSameQuestion =
       !cutOff &&
       (this.pendingFollowUpCapture || Boolean(nativeSameQid)) &&
       active &&
       questionCapsules.length === 1 &&
-      (nativeSameQid || !followUpOpensNewSession(active, incoming));
+      (nativeSameQid || !followUpOpensNewSession(active, incoming)) &&
+      !this.asksSomethingElse(active, turn);
 
     if (followUpSameQuestion) {
       const cap = keepActiveQid(active, questionCapsules[0]!);
@@ -1333,18 +1419,18 @@ export class StemController {
       );
       const diagramIssues = auditCapsuleDiagrams(cap);
       const topic = cap.meta.topic;
-      const cleanedQuestion =
-        (i === 0 ? cleanSessionQuestion(question) : '') ||
-        cap.meta.question?.trim() ||
-        topic;
+      const asked = i === 0 ? cleanSessionQuestion(question) : '';
+      const cleanedQuestion = asked || cap.meta.question?.trim() || topic;
       const last = store.sessions[store.sessions.length - 1];
+      // A retry of the same question replaces its answer. Only the student's own words say it is
+      // the same question: two different questions can share the topic a model gives them.
       const shouldReplace =
-        i === 0 &&
+        asked !== '' &&
         !this.pendingFollowUpCapture &&
         last &&
         store.activeSessionId === last.id &&
         last.platform === this.adapter.id &&
-        cleanSessionQuestion(last.question) === cleanedQuestion &&
+        cleanSessionQuestion(last.question) === asked &&
         !incomingForcesNewSession(active, cap);
       // D38: the finished reply replaces the cut-off answer it completes, even when not active.
       const replaced = i === 0 && cutOff ? cutOff : shouldReplace ? last : undefined;
@@ -1428,8 +1514,10 @@ export class StemController {
     void rememberCurrentChat(this.adapter.id);
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
-    this.cutOffId = null;
+    this.forgetCutOff();
     this.awaitingAnswer = false;
+    // The press this answer belongs to is over: its question must not name a later reply.
+    this.lastQuestion = '';
     this.resetInjection();
     const notice = missingClosingNotice(result);
     if (notice) useStore.getState().setStatus('ready', notice);

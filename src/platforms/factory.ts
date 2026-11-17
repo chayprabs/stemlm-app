@@ -4,7 +4,7 @@
  * Hosts differ in selectors; attach/insert/capsule behaviour is shared.
  * Fragile, frequently-changing bits live in each host's config file.
  */
-import type { AdapterConfig, PlatformAdapter } from './types';
+import type { AdapterConfig, CapsuleSource, PlatformAdapter } from './types';
 import { COMPOSER_ATTACHMENT_SELECTORS } from '@/src/lib/file-inject';
 import { normalizeComposerText, readComposerText } from '@/src/lib/composer-text';
 import { STUDY_GUIDE_END, STUDY_GUIDE_REFERENCE } from '@/src/lib/study-guide';
@@ -542,6 +542,45 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     return root;
   };
 
+  /** Capsule texts under `root`, each with its code element: innermost only, so a <pre> around a <code> counts once. */
+  const capsuleCodes = (root: ParentNode, seen: Set<string>): Array<{ text: string; code: HTMLElement }> => {
+    const found: Array<{ text: string; code: HTMLElement }> = [];
+    for (const code of innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], root))) {
+      const text = withoutCitations(code.textContent ?? '');
+      if (text.includes('@meta') && !seen.has(text)) {
+        seen.add(text);
+        found.push({ text, code });
+      }
+    }
+    return found;
+  };
+
+  const capsuleSources = (): CapsuleSource[] => {
+    const sources: CapsuleSource[] = [];
+    const blocks = assistantBlocks(config.assistant);
+    for (const message of blocks) {
+      const found = capsuleCodes(message, new Set()).map((entry) => ({ ...entry, message }));
+      const complete = found.filter((entry) => hasEndToken(entry.text));
+      sources.push(...(complete.length ? complete : found));
+    }
+    // If the model dropped the fence, fall back to scanning message text.
+    if (sources.length === 0) {
+      for (const message of blocks) {
+        const text = withoutCitations(message.innerText ?? message.textContent ?? '');
+        if (text.includes('@meta')) sources.push({ text, message, code: null });
+      }
+    }
+    // Last resort: scan the conversation container for any stemLM code blocks.
+    if (sources.length === 0) {
+      const roots = allMatches([...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS]);
+      const seen = new Set<string>();
+      for (const root of roots.length ? roots : [document.body]) {
+        sources.push(...capsuleCodes(root, seen).map((entry) => ({ ...entry, message: null })));
+      }
+    }
+    return sources;
+  };
+
   return {
     id: config.id,
     label: config.label,
@@ -680,49 +719,10 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
     },
 
     extractCapsules() {
-      const capsules: string[] = [];
-      for (const block of assistantBlocks(config.assistant)) {
-        // Within a message keep only the innermost code elements so a <pre>
-        // wrapping a <code> is not counted twice; dedupe identical text.
-        const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], block));
-        const seenText = new Set<string>();
-        const blockCapsules: string[] = [];
-        for (const code of codes) {
-          const text = withoutCitations(code.textContent ?? '');
-          if (text.includes('@meta') && !seenText.has(text)) {
-            seenText.add(text);
-            blockCapsules.push(text);
-          }
-        }
-        const complete = blockCapsules.filter(hasEndToken);
-        capsules.push(...(complete.length ? complete : blockCapsules));
-      }
-      // If the model dropped the fence, fall back to scanning message text.
-      if (capsules.length === 0) {
-        for (const block of assistantBlocks(config.assistant)) {
-          const text = withoutCitations(block.innerText ?? block.textContent ?? '');
-          if (text.includes('@meta')) capsules.push(text);
-        }
-      }
-
-      // Last resort: scan the conversation container for any stemLM code blocks.
-      if (capsules.length === 0) {
-        const roots = allMatches([...(config.layoutRoots ?? []), ...GENERIC_LAYOUT_ROOTS]);
-        const seen = new Set(capsules);
-        for (const root of roots.length ? roots : [document.body]) {
-          const codes = innermost(allMatches([...STEMLM_CODE_SELECTORS, ...config.codeBlock], root));
-          for (const code of codes) {
-            const text = withoutCitations(code.textContent ?? '');
-            if (text.includes('@meta') && !seen.has(text)) {
-              seen.add(text);
-              capsules.push(text);
-            }
-          }
-        }
-      }
-
-      return capsules;
+      return capsuleSources().map((source) => source.text);
     },
+
+    getCapsuleSources: capsuleSources,
 
     isStreaming() {
       return config.streaming.length > 0 && firstMatch(config.streaming) !== null;
