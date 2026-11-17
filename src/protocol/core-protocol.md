@@ -179,7 +179,7 @@ A figure is a list of key: value lines that the panel draws. Never write SVG or 
 # figures
 
 ## plot | Physics, Chemistry, Math, Biology, Electrical, Mechanical, Civil, Chemical, General
-a function or measured points on axes. fn: x^2 - 4*x + 3 (repeat for more curves; write * for multiply; sin, cos, tan, exp, ln, log, sqrt, abs, pi and e work) | var: t (when the variable is not x) | domain: -1 5 (always give it; it must cover every data point) | data: 0,1; 1,3; 2,4.2 (measured points) | kind: function|discrete|waveform|step|bode | xlabel: | ylabel: | point: 2,-1 (repeat) | point_label: vertex (repeat, in point order) | asymptote: x=2 | shade: 1 3 (area under the first curve) | logx: yes | logy: yes | peaks: 1715 C=O (repeat; spectrum peaks)
+a function or measured points on axes. fn: x^2 - 4*x + 3 (repeat for more curves; write * for multiply; sin, cos, tan, exp, ln, log, sqrt, abs, pi and e work) | var: t (when the variable is not x) | domain: -1 5 (the x range of fn; not needed with data) | data: 0,1; 1,3; 2,4.2 (measured points) | kind: function|discrete|waveform|step|bode | xlabel: | ylabel: | point: 2,-1 (repeat) | point_label: vertex (repeat, in point order) | asymptote: x=2 | shade: 1 3 (area under the first curve) | logx: yes | logy: yes | peaks: 1715 C=O (repeat; spectrum peaks)
 @diagram id=fplot type=plot
 fn: x^2 - 4*x + 3
 domain: -1 5

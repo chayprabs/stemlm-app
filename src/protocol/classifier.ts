@@ -19,8 +19,9 @@ const RULES: Rule[] = [
     subject: 'CS',
     patterns: [
       // Strong, unambiguous CS signatures.
-      { re: /\b(algorithm|algorithmic|big-?o|time complexity|space complexity|recursion|recursive|data structure|linked list|binary (search )?tree|bst\b|hash ?map|hash table|heap|stack|queue|graph traversal|bfs|dfs|dijkstra|dynamic programming|memoi[sz]ation|greedy|backtrack|binary search|merge sort|quick ?sort|sorting algorithm|time-?complexity|leetcode|pseudocode|state machine|finite automat|turing|np-?complete|regex|regular expression|compiler|operating system|deadlock|mutex|semaphore|concurrency|pointer|big o)\b/i, w: 3 },
-      { re: /\b(python|java\b|javascript|typescript|c\+\+|c#|golang|\brust\b|kotlin|swift|sql\b|nosql|html|css|code|coding|program(ming)?|function|variable|loop|for ?loop|while ?loop|array|object|class|method|api\b|database|query|string|integer|boolean|compile|debug|runtime|stack overflow|binary)\b/i, w: 1 },
+      { re: /\b(algorithm|algorithmic|big-?o|time complexity|space complexity|recursion|recursive|data structure|linked list|binary (search )?tree|bst\b|hash ?map|hash table|heap|stack|queue|graph traversal|bfs|dfs|dijkstra|dynamic programming|memoi[sz]ation|greedy|backtrack|binary search|merge sort|quick ?sort|sorting algorithm|time-?complexity|leetcode|pseudocode|state machine|finite automat|turing|np-?complete|regex|regular expression|compiler|operating system|deadlock|mutex|semaphore|concurrency|pointer|big o|object[- ]oriented|subclass|superclass|abstract class|polymorphism|encapsulation)\b/i, w: 3 },
+      // No bare "class": a school class ("a class survey", "a class of 30") is far more common in a question.
+      { re: /\b(python|java\b|javascript|typescript|c\+\+|c#|golang|\brust\b|kotlin|swift|sql\b|nosql|html|css|code|coding|program(ming)?|function|variable|loop|for ?loop|while ?loop|array|object|method|api\b|database|query|string|integer|boolean|compile|debug|runtime|stack overflow|binary)\b/i, w: 1 },
     ],
   },
   {
@@ -33,7 +34,7 @@ const RULES: Rule[] = [
   {
     subject: 'Chemistry',
     patterns: [
-      { re: /\b(mole|molar(ity| mass)?|stoichiometr|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp|entrop|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr(y)?|isomer|stereochem|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem|electroanalytical|voltammetr|galvanic|nernst|haber process|grignard|pericyclic|retrosynth|polymeris|polymeriz|biochem|reaction mechanism|elimination mechanism|substitution mechanism|carbocation|newman projection|physical chemistr|quantum chemistr|statistical thermodynam|partition[- ]function|arrhenius|rate law|reaction (kinetics|engineering)|surface chemistr|langmuir|adsorption|heterogeneous catalys|isotherm|computational chemistr|huckel|ab initio|hartree[- ]fock|nuclear chemistr|nuclide|binding energy|mass defect|nuclear fission|colloid|micell|surfactant)\b/i, w: 3 },
+      { re: /\b(mole|molar(ity| mass)?|stoichiometr\w*|chemical (reaction|equation)|balance the (equation|reaction)|equilibrium constant|\bke?q\b|\bph\b|\bpoh\b|acid|base|alkal|titration|buffer|enthalp\w*|entrop\w*|gibbs|oxidation|reduction|redox|half[- ]reaction|electron configuration|periodic (table|trend)|ideal gas law|avogadro|concentration|molecule|molecular|compound|reagent|reactant|product|catalyst|valence|covalent|ionic bond|electronegativ|lewis structure|functional group|organic chemistr(y)?|isomer|stereochem\w*|hybridi[sz]ation|empirical formula|atomic (structure|orbital)|molecular orbital|\bmo theory\b|emission spectrum|crystal field|coordination (complex|compound)|ligand|spectroscop|nmr|ir spectrum|uv[- ]vis|mass spectr|born[- ]haber|vsepr|electrochem\w*|electroanalytical|voltammetr\w*|galvanic|nernst|haber process|grignard|pericyclic|retrosynth|polymeris|polymeriz|biochem\w*|reaction mechanism|elimination mechanism|substitution mechanism|carbocation|newman projection|physical chemistr|quantum chemistr|statistical thermodynam|partition[- ]function|arrhenius|rate law|reaction (kinetics|engineering)|surface chemistr|langmuir|adsorption|heterogeneous catalys|isotherm|computational chemistr|huckel|ab initio|hartree[- ]fock|nuclear chemistr|nuclide|binding energy|mass defect|nuclear fission|colloid|micell|surfactant)\b/i, w: 3 },
       { re: /\b(h2o|co2|nacl|hcl|naoh|nh3|h2so4|ch4|\\ce|solution|solute|solvent|salt|gas\b)\b/i, w: 2 },
     ],
   },
@@ -41,7 +42,7 @@ const RULES: Rule[] = [
     subject: 'Biology',
     patterns: [
       {
-        re: /\b(cells?|prokaryot\w*|eukaryot\w*|cellular|dna|rna|mrna|trna|protein|amino acids?|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|genes?|genetic|alleles?|genotypes?|phenotypes?|chromosomes?|organisms?|ecosystems?|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit|dominant|recessive|evolution|natural selection|neurons?|synapse|hormones?|homeostasis|bacteria|viruses?|antibod(?:y|ies)|immune|tissues?|organs?|nucleus|ribosomes?|mitochondria?|chloroplasts?|endosymbios\w*|replication fork|telomerase|calvin cycle|mendelian|genetics|crassulacean|microbiology|gram[- ]stain|binary fission|antibiotic resistance|bacterial growth|peptidoglycan)\b/i,
+        re: /\b(cells?|prokaryot\w*|eukaryot\w*|cellular|dna|rna|mrna|trna|protein|amino acids?|enzyme|substrate|mitosis|meiosis|photosynthesis|cellular respiration|glycolysis|krebs|genes?|genetic|alleles?|genotypes?|phenotypes?|chromosomes?|organisms?|ecosystems?|species|membrane|osmosis|diffusion|atp\b|punnett|heredity|inherit\w*|dominant|recessive|evolution|natural selection|neurons?|synapse|hormones?|homeostasis|bacteria|viruses?|antibod(?:y|ies)|immune|tissues?|organs?|nucleus|ribosomes?|mitochondria?|chloroplasts?|endosymbios\w*|replication fork|telomerase|calvin cycle|mendelian|genetics|crassulacean|microbiology|gram[- ]stain|binary fission|antibiotic resistance|bacterial growth|peptidoglycan)\b/i,
         w: 3,
       },
       {
@@ -84,7 +85,9 @@ const RULES: Rule[] = [
   {
     subject: 'Math',
     patterns: [
-      { re: /\b(integral|integrate|integration|derivative|differentiate|differential|\blimit\b|matrix|matrices|determinant|eigen(value|vector)|vector space|linear algebra|matrix rank|row echelon|gaussian elimination|probability|combinatorics?|permutation|factorial|series|sequence|summation|theorem|proof|prove\b|polynomial|quadratic|trigonometr|\bsine\b|cosine|tangent|logarithm|exponential|inequality|system of equations|complex number|set theory|modular arithmetic|geometry|triangle|circle|angle|fourier|laplace transform|ode\b|pde\b|jacobian|hessian|lagrange multiplier|convex|linear programming|group theory|ring theory|finite field|metric space|banach|hilbert|lebesgue|measure theory|generating function|recurrence relation|number theory|graph theory|numerical (method|analysis)|newton-?raphson|fixed point|interpolation|variance|expected value|stochastic|hypothesis test|confidence interval|regression|bayes|markov|binomial theorem|chinese remainder|gram-schmidt|singular value|orthogonal diagonal|quadratic form|divergence theorem|green'?s theorem|stokes|parseval|implicit (function|differentiation)|conservative field|surface integral|knapsack|inclusion-exclusion|cyclic group|symmetric group|boolean algebra|mathematical induction|countable|uncountable|normed space|vector calculus|prime ideal|quotient ring|discrete mathematics|stirling number|catalan number|fibonacci|lucas numbers?|continued fraction|pigeonhole principle|logistic map|bell number|integer partition|euler totient|hypergeometric|chebyshev|mobius function|partition function|cross product|dot product|permutation matrix|nilpotent|trapezoidal rule|euler method|z-transform|d.?alembert)\b/i, w: 3 },
+      { re: /\b(integral|integrate|integration|derivative|differentiate|differential|\blimit\b|matrix|matrices|determinant|eigen(value|vector)|vector space|linear algebra|matrix rank|row echelon|gaussian elimination|probability|combinatorics?|permutation|factorial|series|sequence|summation|theorem|proof|prove\b|polynomial|quadratic|trigonometr\w*|\bsine\b|cosine|tangent|logarithm|exponential|inequality|system of equations|complex number|set theory|modular arithmetic|geometry|triangle|circle|angle|fourier|laplace transform|ode\b|pde\b|jacobian|hessian|lagrange multiplier|convex|linear programming|group theory|ring theory|finite field|metric space|banach|hilbert|lebesgue|measure theory|generating function|recurrence relation|number theory|graph theory|numerical (method|analysis)|newton-?raphson|fixed point|interpolation|variance|expected value|stochastic|hypothesis test|confidence interval|regression|bayes|markov|binomial theorem|chinese remainder|gram-schmidt|singular value|orthogonal diagonal|quadratic form|divergence theorem|green'?s theorem|stokes|parseval|implicit (function|differentiation)|conservative field|surface integral|knapsack|inclusion-exclusion|cyclic group|symmetric group|boolean algebra|mathematical induction|countable|uncountable|normed space|vector calculus|prime ideal|quotient ring|discrete mathematics|stirling number|catalan number|fibonacci|lucas numbers?|continued fraction|pigeonhole principle|logistic map|bell number|integer partition|euler totient|hypergeometric|chebyshev|mobius function|partition function|cross product|dot product|permutation matrix|nilpotent|trapezoidal rule|euler method|z-transform|d.?alembert)\b/i, w: 3 },
+      // Statistics and chance: a survey, its averages and spreads, the charts that show them, draws and dice.
+      { re: /\b(statistics|survey(ed)?|median|mean of|(sample|population|arithmetic) mean|standard deviation|histogram|bar (chart|graph)|pie chart|box(-and-whisker| and whisker)? plot|stem[- ]and[- ]leaf|dot plot|scatter ?(plot|graph|diagram)|line of best fit|correlation|quartile|interquartile range|percentile|z[- ]score|normal distribution|binomial distribution|poisson distribution|frequency (table|distribution|polygon)|cumulative frequency|outlier|venn diagram|tree diagram|(with|without) replacement|dice)\b/i, w: 3 },
       { re: /\b(equation|solve for|factor|simplify|calculate|evaluate|function|graph|slope|x\b|y\b)\b/i, w: 1 },
     ],
   },
@@ -130,7 +133,7 @@ export function classifySubject(question: string): Subject {
   // Chemistry-bank phrasing: "… chemistry:" topic lines and named chem subfields.
   if (
     (/\b([a-z][\w -]{0,48}chemistry)\b/i.test(text) ||
-      /\b(physical chemistry|quantum chemistry|statistical thermodynamics|chemical kinetics|reaction engineering|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|schottky|hammett|bronsted|lipinski|ferrocene|born[- ]haber|grignard|titration|stoichiometr)\b/i.test(
+      /\b(physical chemistry|quantum chemistry|statistical thermodynamics|chemical kinetics|reaction engineering|electrochem\w*|biochem\w*|colloid|dlvo|cmc|photovoltaic|perovskite|solar cell|p[- ]n junction|electroanalytical|huckel|ab initio|schottky|hammett|bronsted|lipinski|ferrocene|born[- ]haber|grignard|titration|stoichiometr\w*)\b/i.test(
         text,
       )) &&
     !/\b(chemical engineering|mass balance on|distillation column|control volume balance|mixer stream|kg\/h|wt%|blackbody|planck|stefan|maxwell[- ]boltzmann|nuclear physics|radioactive decay|binding energy per nucleon|photosynthesis|chloroplast|calvin cycle|z-?scheme|psii|psi\b|chemiosmotic|cellular respiration|glycolysis|krebs cycle|enzyme kinetic|michaelis)\b/i.test(
@@ -149,7 +152,7 @@ export function classifySubject(question: string): Subject {
   }
 
   const CHEMISTRY_EXAM_OVERRIDE =
-    /\b(physical chemistry|quantum chemistry|reaction engineering|born[- ]haber|grignard|stoichiometr|titration curve|electroanalytical|colloid|dlvo|langmuir isotherm|huckel|ab initio|hartree[- ]fock)\b/i;
+    /\b(physical chemistry|quantum chemistry|reaction engineering|born[- ]haber|grignard|stoichiometr\w*|titration curve|electroanalytical|colloid|dlvo|langmuir isotherm|huckel|ab initio|hartree[- ]fock)\b/i;
 
   // Biology is recognised by general field/process vocabulary — never by matching
   // specific exam-question stems. Chemistry exam topics win the tie via the override.
@@ -165,9 +168,10 @@ export function classifySubject(question: string): Subject {
   for (const rule of RULES) {
     let score = 0;
     for (const { re, w } of rule.patterns) {
-      const matches = text.match(
-        new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'),
-      );
+      // Every signal also reads as a plural ("resistors", "flip-flops", "concentrations"). A short
+      // token written with its own \b inside the group (pu\b, y\b) stays whole: "pus" and "yes" are not signals.
+      const plural = re.source.replace(/\\b$/, '(?:e?s)?\\b');
+      const matches = text.match(new RegExp(plural, re.flags.includes('g') ? re.flags : re.flags + 'g'));
       if (matches) score += w * matches.length;
     }
     if (score > 0) scores.set(rule.subject, score);

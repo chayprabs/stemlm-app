@@ -54,9 +54,21 @@ function parseNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseDomain(spec: SpecDoc): { min: number; max: number } {
-  const raw = specGet(spec, 'domain') ?? '0 10';
-  const parts = raw.replace(/\b[xy]\s*=/gi, ' ').split(/[,;\s]+/).filter(Boolean);
+/**
+ * With no `domain:`, measured points set the x range: snapped outward to whole ticks, as the y axis is,
+ * so the axis spans exactly the samples given. A lone x value gets a unit (or a decade) either side.
+ */
+function parseDomain(spec: SpecDoc, samples: Point[], log: boolean): { min: number; max: number } {
+  const raw = specGet(spec, 'domain');
+  if (raw === undefined && samples.length) {
+    let lo = Math.min(...samples.map((point) => point.x));
+    let hi = Math.max(...samples.map((point) => point.x));
+    if (lo === hi) [lo, hi] = log ? [lo / 10, hi * 10] : [lo - 1, hi + 1];
+    const snapped = log ? logTicks(lo, hi, true) : niceTicks(lo, hi, true, () => true);
+    // A snapped bound off by a rounding error (3 × 0.1) must not push the end sample outside.
+    return { min: Math.min(lo, snapped.lo), max: Math.max(hi, snapped.hi) };
+  }
+  const parts = (raw ?? '0 10').replace(/\b[xy]\s*=/gi, ' ').split(/[,;\s]+/).filter(Boolean);
   if (parts.length !== 2) fail('malformed', 'plot domain needs exactly two finite bounds');
   const min = parseNumber(parts[0]!);
   const max = parseNumber(parts[1]!);
@@ -607,8 +619,10 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx, legend = specGetA
   const emptyDeclaration = spec.emptyDeclarations.keys().next().value as string | undefined;
   if (emptyDeclaration) fail('malformed', `plot declaration ${emptyDeclaration} must not be empty`);
   const kind = ensureSupportedKind(spec);
-  const domain = parseDomain(spec);
   const scale = parseScale(spec);
+  const samples = specGetAll(spec, 'data').map(parseData);
+  if (scale.x === 'log' && samples.flat().some((point) => !(point.x > 0))) fail('malformed', 'log x scale needs positive samples');
+  const domain = parseDomain(spec, samples.flat(), scale.x === 'log');
   const variable = (specGet(spec, 'var') ?? 'x').trim().toLowerCase();
   if (!/^[a-z_][a-z0-9_]*$/i.test(variable)) fail('malformed', 'plot variable must be an identifier');
   for (const raw of specGetAll(spec, 'marker')) {
@@ -619,7 +633,7 @@ export function buildPlotScene(spec: SpecDoc, ctx: CompileCtx, legend = specGetA
   const functions: Series[] = [];
   for (const [index, source] of [...specGetAll(spec, 'fn'), ...specGetAll(spec, 'fn2')].entries()) { const compiled = compileExpr(source); const segments = sampleFn(compiled, variable, domain.min, domain.max, poles, scale.x === 'log' && domain.min > 0); if (!segments.length) fail('malformed', `function ${index + 1} has no finite samples`); functions.push({ id: index ? `fn${index + 1}` : 'fn', kind: 'function', xs: segments.flatMap((segment) => segment.xs), ys: segments.flatMap((segment) => segment.ys), segments, source }); }
   const data: Series[] = [];
-  for (const [index, raw] of specGetAll(spec, 'data').entries()) { const points = parseData(raw); if (points.some((point) => point.x < domain.min || point.x > domain.max)) fail('malformed', 'data sample lies outside domain'); if (scale.x === 'log' && points.some((point) => !(point.x > 0))) fail('malformed', 'log x scale needs positive samples'); const id = index ? `data${index + 1}` : 'data'; const segment = { xs: points.map((point) => point.x), ys: points.map((point) => point.y) }; data.push({ id, kind: 'data', xs: segment.xs, ys: segment.ys, segments: [segment] }); }
+  for (const [index, points] of samples.entries()) { if (points.some((point) => point.x < domain.min || point.x > domain.max)) fail('malformed', 'data sample lies outside domain'); const id = index ? `data${index + 1}` : 'data'; const segment = { xs: points.map((point) => point.x), ys: points.map((point) => point.y) }; data.push({ id, kind: 'data', xs: segment.xs, ys: segment.ys, segments: [segment] }); }
   if (specGetAll(spec, 'eq').length > functions.length + data.length) fail('malformed', 'plot has more equations than plotted series');
   if (!functions.length && !data.length && !specHas(spec, 'peaks') && !specHas(spec, 'poles')) fail('malformed', 'plot needs fn or data');
   if (scale.x === 'log' && functions.some((series) => series.xs.some((value) => !(value > 0)))) fail('malformed', 'log x scale needs a positive domain');

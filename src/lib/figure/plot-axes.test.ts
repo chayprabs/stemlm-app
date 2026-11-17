@@ -167,6 +167,49 @@ describe('FIG-PLOT-AXIS-01 axis titles, ticks and tick labels', () => {
     expect(opacity).toBeLessThanOrEqual(0.3);
   });
 
+  describe('measured points with no domain', () => {
+    const xTicks = (layout: LayoutResult) => ticks(layout, 'x').map((t) => t.value).sort((a, b) => a - b);
+    const dots = (scene: Scene) => scene.strokes.filter((s) => /^data\d*-point\d+$/.test(s.id)).map((s) => s.points[0]!);
+
+    it.each([
+      ['20,1.2; 40,2.3; 60,3.1; 80,4.4', 20, 80],
+      ['1990,5; 2000,7; 2020,12', 1990, 2020],
+      ['0.3,1; 0.5,2; 0.9,3', 0.3, 0.9],
+      ['1.4,1; 2.7,2; 5.6,3', 1, 6],
+    ])('spans the samples %s with nice ticks from %d to %d', (data, first, last) => {
+      const { scene, layout } = laid(`kind: discrete\ndata: ${data}\nxlabel: x\nylabel: y`);
+      const values = xTicks(layout);
+      expect(values[0]).toBeCloseTo(first, 9);
+      expect(values.at(-1)).toBeCloseTo(last, 9);
+      const [x0, , x1] = line(scene, 'xaxis');
+      expect(dots(scene)).toHaveLength(data.split(';').length);
+      for (const x of dots(scene)) {
+        expect(x).toBeGreaterThanOrEqual(x0! - 0.01);
+        expect(x).toBeLessThanOrEqual(x1! + 0.01);
+      }
+    });
+
+    it('snaps a logarithmic axis to whole decades, and gives a single sample room either side', () => {
+      expect(xTicks(laid('kind: discrete\ndata: 3,1; 40,2; 700,3\nscale: x=log').layout)).toEqual([1, 10, 100, 1000]);
+      const lone = xTicks(laid('kind: discrete\ndata: 3,7').layout);
+      expect(lone[0]).toBeLessThan(3);
+      expect(lone.at(-1)).toBeGreaterThan(3);
+    });
+
+    it('samples a curve given with the data over the same range', () => {
+      const { scene } = laid('data: 2,4.1; 4,8.2; 6,11.8\nfn: 2*x\nkind: comparison');
+      const curve = line(scene, 'fn');
+      const [x0, , x1] = line(scene, 'xaxis');
+      expect(curve[0]).toBeCloseTo(x0!, 5);
+      expect(curve.at(-2)).toBeCloseTo(x1!, 5);
+    });
+
+    it('still refuses a stated domain that leaves a sample out', () => {
+      const result = compilePlot(parseSpec('plot', 'kind: discrete\ndata: 0,1; 12,3\ndomain: 0 10'), ctx);
+      expect(result.ok ? 'drawn' : result.reason).toBe('data sample lies outside domain');
+    });
+  });
+
   it('keeps a curve label next to its curve', () => {
     const { scene, layout } = laid(SPECS.decay!);
     const label = layout.placed.find((p) => p.label.id === 'label-fn')!;

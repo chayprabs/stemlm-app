@@ -100,6 +100,40 @@ describe('probtree: liberal input', () => {
   });
 });
 
+describe('probtree: long labels', () => {
+  const lines = (drawn: Awaited<ReturnType<typeof draw>>, id: string) => [drawn.text(`node-${id}`), drawn.text(`node2-${id}`)].filter(Boolean);
+
+  it('wraps a label too wide for its column onto two lines and keeps every word', async () => {
+    const drawn = await draw('probtree', 'branch: root D 0.02 Has the disease\nbranch: root N 0.98 Does not have the disease\nbranch: D DP 0.95 Tests positive\nbranch: D DN 0.05 Tests negative\nshow: products');
+    expect(lines(drawn, 'N')).toHaveLength(2);
+    expect(lines(drawn, 'N').join(' ')).toBe('Does not have the disease');
+    expect(lines(drawn, 'D')).toEqual(['Has the disease']);
+    expect(drawn.text('probability-D')).toBe('0.02');
+    expect(products(drawn)).toEqual({ DP: '0.019', DN: '0.001', N: '0.98' });
+    expectCleanLabels(drawn);
+  });
+
+  it('cuts only what two lines cannot hold, and never a probability or a product', async () => {
+    const label = 'Draws a red marble from the first bag and then another red marble from the second bag';
+    const drawn = await draw('probtree', `branch: root R 3/10 ${label}\nbranch: root B 7/10 Blue\nshow: products`);
+    const [first, second] = lines(drawn, 'R');
+    expect(second!.endsWith('…')).toBe(true);
+    // Whole words only: the kept text runs up to a space in the label.
+    expect(label.startsWith(`${first} ${second!.slice(0, -1)} `)).toBe(true);
+    expect(drawn.text('probability-R')).toBe('3/10');
+    expect(products(drawn)).toEqual({ R: '3/10', B: '7/10' });
+    expectCleanLabels(drawn);
+  });
+
+  it('opens up the rows of a dense tree whose leaves all wrap', async () => {
+    const coin = ['root H', 'root T', 'H HH', 'H HT', 'T TH', 'T TT']
+      .map((pair) => `branch: ${pair} 0.5 ${pair.endsWith('H') ? 'Lands heads up on the table' : 'Lands tails up on the table'}`).join('\n');
+    const drawn = await draw('probtree', `${coin}\nshow: products`);
+    expect(drawn.text('node2-HT')).toBeDefined();
+    expectCleanLabels(drawn);
+  });
+});
+
 describe('probtree: refusals', () => {
   const wide = Array.from({ length: 17 }, (_, i) => `branch: root n${i} 1/17`).join('\n');
   const deep = ['root a', 'a b', 'b c', 'c d', 'd e'].map((pair) => `branch: ${pair} 1`).join('\n');
@@ -117,7 +151,7 @@ describe('probtree: refusals', () => {
     ['branch: root A 1\nbranch: X Y 1\nbranch: Y X 1', 'form a loop'],
     [wide, 'at most 16 outcomes'],
     [deep, 'at most 4 stages'],
-    ['branch: root A 1 an outcome label that goes on and on far past any node', 'too long to print at a node'],
+    [['root a', 'a b', 'b c', 'c d'].map((pair) => `branch: ${pair} 1 an outcome label that goes on and on far past any node`).join('\n'), 'too wide to draw legibly'],
     ['branch: root A 0.5\nbranch: root B 0.5\nshow: sums', '"sums" is not one of products'],
   ])('%s', async (content, expected) => {
     expect(await reason('probtree', content)).toContain(expected);
