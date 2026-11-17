@@ -26,7 +26,7 @@ import App from '../../entrypoints/content/App';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const UNAVAILABLE = "stemLM couldn't open its panel. Refresh this tab.";
+const UNAVAILABLE = "stemlm couldn't open its panel. Refresh this tab.";
 
 describe('study panel that cannot load', () => {
   let container: HTMLDivElement;

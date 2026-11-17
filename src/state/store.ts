@@ -251,9 +251,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setChat: (chat, adoptFrom) => {
     set((s) => ({
       chat,
-      ...(adoptFrom !== undefined && s.sessions.some((sess) => sess.chat === adoptFrom)
-        ? { sessions: s.sessions.map((sess) => (sess.chat === adoptFrom ? { ...sess, chat } : sess)) }
-        : {}),
+      ...(adoptFrom ? { sessions: s.sessions.map((sess) => (sess.chat === adoptFrom ? { ...sess, chat } : sess)) } : {}),
     }));
     const s = get();
     const here = chatSessions(s);

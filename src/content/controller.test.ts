@@ -1342,7 +1342,7 @@ describe('StemController native Gemini follow-up (no Ask-in-chat)', () => {
     expect(state.sessions).toHaveLength(1);
     expect(state.sessions[0]!.capsule).toEqual(before.capsule);
     expect(state.status).toBe('error');
-    expect(state.errorMessage).toMatch(/repair.*not applied|unknown id/i);
+    expect(state.errorMessage).toMatch(/repair.*not applied|not in this answer/i);
     c.stopWatching();
   });
 
