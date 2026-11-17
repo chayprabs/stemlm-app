@@ -388,7 +388,6 @@ describe('setEditorText on textarea', () => {
     const ta = document.getElementById('t') as HTMLTextAreaElement;
     const prompt = buildFollowupCopyText({
       selection: 'Explain the sign of reactance',
-      subject: 'Electrical',
     });
     setEditorText(ta, prompt);
     focusComposerQuestionSlot(ta);
@@ -401,7 +400,6 @@ describe('setEditorText on textarea', () => {
     const el = document.getElementById('ed')!;
     const prompt = buildFollowupCopyText({
       selection: 'Why is X_L positive?',
-      subject: 'Electrical',
     });
     setEditorText(el, prompt);
     focusComposerQuestionSlot(el);
@@ -477,7 +475,6 @@ describe.each(HOST_FIXTURES)('$id shipped adapter on composer fixture', (spec) =
     addNamedChip(document, 'problem.png');
     const prompt = buildFollowupCopyText({
       selection: 'Explain the sign of reactance',
-      subject: 'Electrical',
     });
     expect(spec.adapter.insertPrompt(prompt, 'append')).toBe(true);
     expect(document.body.textContent).toContain('problem.png');

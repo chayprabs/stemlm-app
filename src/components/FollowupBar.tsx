@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { IconCopy, IconReply } from './icons';
 import { MathMarkdown } from './MathMarkdown';
 import { getController } from '@/src/content/controller';
-import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import {
   buildFollowupCopyText,
-  isAskIntent,
   isEmptyFollowupSelection,
   type FollowupIntent,
 } from '@/src/protocol/builder';
@@ -25,7 +23,7 @@ export function FollowupBar({
   followup,
   subject,
   stepTitle,
-  intent = 'dig-deeper',
+  intent = 'ask',
   anchor,
   hint,
   suggestion,
@@ -45,8 +43,7 @@ export function FollowupBar({
   const [sendState, setSendState] = useState<SendState>('idle');
   const sendingRef = useRef(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isAsk = isAskIntent(intent);
-  const displayFollowup = isAsk ? hint ?? null : stripProtocolMarkers(followup);
+  const displayFollowup = hint ?? null;
 
   useEffect(() => () => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -56,7 +53,6 @@ export function FollowupBar({
     return buildFollowupCopyText({
       selection: followup,
       stepTitle,
-      subject,
       intent,
     });
   }
@@ -124,9 +120,9 @@ export function FollowupBar({
   }
 
   return (
-    <div className={`slm-followup ${isAsk ? 'slm-followup--ask' : 'slm-followup--deeper'}`}>
+    <div className="slm-followup slm-followup--ask">
       <div className="slm-followup-copyblock">
-        <span className="slm-followup-label">{isAsk ? 'Ask in chat' : 'Dig deeper'}</span>
+        <span className="slm-followup-label">Ask in chat</span>
         {suggestion ? (
           <p className="slm-followup-text">
             <button

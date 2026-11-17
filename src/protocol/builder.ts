@@ -313,17 +313,12 @@ const FOLLOWUP_QUESTION_LABEL = 'Ask your question here:';
 
 export const FOLLOWUP_CONTEXT_HEADER = '--- stemLM follow-up context (do not remove) ---';
 
-/** `dig-deeper` sends the quoted text as the request; the ask intents wait for a typed question. */
-export type FollowupIntent = 'dig-deeper' | 'ask' | 'ask-solution';
-
-export function isAskIntent(intent?: FollowupIntent): boolean {
-  return intent === 'ask' || intent === 'ask-solution';
-}
+/** A question about one step (`ask`, the default) or about the whole answer. */
+export type FollowupIntent = 'ask' | 'ask-solution';
 
 export interface FollowupOptions {
   selection: string;
   stepTitle?: string;
-  subject?: Subject;
   intent?: FollowupIntent;
   /** `qid:` of the answer being asked about, when it has one: the reply must repeat it to be matched. */
   qid?: string;
@@ -333,24 +328,14 @@ export interface FollowupOptions {
 
 function followupLead(opt: FollowupOptions): string {
   const step = opt.stepTitle?.trim() ? ` ("${opt.stepTitle.trim()}")` : '';
-  if (opt.intent === 'ask-solution') return 'My question above is about your whole earlier answer:';
-  if (opt.intent === 'ask') return `My question above is about this step of your earlier answer${step}:`;
-  return `Explain this part of your earlier answer in more depth${step}:`;
+  return opt.intent === 'ask-solution'
+    ? 'My question above is about your whole earlier answer:'
+    : `My question above is about this step of your earlier answer${step}:`;
 }
 
 /** The shape of the reply, complete enough to follow in a chat that no longer attends to the guide. */
 function followupFormat(opt: FollowupOptions): string[] {
   const qid = opt.qid ? [`qid: ${opt.qid}`] : [];
-  if (!isAskIntent(opt.intent)) {
-    return [
-      'Rewrite only that step, in one stemlm code block, like this:',
-      '@meta', ...qid, 'mode: patch', '@endmeta',
-      '@patch op=replace id=(the id of that step)',
-      '@step id=(the same id)', 'title: …', '@body', 'why this step, and the working', '@endbody', '@endstep',
-      '@endpatch',
-      '@end',
-    ];
-  }
   return [
     ...answerShape(
       'Answer only that question, in one short stemlm code block, 1 to 3 steps, like this:',

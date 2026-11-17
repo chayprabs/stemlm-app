@@ -268,7 +268,6 @@ describe('coverage', () => {
     assembleGuide('', 'Physics').text.split('\n\ntype=')[0]!,
     buildComposerPointer({ hasQuestion: true }),
     buildFollowupCopyText({ selection: 'Step 2', intent: 'ask', qid: 'q1' }),
-    buildFollowupCopyText({ selection: 'Step 2' }),
   ].join('\n');
 
   it.each(guides)('%s: every figure type the guide teaches is there, with an example or with its keys', (_subject, guide) => {
@@ -290,6 +289,8 @@ describe('coverage', () => {
   it('teaches every marker the parser reads, or says why not', () => {
     const NOT_TAUGHT: Record<string, string> = {
       '@resume': 'a cut-off answer is shown with its finished steps and the student is told to ask for the rest; the model is not asked to plan for it',
+      '@patch': 'the panel still applies a patch an older answer sent, but no stemLM message asks for one',
+      '@endpatch': 'closes @patch',
     };
     const markers = [...PROTOCOL_LINE_MARKERS, '@diagram'].filter((marker) => !(marker in ALT_END_MARKERS));
     expect(markers).toHaveLength(28);
@@ -307,6 +308,7 @@ describe('coverage', () => {
       low_confidence: 'the panel never shows it',
       check: 'the panel never shows it',
       after: 'only a patch that inserts a step uses it, and no stemLM message asks for one',
+      op: 'only a patch uses it, and no stemLM message asks for one',
     };
     // archetype: is taught for the one case the panel shows: subject General with archetype
     // conceptual raises the "Not a STEM question" flag.
