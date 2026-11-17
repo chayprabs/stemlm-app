@@ -5,8 +5,8 @@ import type { ResolvedTheme } from '@/src/lib/theme';
 import { MathMarkdown } from './MathMarkdown';
 import { DiagramRenderer } from './DiagramRenderer';
 import { StepWork } from './StepWork';
+import { FormulaBlock } from './FormulaBlock';
 import { StepIndexMark } from './step-index';
-import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
 import { OriginNote } from './OriginNote';
@@ -33,12 +33,7 @@ function SolutionStep({
         <h3 className="slm-solution-step-title"><MathMarkdown content={step.title} inline /></h3>
       </header>
 
-      {shouldShowFormulaBlock(step) && step.formula && (
-        <div className="slm-formula">
-          <span className="slm-formula-label">Formula</span>
-          <MathMarkdown content={step.formula} mathMode="display" />
-        </div>
-      )}
+      <FormulaBlock step={step} />
 
       <StepWork step={step} className="slm-step-work slm-solution-step-body" />
 

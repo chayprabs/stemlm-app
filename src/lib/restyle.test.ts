@@ -183,13 +183,16 @@ describe('restyle: one design system across the panel', () => {
     // The step marks are round and sit in a scroller, so their ring is drawn on the mark itself.
     expect(ruleFor(panel, '.slm-step-rail-btn:focus-visible .slm-step-rail-mark')).toMatch(ring);
     // A ring is only ever removed from things that take focus without being controls.
-    const removed = [...withoutComments(panel).matchAll(/([^{}]+)\{[^}]*outline:\s*none[^}]*\}/g)].map((m) => m[1]!.trim());
+    const removed = [...withoutComments(panel).matchAll(/([^{}]+)\{[^}]*outline:\s*none[^}]*\}/g)].map((m) => m[1]!.trim().replace(/\s+/g, ' '));
     expect(removed.sort()).toEqual([
       '.slm-lightbox-dialog:focus',
       '.slm-panel:focus',
       '.slm-quickcheck-a-inner:focus',
+      '.slm-read:focus, .slm-solution-wrap:focus',
       '.slm-step-rail-btn:focus-visible',
     ]);
+    // The reading areas scroll with the keyboard, so they hold focus: marked on their top edge, never boxed.
+    expect(ruleFor(panel, '.slm-read:focus-visible')).toMatch(/box-shadow:\s*inset 0 2px 0 var\(--slm-ring\)/);
   });
 
   it('has no sidebar: the steps are one row of marks above the page', () => {

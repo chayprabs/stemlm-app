@@ -383,6 +383,8 @@ export async function waitForAttachment(opt: WaitAttachmentOptions = {}): Promis
 
   while (Date.now() < deadline) {
     if (confirmed()) return true;
+    // The chat rebuilt its composer: nothing will ever appear in the one that was handed in.
+    if (root instanceof Node && !root.isConnected) return false;
     await sleep(80);
   }
   return confirmed();

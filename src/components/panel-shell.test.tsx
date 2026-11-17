@@ -113,12 +113,15 @@ describe('where the panel sits', () => {
 });
 
 describe('focus', () => {
-  it('moves into the panel when it opens and back to the opener when it closes', async () => {
+  /** The element that scrolls: it holds the panel's focus so the keyboard scrolls the text. */
+  const reading = (panel: HTMLElement) => panel.querySelector<HTMLElement>('.slm-read')!;
+
+  it('moves to the reading area when the student opens the panel, and back to the opener when it closes', async () => {
     useStore.setState({ panelOpen: false });
     const opener = field('button');
     const panel = await mountPanel();
     setOpen(true);
-    expect(document.activeElement).toBe(panel);
+    expect(document.activeElement).toBe(reading(panel));
     setOpen(false);
     expect(document.activeElement).toBe(opener);
   });
@@ -133,14 +136,70 @@ describe('focus', () => {
     expect(document.activeElement).toBe(draft);
   });
 
-  it('is taken from an empty chat box, and given back to it', async () => {
+  it('is taken from an empty chat box when the student opens the panel, and given back to it', async () => {
     useStore.setState({ panelOpen: false });
     const empty = field('textarea');
     const panel = await mountPanel();
     setOpen(true);
-    expect(document.activeElement).toBe(panel);
+    expect(document.activeElement).toBe(reading(panel));
     setOpen(false);
     expect(document.activeElement).toBe(empty);
+  });
+
+  it('stays in the chat box, even an empty one, when the panel opens by itself on an answer', async () => {
+    useStore.setState({ panelOpen: false });
+    const empty = field('textarea');
+    const panel = await mountPanel();
+    act(() => useStore.getState().openPanel(false));
+    expect(useStore.getState().panelOpen).toBe(true);
+    expect(document.activeElement).toBe(empty);
+    // A click inside the panel is the student asking for it.
+    pointer(panel.querySelector('.slm-card-title')!, 'pointerdown', 900);
+    expect(document.activeElement).toBe(reading(panel));
+  });
+
+  it('moves in when the student asks for a panel that an answer had already opened', async () => {
+    useStore.setState({ panelOpen: false });
+    field('textarea');
+    const panel = await mountPanel();
+    act(() => useStore.getState().openPanel(false));
+    act(() => useStore.getState().openPanel());
+    expect(document.activeElement).toBe(reading(panel));
+  });
+
+  it('goes to the panel itself while there is nothing to read, then to the answer when it arrives', async () => {
+    useStore.getState().resetSessions();
+    useStore.setState({ panelOpen: false });
+    field('button');
+    const panel = await mountPanel();
+    setOpen(true);
+    expect(document.activeElement).toBe(panel);
+    act(() => useStore.getState().addSession(session));
+    expect(document.activeElement).toBe(reading(panel));
+    // The other view has its own scroller.
+    act(() => useStore.getState().setView('solution'));
+    panel.focus();
+    pointer(panel.querySelector('.slm-solution')!, 'pointerdown', 900);
+    expect(document.activeElement).toBe(panel.querySelector('.slm-solution-wrap'));
+  });
+
+  it('can rest on the element that scrolls, in both views, so the keys that scroll a page work', async () => {
+    const panel = await mountPanel();
+    const read = reading(panel);
+    expect(read.tabIndex).toBe(0);
+    expect(read.getAttribute('role')).toBe('region');
+    expect(read.getAttribute('aria-label')).toBe('Step text');
+    // Space, Page Down, Home and End are left to the browser: nothing in the panel cancels them.
+    for (const k of [' ', 'PageDown', 'ArrowDown', 'Home', 'End']) {
+      const event = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, composed: true });
+      act(() => { read.dispatchEvent(event); });
+      expect(event.defaultPrevented, k).toBe(false);
+    }
+    expect(useStore.getState().activeStepIndex).toBe(0);
+    act(() => useStore.getState().setView('solution'));
+    const solution = panel.querySelector<HTMLElement>('.slm-solution-wrap')!;
+    expect(solution.tabIndex).toBe(0);
+    expect(solution.getAttribute('role')).toBe('tabpanel');
   });
 
   it('stays where the student has moved it when the panel closes', async () => {

@@ -53,3 +53,25 @@ describe('an upload the host has visibly started', () => {
     expect(sent).toEqual(['drop']);
   });
 });
+
+// A chat that rebuilds its composer when a file arrives: the old one is no longer in the page, so
+// no chip can appear in it. The 4 s windows (16 s over a drop and a paste on two targets) used to
+// be waited out in full with the stemlm button busy; now the attempt ends as soon as that is known.
+describe('a composer the chat has rebuilt', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+  });
+
+  it('is given up on at once instead of being waited for', async () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<form id="composer"><div class="ql-editor" contenteditable="true"></div></form>';
+    const root = document.getElementById('composer')!;
+    root.addEventListener('drop', () => root.replaceWith(root.cloneNode(true)));
+    const started = Date.now();
+    const pending = attachTextFile('guide', { root, requireConfirmation: true, dropTargets: ['#composer', '.ql-editor'], timeoutMs: 4000, waitMs: 1 });
+    await vi.runAllTimersAsync();
+    expect(await pending).toEqual({ ok: false, method: 'none' });
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});

@@ -102,10 +102,12 @@ describe('FollowupBar states and announcements', () => {
   }
 
   it('announces a successful copy through a live region', async () => {
-    const writeText = vi.fn(async () => undefined);
+    const writeText = vi.fn(async (_text: string) => undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const mounted = mountBar();
     const copyButton = mounted.container.querySelector('.slm-followup-action') as HTMLButtonElement;
+    // Named for what it copies: the follow-up message, not the step.
+    expect(copyButton.textContent).toBe(' Copy prompt');
 
     await act(async () => {
       copyButton.click();
@@ -113,6 +115,7 @@ describe('FollowupBar states and announcements', () => {
     });
 
     expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText.mock.calls[0]![0]).toContain('Ask your question here:');
     expect(copyButton.textContent).toContain('Copied');
     expect(copyButton.dataset.state).toBe('copied');
     const live = mounted.container.querySelector('[role="status"]') as HTMLElement;

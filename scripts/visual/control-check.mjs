@@ -11,7 +11,7 @@
  *
  * Prints a table, writes control-check.json and one crop per state, and exits 1 when a rule is
  * broken: an offset that differs between states, a control over the draft or another host button,
- * a second control, a control shown where it does not belong.
+ * a second control, a control shown where it does not belong, or one missing where it has room.
  */
 import { BROWSER, chromium } from './browser.mjs';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -158,7 +158,19 @@ async function walk(id, variant, scheme, viewport, shots) {
   const page = await open(id, scheme, viewport, { variant, uploadMs: 2500 });
   try {
     if (!(await waitShown(page))) {
-      fail('the control never appeared');
+      // Not shown is the right answer where the row has no room: making it would make the empty
+      // composer taller (a placeholder wraps at a phone's width). Anything else is a failure.
+      const taller = await page.evaluate((attachSel) => {
+        const composer = document.querySelector('[data-hc-composer]');
+        const attach = document.querySelector(attachSel);
+        const before = composer.getBoundingClientRect().height;
+        attach.style.marginInlineEnd = `${attach.getBoundingClientRect().height + 4}px`;
+        const after = composer.getBoundingClientRect().height;
+        attach.style.marginInlineEnd = '';
+        return after - before;
+      }, ATTACH);
+      if (taller > 0.5) record.notShown = `no room: the composer would be ${round(taller)} px taller`;
+      else fail('the control never appeared');
       return;
     }
     await page.waitForTimeout(500);
@@ -356,7 +368,7 @@ for (const r of rows) {
   if (!r.states) continue;
   const seen = Object.values(r.states).filter(Boolean);
   if (!seen.length) {
-    console.log(line([r.tag, '-', '-', '-', '-', 'not shown']));
+    console.log(line([r.tag, '-', '-', '-', '-', r.notShown ? `not shown (${r.notShown})` : 'not shown']));
     continue;
   }
   const spread = (key) => Math.max(...seen.map((s) => s[key])) - Math.min(...seen.map((s) => s[key]));
