@@ -398,16 +398,6 @@ describe('follow-ups', () => {
     expect(whole).toContain('mode: resolve');
   });
 
-  it('without a typed question, asks for that one step to be rewritten in place', () => {
-    const deeper = buildFollowupCopyText(opts);
-    expect(deeper).toContain('Explain this part of your earlier answer in more depth ("Solve for current"):');
-    expect(deeper).toContain('@meta\nmode: patch\n@endmeta\n@patch op=replace id=');
-    const reply = ['@meta', 'mode: patch', '@endmeta', '@patch op=replace id=s2', '@step id=s2', 'title: Solve for current', '@body', 'In series the current is the same, so $R = R_1 + R_2 = 6\\ \\Omega$.', '@endbody', '@endstep', '@endpatch', '@end'].join('\n');
-    const result = parse(reply);
-    expect(result.patch).toHaveLength(1);
-    expect(result.patch![0]).toMatchObject({ op: 'replace', id: 's2' });
-  });
-
   it('treats whitespace as an empty selection', () => {
     expect(isEmptyFollowupSelection('')).toBe(true);
     expect(isEmptyFollowupSelection('   \n')).toBe(true);

@@ -622,7 +622,7 @@ export class StemController {
     if (normalized.length < 3) {
       useStore
         .getState()
-        .setStatus('error', 'Select more text (or use the Dig deeper prompt) before asking in chat.');
+        .setStatus('error', 'Select a little more text before asking in chat.');
       return false;
     }
 
@@ -638,7 +638,6 @@ export class StemController {
     const followOpt = {
       selection: normalized,
       stepTitle,
-      subject,
       intent: opt?.intent,
       qid: store.sessions.find((s) => s.id === opt?.anchor?.sessionId)?.capsule.meta.qid,
       question: opt?.question,

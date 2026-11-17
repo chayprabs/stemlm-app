@@ -643,7 +643,7 @@ describe('StemController.followUp', () => {
     expect(attachTextFile).not.toHaveBeenCalled();
     expect(adapter.inserted).toContain('stemLM follow-up context');
     expect(adapter.inserted).toContain('("Combine series resistors")');
-    expect(adapter.inserted).toContain('@meta\nmode: patch\n@endmeta');
+    expect(adapter.inserted).toContain('mode: resolve\n@endmeta');
     expect(adapter.inserted).not.toContain(STUDY_GUIDE_REFERENCE);
     expect(adapter.inserted).not.toContain('End of the stemLM study guide.');
     expect(adapter.inserted.length).toBeLessThan(700);
