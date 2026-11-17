@@ -52,7 +52,7 @@ export function unsupportedHostNotice(labels: string[] = supportedChatLabels()):
  */
 export async function guideForPasting(): Promise<string> {
   const { buildInjectionPrompt } = await import('@/src/protocol/builder');
-  return buildInjectionPrompt('').prompt;
+  return buildInjectionPrompt('');
 }
 
 export type LaunchResult =

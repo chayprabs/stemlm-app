@@ -34,7 +34,7 @@ const PUNNETT = 'Two heterozygous pea plants are crossed. Show the Punnett squar
 /** A student message as the chat shows it after sending. */
 const attached = (question: string) => buildComposerStub(question);
 const reminderOnly = (question: string) => `${question}\n\n${buildComposerPointer({ hasQuestion: true })}`;
-const pasted = (question: string) => buildInjectionPrompt(question).prompt;
+const pasted = (question: string) => buildInjectionPrompt(question);
 
 describe('the reminder every question carries', () => {
   const stub = buildComposerStub('Find the range of a projectile.');
@@ -144,7 +144,7 @@ describe('the guide file', () => {
 
 describe('the guide as message text, where the host takes no upload', () => {
   const question = 'A class survey asked 50 students for their favourite sport. Show the results as a bar chart.';
-  const { prompt } = buildInjectionPrompt(question);
+  const prompt = buildInjectionPrompt(question);
 
   it('keeps the question first and readable, then the sentinel, then the guide', () => {
     expect(prompt.startsWith(`${question}\n\n${STEMLM_SENTINEL}\n`)).toBe(true);
@@ -165,12 +165,12 @@ describe('the guide as message text, where the host takes no upload', () => {
   });
 
   it('is appended under a question already in the chat box without repeating it', () => {
-    const appendix = buildInjectionAppendix(question).prompt;
+    const appendix = buildInjectionAppendix(question);
     // The chat box adds its own blank line before appended text.
     expect(appendix.startsWith(`${STEMLM_SENTINEL}\n`)).toBe(true);
     expect(appendix).not.toContain(question);
     expect(`${question}\n\n${appendix}`).toBe(prompt);
-    expect(buildInjectionAppendix('', { hasImageAttachment: true }).prompt).toContain('(Problem image/PDF is attached');
+    expect(buildInjectionAppendix('', { hasImageAttachment: true })).toContain('(Problem image/PDF is attached');
   });
 
   it('counts as arrived only when it arrived whole', () => {

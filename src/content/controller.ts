@@ -553,12 +553,10 @@ export class StemController {
       injectionMethod = 'text';
       // The host took no upload (signed out, or its uploader failed): the guide goes in as text.
     } else if (hasUserContent) {
-      const built = buildInjectionAppendix(question, buildOpt);
-      ok = await this.insertVerifiedPrompt(built.prompt, 'append', { operation });
+      ok = await this.insertVerifiedPrompt(buildInjectionAppendix(question, buildOpt), 'append', { operation });
       injectionMethod = 'text';
     } else {
-      const built = buildInjectionPrompt(question, buildOpt);
-      ok = await this.insertVerifiedPrompt(built.prompt, 'replace', { operation });
+      ok = await this.insertVerifiedPrompt(buildInjectionPrompt(question, buildOpt), 'replace', { operation });
       injectionMethod = 'text';
     }
 

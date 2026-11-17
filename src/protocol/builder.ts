@@ -191,11 +191,6 @@ export interface BuildOptions {
   hasImageAttachment?: boolean;
 }
 
-export interface BuildResult {
-  prompt: string;
-  subject: Subject;
-}
-
 export interface InjectionPayload {
   composerText: string;
   fileContent: string;
@@ -259,17 +254,17 @@ export function buildInjectionPayload(question: string, opt?: BuildOptions): Inj
 }
 
 /** The compact guide as message text under the question, for a host that took no upload. */
-export function buildInjectionAppendix(question: string, opt?: BuildOptions): BuildResult {
+export function buildInjectionAppendix(question: string, opt?: BuildOptions): string {
   const guide = assembleGuide(question, undefined, true).text;
   const image = opt?.hasImageAttachment && !(question || '').trim() ? `${IMAGE_STUB_LINE}\n\n` : '';
-  return { prompt: `${image}${STEMLM_SENTINEL}\n${GUIDE_INLINE}\n\n${guide}`, subject: classifySubject(question) };
+  return `${image}${STEMLM_SENTINEL}\n${GUIDE_INLINE}\n\n${guide}`;
 }
 
 /** The same with the question above it, for an empty chat box. */
-export function buildInjectionPrompt(question: string, opt?: BuildOptions): BuildResult {
-  const { prompt, subject } = buildInjectionAppendix(question, opt);
+export function buildInjectionPrompt(question: string, opt?: BuildOptions): string {
+  const prompt = buildInjectionAppendix(question, opt);
   const q = (question || '').trim();
-  return { prompt: q ? `${q}\n\n${prompt}` : prompt, subject };
+  return q ? `${q}\n\n${prompt}` : prompt;
 }
 
 /** True when the composer holds a whole pasted guide, from its opening line to its last. */

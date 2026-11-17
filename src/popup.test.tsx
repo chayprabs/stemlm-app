@@ -611,7 +611,7 @@ describe('popup chrome', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0]![0];
     // The builder's own text for a chat that takes no file: nothing is retyped in the popup.
-    expect(copied).toBe(buildInjectionPrompt('').prompt);
+    expect(copied).toBe(buildInjectionPrompt(''));
     expect(copied.startsWith(STEMLM_SENTINEL)).toBe(true);
     expect(copied).toContain('@meta');
     expect(copied.length).toBeGreaterThan(2000);
