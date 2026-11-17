@@ -16,11 +16,16 @@ async function flushDiagram(): Promise<void> {
   });
 }
 
-async function flushUntil(check: () => boolean, tries = 40): Promise<void> {
-  for (let i = 0; i < tries; i++) {
+/** Wait for a compile by the clock, not by a number of ticks: a circuit takes many more than a plot. */
+async function flushUntil(check: () => boolean, withinMs = 4000): Promise<void> {
+  const deadline = Date.now() + withinMs;
+  do {
     await flushDiagram();
     if (check()) return;
-  }
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
+  } while (Date.now() < deadline);
 }
 
 function mountInShadow(ui: ReactNode): { host: HTMLElement; shadow: ShadowRoot; root: Root } {

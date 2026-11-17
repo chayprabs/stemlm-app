@@ -5,7 +5,7 @@ import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
 import { HOST_FIXTURES, mountHostComposer } from '@/src/platforms/host-fixtures';
-import { removeComposerSlot } from '@/src/lib/composer-slot';
+import { COMPOSER_SLOT_STYLE_ID, removeComposerSlot } from '@/src/lib/composer-slot';
 import { injectControlEnabled } from '@/src/platforms/routes';
 import type { PlatformAdapter } from '@/src/platforms/types';
 
@@ -81,9 +81,15 @@ describe.each(HOST_FIXTURES)('$id overlay docks beside the shipped leading +', (
     const inject = slot!.querySelector('button') as HTMLButtonElement;
     expect(inject).toBeTruthy();
     expect(inject.getAttribute('data-stemlm-inject')).toBe('true');
-    expect(inject.getAttribute('data-glyph')).toBe('plus');
-    expect(inject.innerHTML).toContain('M12 5v14');
-    expect(inject.querySelectorAll('circle')).toHaveLength(0);
+    // Beside the chat's own plus it shows the therefore mark, never a second plus.
+    expect(inject.getAttribute('data-glyph')).toBe('mark');
+    expect(inject.innerHTML).not.toContain('M12 5v14');
+    expect(inject.querySelectorAll('.slm-inject-mark circle')).toHaveLength(2);
+    expect(inject.querySelectorAll('.slm-inject-mark rect')).toHaveLength(1);
+    // Docked in the page's own DOM, its rules are installed there under the slot's scope.
+    const pageCss = document.getElementById(COMPOSER_SLOT_STYLE_ID)?.textContent ?? '';
+    expect(pageCss).toContain('[data-stemlm-composer-slot] .slm-inject-btn {');
+    expect(slot!.querySelector('style')).toBeNull();
   });
 
   it('does not fire the host + listener when the stemLM control is clicked', async () => {

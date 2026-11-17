@@ -475,6 +475,56 @@ describe('popup chrome', () => {
     unmount();
   });
 
+  it('says which chat it is ready on and leads with Open study panel there', async () => {
+    activeTab = { id: 4, url: 'https://chatgpt.com/c/abc' };
+    const { container, unmount } = await renderPopup();
+    const status = container.querySelector('.slm-popup-status');
+    expect(status?.textContent).toBe('Ready on ChatGPT');
+    expect(status?.innerHTML).toContain('M22.2819 9.8211');
+    expect(container.querySelector('.slm-popup')?.getAttribute('data-tab')).toBe('chat');
+    const first = container.querySelector('.slm-popup-body')?.firstElementChild;
+    expect(first?.querySelector('[data-launch="open-study-panel"]')?.className).toContain('is-primary');
+    unmount();
+  });
+
+  it('off a chat it says so and leads with the four launchers instead', async () => {
+    for (const url of ['https://example.com/', 'https://grok.com/imagine', 'chrome://extensions']) {
+      activeTab = { id: 5, url };
+      const { container, unmount } = await renderPopup();
+      expect(container.querySelector('.slm-popup-status')?.textContent, url).toBe('Open a chat to start');
+      expect(container.querySelector('.slm-popup')?.getAttribute('data-tab')).toBe('other');
+      const first = container.querySelector('.slm-popup-body')?.firstElementChild;
+      expect(first?.querySelectorAll('[data-host]'), url).toHaveLength(4);
+      // The panel action stays reachable, but it is no longer the solid primary.
+      expect(container.querySelector('[data-launch="open-study-panel"]')?.className).not.toContain('is-primary');
+      unmount();
+    }
+  });
+
+  it('shows the saved count once the library answers, and no number for an empty library', async () => {
+    const empty = await renderPopup();
+    expect(empty.container.querySelector('.slm-popup-count')).toBeNull();
+    empty.unmount();
+
+    getSavedSessions.mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) => ({ id: `s${i}` }) as SavedSessionSnapshot),
+    );
+    const { container, unmount } = await renderPopup();
+    const row = container.querySelector('[data-launch="saved-questions"]');
+    expect(row?.querySelector('.slm-popup-count')?.textContent).toBe('12');
+    expect(row?.textContent).toContain(SAVED_QUESTIONS_LABEL);
+    unmount();
+  });
+
+  it('explains what turning stemlm off does, as the description of the switch', async () => {
+    const { container, unmount } = await renderPopup();
+    const toggle = container.querySelector('[data-launch="stemlm-enabled"]') as HTMLButtonElement;
+    const hint = document.getElementById(toggle.getAttribute('aria-describedby') ?? '');
+    expect(hint?.textContent).toMatch(/hide the stemlm button/);
+    expect(hint?.textContent).toMatch(/saved questions still work/);
+    unmount();
+  });
+
   it('each host control opens that chat website', async () => {
     const { container, unmount } = await renderPopup();
     for (const host of CHAT_HOST_LAUNCH) {

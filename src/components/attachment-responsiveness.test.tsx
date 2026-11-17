@@ -102,9 +102,13 @@ describe('attachment responsiveness', () => {
     await act(async () => { finish(true); });
   });
 
-  it('ships the host dock spinner animation with a reduced-motion override', () => {
+  it('ships the host dock attaching animation with a reduced-motion override', () => {
     expect(_slotCss).toMatch(/\.slm-inject-status|\.slm-inject-spinner/);
-    expect(_slotCss).toMatch(/animation:\s*slm-spin/);
-    expect(_slotCss).toMatch(/prefers-reduced-motion:\s*reduce/);
+    // While attaching, the three shapes of the mark rise in turn; this is the one loop.
+    expect(_slotCss).toMatch(/\.slm-inject-spinner \.slm-inject-apex\s*\{[^}]*animation:\s*slm-inject-think [^;]*infinite/);
+    expect(_slotCss).toContain('@keyframes slm-inject-think');
+    const reduced = _slotCss.slice(_slotCss.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.slm-inject-spinner \.slm-inject-apex\s*\{[^}]*animation:\s*none/);
+    expect(reduced).toMatch(/transition:\s*none/);
   });
 });

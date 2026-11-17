@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { OverlayButton } from './OverlayButton';
 import { useStore } from '@/src/state/store';
 import { DEFAULT_SETTINGS } from '@/src/lib/settings';
+import { INJECT_RADIUS, INJECT_SIGNAL, INJECT_SIGNAL_STRONG } from '@/src/lib/inject-control-css';
 
 const inject = vi.fn(async () => true);
 const getLastQuestion = vi.fn(() => 'Old circuit question');
@@ -107,7 +108,7 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     expect(useStore.getState().panelOpen).toBe(true);
   });
 
-  it('idle glyph is a plus in a rounded-square control, not the therefore mark', () => {
+  it('idle glyph is the therefore mark, so the control cannot be taken for the chat\'s own plus', () => {
     useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle' });
     act(() => {
       root = createRoot(container);
@@ -115,17 +116,26 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     });
     const btn = container.querySelector('.slm-inject-btn') as HTMLButtonElement;
     expect(btn).toBeTruthy();
-    expect(btn.getAttribute('data-glyph')).toBe('plus');
+    expect(btn.getAttribute('data-glyph')).toBe('mark');
     expect(btn.className).not.toMatch(/is-attached/);
     const html = btn.innerHTML;
-    expect(html).toContain('M12 5v14');
-    expect(html).toContain('slm-inject-plus');
+    // Two premises and a conclusion: two dots and the square apex, drawn inline at glyph size.
+    const mark = btn.querySelector('.slm-inject-mark') as SVGElement;
+    expect(mark.querySelectorAll('circle.slm-inject-dot')).toHaveLength(2);
+    expect(mark.querySelectorAll('rect.slm-inject-apex')).toHaveLength(1);
+    expect(btn.querySelector('.slm-inject-glyph')?.classList.contains('is-mark')).toBe(true);
+    expect(html).not.toContain('M12 5v14');
+    expect(html).not.toContain('slm-inject-plus');
+    // The tick is already in place for the swap; it is only shown once the guide is attached.
     expect(html).toContain('slm-inject-tick');
-    expect(btn.querySelectorAll('circle')).toHaveLength(0);
     expect(html).not.toContain('slm-extension-logo');
+    // The glyph is decoration: the control's name says what pressing it does.
+    expect(btn.querySelector('.slm-inject-glyph')?.getAttribute('aria-hidden')).toBe('true');
+    expect(btn.getAttribute('aria-label')).toBe('Study with stemlm: attach the guide to this question');
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('attached glyph is a tick; emptying the composer returns to plus', async () => {
+  it('attached glyph is a tick; emptying the composer returns to the mark', async () => {
     vi.useFakeTimers();
     getLastQuestion.mockReturnValue('A question');
     const ed = document.getElementById('ed')!;
@@ -140,7 +150,9 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     const btn = container.querySelector('.slm-inject-btn') as HTMLButtonElement;
     expect(btn.getAttribute('data-glyph')).toBe('tick');
     expect(btn.className).toMatch(/is-attached/);
-    expect(btn.innerHTML).toContain('M20 6 9 17l-5-5');
+    expect(btn.querySelector('.slm-inject-glyph')?.classList.contains('is-tick')).toBe(true);
+    expect(btn.querySelector('.slm-inject-tick path')).toBeTruthy();
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
 
     ed.textContent = '';
     await act(async () => {
@@ -148,9 +160,9 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     });
     const after = container.querySelector('.slm-inject-btn') as HTMLButtonElement;
     expect(useStore.getState().buttonInjected).toBe(false);
-    expect(after.getAttribute('data-glyph')).toBe('plus');
+    expect(after.getAttribute('data-glyph')).toBe('mark');
     expect(after.className).not.toMatch(/is-attached/);
-    expect(after.innerHTML).toContain('M12 5v14');
+    expect(after.querySelector('.slm-inject-glyph')?.classList.contains('is-mark')).toBe(true);
     vi.useRealTimers();
   });
 
@@ -173,16 +185,26 @@ describe('OverlayButton re-inject vs panel toggle', () => {
     vi.useRealTimers();
   });
 
-  it('shadow inject stylesheet is a rounded square in brand orange, not a teal circle', () => {
-    const css = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
-    const injectBlock = css.slice(css.indexOf('.slm-inject-btn {'), css.indexOf('.slm-inject-btn:hover'));
-    expect(injectBlock).toContain('border-radius: 9px');
-    expect(injectBlock).not.toContain('border-radius: 50%');
-    expect(injectBlock).toContain('var(--slm-signal)');
-    expect(injectBlock).not.toContain('var(--slm-accent)');
-    expect(css).not.toMatch(/\.slm-inject-btn\s*\{[^}]*border-radius:\s*50%/);
+  it('carries its own stylesheet into the shadow root: a rounded square on the brand signal', () => {
+    useStore.setState({ buttonInjected: false, panelOpen: false, status: 'idle' });
+    act(() => {
+      root = createRoot(container);
+      root.render(<OverlayButton />);
+    });
+    // Not docked here, so the control is the fixed fallback and brings its rules with it.
+    const css = container.querySelector('.slm-fab-wrap--fixed > style')?.textContent ?? '';
+    const base = css.slice(css.indexOf('.slm-inject-btn {'), css.indexOf('.slm-inject-btn:hover'));
+    expect(base).toContain(`border-radius: ${INJECT_RADIUS}`);
+    expect(base).not.toContain('border-radius: 50%');
+    expect(css).toContain(INJECT_SIGNAL);
+    expect(css).not.toMatch(/--slm-accent|teal/);
+    // The panel's sheet holds none of it: one stylesheet serves the docked and the fixed control.
+    const panelCss = readFileSync(resolve(process.cwd(), 'assets/panel.css'), 'utf8');
+    expect(panelCss).not.toMatch(/\.slm-inject-(?:btn|glyph|mark|tick|spinner)/);
+    // And its orange is the panel's signal, to the digit.
     const tokens = readFileSync(resolve(process.cwd(), 'assets/tokens.css'), 'utf8');
-    expect(tokens).toMatch(/--slm-signal:\s*#ff6b2c/i);
+    expect(new RegExp(`--slm-signal:\\s*${INJECT_SIGNAL}`, 'i').test(tokens)).toBe(true);
+    expect(new RegExp(`--slm-signal-strong:\\s*${INJECT_SIGNAL_STRONG}`, 'i').test(tokens)).toBe(true);
   });
 
   it('hides the attach control when stemlm is turned off', async () => {

@@ -1,4 +1,11 @@
-/* Extension pages: options + popup — stemlm.app light workspace style */
+/*
+ * stemLM extension pages: toolbar popup, welcome, saved questions, settings.
+ *
+ * Same system as the study panel (assets/panel.css): hierarchy from type and space, a surface only
+ * around a real object, solid ink for the primary action, orange for the one thing that matters.
+ * Tokens: assets/tokens.css. This sheet is also loaded in the content script's shadow root, where
+ * the saved-questions and settings dialogs open over the chat, so nothing here may assume a page.
+ */
 
 html[data-stemlm-theme],
 body[data-stemlm-theme] {
@@ -6,26 +13,12 @@ body[data-stemlm-theme] {
   background: var(--slm-bg);
   color: var(--slm-fg);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: var(--slm-text-base, 15px);
   font-weight: 400;
-  -webkit-font-smoothing: antialiased;
   line-height: 1.55;
-}
-
-html.slm-popup-page,
-html.slm-popup-page[data-stemlm-theme],
-body.slm-popup-page,
-body.slm-popup-page[data-stemlm-theme] {
-  width: 312px;
-  max-width: 312px;
-  margin: 0;
-  overflow: hidden;
-  background: var(--slm-bg, #f5f5f5);
-  color: var(--slm-fg);
-  transition: none;
-}
-.slm-popup-page #root {
-  width: 312px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ---------- shared brand mark + wordmark ---------- */
@@ -44,7 +37,6 @@ body.slm-popup-page[data-stemlm-theme] {
   height: 100%;
   width: auto;
 }
-
 .slm-sr-only {
   position: absolute;
   width: 1px;
@@ -57,6 +49,420 @@ body.slm-popup-page[data-stemlm-theme] {
   border: 0;
 }
 
+/* ---------- shared: the instrument-voice label and the neutral switch ---------- */
+.slm-popup-label,
+.slm-settings-group-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--slm-tracking-label);
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--slm-fg-subtle);
+}
+/*
+ * Off is an outline, on is solid ink: the two states differ in shape as well as tone, and both
+ * clear 3:1 against the page in either theme without borrowing a colour.
+ */
+.slm-popup-switch,
+.slm-set-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--slm-fg-subtle);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-sizing: border-box;
+  transition: background var(--slm-dur-2) var(--slm-ease-out), border-color var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-switch-knob,
+.slm-set-knob {
+  position: absolute;
+  top: 2.5px;
+  left: 2.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--slm-fg-subtle);
+  transition: transform var(--slm-dur-3) var(--slm-ease-out), background var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-toggle.is-on .slm-popup-switch,
+.slm-set-switch.is-on {
+  border-color: var(--slm-solid);
+  background: var(--slm-solid);
+}
+.slm-popup-toggle.is-on .slm-popup-switch-knob,
+.slm-set-switch.is-on .slm-set-knob {
+  background: var(--slm-solid-fg);
+  transform: translateX(14px);
+}
+
+/* ---------- toolbar popup ---------- */
+/* Chrome sizes the popup window from the document, and cannot shrink it again: the width is fixed
+   on every box from <html> down, and nothing animates it. */
+html.slm-popup-page,
+html.slm-popup-page[data-stemlm-theme],
+body.slm-popup-page,
+body.slm-popup-page[data-stemlm-theme] {
+  width: 312px;
+  max-width: 312px;
+  margin: 0;
+  overflow: hidden;
+  background: var(--slm-bg, #fbfbfa);
+  color: var(--slm-fg);
+  transition: none;
+}
+.slm-popup-page #root {
+  width: 312px;
+}
+.slm-popup {
+  --slm-popup-pad: 16px;
+  position: relative;
+  width: 312px;
+  margin: 0;
+  padding: 14px var(--slm-popup-pad) 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  background: var(--slm-bg);
+  color: var(--slm-fg);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+.slm-popup *,
+.slm-popup *::before,
+.slm-popup *::after {
+  box-sizing: border-box;
+}
+.slm-popup button {
+  appearance: none;
+  margin: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.slm-popup button:disabled {
+  cursor: default;
+}
+.slm-popup button:focus {
+  outline: none;
+}
+.slm-popup button:focus-visible {
+  outline: 2px solid var(--slm-ring);
+  outline-offset: 2px;
+}
+.slm-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+.slm-popup-head h1 {
+  margin: 0;
+  line-height: 0;
+}
+/* What this popup can do on the tab it was opened over. */
+.slm-popup-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--slm-text-xs);
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--slm-fg-muted);
+}
+.slm-popup-status svg {
+  flex-shrink: 0;
+  color: var(--slm-fg);
+}
+.slm-popup-status-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--slm-fg-subtle);
+  border-radius: 50%;
+}
+.slm-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Both layouts are the same height, so the popup never resizes; the body only waits out of sight
+   for the few milliseconds it takes to learn which tab it is on. */
+.slm-popup[data-tab='pending'] .slm-popup-body,
+.slm-popup[data-tab='pending'] .slm-popup-status {
+  visibility: hidden;
+}
+.slm-popup:not([data-tab='pending']) .slm-popup-body,
+.slm-popup:not([data-tab='pending']) .slm-popup-status {
+  animation: slm-page-fade var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-primary {
+  display: flex;
+  flex-direction: column;
+}
+.slm-popup-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-md);
+  background: var(--slm-bg-elevated);
+  color: var(--slm-fg);
+  font-size: var(--slm-text-sm);
+  font-weight: 550;
+  line-height: 1.2;
+  transition: transform var(--slm-dur-1) var(--slm-ease-out);
+}
+.slm-popup-open:hover:not(:disabled) {
+  border-color: var(--slm-border-strong);
+  background: var(--slm-bg-subtle);
+}
+.slm-popup-open.is-primary {
+  border-color: transparent;
+  background: var(--slm-solid);
+  color: var(--slm-solid-fg);
+}
+.slm-popup-open.is-primary:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--slm-solid-hover);
+}
+.slm-popup-open:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.slm-popup-open:disabled {
+  opacity: 0.6;
+}
+.slm-popup-error {
+  margin: 10px 0 0;
+  padding: 1px 0 1px 10px;
+  border-left: 2px solid var(--slm-error);
+  font-size: var(--slm-text-xs);
+  line-height: 1.45;
+  color: var(--slm-fg);
+  animation: slm-page-rise var(--slm-dur-3) var(--slm-ease-out);
+}
+/* Setting rows run edge to edge, ruled like a list: no boxes inside the popup. */
+.slm-popup-actions {
+  display: flex;
+  flex-direction: column;
+  margin: 0 calc(-1 * var(--slm-popup-pad));
+  border-block: 1px solid var(--slm-border-subtle);
+}
+.slm-popup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px var(--slm-popup-pad);
+  border: 0;
+  background: transparent;
+  color: var(--slm-fg);
+  text-align: left;
+}
+.slm-popup-row + .slm-popup-row {
+  border-top: 1px solid var(--slm-border-subtle);
+}
+.slm-popup-row:hover:not(:disabled) {
+  background: var(--slm-bg-subtle);
+}
+.slm-popup .slm-popup-row:focus-visible,
+.slm-popup .slm-popup-host:focus-visible {
+  outline-offset: -2px;
+}
+.slm-popup-row-title {
+  font-size: var(--slm-text-sm);
+  font-weight: 550;
+  line-height: 1.3;
+}
+.slm-popup-row-hint {
+  font-size: var(--slm-text-xs);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--slm-fg-muted);
+}
+/* Title and switch share a line; the explanation runs the full width beneath them. */
+.slm-popup-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.slm-popup-toggle .slm-popup-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slm-popup-toggle .slm-popup-row-hint {
+  grid-column: 1 / -1;
+}
+.slm-popup-link-row .slm-popup-row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.slm-popup-count {
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--slm-fg-muted);
+  animation: slm-page-fade var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-row-chevron {
+  flex-shrink: 0;
+  color: var(--slm-fg-subtle);
+  transition: transform var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-link-row:hover:not(:disabled) .slm-popup-row-chevron {
+  transform: translateX(2px);
+  color: var(--slm-fg);
+}
+/* The four chats: one control group, four cells. */
+.slm-popup-hosts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.slm-popup-host-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-md);
+  background: var(--slm-bg-elevated);
+  overflow: hidden;
+}
+.slm-popup-host {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 56px;
+  padding: 10px 2px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--slm-fg);
+}
+.slm-popup-host + .slm-popup-host {
+  border-left: 1px solid var(--slm-border-subtle);
+}
+.slm-popup-host:first-child {
+  border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px);
+}
+.slm-popup-host:last-child {
+  border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0;
+}
+.slm-popup-host:hover:not(:disabled) {
+  background: var(--slm-bg-subtle);
+}
+.slm-popup-host-logo {
+  display: inline-flex;
+  color: var(--slm-fg);
+  transition: transform var(--slm-dur-2) var(--slm-ease-out);
+}
+.slm-popup-host:hover:not(:disabled) .slm-popup-host-logo {
+  transform: translateY(-1px);
+}
+.slm-popup-host-name {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--slm-fg-muted);
+}
+.slm-popup-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -6px;
+}
+.slm-popup-help,
+.slm-popup-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--slm-fg-muted);
+  font-size: var(--slm-text-xs);
+  font-weight: 500;
+  line-height: 1.2;
+}
+.slm-popup .slm-popup-help {
+  margin-left: -2px;
+}
+.slm-popup .slm-popup-settings {
+  margin-right: -2px;
+}
+.slm-popup-help:hover:not(:disabled),
+.slm-popup-settings:hover:not(:disabled) {
+  color: var(--slm-fg);
+}
+.slm-popup-help:hover:not(:disabled) {
+  text-decoration: underline;
+  text-decoration-color: var(--slm-border-strong);
+  text-underline-offset: 3px;
+}
+.slm-popup-settings svg {
+  display: block;
+  transition: transform var(--slm-dur-4) var(--slm-ease-out);
+}
+.slm-popup-settings:hover:not(:disabled) svg {
+  transform: rotate(45deg);
+}
+.slm-popup-empty {
+  font-size: 13px;
+  color: var(--slm-fg-muted);
+  padding: 0.25rem 0;
+  line-height: 1.5;
+}
+.slm-saved-empty-mark {
+  display: flex;
+  color: var(--slm-fg-subtle);
+}
+.slm-saved-empty-mark .slm-icon-save {
+  fill: none;
+  stroke: currentColor;
+}
+
+@keyframes slm-page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slm-page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- extension page shells ---------- */
 html.slm-library-page,
 body.slm-library-page {
   width: 100%;
@@ -73,8 +479,7 @@ body.slm-settings-page {
   /*
    * The window shrink-wraps to the sheet, so there is normally nothing to
    * scroll at all. On a screen too short for the full sheet the rest must
-   * still be reachable — but without a scrollbar cutting down the side of the
-   * rounded cards.
+   * still be reachable, without a scrollbar cutting down the side of it.
    */
   overflow-x: hidden;
   overflow-y: auto;
@@ -102,255 +507,6 @@ body.slm-settings-page::-webkit-scrollbar {
   height: auto;
 }
 
-/* ---------- popup (compact action chrome — not the old 492px launch grid) ---------- */
-.slm-popup {
-  --slm-popup-tile: #ffffff;
-  --slm-popup-tile-border: #e2e2e4;
-  --slm-popup-tile-hover: #f3f3f4;
-  position: relative;
-  width: 312px;
-  margin: 0;
-  padding: 0.75rem 0.8rem 0.8rem;
-  background: var(--slm-bg);
-  color: var(--slm-fg);
-  font-family: var(--font-sans);
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: hidden;
-  container-type: inline-size;
-}
-html[data-stemlm-theme='dark'] .slm-popup {
-  --slm-popup-tile: #222222;
-  --slm-popup-tile-border: #3a3a3a;
-  --slm-popup-tile-hover: #2b2b2b;
-}
-.slm-popup-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  margin-bottom: 0.65rem;
-}
-.slm-popup-head h1 {
-  margin: 0;
-  line-height: 0;
-}
-.slm-popup-settings {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--slm-fg-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.slm-popup-settings svg {
-  display: block;
-}
-.slm-popup-settings:hover {
-  background: var(--slm-bg-muted);
-  color: var(--slm-fg);
-}
-.slm-popup-settings:focus {
-  outline: none;
-}
-.slm-popup-settings:focus-visible {
-  outline: 1.5px solid var(--slm-ring);
-  outline-offset: 2px;
-}
-.slm-popup-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.slm-popup-action {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  margin: 0;
-  padding: 0.58rem 0.7rem;
-  border: 1px solid var(--slm-popup-tile-border);
-  border-radius: var(--radius-md);
-  background: var(--slm-popup-tile);
-  color: var(--slm-fg);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-.slm-popup-action:focus {
-  outline: none;
-}
-.slm-popup-action:focus-visible {
-  outline: 2px solid var(--slm-ring);
-  outline-offset: 2px;
-}
-.slm-popup-action:hover {
-  background: var(--slm-popup-tile-hover);
-  border-color: var(--slm-fg-subtle);
-}
-.slm-popup-action.is-primary {
-  background: var(--slm-solid);
-  color: var(--slm-solid-fg);
-  border-color: transparent;
-}
-.slm-popup-action.is-primary:hover {
-  background: var(--slm-solid-hover);
-  color: var(--slm-solid-fg);
-  border-color: transparent;
-}
-.slm-popup-action-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  opacity: 0.78;
-}
-.slm-popup-action .slm-icon-save {
-  fill: none;
-  stroke: currentColor;
-}
-.slm-popup-toggle {
-  gap: 0.5rem;
-}
-.slm-popup-toggle:not(.is-on) {
-  color: var(--slm-fg-muted);
-}
-.slm-popup-toggle-copy {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.4rem;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.slm-popup-toggle-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.slm-popup-switch {
-  position: relative;
-  width: 2.2rem;
-  height: 1.28rem;
-  margin-left: auto;
-  flex: 0 0 auto;
-  border-radius: var(--radius-pill);
-  background: var(--slm-popup-tile-border);
-  pointer-events: none;
-  transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.slm-popup-toggle.is-on .slm-popup-switch {
-  background: var(--slm-solid);
-}
-.slm-popup-switch-knob {
-  position: absolute;
-  top: 0.14rem;
-  left: 0.14rem;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 15, 18, 0.22);
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.slm-popup-toggle.is-on .slm-popup-switch-knob {
-  transform: translateX(0.92rem);
-  background: var(--slm-solid-fg);
-}
-@media (prefers-reduced-motion: reduce) {
-  .slm-popup-switch,
-  .slm-popup-switch-knob {
-    transition: none;
-  }
-}
-.slm-popup-hosts {
-  margin-top: 0.7rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--slm-border);
-}
-.slm-popup-hosts-label {
-  margin: 0 0 0.4rem;
-  font-size: 10.5px;
-  font-weight: 550;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--slm-fg-subtle);
-}
-.slm-popup-host-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem;
-}
-.slm-popup-host {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.28rem;
-  margin: 0;
-  padding: 0.5rem 0.15rem 0.42rem;
-  border: 1px solid var(--slm-popup-tile-border);
-  border-radius: var(--radius-md);
-  background: var(--slm-popup-tile);
-  color: var(--slm-fg);
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.slm-popup-host:hover {
-  background: var(--slm-popup-tile-hover);
-  border-color: var(--slm-fg-subtle);
-}
-.slm-popup-host:focus {
-  outline: none;
-}
-.slm-popup-host:focus-visible {
-  outline: 2px solid var(--slm-ring);
-  outline-offset: 2px;
-}
-.slm-popup-host-logo {
-  display: inline-flex;
-  color: var(--slm-fg);
-}
-.slm-popup-host-name {
-  font-size: 10px;
-  font-weight: 550;
-  letter-spacing: -0.01em;
-  color: var(--slm-fg-muted);
-  line-height: 1.15;
-}
-.slm-popup-error {
-  margin: 0.45rem 0 0;
-  font-size: 12px;
-  color: var(--slm-error);
-  line-height: 1.45;
-}
-.slm-popup-empty {
-  font-size: 13px;
-  color: var(--slm-fg-muted);
-  padding: 0.25rem 0;
-  line-height: 1.5;
-}
-.slm-saved-empty-mark {
-  display: flex;
-  color: var(--slm-fg-subtle);
-}
-.slm-saved-empty-mark .slm-icon-save {
-  fill: none;
-  stroke: currentColor;
-}
 /* ---------- saved-library overlay (centered on the chat tab) ---------- */
 .slm-library-overlay {
   position: fixed;
@@ -1517,166 +1673,556 @@ html[data-stemlm-theme='dark'] .slm-popup {
   color: var(--slm-error);
 }
 
-/* Popup link to the first-run guide (ONBOARD-01). */
-.slm-popup-help {
-  display: block;
-  width: 100%;
-  margin: 0.7rem 0 0;
-  padding: 0.35rem 0;
-  border: none;
-  background: none;
-  color: var(--slm-fg-muted);
-  font: inherit;
-  font-size: 12.5px;
-  text-align: left;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
+/* ---------- welcome: first-run guide (ONBOARD-01) ---------- */
+/* The page hosts real panel parts, which expect the border-box model the panel's root gives them. */
+.slm-welcome-page *:not(svg):not(svg *) {
+  box-sizing: border-box;
 }
-.slm-popup-help:hover:not(:disabled) {
-  color: var(--slm-fg);
+.slm-welcome {
+  --slm-welcome-gutter: clamp(16px, 4vw, 40px);
+  /* The one display size on the page: the scale's largest step, growing with the window. */
+  --slm-welcome-display: clamp(var(--slm-text-3xl), 1.3rem + 2.4vw, 2.875rem);
+  max-width: calc(1120px + 2 * var(--slm-welcome-gutter));
+  margin: 0 auto;
+  padding: 0 var(--slm-welcome-gutter);
 }
-.slm-popup-help:focus {
-  outline: none;
-}
-.slm-popup-help:focus-visible {
+.slm-welcome a:focus-visible {
   outline: 2px solid var(--slm-ring);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
-
-/* ---------- welcome: first-run guide (ONBOARD-01) ---------- */
-.slm-welcome {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: 40px 24px 56px;
+.slm-welcome-kicker,
+.slm-welcome-start-label,
+.slm-welcome-step-num,
+.slm-welcome-fig-field,
+.slm-welcome-foot-version,
+.slm-welcome-keys > span:first-child,
+.slm-demo-chat-label,
+.slm-demo-flag {
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--slm-tracking-label);
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--slm-fg-subtle);
 }
-.slm-welcome-head {
-  margin-bottom: 28px;
+.slm-welcome-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
 }
-.slm-welcome-title {
-  margin: 0;
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--slm-fg);
-}
-.slm-welcome-lede {
-  margin: 8px 0 0;
-  max-width: 60ch;
-  font-size: 16px;
-  color: var(--slm-fg-muted);
-}
-.slm-welcome-steps {
-  display: grid;
-  gap: 28px;
-  margin: 36px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.slm-welcome-step {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
-  align-items: start;
-  gap: 28px;
-  padding-top: 28px;
-  border-top: 1px solid var(--slm-border);
-}
-.slm-welcome-step:first-child {
-  padding-top: 0;
-  border-top: none;
-}
-.slm-welcome-step-num {
+.slm-welcome-top-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-pill);
-  background: var(--slm-solid);
-  color: var(--slm-solid-fg);
-  font-size: 13px;
-  font-weight: 600;
+  gap: 4px;
+  min-height: 32px;
+  color: var(--slm-fg-muted);
+  font-size: var(--slm-text-sm);
+  font-weight: 500;
+  text-decoration: none;
 }
-.slm-welcome-step h2 {
-  margin: 12px 0 0;
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.slm-welcome-top-link:hover {
   color: var(--slm-fg);
 }
-.slm-welcome-step p {
-  margin: 6px 0 0;
-  max-width: 46ch;
-  color: var(--slm-fg-muted);
+
+.slm-welcome-hero {
+  padding: clamp(28px, 6vw, 72px) 0 clamp(36px, 5vw, 56px);
 }
-.slm-welcome-shot {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--slm-border);
-  border-radius: var(--radius-card);
-  background: var(--slm-bg-elevated);
+.slm-welcome-kicker {
+  margin: 0;
+  color: var(--slm-signal-ink);
+}
+.slm-welcome-title {
+  max-width: 17em;
+  margin: 12px 0 0;
+  font-size: var(--slm-welcome-display);
+  font-weight: 620;
+  letter-spacing: -0.024em;
+  line-height: 1.08;
+  color: var(--slm-fg);
+  text-wrap: balance;
+}
+.slm-welcome-lede {
+  max-width: 36rem;
+  margin: 18px 0 0;
+  font-size: var(--slm-text-lg);
+  line-height: 1.55;
+  color: var(--slm-fg-muted);
+  text-wrap: pretty;
 }
 .slm-welcome-start {
-  margin-top: 44px;
-  padding-top: 28px;
-  border-top: 1px solid var(--slm-border);
-}
-.slm-welcome-start h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--slm-fg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 28px;
 }
 .slm-welcome-hosts {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
 }
 .slm-welcome-host {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  min-height: 40px;
+  padding: 0 14px 0 12px;
   border: 1px solid var(--slm-border);
   border-radius: var(--radius-md);
   background: var(--slm-bg-elevated);
+  box-shadow: var(--slm-shadow-1);
   color: var(--slm-fg);
-  font-weight: 500;
+  font-size: var(--slm-text-md);
+  font-weight: 550;
+  line-height: 1.2;
   text-decoration: none;
+  transition: transform var(--slm-dur-1) var(--slm-ease-out);
 }
 .slm-welcome-host:hover {
+  border-color: var(--slm-border-strong);
+  background: var(--slm-bg-subtle);
+}
+.slm-welcome-host:active {
+  transform: scale(0.98);
+}
+.slm-welcome .slm-welcome-host:focus-visible {
+  border-radius: var(--radius-md);
+}
+
+.slm-welcome-section {
+  padding: clamp(40px, 6vw, 72px) 0;
+  border-top: 1px solid var(--slm-border-subtle);
+}
+.slm-welcome-demo {
+  padding-top: 0;
+  border-top: 0;
+}
+.slm-welcome-section-head {
+  max-width: 38rem;
+  margin-bottom: 24px;
+}
+.slm-welcome-section-head h2 {
+  margin: 0;
+  font-size: var(--slm-text-2xl);
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.slm-welcome-section-head p {
+  margin: 8px 0 0;
+  font-size: var(--slm-text-base);
+  line-height: 1.6;
+  color: var(--slm-fg-muted);
+  text-wrap: pretty;
+}
+
+/* The demo: a neutral window with the chat on the left and the study panel docked on the right. */
+.slm-demo-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 0.4fr) minmax(0, 1fr);
+  height: clamp(560px, 74vh, 700px);
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-xl);
+  background: var(--slm-bg-subtle);
+  overflow: hidden;
+}
+.slm-demo-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px 20px 20px;
+}
+.slm-demo-chat-label {
+  margin: 0;
+}
+.slm-demo-thread {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden;
+}
+.slm-demo-bubble {
+  align-self: flex-end;
+  max-width: 94%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--slm-bg-muted);
+  color: var(--slm-fg);
+  font-size: var(--slm-text-sm);
+  line-height: 1.5;
+}
+.slm-demo-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.slm-demo-reply span {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
   background: var(--slm-bg-muted);
 }
-.slm-welcome-host:focus-visible {
+/* The panel's own sheet positions it against the window; here it sits in the frame instead. */
+.slm-panel.slm-demo-panel {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  margin: 8px 8px 8px 0;
+  box-shadow: var(--slm-shadow-2);
+}
+.slm-panel.slm-demo-panel:focus-visible {
   outline: 2px solid var(--slm-ring);
   outline-offset: 2px;
 }
-.slm-welcome-note {
-  margin: 28px 0 0;
-  max-width: 64ch;
-  font-size: 13px;
+.slm-demo-flag {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.slm-welcome-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin: 16px 0 0;
+  font-size: var(--slm-text-sm);
+  line-height: 1.4;
+  color: var(--slm-fg-muted);
+}
+.slm-welcome-key-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.slm-welcome-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--slm-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--slm-bg-elevated);
+  color: var(--slm-fg);
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-xs);
+  font-weight: 500;
+  line-height: 1;
+}
+.slm-welcome-keys kbd:last-of-type {
+  margin-right: 3px;
+}
+
+/* Crops of real UI: a chat box with the stemlm button in it. */
+.slm-welcome-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 10px 10px 14px;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-xl);
+  background: var(--slm-bg-elevated);
+  box-shadow: var(--slm-shadow-1);
+}
+.slm-welcome-composer-text {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--slm-text-sm);
+  line-height: 1.45;
+  color: var(--slm-fg);
+}
+.slm-demo-chat .slm-welcome-composer-text {
   color: var(--slm-fg-subtle);
 }
-@media (max-width: 760px) {
-  .slm-welcome {
-    padding: 28px 16px 40px;
-  }
-  .slm-welcome-step {
+.slm-welcome-composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-left: -4px;
+}
+.slm-welcome-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--slm-bg-muted);
+  color: var(--slm-fg-subtle);
+}
+.slm-welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 4px 9px 4px 7px;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-sm);
+  background: var(--slm-bg-subtle);
+  color: var(--slm-fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  line-height: 1.4;
+}
+.slm-welcome .slm-inject-btn {
+  cursor: default;
+}
+
+.slm-welcome-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+}
+.slm-welcome-step {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.slm-welcome-illo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 172px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--slm-bg-subtle);
+  overflow: hidden;
+}
+/* The third crop is a corner of the study page: its marks and the key relation of a step. */
+.slm-welcome-illo--page {
+  --slm-content-read-size: 13px;
+  --slm-plate-pad: 0.9rem;
+  justify-content: flex-end;
+  padding-bottom: 0;
+}
+.slm-welcome-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--slm-border);
+  border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--slm-bg);
+  box-shadow: var(--slm-shadow-1);
+}
+.slm-welcome-marks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.slm-welcome-marks .slm-step-rail-item.is-active .slm-step-rail-mark {
+  animation: none;
+}
+.slm-welcome-step-num {
+  font-variant-numeric: tabular-nums;
+}
+.slm-welcome-step h3 {
+  margin: 6px 0 0;
+  font-size: var(--slm-text-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+.slm-welcome-step p {
+  max-width: 30rem;
+  margin: 6px 0 0;
+  font-size: var(--slm-text-md);
+  line-height: 1.55;
+  color: var(--slm-fg-muted);
+}
+
+.slm-welcome-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 24px;
+}
+.slm-welcome-fig {
+  margin: 0;
+  min-width: 0;
+}
+.slm-welcome-fig-plate {
+  /* The figure compiler's height budget, scaled to the tile. */
+  --slm-content-diagram-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 196px;
+  padding: 12px;
+  border: 1px solid var(--slm-border);
+  border-radius: var(--radius-lg);
+  background: var(--slm-plate);
+  overflow: hidden;
+}
+.slm-welcome-fig-plate .slm-diagram {
+  width: 100%;
+  padding: 0;
+  animation: slm-page-fade var(--slm-dur-4) var(--slm-ease-out);
+}
+.slm-welcome-fig figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.slm-welcome-fig-label {
+  font-size: var(--slm-text-sm);
+  font-weight: 550;
+  line-height: 1.3;
+}
+.slm-welcome-fig-field {
+  flex-shrink: 0;
+}
+
+.slm-welcome-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 32px;
+  margin: 0;
+}
+.slm-welcome-fact {
+  padding-top: 14px;
+  border-top: 1px solid var(--slm-border);
+}
+.slm-welcome-fact dt {
+  font-size: var(--slm-text-base);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.slm-welcome-fact dd {
+  margin: 4px 0 0;
+  font-size: var(--slm-text-md);
+  line-height: 1.55;
+  color: var(--slm-fg-muted);
+}
+
+.slm-welcome-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 20px 0 40px;
+  border-top: 1px solid var(--slm-border-subtle);
+}
+.slm-welcome-foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+.slm-welcome-foot-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  color: var(--slm-fg-muted);
+  font-size: var(--slm-text-sm);
+  text-decoration: none;
+}
+.slm-welcome-foot-links a:hover {
+  color: var(--slm-fg);
+  text-decoration: underline;
+  text-decoration-color: var(--slm-border-strong);
+  text-underline-offset: 3px;
+}
+
+/* Arrival: the hero settles in line by line, then the demo. Nothing else on the page moves. */
+.slm-welcome-hero > *,
+.slm-welcome-demo {
+  animation: slm-page-rise var(--slm-dur-4) var(--slm-ease-out) both;
+}
+.slm-welcome-hero > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.slm-welcome-hero > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.slm-welcome-hero > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.slm-welcome-demo {
+  animation-delay: 160ms;
+}
+
+@media (max-width: 900px) {
+  .slm-demo-frame {
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    height: clamp(520px, 78vh, 640px);
+  }
+  .slm-demo-chat {
+    display: none;
+  }
+  .slm-panel.slm-demo-panel {
+    margin: 6px;
+  }
+  .slm-welcome-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+  .slm-welcome-illo {
+    height: 156px;
+  }
+  .slm-welcome-illo > * {
+    width: 100%;
+    max-width: 26rem;
+    margin-inline: auto;
+  }
+  .slm-welcome-gallery,
+  .slm-welcome-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .slm-welcome-gallery,
+  .slm-welcome-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .slm-welcome-hosts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .slm-welcome-start-label {
+    width: 100%;
+  }
+  .slm-demo-flag {
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .slm-popup-settings,
-  .slm-popup-action,
+  .slm-popup *,
+  .slm-popup-body,
+  .slm-popup-status,
   .slm-popup-switch,
   .slm-popup-switch-knob,
-  .slm-popup-host,
+  .slm-set-switch,
+  .slm-set-knob,
+  .slm-welcome-hero > *,
+  .slm-welcome-demo,
+  .slm-welcome-host,
+  .slm-welcome-fig-plate .slm-diagram,
   .slm-library-time-chevron,
   .slm-library-chips,
   .slm-library-row,
@@ -1685,5 +2231,12 @@ html[data-stemlm-theme='dark'] .slm-popup {
   .slm-settings-link {
     transition: none;
     animation: none;
+  }
+  .slm-popup-open:active:not(:disabled),
+  .slm-popup-link-row:hover:not(:disabled) .slm-popup-row-chevron,
+  .slm-popup-host:hover:not(:disabled) .slm-popup-host-logo,
+  .slm-popup-settings:hover:not(:disabled) svg,
+  .slm-welcome-host:active {
+    transform: none;
   }
 }

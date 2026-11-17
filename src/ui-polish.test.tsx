@@ -66,13 +66,28 @@ describe('copy', () => {
     ].map((file) => resolve(ROOT, file));
     // JSX / HTML text that wraps onto its own lines, which visibleStrings (one line at a time) does not see.
     const wrappedText = (file: string) => /\.(tsx|html)$/.test(file)
-      ? [...readFileSync(file, 'utf8').matchAll(/>([^<>{}]*stemLM[^<>{}]*)</g)].map((m) => (m[1] ?? '').replace(/\s+/g, ' ').trim())
+      ? [...readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/>([^<>{}]*stemLM[^<>{}]*)</g)].map((m) => (m[1] ?? '').replace(/\s+/g, ' ').trim())
       : [];
     const hits = [...uiSources(), ...messageSources].flatMap((file) =>
       [...new Set([...visibleStrings(file), ...wrappedText(file)])]
         .filter((s) => s.includes('stemLM') && !modelFacing.test(s)).map((s) => `${file.slice(ROOT.length + 1)}: ${s}`));
     expect(hits).toEqual([]);
     expect(STEMLM_TOGGLE_LABEL).toBe('stemlm');
+  });
+
+  // The composer control shows the therefore mark, so nothing the panel or the content script says
+  // may still call it a plus: the chat's own attach button is the plus on that row.
+  it('calls the composer control the stemlm button, never a plus', () => {
+    const plus = /\+ button|stemlm \+|orange \+|the \+(?![\w=])|\bplus (?:button|icon|sign)\b/i;
+    const sources = [
+      ...uiSources().filter((file) => file.includes(`${join('src', 'components')}`)),
+      resolve(ROOT, 'src/content/controller.ts'),
+    ];
+    const hits = sources.flatMap((file) =>
+      visibleStrings(file).filter((s) => plus.test(s)).map((s) => `${file.slice(ROOT.length + 1)}: ${s}`));
+    expect(hits).toEqual([]);
+    const named = sources.flatMap((file) => visibleStrings(file).filter((s) => /\bstemlm button\b/.test(s)));
+    expect(named.length).toBeGreaterThanOrEqual(8);
   });
 
   it('lists the supported chats in a sentence', () => {
