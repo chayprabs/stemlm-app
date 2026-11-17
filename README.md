@@ -30,7 +30,10 @@
 </p>
 
 <p align="center">
-  <img src="public/welcome/steps.webp" width="720" alt="The stemLM study panel: a numbered step with a typeset formula, the working, and a free-body diagram of a block on a 30 degree incline.">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/study-panel-dark.webp">
+    <img src="docs/media/study-panel-light.webp" width="720" alt="The stemLM study panel: numbered step marks, a step titled Draw the forces on the block, its working with typeset math, a free-body diagram of a block on a 30 degree incline, and a takeaway.">
+  </picture>
 </p>
 
 ## What stemLM does
@@ -42,6 +45,8 @@ Chat assistants explain STEM problems well, but the explanation arrives as one l
 3. **Check.** Try a quick check, then reveal the answer. **Ask in chat** adds the step's context to your follow-up question.
 4. **Save.** Save a solution with one click. Search **Saved questions** by subject or date to reopen it.
 5. **Export.** Download the full solution as a PDF, with formulas and diagrams, or merge saved questions into one revision file.
+
+Already have an answer in the chat? Open the panel and choose **Study the latest answer**. stemLM arranges the reply into steps as it was written and labels it "Structured from the chat answer"; it adds no quick checks or takeaways of its own.
 
 It covers physics, chemistry, maths, biology, computer science, and electrical, mechanical, civil and chemical engineering. The AI works out the subject from your question.
 
@@ -98,7 +103,9 @@ flowchart LR
   A["Chat page<br/>(ChatGPT, Claude, Gemini, Grok)"] -->|answer text| B["Content script<br/>platform adapter"]
   B --> C["Capsule parser<br/>src/protocol"]
   C --> D["Study panel<br/>React in a shadow root"]
-  C -->|figure specs| E["Figure compiler<br/>src/lib/figure"]
+  B -->|plain answer| H["Answer ingest<br/>src/ingest"]
+  H --> D
+  C -->|figure specs| E["Figure compiler<br/>src/lib/figure<br/>with notation repair"]
   E -->|sanitized SVG| D
   D --> F["Saved questions<br/>extension storage"]
   D --> G["PDF export"]
@@ -113,10 +120,18 @@ The figure compiler goes **catalog → engine → Scene IR → layout kernel →
 | Chemistry | skeletal structures from SMILES, VSEPR shapes, Newman, Fischer and Haworth projections, MO, crystal-field and Jablonski diagrams, NMR splitting trees, electrochemical cells |
 | Chemical and civil engineering | McCabe–Thiele diagrams, reactors, heat exchangers, process flow diagrams, soil phase diagrams, retaining walls, frames |
 | Biology | membranes, gel electrophoresis, operons, PCR, neurons, cell division, Ramachandran plots, phylogenetic trees |
-| Computer science | flowcharts, state machines and automata, arrays, linked lists, stacks, hash tables, Gantt charts |
+| Computer science | flowcharts, state machines and automata, sequence diagrams, binary, search and heap trees with computed traversals, arrays, linked lists, stacks, hash tables, Gantt charts |
+| Digital logic | truth tables computed from Boolean expressions, logic-gate circuits derived from the same expressions, K-maps, timing diagrams |
 | Tables | matrices, dynamic-programming tables, ICE tables, Punnett squares |
 
-**Figures fail closed.** When a spec is incomplete, unsupported, or fails validation, the entire figure section is hidden while the explanation stays readable. The panel does not display raw specs or a figure-repair button. Validation checks supported drawing structure; it cannot guarantee that the model understood the question correctly.
+**Exact about content, forgiving about notation.** A spec that compiles as written is drawn as written. One that does not gets a second chance:
+
+- A diagram the model wrote in **Mermaid, Graphviz DOT, a Markdown table or a list of arrows** is translated into a native spec and drawn by the same compiler. Mermaid itself is never run.
+- A native spec with **notation slips** is repaired: a misspelt or aliased key (`function:` for `fn:`), a worded range (`-3 to 3`), JSON wrapping, a missing `kind:`, an expression written as `2x` or `x²`.
+
+Neither step may add, drop or change what the figure says, and the result must pass the same strict compiler. A figure drawn this way is marked **Auto-corrected**. Where a result follows from the inputs (the rows of a truth table, a gate network, a tree built by insertion), the engine computes it instead of trusting the model.
+
+**Figures still fail closed.** When a spec is incomplete, ambiguous, or asks for something the engines cannot draw faithfully or legibly, the figure is left out while the explanation stays readable. The panel does not display raw specs or a figure-repair button. Validation checks supported drawing structure; it cannot guarantee that the model understood the question correctly.
 
 ## Development
 
@@ -154,6 +169,9 @@ After rebuilding an unpacked install, press the extension's **Reload** control. 
 | `pnpm zip` | Package the build for the Chrome Web Store |
 | `pnpm release:chrome` | Type-check, test, build and create the release ZIP |
 | `npx vitest run src/lib/figure` | Run only the figure-compiler tests |
+| `node scripts/visual/shoot.mjs --out .visual` | Photograph the built panel on stand-in pages for the four chat sites, light and dark |
+| `node scripts/visual/pages.mjs --out .visual` | Photograph the popup, welcome page, saved questions and settings |
+| `node scripts/visual/gallery.mjs specs.json out.png` | Compile a list of figure specs with the shipped compiler and photograph them |
 
 `pnpm dev:firefox` and `pnpm build:firefox` exist, but Firefox is not tested or supported.
 
@@ -167,13 +185,15 @@ entrypoints/          MV3 entry points: background worker, content script, study
 src/platforms/        one adapter per chat site: find the composer, attach, read answers
 src/content/          the controller that runs in the chat tab and drives the panel
 src/protocol/         the instruction file, capsule parser, subject playbooks, quality checks
-src/lib/figure/       figure catalog, engines, Scene IR, layout kernel, SVG compiler
+src/ingest/           plain chat answer -> Markdown with its LaTeX -> steps (no capsule needed)
+src/lib/figure/       figure catalog, engines, Scene IR, layout kernel, SVG compiler;
+                      families/ = figure packs, intel/ = notation repair and translation
 src/lib/              storage, settings, PDF export, math rendering, tab and session plumbing
 src/components/       study panel UI: steps, solution view, figures, quick checks, reports
 src/state/            the panel's state store
 assets/               design tokens, shipped styles, bundled IBM Plex fonts
-public/               extension icons and welcome-page images
-scripts/              icon generation and the study-panel bundle split
+public/               extension icons
+scripts/              icon generation, the study-panel bundle split, visual tools (scripts/visual)
 temp-icon/            source artwork for the logo and toolbar icons
 ```
 
