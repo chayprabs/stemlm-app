@@ -8,12 +8,15 @@
  * All arithmetic is exact (rationals): the branches leaving a node must sum to 1, and a leaf product is a
  * reduced fraction when every input was a fraction, otherwise a decimal (a percent when every input was one).
  * Decimals rounded to two or more places may miss 1 by their rounding (0.33 + 0.33 + 0.33).
+ * A label too wide for its column takes two balanced lines, and only past that ends in an ellipsis;
+ * probabilities and products are always printed whole.
  */
 import type { CompileCtx, CompileResult } from '../../types';
 import type { SpecDoc } from '../../spec';
 import { SceneBuilder, frameSize } from '../../scene-build';
-import { unquote } from '../cs/common';
-import { EDGE, TEXT_H, canvasHeight, finish, fmtSig, guard, plain, putLeft, put, readAll, readShow, refuse, safeId, textW } from './shared';
+import { unquote, wrapText } from '../cs/common';
+import { wrapText as wrapBalanced } from '../stats/shared';
+import { EDGE, LINE, TEXT_H, canvasHeight, finish, fmtSig, guard, plain, putLeft, put, readAll, readShow, refuse, safeId, textW } from './shared';
 
 export const PROBTREE_MAX_LEAVES = 16;
 export const PROBTREE_MAX_STAGES = 4;
@@ -155,6 +158,12 @@ const MAX_ALONG = 0.62;
 /** Room between the widest leaf label and the products, bridged by a dotted leader. */
 const PRODUCT_GAP = 26;
 const MAX_LABEL_W = 96;
+/** Clear space between two labels stacked in one column, as between one-line labels at the closest pitch. */
+const STACK_GAP = 10;
+
+/** One line, else two balanced lines, else two full lines whose cut falls between words where it can. */
+const labelLines = (label: string): string[] =>
+  wrapBalanced(label, MAX_LABEL_W) ?? wrapText(label, MAX_LABEL_W, 2).map((line) => line.replace(/\s+\S+…$/, '…'));
 
 function compile(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   const root = parseTree(readAll(spec, 'branch'));
@@ -179,23 +188,37 @@ function compile(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     for (let at: TreeNode | null = node; at?.probability; at = at.parent) path.push(at.probability);
     return { node, product: productText(path, exact, percent) };
   });
-  const long = all.find((node) => textW(node.label) > MAX_LABEL_W);
-  if (long) refuse(`the label of ${long.id} is too long to print at a node`, 'refused');
+  const lines = new Map(all.map((node) => [node, labelLines(node.label)]));
+  const labelH = (node: TreeNode) => TEXT_H + (lines.get(node)!.length - 1) * LINE;
 
-  const nominal = frameSize(ctx.profile);
-  const rowsH = (pitch: number) => 2 * EDGE + 4 + TEXT_H + (leaves.length - 1) * pitch;
-  // A small tree takes a comfortable pitch and only the height it needs; a big one closes up before it grows.
-  const height = rowsH(EASY_PITCH) <= nominal.h ? Math.max(72, Math.ceil(rowsH(EASY_PITCH))) : canvasHeight(rowsH(MIN_PITCH), nominal.h);
-  const pitch = leaves.length > 1 ? Math.min(MAX_PITCH, (height - rowsH(0)) / (leaves.length - 1)) : 0;
-  const top = (height - rowsH(pitch)) / 2 + EDGE + 2 + TEXT_H / 2;
-  leaves.forEach((leaf, i) => { leaf.node.y = top + i * pitch; });
-  // A parent sits midway between its first and last child.
+  // Rows first, in leaf pitches: leaf i on row i, a parent midway between its first and last child.
+  leaves.forEach((leaf, i) => { leaf.node.y = i; });
   const settle = (node: TreeNode): number => {
     const ys = node.children.map(settle);
     if (ys.length) node.y = (ys[0]! + ys.at(-1)!) / 2;
     return node.y;
   };
   settle(root);
+  // The closest two labels in a column (in preorder, a column runs top to bottom) set the least pitch.
+  let least = MIN_PITCH;
+  for (let depth = 0; depth <= stages; depth++) {
+    const column = all.filter((node) => node.depth === depth);
+    column.slice(1).forEach((node, i) => {
+      const above = column[i]!;
+      least = Math.max(least, ((labelH(node) + labelH(above)) / 2 + STACK_GAP) / (node.y - above.y));
+    });
+  }
+  // A two-line label on the first or last row reaches further past it.
+  const [reachTop, reachBottom] = [0, leaves.length - 1].map((row) => Math.max(...all.filter((node) => node.y === row).map(labelH)) / 2) as [number, number];
+
+  const nominal = frameSize(ctx.profile);
+  const rowsH = (pitch: number) => 2 * EDGE + 4 + reachTop + reachBottom + (leaves.length - 1) * pitch;
+  const easy = Math.max(EASY_PITCH, least);
+  // A small tree takes a comfortable pitch and only the height it needs; a big one closes up before it grows.
+  const height = rowsH(easy) <= nominal.h ? Math.max(72, Math.ceil(rowsH(easy))) : canvasHeight(rowsH(least), nominal.h);
+  const pitch = leaves.length > 1 ? Math.min(Math.max(MAX_PITCH, least), (height - rowsH(0)) / (leaves.length - 1)) : 0;
+  const top = (height - rowsH(pitch)) / 2 + EDGE + 2 + reachTop;
+  all.forEach((node) => { node.y = top + node.y * pitch; });
   // A probability sits on its branch at the middle, or further out where close siblings have fanned a line apart.
   const along = new Map<TreeNode, number>();
   for (const node of all) {
@@ -207,7 +230,7 @@ function compile(spec: SpecDoc, ctx: CompileCtx): CompileResult {
   // Columns: each stage's labels start at one x; a branch runs from its parent's label to the next column.
   const showRoot = root.id !== 'root';
   // An unnamed root is a dot.
-  const labelW = (node: TreeNode) => (node === root && !showRoot ? 2 : textW(node.label));
+  const labelW = (node: TreeNode) => (node === root && !showRoot ? 2 : Math.max(...lines.get(node)!.map(textW)));
   const widest = Array.from({ length: stages + 1 }, (_, depth) => Math.max(...all.filter((node) => node.depth === depth).map(labelW)));
   // Long enough that a stub of the branch shows on both sides of its probability.
   const runs = widest.map((_, depth) => (depth
@@ -238,7 +261,10 @@ function compile(spec: SpecDoc, ctx: CompileCtx): CompileResult {
     const key = safeId(node.id);
     const left = columns[node.depth]!;
     if (node === root && !showRoot) b.circle('root', left, node.y, 2.2, { fill: 'ink', role: 'geometry' });
-    else putLeft(b, `node-${key}`, node.label, left, node.y);
+    else {
+      const rows = lines.get(node)!;
+      rows.forEach((line, i) => putLeft(b, i ? `node2-${key}` : `node-${key}`, line, left, node.y + (i - (rows.length - 1) / 2) * LINE));
+    }
     if (!node.parent || !node.probability) continue;
     const parent = node.parent;
     const from = columns[parent.depth]! + labelW(parent) + 4;

@@ -102,6 +102,55 @@ describe('classifySubject — subject coverage table', () => {
   });
 });
 
+describe('classifySubject — misses found in light-model trials', () => {
+  it.each([
+    ['Find the final concentrations when 50 mL of the stock is diluted to 200 mL', 'Chemistry'],
+    ['Three Resistors are connected in parallel across a 12 V battery. Find the total resistance.', 'Electrical'],
+    ['Design a 3-bit counter using JK flip-flops', 'Electrical'],
+  ])('reads a plural signal in %j', (question, expected) => {
+    expect(classifySubject(question)).toBe(expected);
+  });
+
+  // These keywords were written as stems ("enthalp") closed by a word boundary, so no word ever matched them.
+  it.each([
+    ['Calculate the enthalpy change when 2 mol of methane burns.', 'Chemistry'],
+    ['Find the entropy change of the surroundings for this reaction at 298 K.', 'Chemistry'],
+    ['Use stoichiometry to find the mass of water formed from 4 g of hydrogen.', 'Chemistry'],
+    ['Use trigonometry to find the height of the tower from a 30 degree angle of elevation.', 'Math'],
+  ])('reads the full word of a stem keyword in %j', (question, expected) => {
+    expect(classifySubject(question)).toBe(expected);
+  });
+
+  it.each([
+    'A class survey asked 50 students for their favourite sport. Show the results as a bar chart.',
+    'In a class of 30, 12 play football and 15 play tennis. Draw a Venn diagram.',
+  ])('does not read a school class as computer science in %j', (question) => {
+    expect(classifySubject(question)).toBe('Math');
+  });
+
+  it('still reads an object-oriented class as computer science', () => {
+    expect(classifySubject('Write a subclass that overrides the area method')).toBe('CS');
+  });
+
+  it.each([
+    'Find the mean, median and mode of 3, 7, 7, 9, 12',
+    'Calculate the standard deviation of these test scores: 4, 8, 6, 5, 3',
+    'Draw a histogram of these marks: 45, 67, 82, 55, 71',
+    'Draw box plots for both groups and identify any outliers',
+    'Two marbles are drawn without replacement. Draw a tree diagram.',
+  ])('routes statistics to Math: %j', (question) => {
+    expect(classifySubject(question)).toBe('Math');
+  });
+
+  it.each([
+    ['Find the mean free path of a gas at 300 K and 1 atm', 'Physics'],
+    ['Find Poisson\'s ratio for a steel bar under axial stress', 'Mechanical'],
+    ['What does the word ubiquitous mean?', 'General'],
+  ])('keeps statistics words in their other senses: %j', (question, expected) => {
+    expect(classifySubject(question)).toBe(expected);
+  });
+});
+
 describe('classifySubject — Km is the Michaelis constant, km is a unit', () => {
   it.each([
     'A car travels at 72 km/h for 2.5 hours. What distance does it cover?',

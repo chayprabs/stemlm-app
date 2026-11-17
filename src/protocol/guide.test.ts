@@ -231,7 +231,7 @@ describe('figures in the guide', () => {
   });
 
   it('sends a form the question names, whatever subject the classifier chose', () => {
-    // "class" reads as computer science to the classifier; the bar chart is still taught, and first.
+    // The bar chart the question names is taught first, ahead of every form its subject brings.
     const survey = assembleGuide('A class survey asked 50 students for their favourite sport. Show the results as a bar chart.');
     expect(survey.forms[0]).toBe('chart');
     expect(assembleGuide('Draw a tree diagram for two coin tosses.').forms).toContain('probtree');
@@ -243,9 +243,15 @@ describe('figures in the guide', () => {
   });
 
   it('gives a question with no recognisable subject the everyday maths and statistics forms', () => {
-    const general = assembleGuide('Draw a histogram of these marks: 45, 67, 82, 55, 71');
+    const general = assembleGuide('Show these results in a picture: 45, 67, 82, 55, 71');
     expect(general.forms).toEqual(expect.arrayContaining(['chart', 'dist', 'numberline', 'venn', 'plot', 'graph', 'table.matrix']));
     expect(general.text).not.toContain('COMMON MISTAKES');
+  });
+
+  it('sends a statistics question the maths forms', () => {
+    const stats = assembleGuide('Find the median and the standard deviation of these marks: 45, 67, 82, 55, 71');
+    expect(stats.forms).toEqual(expect.arrayContaining(['chart', 'dist', 'numberline', 'venn']));
+    expect(stats.text).toContain('COMMON MISTAKES IN MATH');
   });
 
   it('keeps the shear and moment example physically consistent', async () => {
