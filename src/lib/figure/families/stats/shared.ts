@@ -5,7 +5,7 @@
  * Every label a stats family draws is placed by the family itself (measured, then asserted). The
  * layout kernel is used as a checker: a label it would have to move means the figure is refused.
  */
-import { FONT_MIN, type CompileCtx, type CompileResult, type Scene, type SceneStroke, type SemanticColor } from '../../types';
+import { FONT_MIN, type CompileCtx, type CompileResult, type Scene } from '../../types';
 import { measureText } from '../../geom';
 import { emitSvg } from '../../emit';
 import { layoutScene, overlaysFromLayout, strokeSegments } from '../../slk';
@@ -130,26 +130,26 @@ export function splitNames(raw: string): string[] {
 }
 
 export const TEXT_H = measureText('0', FONT_MIN).h;
+/** Pitch of stacked text lines: the kernel moves labels set closer than this apart. */
+export const LINE = TEXT_H + 1;
+/** Distance kept between a label and the frame; the kernel requires 4. */
+export const EDGE = 5;
 
-export function textW(text: string, katex = false): number {
-  return measureText(text, FONT_MIN, katex).w;
-}
-
-export function textSize(text: string, katex = false): { w: number; h: number } {
-  return measureText(text, FONT_MIN, katex);
+export function textW(text: string): number {
+  return measureText(text, FONT_MIN).w;
 }
 
 /** A label asserted at its centre. Stats labels never rely on the kernel to find them room. */
-export function put(b: SceneBuilder, id: string, text: string, cx: number, cy: number, katex = false): void {
-  b.label(id, text, cx, cy, { protected: true, priority: 'required', katex });
+export function put(b: SceneBuilder, id: string, text: string, cx: number, cy: number): void {
+  b.label(id, text, cx, cy, { protected: true, priority: 'required' });
 }
 
-export function putLeft(b: SceneBuilder, id: string, text: string, left: number, cy: number, katex = false): void {
-  put(b, id, text, left + textW(text, katex) / 2, cy, katex);
+export function putLeft(b: SceneBuilder, id: string, text: string, left: number, cy: number): void {
+  put(b, id, text, left + textW(text) / 2, cy);
 }
 
-export function putRight(b: SceneBuilder, id: string, text: string, right: number, cy: number, katex = false): void {
-  put(b, id, text, right - textW(text, katex) / 2, cy, katex);
+export function putRight(b: SceneBuilder, id: string, text: string, right: number, cy: number): void {
+  put(b, id, text, right - textW(text) / 2, cy);
 }
 
 /** Up to `maxLines` balanced lines no wider than `width`, broken at spaces; null when the text cannot fit. */
@@ -180,16 +180,18 @@ function group(digits: string): string {
 
 /**
  * A number as a textbook prints it: a true minus sign, at most `decimals` decimals with trailing zeros
- * dropped, thousands grouped from 10,000 up, and a power of ten outside 10^-5 .. 10^9.
+ * dropped, thousands grouped from 10,000 up, and a power of ten outside 10^-5 .. 10^9. The default
+ * keeps every digit a source wrote (0.00123 stays 0.00123) and drops only floating-point noise.
  */
-export function fmt(value: number, decimals = 4): string {
+export function fmt(value: number, decimals = 8): string {
   if (!Number.isFinite(value)) return Number.isNaN(value) ? '' : value > 0 ? '∞' : `${MINUS}∞`;
   const abs = Math.abs(value);
   let body: string;
   if (abs !== 0 && (abs >= 1e9 || abs < 1e-5)) {
     const exponent = Math.floor(Math.log10(abs) + 1e-12);
     const mantissa = Number((abs / 10 ** exponent).toPrecision(3));
-    body = `${mantissa === 1 ? '' : `${mantissa}×`}10^${exponent < 0 ? `${MINUS}${-exponent}` : exponent}`;
+    // Braces: label notation raises a braced group, and a true minus sign is not part of a bare exponent.
+    body = `${mantissa === 1 ? '' : `${mantissa}×`}10^{${exponent < 0 ? `${MINUS}${-exponent}` : exponent}}`;
   } else {
     const fixed = abs.toFixed(Math.max(0, Math.min(10, decimals)));
     body = group(fixed.includes('.') ? fixed.replace(/\.?0+$/, '') : fixed);
@@ -259,59 +261,32 @@ export function niceScale(min: number, max: number, maxTicks: number, opts: { in
   return scale;
 }
 
-export interface FillStyle {
-  color: SemanticColor;
-  fill: SceneStroke['fill'];
-  pattern?: SceneStroke['pattern'];
-}
-
 /**
- * Series identity within the figure vocabulary: two colours, a wash, two textures and bare paper. The
- * order keeps neighbours far apart in grey as well as in colour (solid, wash, hatch, dark, dots, open),
- * so a chart still reads in monochrome print.
+ * Numbers along a horizontal axis: the named values always, then the regular ticks that do not crowd
+ * them. Two named values that cannot print side by side are refused: dropping one would leave part of
+ * the figure unexplained. Returns where on the axis each printed number belongs, in label order.
  */
-export const FILL_STYLES: readonly FillStyle[] = [
-  { color: 'accent', fill: 'ink' },
-  { color: 'accent', fill: 'tint' },
-  { color: 'neutral', fill: 'none', pattern: 'hatch' },
-  { color: 'neutral', fill: 'ink' },
-  { color: 'neutral', fill: 'none', pattern: 'dots' },
-  { color: 'neutral', fill: 'paper' },
-];
-
-export function fillStyle(index: number): FillStyle {
-  return FILL_STYLES[index % FILL_STYLES.length]!;
-}
-
-export const SWATCH = 9;
-
-export interface LegendItem {
-  text: string;
-  draw: (b: SceneBuilder, id: string, x: number, cy: number) => void;
-}
-
-/** Legend rows from `left`, wrapped at `right`: a swatch, then the name. Returns the height used. */
-export function drawLegend(b: SceneBuilder, items: LegendItem[], left: number, right: number, top: number): number {
-  const rowH = TEXT_H + 2;
-  let x = left;
-  let row = 0;
-  items.forEach((item, index) => {
-    const width = SWATCH + 4 + textW(item.text);
-    if (width > right - left) refuse(`legend entry "${item.text}" is too long to print`);
-    if (x > left && x + width > right) {
-      x = left;
-      row += 1;
-    }
-    const cy = top + row * rowH + rowH / 2;
-    item.draw(b, `legend-swatch-${index}`, x, cy);
-    putLeft(b, `legend-${index}`, item.text, x + SWATCH + 4, cy);
-    x += width + 12;
-  });
-  return (row + 1) * rowH;
-}
-
-export function swatchRect(style: FillStyle): LegendItem['draw'] {
-  return (b, id, x, cy) => b.rect(id, x, cy - SWATCH / 2, SWATCH, SWATCH, { color: style.color, fill: style.fill, pattern: style.pattern, width: 1.2, role: 'annotation' });
+export function nameAxis(
+  b: SceneBuilder,
+  xAt: (value: number) => number,
+  labelY: number,
+  named: readonly { value: number; text: string }[],
+  regular: readonly number[],
+): number[] {
+  const placed: { x: number; half: number; text: string; at: number }[] = [];
+  const place = (value: number, text: string, required: boolean) => {
+    const half = textW(text) / 2;
+    // A number at the very end of the axis is nudged in rather than cut by the frame.
+    const x = Math.min(Math.max(xAt(value), EDGE + half), b.width - EDGE - half);
+    const other = placed.find((entry) => Math.abs(entry.x - x) < entry.half + half + 4);
+    if (other && required) refuse(`${other.text} and ${text} are too close together to name on the axis`);
+    if (other) return;
+    put(b, `tickl-${placed.length}`, text, x, labelY);
+    placed.push({ x, half, text, at: xAt(value) });
+  };
+  named.forEach((entry) => place(entry.value, entry.text, true));
+  for (const tick of regular) if (!named.some((entry) => entry.value === tick)) place(tick, fmt(tick), false);
+  return placed.map((entry) => entry.at);
 }
 
 /**

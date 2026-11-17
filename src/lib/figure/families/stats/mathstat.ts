@@ -4,7 +4,7 @@
  * Pure functions; nothing here reads a spec or draws.
  */
 
-export function ascending(values: readonly number[]): number[] {
+function ascending(values: readonly number[]): number[] {
   return [...values].sort((a, b) => a - b);
 }
 
@@ -14,28 +14,17 @@ function medianOfSorted(sorted: readonly number[]): number {
 }
 
 /**
- * How Q1 and Q3 are found. The three conventions disagree on small samples, so the choice is explicit.
- * - `exclusive` (default): the medians of the lower and upper halves, leaving the overall median out of
- *   both halves when n is odd. Moore-McCabe, most introductory texts, TI-83/84 `1-Var Stats`.
- * - `inclusive`: Tukey's hinges; the overall median belongs to both halves when n is odd.
- * - `linear`: linear interpolation at (n - 1)p, i.e. R type 7, NumPy's default and Excel `QUARTILE.INC`.
+ * Quartiles by the median-of-halves method: Q1 and Q3 are the medians of the lower and upper halves of
+ * the sorted sample, and the overall median is left out of both halves when n is odd. This is the
+ * convention of most introductory texts (Moore-McCabe) and of TI-83/84 `1-Var Stats`; spreadsheet
+ * `QUARTILE.INC` interpolates instead and can differ on small samples.
  */
-export type QuartileMethod = 'exclusive' | 'inclusive' | 'linear';
-
-export function quartiles(values: readonly number[], method: QuartileMethod = 'exclusive'): { q1: number; median: number; q3: number } {
+export function quartiles(values: readonly number[]): { q1: number; median: number; q3: number } {
   const sorted = ascending(values);
   const n = sorted.length;
   const median = medianOfSorted(sorted);
   if (n < 2) return { q1: median, median, q3: median };
-  if (method === 'linear') {
-    const at = (p: number) => {
-      const h = (n - 1) * p;
-      const k = Math.floor(h);
-      return sorted[k]! + (h - k) * ((sorted[Math.min(n - 1, k + 1)]!) - sorted[k]!);
-    };
-    return { q1: at(0.25), median, q3: at(0.75) };
-  }
-  const half = n % 2 && method === 'inclusive' ? (n + 1) / 2 : Math.floor(n / 2);
+  const half = Math.floor(n / 2);
   return { q1: medianOfSorted(sorted.slice(0, half)), median, q3: medianOfSorted(sorted.slice(n - half)) };
 }
 
@@ -52,9 +41,9 @@ export interface BoxSummary {
   outliers: number[];
 }
 
-export function boxSummary(values: readonly number[], method: QuartileMethod = 'exclusive'): BoxSummary {
+export function boxSummary(values: readonly number[]): BoxSummary {
   const sorted = ascending(values);
-  const { q1, median, q3 } = quartiles(sorted, method);
+  const { q1, median, q3 } = quartiles(sorted);
   const reach = 1.5 * (q3 - q1);
   const inside = sorted.filter((value) => value >= q1 - reach && value <= q3 + reach);
   return {
@@ -133,7 +122,9 @@ export function countIntoEdges(data: readonly number[], edges: readonly number[]
   return counts;
 }
 
-const NICE_BIN_WIDTHS = [1, 2, 2.5, 5, 10];
+const NICE_BIN_WIDTHS = [1, 2, 2.5, 5];
+/** Without a stated count, a histogram gets at most this many bins. */
+const MAX_AUTO_BINS = 12;
 const ROUND_BIN_WIDTHS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 7.5, 8, 9, 10];
 
 function tidy(value: number): number {
@@ -149,9 +140,9 @@ function edgesFrom(lo: number, width: number, count: number): number[] {
  * - `bins` given: exactly that many equal bins, with the smallest round width (1, 1.2, 1.5, 2, ... x 10^k)
  *   whose bins, started at a multiple of the width, cover the data.
  * - otherwise the Freedman-Diaconis width 2 IQR n^(-1/3) (Sturges' count when the IQR is zero), snapped to
- *   the nearest of 1, 2, 2.5, 5 x 10^k and widened until there are at most `maxBins` bins.
+ *   the nearest of 1, 2, 2.5, 5 x 10^k and widened until there are at most 12 bins.
  */
-export function histogramBins(data: readonly number[], opts: { bins?: number; maxBins?: number } = {}): Bins {
+export function histogramBins(data: readonly number[], opts: { bins?: number } = {}): Bins {
   const sorted = ascending(data);
   const min = sorted[0]!;
   const max = sorted[sorted.length - 1]!;
@@ -184,16 +175,15 @@ export function histogramBins(data: readonly number[], opts: { bins?: number; ma
     const edges = edgesFrom(min, range / opts.bins, opts.bins);
     return { edges, counts: countIntoEdges(sorted, edges) };
   }
-  const { q1, q3 } = quartiles(sorted, 'linear');
+  const { q1, q3 } = quartiles(sorted);
   const n = sorted.length;
   const raw = q3 > q1 ? (2 * (q3 - q1)) / Math.cbrt(n) : range / (Math.ceil(Math.log2(n)) + 1);
   const exponent = Math.floor(Math.log10(raw));
   const candidates = [exponent - 1, exponent, exponent + 1, exponent + 2, exponent + 3]
-    .flatMap((e) => NICE_BIN_WIDTHS.slice(0, 4).map((mantissa) => tidy(mantissa * 10 ** e)))
+    .flatMap((e) => NICE_BIN_WIDTHS.map((mantissa) => tidy(mantissa * 10 ** e)))
     .sort((a, b) => a - b);
   let choice = candidates.reduce((best, width) => (Math.abs(Math.log(width / raw)) < Math.abs(Math.log(best / raw)) ? width : best));
-  const maxBins = opts.maxBins ?? 12;
-  while (covers(choice)!.count > maxBins) choice = candidates[candidates.indexOf(choice) + 1] ?? choice * 2;
+  while (covers(choice)!.count > MAX_AUTO_BINS) choice = candidates[candidates.indexOf(choice) + 1] ?? choice * 2;
   const fit = covers(choice)!;
   const edges = edgesFrom(fit.lo, choice, fit.count);
   return { edges, counts: countIntoEdges(sorted, edges) };
@@ -205,7 +195,7 @@ const LANCZOS = [
 ];
 
 /** ln Γ(x) for x > 0 (Lanczos, g = 7). */
-export function lnGamma(x: number): number {
+function lnGamma(x: number): number {
   if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGamma(1 - x);
   const shifted = x - 1;
   let sum = LANCZOS[0]!;
@@ -250,14 +240,14 @@ function gammaFraction(a: number, x: number): number {
 }
 
 /** Regularized lower incomplete gamma P(a, x). */
-export function gammaP(a: number, x: number): number {
+function gammaP(a: number, x: number): number {
   if (!(x > 0)) return 0;
   if (x === Infinity) return 1;
   return x < a + 1 ? gammaSeries(a, x) : 1 - gammaFraction(a, x);
 }
 
 /** Regularized upper incomplete gamma Q(a, x) = 1 - P(a, x), computed directly in the tail. */
-export function gammaQ(a: number, x: number): number {
+function gammaQ(a: number, x: number): number {
   if (!(x > 0)) return 1;
   if (x === Infinity) return 0;
   return x < a + 1 ? 1 - gammaSeries(a, x) : gammaFraction(a, x);
@@ -295,7 +285,7 @@ function betaFraction(a: number, b: number, x: number): number {
 }
 
 /** Regularized incomplete beta I_x(a, b). */
-export function betaI(a: number, b: number, x: number): number {
+function betaI(a: number, b: number, x: number): number {
   if (!(x > 0)) return 0;
   if (x >= 1) return 1;
   const front = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) + a * Math.log(x) + b * Math.log(1 - x));
@@ -303,12 +293,8 @@ export function betaI(a: number, b: number, x: number): number {
 }
 
 /** erfc through Q(1/2, x^2): no cancellation in the tails, unlike 1 - erf(x). */
-export function erfc(x: number): number {
+function erfc(x: number): number {
   return x >= 0 ? gammaQ(0.5, x * x) : 1 + gammaP(0.5, x * x);
-}
-
-export function erf(x: number): number {
-  return x >= 0 ? gammaP(0.5, x * x) : -gammaP(0.5, x * x);
 }
 
 /** A distribution as the `dist` family needs it: cdf, survival function (accurate upper tail), density. */
@@ -321,7 +307,6 @@ export interface Law {
   /** P(X > x). */
   sf: (x: number) => number;
   mean: number;
-  sd: number;
 }
 
 export function normalLaw(mean: number, sd: number): Law {
@@ -331,7 +316,6 @@ export function normalLaw(mean: number, sd: number): Law {
     cdf: (x) => 0.5 * erfc(-(x - mean) / (sd * Math.SQRT2)),
     sf: (x) => 0.5 * erfc((x - mean) / (sd * Math.SQRT2)),
     mean,
-    sd,
   };
 }
 
@@ -344,7 +328,6 @@ export function studentLaw(df: number): Law {
     cdf: (t) => (t === -Infinity ? 0 : t === Infinity ? 1 : t <= 0 ? tail(t) : 1 - tail(t)),
     sf: (t) => (t === -Infinity ? 1 : t === Infinity ? 0 : t >= 0 ? tail(t) : 1 - tail(t)),
     mean: 0,
-    sd: df > 2 ? Math.sqrt(df / (df - 2)) : 1.6,
   };
 }
 
@@ -356,7 +339,6 @@ export function chiSquareLaw(df: number): Law {
     cdf: (x) => gammaP(k, x / 2),
     sf: (x) => gammaQ(k, x / 2),
     mean: df,
-    sd: Math.sqrt(2 * df),
   };
 }
 
@@ -367,7 +349,6 @@ export function exponentialLaw(rate: number): Law {
     cdf: (x) => (x <= 0 ? 0 : -Math.expm1(-rate * x)),
     sf: (x) => (x <= 0 ? 1 : Math.exp(-rate * x)),
     mean: 1 / rate,
-    sd: 1 / rate,
   };
 }
 
@@ -379,12 +360,11 @@ export function uniformLaw(min: number, max: number): Law {
     cdf: (x) => Math.max(0, Math.min(1, (x - min) / width)),
     sf: (x) => Math.max(0, Math.min(1, (max - x) / width)),
     mean: (min + max) / 2,
-    sd: width / Math.sqrt(12),
   };
 }
 
 /** Discrete laws sum their masses in whichever direction is shorter, so neither tail loses digits. */
-function discreteLaw(pmf: (k: number) => number, upper: number, mean: number, sd: number): Law {
+function discreteLaw(pmf: (k: number) => number, upper: number, mean: number): Law {
   const below = (x: number) => {
     let sum = 0;
     for (let k = 0; k <= Math.min(Math.floor(x), upper); k++) sum += pmf(k);
@@ -401,7 +381,6 @@ function discreteLaw(pmf: (k: number) => number, upper: number, mean: number, sd
     cdf: (x) => (x < 0 ? 0 : x >= upper ? 1 : x <= mean ? below(x) : 1 - above(x)),
     sf: (x) => (x < 0 ? 1 : x >= upper ? 0 : x >= mean ? above(x) : 1 - below(x)),
     mean,
-    sd,
   };
 }
 
@@ -412,11 +391,11 @@ export function binomialLaw(n: number, p: number): Law {
     if (p === 1) return k === n ? 1 : 0;
     return Math.exp(lnChoose(k) + k * Math.log(p) + (n - k) * Math.log1p(-p));
   };
-  return discreteLaw(pmf, n, n * p, Math.sqrt(n * p * (1 - p)));
+  return discreteLaw(pmf, n, n * p);
 }
 
 export function poissonLaw(lambda: number): Law {
   // Mass beyond this point is below 1e-17 of the total, so it bounds the summation.
   const upper = Math.ceil(lambda + 12 * Math.sqrt(lambda) + 40);
-  return discreteLaw((k) => Math.exp(-lambda + k * Math.log(lambda) - lnGamma(k + 1)), upper, lambda, Math.sqrt(lambda));
+  return discreteLaw((k) => Math.exp(-lambda + k * Math.log(lambda) - lnGamma(k + 1)), upper, lambda);
 }
