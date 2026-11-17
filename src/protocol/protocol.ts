@@ -96,10 +96,10 @@ const SUBJECT_NOTES = new Map(
 
 /** `scene.fbd` is `type=scene` with `kind: fbd`; every other id is its own type token. */
 const VARIANT = /^(scene|table)\.(.+)$/;
-const typeOf = (form: FigureForm): string => VARIANT.exec(form.id)?.[1] ?? form.id;
+export const figureType = (id: string): string => VARIANT.exec(id)?.[1] ?? id;
 
 function renderForm(form: FigureForm): string {
-  return `type=${typeOf(form)}: ${form.grammar}\n@diagram type=${typeOf(form)}\n${form.specimen}\n@enddiagram`;
+  return `type=${figureType(form.id)}: ${form.grammar}\n@diagram type=${figureType(form.id)}\n${form.specimen}\n@enddiagram`;
 }
 
 /**
@@ -117,7 +117,7 @@ function compose(subject: Subject, forms: readonly FigureForm[], compact: boolea
     left.length
       ? [
           'The panel draws these types too. Each line gives the keys of one type, without an example. Use any of them when the question calls for it.',
-          ...left.map((form) => `type=${typeOf(form)}: ${form.grammar}`),
+          ...left.map((form) => `type=${figureType(form.id)}: ${form.grammar}`),
         ].join('\n')
       : '',
     note ? `COMMON MISTAKES IN ${subject.toUpperCase()}\n${note}` : '',
