@@ -46,7 +46,9 @@ Chat assistants explain STEM problems well, but the explanation arrives as one l
 4. **Save.** Save a solution with one click. Search **Saved questions** by subject or date to reopen it.
 5. **Export.** Download the full solution as a PDF, with formulas and diagrams, or merge saved questions into one revision file.
 
-Already have an answer in the chat? Open the panel and choose **Study the latest answer**. stemLM arranges the reply into steps as it was written and labels it "Structured from the chat answer"; it adds no quick checks or takeaways of its own.
+Already have an answer in the chat? Open the panel and choose **Study the latest answer**. stemLM arranges the reply into steps as it was written and labels it "Structured from the chat answer"; it adds no quick checks or takeaways of its own. On a site stemLM cannot read, **Copy the guide** from the toolbar button into any chat, then use **Paste an answer** in the panel.
+
+While the panel is open, stemLM folds the chat site's sidebar and shows its own answer in the chat as one line, so the conversation stays readable. Both are settings, on by default.
 
 It covers physics, chemistry, maths, biology, computer science, and electrical, mechanical, civil and chemical engineering. The AI works out the subject from your question.
 
