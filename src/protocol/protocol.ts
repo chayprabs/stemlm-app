@@ -94,11 +94,6 @@ const SUBJECT_NOTES = new Map(
   }),
 );
 
-/** True when the question uses one of the form's cue terms ("bar chart", "free-body"). */
-function namedIn(form: FigureForm, question: string): boolean {
-  return form.cues.some((cue) => new RegExp(`\\b${cue.replace(/-/g, '[- ]?')}\\b`, 'i').test(question));
-}
-
 /** `scene.fbd` is `type=scene` with `kind: fbd`; every other id is its own type token. */
 const VARIANT = /^(scene|table)\.(.+)$/;
 const typeOf = (form: FigureForm): string => VARIANT.exec(form.id)?.[1] ?? form.id;
@@ -137,9 +132,10 @@ export interface Guide {
   forms: string[];
 }
 
-/** Ids of the figure forms the question names, whatever its subject. */
+/** Ids of the figure forms the question names with a cue term ("bar chart", "free-body"), whatever its subject. */
 export function figureFormsNamed(question: string): string[] {
-  return FIGURE_FORMS.filter((form) => namedIn(form, question)).map((form) => form.id);
+  const named = (cue: string) => new RegExp(`\\b${cue.replace(/-/g, '[- ]?')}\\b`, 'i').test(question);
+  return FIGURE_FORMS.filter((form) => form.cues.some(named)).map((form) => form.id);
 }
 
 /**

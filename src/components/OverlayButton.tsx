@@ -115,32 +115,18 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
   }, [notice]);
 
   // The control is drawn outside the chat's tree, so the keyboard is led to it: Tab from the
-  // chat's attach button lands here, and coming back from the field after it lands here too.
+  // chat's attach button lands here (and Tab or Shift+Tab here goes on from that button, below).
   useEffect(() => {
     if (!shown) return;
-    let backAt = 0;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Tab' && event.shiftKey) backAt = performance.now();
       const anchor = place.current?.anchor;
       if (event.key !== 'Tab' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
       if (!anchor || document.activeElement !== anchor || !buttonRef.current) return;
       event.preventDefault();
       buttonRef.current.focus();
     };
-    const onFocusIn = (event: FocusEvent) => {
-      const anchor = place.current?.anchor;
-      const from = event.relatedTarget;
-      if (performance.now() - backAt > 250 || !anchor || event.target !== anchor || !(from instanceof Node) || !buttonRef.current) return;
-      const ours = buttonRef.current.getRootNode() instanceof ShadowRoot ? (buttonRef.current.getRootNode() as ShadowRoot).host : buttonRef.current;
-      if (from === ours || !(anchor.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
-      buttonRef.current.focus();
-    };
     document.addEventListener('keydown', onKeyDown, true);
-    document.addEventListener('focusin', onFocusIn, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
-      document.removeEventListener('focusin', onFocusIn, true);
-    };
+    return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [shown, place]);
 
   function onMain() {
@@ -210,10 +196,7 @@ export function OverlayButton({ panelUnavailable = false }: { panelUnavailable?:
       className="slm-fab-wrap"
       onClick={keepFromHost}
       onPointerDown={keepFromHost}
-      onPointerUp={keepFromHost}
       onMouseDown={keepFromHost}
-      onMouseUp={keepFromHost}
-      onKeyUp={keepFromHost}
     >
       <style>{CONTROL_CSS}</style>
       <button

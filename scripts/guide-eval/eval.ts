@@ -42,7 +42,6 @@ export interface AnswerScore {
   markers: string[];
   /** Characters of prose outside the capsule, which the panel does not show. */
   outside: number;
-  warnings: string[];
 }
 
 const MARKER = /(?:^|\s)@(?:end)?(?:meta|step|formula|body|diagram|takeaway|quickcheck|followup|solution|verify|uncertainty|patch|q)\b|(?:^|\s)@end\b|```\s*stemlm/i;
@@ -120,7 +119,6 @@ async function scoreAnswer(id: string, raw: string, wants: string, sentences: st
     leaked,
     markers: capsule ? shownText(capsule).filter((text) => MARKER.test(text)).map((text) => text.slice(0, 80)) : [],
     outside: captured ? outsideProse(raw) : 0,
-    warnings: captured ? [...new Set(result.warningCodes)] : [],
   };
 }
 

@@ -138,7 +138,7 @@ export interface AttachNotice {
   tone: 'info' | 'error';
   text: string;
 }
-const NOTICE_INLINE: AttachNotice = { tone: 'info', text: 'This chat did not take a file, so the guide is in your message as text.' };
+const NOTICE_INLINE: AttachNotice = { tone: 'info', text: GUIDE_PASTED_NOTICE };
 const NOTICE_FAILED: AttachNotice = { tone: 'error', text: 'stemlm could not add its guide. Check the chat box and try again.' };
 
 /**
@@ -722,20 +722,11 @@ export class StemController {
     return document.body;
   }
 
-  /** The student's messages already in the thread, as the chat shows them. */
-  private sentMessages(): string[] {
-    try {
-      return sentStudentMessages(document, this.adapter.findEditor());
-    } catch {
-      return [];
-    }
-  }
-
   /** Reset answer-started detection and snapshot the current message count. */
   private armAnswerDetection(): void {
     this.answerStarted = false;
     this.answerArmed = true;
-    this.sentBaseline = this.sentMessages().length;
+    this.sentBaseline = sentStudentMessages(document, this.adapter.findEditor()).length;
     this.streamingAtArm = this.adapter.isStreaming();
     this.baselineAssistantText = this.adapter.getLatestAssistantText();
     this.stableText = '';
@@ -1122,7 +1113,7 @@ export class StemController {
    */
   private maybeQuestionSent(): void {
     if (this.answerStarted || !this.awaitingAnswer || !this.draftLeftChatBox()) return;
-    const sent = this.sentMessages();
+    const sent = sentStudentMessages(document, this.adapter.findEditor());
     const newest = sent[sent.length - 1];
     if (sent.length > this.sentBaseline && newest !== undefined && composerTextHasProtocol(newest)) this.questionUnderWay(true);
   }

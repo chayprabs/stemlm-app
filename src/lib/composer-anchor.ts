@@ -258,15 +258,9 @@ export function locateControl(adapter: PlatformAdapter): ControlPlacement | 'cov
   return inRow ? placement : null;
 }
 
-/**
- * A change stemLM itself made to the chat page and still stands: its room mark where it put it,
- * or its one stylesheet. Not news about the page, so it must not start another look (a mark the
- * chat took off again is news).
- */
+/** A change stemLM itself makes to the chat page: its room mark, or its one stylesheet. */
 function isOwnWrite(record: MutationRecord): boolean {
-  if (record.type === 'attributes') {
-    return record.attributeName === ROOM_ATTR && (record.target as Element).hasAttribute(ROOM_ATTR);
-  }
+  if (record.type === 'attributes') return record.attributeName === ROOM_ATTR;
   const style = document.getElementById(ROOM_STYLE_ID);
   return style !== null && (record.target === style || [...record.addedNodes].includes(style));
 }
@@ -312,6 +306,10 @@ export function trackComposerControl(
       found = placementFor(anchor, getComputedStyle(anchor).direction === 'rtl');
     }
     if (found === null) clearComposerRoom();
+    // What this pass wrote to the page (a room mark tried, kept or taken off, its rule) is not
+    // news about the page and must not start the next pass: it is taken off the observer's list
+    // here, before it is reported. Anything else waiting there still counts.
+    if (mutations.takeRecords().some((record) => !isOwnWrite(record))) dirty = true;
 
     const placement = typeof found === 'object' ? found : null;
     if (placement?.anchor !== watched[0]) {
@@ -343,9 +341,7 @@ export function trackComposerControl(
     tick(false);
   };
 
-  const mutations = new MutationObserver((records) => {
-    if (records.some((record) => !isOwnWrite(record))) wake();
-  });
+  const mutations = new MutationObserver(wake);
   const sizes = new ResizeObserver(follow);
   mutations.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
   sizes.observe(document.documentElement);

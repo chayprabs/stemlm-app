@@ -296,6 +296,9 @@ async function loadingSuite(h, scheme, tag) {
     clip: dock && { x: Math.max(0, dock.x), y: Math.max(0, dock.y - 70), width: Math.min(1440, dock.width), height: dock.height + 70 },
   });
   await h.settle(page, 2600);
+  // Nothing loads until the question is sent: the double sends it the way a chat does.
+  await page.evaluate(() => window.__standin.send());
+  await h.settle(page, 900);
   await h.sendToTab(page, 'stemlm:open-panel');
   const panel = page.locator('.slm-panel');
   await panel.waitFor({ state: 'visible', timeout: 15_000 });

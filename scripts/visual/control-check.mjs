@@ -32,8 +32,8 @@ const extension = resolve(flag('ext', join(root, '.output/chrome-mv3')));
 const only = (flag('only', '') || '').split(',').filter(Boolean);
 const quick = args.includes('--quick');
 const SCHEMES = ['light', 'dark'];
-/** The first is the capture's own window; the last two are a split window and a phone-wide one. */
-const VIEWPORTS = flag('viewports', quick ? '1528x732' : '1528x732,1280x800,1024x768,760x720,420x800')
+/** The first is the capture's own window and gets the whole walk; the last two are a split window and a phone-wide one. */
+const VIEWPORTS = flag('viewports', quick ? '1528x732' : '1528x732,1280x800,900x700,420x800')
   .split(',').map((v) => v.split('x').map(Number));
 /** A new chat on each host. */
 const LANDING = { chatgpt: '/', claude: '/new', gemini: '/app', grok: '/' };
@@ -154,7 +154,8 @@ async function walk(id, variant, scheme, viewport, shots) {
     return m;
   };
 
-  const page = await open(id, scheme, viewport, { variant, uploadMs: 900 });
+  // A slow upload, so the control can be measured and photographed while it is at work.
+  const page = await open(id, scheme, viewport, { variant, uploadMs: 2500 });
   try {
     if (!(await waitShown(page))) {
       fail('the control never appeared');
@@ -232,6 +233,7 @@ async function walk(id, variant, scheme, viewport, shots) {
     await page.waitForTimeout(900);
     await take(page, 'sent');
     if (await state(page) !== 'idle') fail(`${await state(page)} after the message was sent`);
+    if (!shots) return;
 
     // A later question in the same chat: stemlm is on for it at once, without waiting for a file.
     await page.locator('.editor').first().click();
@@ -248,7 +250,6 @@ async function walk(id, variant, scheme, viewport, shots) {
     await take(page, 'navigated');
     if ((await control(page).count()) !== 1) fail(`${await control(page).count()} controls after navigation`);
 
-    if (!shots) return;
     // Other editors and covered composers, once per host and theme.
     await page.evaluate(() => { window.__standin.editMessage(); window.__standin.openCanvas(); });
     await page.waitForTimeout(900);

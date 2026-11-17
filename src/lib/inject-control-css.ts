@@ -50,6 +50,7 @@ ${s}.slm-inject-btn {
   --slm-inject-ink: var(--slm-inject-host-ink, #16161a);
   --slm-inject-signal-ink: #c2410c;
   --slm-inject-error: #c81e1e;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -66,6 +67,12 @@ ${s}.slm-inject-btn {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   transition: background-color ${DUR_2} ${EASE}, color ${DUR_2} ${EASE}, transform ${DUR_1} ${EASE};
+}
+/* Beside a chat button smaller than 32 px the control is drawn as small, and still takes a 32 px press. */
+${s}.slm-inject-btn::after {
+  content: '';
+  position: absolute;
+  inset: min(0px, calc((var(--slm-inject-size, ${INJECT_SIZE_PX}px) - 32px) / 2));
 }
 ${dark} .slm-inject-btn {
   --slm-inject-ink: var(--slm-inject-host-ink, #f2f2f2);
