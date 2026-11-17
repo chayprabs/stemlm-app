@@ -182,7 +182,7 @@ export function ReportEntry({
       <section className="slm-report-q-block">
         <span className="slm-report-label">{label}</span>
         <div className="slm-report-q">
-          <MathMarkdown content={question} className="slm-report-q-text" />
+          <MathMarkdown content={question} className="slm-report-q-text" promote={false} />
         </div>
       </section>
 
