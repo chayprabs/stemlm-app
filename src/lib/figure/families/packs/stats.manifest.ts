@@ -16,7 +16,7 @@ export const STATS_MANIFESTS: FamilyManifest[] = [
     requiredAny: ['kind', 'shade', 'mean', 'mu'],
     keys: ['kind', 'mean', 'sd', 'mu', 'sigma', 'df', 'rate', 'lambda', 'min', 'max', 'n', 'p', 'shade', 'mark', 'xlabel'],
     subjects: ['Math', 'Biology'],
-    grammar: 'dist: kind: normal|t|chi2|exponential|uniform|binomial|poisson (default normal) | mean: 100 | sd: 15 | df: 12 (t, chi2) | rate: 0.5 (exponential, poisson) | min: 0 | max: 10 (uniform) | n: 10 | p: 0.3 (binomial) | shade: 85 115 or < 85 or > 115 or <= 3 or outside 85 115 | mark: 100 (repeat) | xlabel:; drawn to scale, and the shaded probability is computed and printed',
+    grammar: 'dist: kind: normal|t|chi2|exponential|uniform|binomial|poisson (default normal) | mean: 100 (or mu: 100) | sd: 15 | df: 12 (t, chi2) | rate: 0.5 (exponential, poisson) | min: 0 | max: 10 (uniform) | n: 10 | p: 0.3 (binomial) | shade: 85 115 or < 85 or > 115 or <= 3 or outside 85 115 | mark: 100 (repeat) | xlabel:; drawn to scale, and the shaded probability is computed and printed',
     specimen: 'mean: 100\nsd: 15\nshade: 85 115\nxlabel: IQ score',
   },
   {
