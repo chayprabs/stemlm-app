@@ -59,14 +59,17 @@ function stripFrontMatter(text: string, notes: Notes): { text: string; caption?:
 
 /** `%%{init: …}%%` directives configure the renderer only. */
 function stripDirectives(text: string, notes: Notes): string {
-  let out = text;
-  for (let at = out.indexOf('%%{'); at >= 0; at = out.indexOf('%%{', at)) {
-    const end = out.indexOf('}%%', at);
+  const kept: string[] = [];
+  let from = 0;
+  for (let at = text.indexOf('%%{'); at >= 0; at = text.indexOf('%%{', from)) {
+    const end = text.indexOf('}%%', at);
     if (end < 0) refuse('a directive is not closed');
-    out = out.slice(0, at) + out.slice(end + 3);
+    kept.push(text.slice(from, at));
+    from = end + 3;
     notes.add('renderer directive ignored');
   }
-  return out;
+  kept.push(text.slice(from));
+  return kept.join('');
 }
 
 function prepare(source: string, notes: Notes): Prepared | null {
@@ -102,6 +105,8 @@ export function mermaidHeader(source: string): string | null {
 
 class Cursor {
   i = 0;
+  private lineFrom = 0;
+  private lineTo = -1;
 
   constructor(readonly s: string) {}
 
@@ -122,9 +127,14 @@ class Cursor {
     while (this.peek() === ' ' || this.peek() === '\t') this.i++;
   }
 
+  /** End of the current line. Cached: a long one-line source asks for it once per statement. */
   lineEnd(): number {
-    const end = this.s.indexOf('\n', this.i);
-    return end < 0 ? this.s.length : end;
+    if (this.i < this.lineFrom || this.i > this.lineTo) {
+      const end = this.s.indexOf('\n', this.i);
+      this.lineFrom = this.i;
+      this.lineTo = end < 0 ? this.s.length : end;
+    }
+    return this.lineTo;
   }
 }
 
@@ -250,8 +260,7 @@ class FlowParser {
   /** To the end of the line, or to a `;` outside quotes. A braced `accDescr { … }` block ends at its brace. */
   private skipStatement(): void {
     const c = this.c;
-    const line = c.s.slice(c.i, c.lineEnd());
-    if (/^accDescr\s*\{/.test(line)) {
+    if (/^accDescr\s*\{/.test(c.s.slice(c.i, c.i + 24))) {
       const close = c.s.indexOf('}', c.i);
       if (close < 0) refuse('an accessibility block is not closed');
       c.i = close + 1;
@@ -429,11 +438,12 @@ class FlowParser {
       return { right: this.head() ?? '', label: '', line: 'dotted' };
     }
     if (dots !== 1) refuse('a dotted link is malformed');
-    const rest = c.s.slice(c.i, c.lineEnd());
-    const close = /\.+-/.exec(rest);
-    if (!close) refuse('a link label is not closed');
-    const label = rest.slice(0, close.index);
-    c.i += close.index + close[0].length;
+    const close = c.s.indexOf('.-', c.i);
+    if (close < 0 || close >= c.lineEnd()) refuse('a link label is not closed');
+    let labelEnd = close;
+    while (labelEnd > c.i && c.s[labelEnd - 1] === '.') labelEnd--;
+    const label = c.s.slice(c.i, labelEnd);
+    c.i = close + 2;
     return { right: this.head() ?? '', label, line: 'dotted' };
   }
 

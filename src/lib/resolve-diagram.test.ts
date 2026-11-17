@@ -1,15 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  describe,
-  it,
-  expect } from 'vitest';
-import {
   compileDiagram,
+  compileDiagramStrict,
   normalizeDiagramSource,
   presentCompiledDiagram,
   resolveDiagramSvg,
-  compileDiagramStrict,
-  compileDiagram,
 } from './resolve-diagram';
 
 describe('normalizeDiagramSource', () => {
@@ -75,6 +70,53 @@ describe('resolveDiagramSvg', () => {
     expect(strict).toMatchObject({ ok: false, svg: '', diagnostic: { family: 'mermaid', code: 'refused' } });
     const gantt = await compileDiagram({ type: 'mermaid', content: 'gitGraph\n  commit\n  branch dev\n  commit' });
     expect(gantt).toMatchObject({ ok: false, svg: '' });
+  });
+
+  it('translates a foreign notation into a native figure and marks it corrected', async () => {
+    const foreign = [
+      { type: 'mermaid', content: 'stateDiagram-v2\n  [*] --> Idle\n  Idle --> Busy : start\n  Busy --> [*]' },
+      { type: 'mermaid', content: 'flowchart TD\n  A([Start]) --> B{x > 0?}\n  B -- yes --> C[Done]\n  B -. no .-> A' },
+      { type: 'mermaid', content: 'classDiagram\n  Animal <|-- Dog' },
+      { type: 'dot', content: 'digraph { rankdir=LR; s [shape=point]; s -> q0; q0 -> q1 [label="a"]; q1 [shape=doublecircle] }' },
+      { type: 'graph', content: 'digraph G { a -> b; b -> c }' },
+      { type: 'table', content: '| x | y |\n|---|---|\n| 1 | 2, 3 |' },
+      { type: 'graph', content: 'Glucose -> Pyruvate\nPyruvate -> Acetyl CoA: link reaction' },
+    ];
+    for (const diagram of foreign) {
+      expect((await compileDiagramStrict(diagram)).ok).toBe(false);
+      expect(await compileDiagram(diagram)).toMatchObject({ ok: true, corrected: true });
+    }
+  });
+
+  it('draws the translation, not a guess: shapes and markers of the source survive', async () => {
+    const flowchart = await compileDiagram({ type: 'mermaid', content: 'graph TD\n  A([Start]) --> B{Even?}\n  B -->|yes| C[Halve]' });
+    expect(flowchart.svg).toContain('data-stemlm-family="graph"');
+    const sameNative = await compileDiagramStrict({
+      type: 'graph',
+      content: 'rankdir: TB\nnode: A Start\nnode: B Even?\nnode: C Halve\nedge: A B\nedge: B C yes\ndecision: B\nterminal: A',
+    });
+    expect(flowchart.svg).toBe(sameNative.svg);
+    const table = await compileDiagram({ type: 'table', content: '| a | b |\n|---|---|\n| 1 | 2 |' });
+    expect(table.svg).toContain('data-stemlm-family="table"');
+  });
+
+  it('keeps a foreign figure hidden when it has no faithful native form', async () => {
+    const unfaithful = [
+      { type: 'mermaid', content: 'graph TD\n  A --- B' },
+      { type: 'mermaid', content: 'graph TD\n  A --o B' },
+      { type: 'mermaid', content: 'erDiagram\n  CUSTOMER ||--o{ ORDER : places' },
+      { type: 'mermaid', content: 'classDiagram\n  class A {\n    +x\n  }\n  A <|-- B' },
+      { type: 'mermaid', content: 'stateDiagram-v2\n  [*] --> A\n  state A {\n    [*] --> B\n  }' },
+      { type: 'dot', content: 'graph { a -- b; b -- c }' },
+      { type: 'dot', content: 'digraph { n [shape=record, label="{a|b}"]; n -> m }' },
+    ];
+    for (const diagram of unfaithful) expect(await compileDiagram(diagram)).toMatchObject({ ok: false, svg: '' });
+  });
+
+  it('keeps a translated figure hidden while its native family does not exist, without throwing', async () => {
+    const sequence = await compileDiagram({ type: 'mermaid', content: 'sequenceDiagram\n  A->>B: hi' });
+    expect(typeof sequence.ok).toBe('boolean');
+    if (!sequence.ok) expect(sequence).toMatchObject({ svg: '', diagnostic: { family: 'mermaid' } });
   });
 
   it('leaves a spec that already compiles untouched and unmarked', async () => {

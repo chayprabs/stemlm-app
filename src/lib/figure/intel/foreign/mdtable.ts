@@ -5,7 +5,7 @@
  * splits a row on commas or (consistently) on semicolons and refuses pipes, so a table whose cells
  * cannot be written in either form is refused rather than re-punctuated.
  */
-import { labelText, refuse, specText, type Translation } from './native';
+import { MAX_LABEL_CHARS, labelText, refuse, specText, type Translation } from './native';
 import { decodeEntities, flattenHtml, splitMath, stripProse } from './text';
 
 const MAX_ROWS = 200;
@@ -55,12 +55,13 @@ function splitRow(line: string): string[] {
 }
 
 function cellText(raw: string): string {
+  if (raw.length > 4 * MAX_LABEL_CHARS) refuse('a cell is too long to draw');
   const text = splitMath(raw.trim()).map((segment) => {
     if (!segment.math) return decodeEntities(flattenHtml(stripProse(segment.text)));
     if (!segment.text.includes('|')) return segment.text;
     // `\|` would be a norm bar in TeX but an escaped pipe in a table: there is no telling which was meant.
     if (/\\\||\\begin\{/.test(segment.text)) refuse('a pipe inside math is ambiguous in a table cell');
-    return segment.text.replace(/\|/g, '\\vert ');
+    return segment.text.replace(/\|(?=[A-Za-z])/g, '\\vert ').replace(/\|/g, '\\vert');
   }).join('');
   const cell = labelText(text);
   if (cell.includes('|')) refuse('a cell holds a literal pipe, which the table engine refuses');

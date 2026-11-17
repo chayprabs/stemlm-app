@@ -2,7 +2,7 @@
  * The smaller Mermaid diagram types: pie -> `chart`, numeric gantt -> `gantt`, member-less class
  * diagrams and mind maps -> `graph`. Each refuses whatever its native target cannot say.
  */
-import { GraphDraft, type Notes, applyDirection, labelText, refuse, specText } from './native';
+import { GraphDraft, type Notes, applyDirection, labelText, oneLine, refuse, specText } from './native';
 import { mermaidLabel } from './text';
 
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
@@ -13,7 +13,7 @@ export function translatePie(rest: string, lines: string[], frontTitle: string |
   const labels: string[] = [];
   const values: string[] = [];
   for (const raw of [rest, ...lines]) {
-    let line = raw.trim();
+    let line = oneLine(raw);
     if (/^showData\b/i.test(line)) {
       notes.add('showData (values in the legend) ignored');
       line = line.slice(8).trim();
@@ -48,7 +48,7 @@ export function translateGantt(lines: string[], frontTitle: string | undefined, 
   const ends = new Map<string, number>();
   const jobs: string[] = [];
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = oneLine(raw);
     if (!line) continue;
     const titled = /^title\s+(.*)$/i.exec(line);
     const colon = line.indexOf(':');
@@ -124,7 +124,7 @@ export function translateClass(lines: string[], notes: Notes): string {
   };
   let inBody: string | null = null;
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = oneLine(raw);
     if (!line) continue;
     const annotation = /^<<([^<>]+)>>\s*(\S*)$/.exec(line);
     if (inBody !== null) {
@@ -175,7 +175,7 @@ export function translateMindmap(lines: string[], notes: Notes): string {
   const stack: Array<{ indent: number; key: string }> = [];
   let count = 0;
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = oneLine(raw);
     if (!line) continue;
     if (/^::icon\(/.test(line) || /^:::/.test(line)) {
       notes.add('icons and styling ignored');

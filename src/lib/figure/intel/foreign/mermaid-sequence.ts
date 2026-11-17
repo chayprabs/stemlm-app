@@ -4,7 +4,7 @@
  * Solid arrows are messages and dashed arrows are replies. Frames (loop, alt, opt, par…) are
  * flattened: their messages stay in source order and the frame is recorded in the notes.
  */
-import { type Notes, nativeIds, refuse, specText } from './native';
+import { type Notes, nativeIds, oneLine, refuse, specText } from './native';
 import { mermaidLabel } from './text';
 
 type Line = 'msg' | 'reply';
@@ -50,7 +50,7 @@ export function translateSequence(lines: string[], notes: Notes): { content: str
     return key;
   };
   for (const raw of lines) {
-    const line = raw.trim().replace(/;$/, '').trim();
+    const line = oneLine(raw).replace(/;$/, '').trim();
     if (!line) continue;
     const declared = /^(participant|actor)\s+(.+)$/i.exec(line);
     const frame = FRAMES.exec(line);

@@ -3,7 +3,7 @@
  * Labels are data. These passes change notation only (an entity to its character, a line break to a
  * space, a subscript tag to the native `_{}`), never wording.
  */
-import { labelText, refuse } from './native';
+import { MAX_LABEL_CHARS, labelText, refuse } from './native';
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
@@ -119,6 +119,7 @@ export function stripInlineMarkdown(text: string): string {
  * `\n` followed by a lowercase letter is left alone: it is far more often `\nu` or `\neq`.
  */
 export function mermaidLabel(raw: string): string {
+  if (raw.length > 4 * MAX_LABEL_CHARS) refuse('a label is too long to draw');
   let text = raw.trim();
   if (text.length >= 2 && text.startsWith('"') && text.endsWith('"') && !text.slice(1, -1).includes('"')) text = text.slice(1, -1).trim();
   if (text.length >= 2 && text.startsWith('`') && text.endsWith('`')) text = stripInlineMarkdown(text.slice(1, -1));

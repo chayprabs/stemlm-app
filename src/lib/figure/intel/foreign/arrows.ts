@@ -7,6 +7,7 @@
 import { GraphDraft, Notes, labelText, refuse, type Translation } from './native';
 
 const MAX_LINES = 200;
+const MAX_LINE_CHARS = 2_000;
 const WORD = String.raw`[^\s<>=-]`;
 /**
  * One arrow. Labelled forms first (`-- text -->`, `-5->`, `== text ==>`); they must follow a space,
@@ -48,7 +49,7 @@ function nodeName(raw: string, strict: boolean): string {
  */
 export function translateArrows(source: string, strict: boolean): Translation {
   const lines = source.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim()).filter(Boolean);
-  if (!lines.length || lines.length > MAX_LINES) refuse('not an arrow list of a drawable size');
+  if (!lines.length || lines.length > MAX_LINES || lines.some((line) => line.length > MAX_LINE_CHARS)) refuse('not an arrow list of a drawable size');
   const draft = new GraphDraft();
   draft.rankdir = 'LR';
   const notes = new Notes();
@@ -81,6 +82,8 @@ export function translateArrows(source: string, strict: boolean): Translation {
       tail = tail.slice(0, colon);
     }
     const names = [...parts, tail].map((part) => nodeName(part, strict));
+    // Nodes are declared in reading order, whichever way their arrows point.
+    for (const name of names) draft.node(name);
     arrows.forEach((arrow, index) => {
       const label = labelText(arrow.label);
       if (arrow.forward) draft.edge(names[index]!, names[index + 1]!, label);
