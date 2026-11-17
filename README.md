@@ -84,7 +84,7 @@ The full [Privacy Policy](PRIVACY.md) and [Terms and Conditions](TERMS.md) are M
 
 ## How it works
 
-Pressing the **stemLM button** attaches a plain-text instruction file to your message. It teaches the model one answer format: a single fenced `stemlm` capsule holding the steps, formulas, quick checks and takeaways. Figures inside the capsule are not pictures. They are short, typed `key: value` specs in a small language, for example:
+Pressing the **stemLM button** adds a short reminder of the answer's shape under your question and, the first time in a chat, attaches the **stemLM study guide** as a plain-text file. The guide teaches the model one answer format: a single fenced `stemlm` block holding the steps, formulas, quick checks and takeaways. It is attached again only when the chat needs it: when it is more than five of your messages back, or when an answer came back out of format. Where a chat takes no file, a compact guide goes into the message as text. Figures inside the capsule are not pictures. They are short, typed `key: value` specs in a small language, for example:
 
 ```text
 @diagram id=f1 type=plot
