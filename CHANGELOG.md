@@ -13,6 +13,8 @@
 - **Other diagram notations.** Mermaid (flowcharts, state diagrams, sequence diagrams, class relations, mindmaps, pies, numeric gantts), Graphviz DOT, Markdown pipe tables and lists of arrows are translated into native specs and drawn by stemLM's own compiler. Mermaid itself is never run. A construct the native engines cannot express keeps the figure hidden.
 - A figure drawn from repaired or translated notation is marked **Auto-corrected**.
 - **New families:** sequence diagrams; truth tables computed from Boolean expressions, with minterm and maxterm lists; logic-gate circuits derived from Boolean expressions; binary, search and heap trees with computed traversals and heap validation.
+- **Statistics and data:** charts (bar, grouped, stacked, line, histogram, pie, donut, box, scatter) that compute their own ticks, bins, percentages, quartiles, outliers and fitted line with r²; probability distributions drawn to scale with the shaded probability computed; number lines for intervals and inequalities; Venn diagrams that shade exactly the regions a set expression holds in.
+- A dollar sign in a figure label is no longer deleted (an axis titled "Cost ($)" used to read "Cost ()").
 - A graph may carry a caption or title. Flowchart boxes are no longer reshaped because of a word in their label. A type alias selects its variant (`type=heap` checks the heap property).
 - The attached guide teaches the new families, generated from the same manifests the compiler is registered with.
 
