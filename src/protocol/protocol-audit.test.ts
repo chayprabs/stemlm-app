@@ -397,7 +397,6 @@ describe('remaining-gap inventory (shipped assembleProtocolFile)', () => {
       'nline',
       'shaft',
       'punnett',
-      'pedigree',
       'magcirc',
       'devicemodel',
       'crispr',
