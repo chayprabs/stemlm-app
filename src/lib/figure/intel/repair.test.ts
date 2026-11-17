@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { compileDiagram } from '@/src/lib/resolve-diagram';
+import { compileDiagramStrict as compileDiagram } from '@/src/lib/resolve-diagram';
 import { MAX_SPEC_CHARS } from '../spec';
 import { repairDiagram, type RepairCode } from './repair';
 import { parseLoose, readItems } from './structure';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileDiagram } from '@/src/lib/resolve-diagram';
+import { compileDiagramStrict as compileDiagram } from '@/src/lib/resolve-diagram';
 import { repairDiagram } from './repair';
 import { REPAIRABLE, UNTOUCHABLE } from './corpus';
 

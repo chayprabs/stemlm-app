@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
+  describe,
+  it,
+  expect } from 'vitest';
+import {
   compileDiagram,
   normalizeDiagramSource,
   presentCompiledDiagram,
   resolveDiagramSvg,
+  compileDiagramStrict,
+  compileDiagram,
 } from './resolve-diagram';
 
 describe('normalizeDiagramSource', () => {
@@ -57,10 +63,37 @@ describe('resolveDiagramSvg', () => {
     expect(svg).toContain('fill="#16a34a"');
   });
 
-  it('keeps a saved Mermaid diagram hidden now that flowcharts compile as graphs', async () => {
+  it('draws a Mermaid flowchart with the native graph engine and marks it corrected', async () => {
     const compiled = await compileDiagram({ type: 'mermaid', content: 'graph TD\n  A["Start"] --> B["End"]' });
-    expect(compiled).toMatchObject({ ok: false, svg: '', diagnostic: { family: 'mermaid', code: 'refused' } });
-    expect(await resolveDiagramSvg({ type: 'mermaid', content: 'flowchart LR\n  A --> B' }, 'light')).toBe('');
+    expect(compiled).toMatchObject({ ok: true, corrected: true });
+    expect(compiled.svg).toContain('data-stemlm-family="graph"');
+    expect(await resolveDiagramSvg({ type: 'mermaid', content: 'flowchart LR\n  A --> B' }, 'light')).toContain('<svg');
+  });
+
+  it('never runs Mermaid itself: a Mermaid diagram it cannot translate stays hidden', async () => {
+    const strict = await compileDiagramStrict({ type: 'mermaid', content: 'graph TD\n  A --> B' });
+    expect(strict).toMatchObject({ ok: false, svg: '', diagnostic: { family: 'mermaid', code: 'refused' } });
+    const gantt = await compileDiagram({ type: 'mermaid', content: 'gitGraph\n  commit\n  branch dev\n  commit' });
+    expect(gantt).toMatchObject({ ok: false, svg: '' });
+  });
+
+  it('leaves a spec that already compiles untouched and unmarked', async () => {
+    const compiled = await compileDiagram({ type: 'plot', content: 'fn: x^2\ndomain: -2 2' });
+    expect(compiled.ok).toBe(true);
+    expect(compiled.corrected).toBeUndefined();
+  });
+
+  it('draws a spec whose only fault is notation, and says it was corrected', async () => {
+    const drifted = { type: 'plot', content: 'function: x^2\nrange: -3 to 3' };
+    expect((await compileDiagramStrict(drifted)).ok).toBe(false);
+    const compiled = await compileDiagram(drifted);
+    expect(compiled).toMatchObject({ ok: true, corrected: true });
+    expect(presentCompiledDiagram(compiled, 'dark')).toMatchObject({ ok: true, corrected: true });
+  });
+
+  it('keeps a figure hidden when repair would have to guess content', async () => {
+    const compiled = await compileDiagram({ type: 'plot', content: 'fn: x^2\ndomain: -2 2\nmystery: 7' });
+    expect(compiled.ok).toBe(false);
   });
 
   it('compiles type=plot through the real resolve path with graphic shapes', async () => {

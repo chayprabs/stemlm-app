@@ -16,6 +16,7 @@ import { svgMarkupHasGraphicShapes } from './mount-svg';
 import { renderOverlayHtml } from './figure/overlay';
 import { parseSpec } from './figure/spec';
 import { validateSfdSemantics } from './figure/leftovers/sfd';
+import { repairDiagram } from './figure/intel/repair';
 
 export const DIAGRAM_COMPILE_TIMEOUT_MS = 12_000;
 
@@ -29,6 +30,11 @@ export interface DiagramDiagnostic {
 interface DiagramMarkup {
   svg: string;
   overlays: Overlay[];
+  /**
+   * The spec only compiled after its notation was corrected (src/lib/figure/intel/repair.ts).
+   * The figure says so, because the student should know the drawing is not the model's text verbatim.
+   */
+  corrected?: boolean;
 }
 
 export type ResolvedDiagramMarkup = DiagramMarkup & (
@@ -99,8 +105,28 @@ function admitSvg(family: string, source: string, overlays: Overlay[]): Compiled
   return { ok: true, svg, overlays };
 }
 
-/** Compile a diagram to sanitized SVG without baking panel theme colors. */
+/**
+ * Compile a diagram to sanitized SVG without baking panel theme colors.
+ *
+ * The spec is compiled exactly as written first, so a correct spec is never touched. Only when
+ * that fails is its notation repaired (spelling, separators, wrappers: never content) and the
+ * result put through the same strict compiler; a repair that still does not compile is discarded
+ * and the original failure stands.
+ */
 export async function compileDiagram(
+  diagram: Diagram,
+  profile: DiagramSizeProfile = 'step',
+): Promise<CompiledDiagram> {
+  const strict = await compileDiagramStrict(diagram, profile);
+  if (strict.ok) return strict;
+  const { diagram: repaired, repairs } = repairDiagram(diagram);
+  if (!repairs.length) return strict;
+  const second = await compileDiagramStrict(repaired, profile);
+  return second.ok ? { ...second, corrected: true } : strict;
+}
+
+/** Compile the spec exactly as written: no notation repair. The repair tests measure against this. */
+export async function compileDiagramStrict(
   diagram: Diagram,
   profile: DiagramSizeProfile = 'step',
 ): Promise<CompiledDiagram> {
@@ -136,7 +162,9 @@ export function presentCompiledDiagram(
   if (!compiled.ok) return compiled;
   try {
     const svg = presentSvg(compiled.svg, theme, profile, displayScale);
-    if (svg && svgMarkupHasGraphicShapes(svg)) return { ok: true, svg, overlays: compiled.overlays };
+    if (svg && svgMarkupHasGraphicShapes(svg)) {
+      return { ok: true, svg, overlays: compiled.overlays, ...(compiled.corrected ? { corrected: true } : {}) };
+    }
   } catch {
     // A presentation failure must not discard the surrounding answer or report.
   }
