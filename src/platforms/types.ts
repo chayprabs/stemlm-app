@@ -111,6 +111,13 @@ export interface PlatformAdapter {
 
   /** Best-effort: is the assistant currently generating? */
   isStreaming(): boolean;
+
+  /**
+   * Text of the student's message that `block` answers: the nearest user turn before it in the
+   * page, as the host shows it (stemLM's own stub included). Empty when the host's user markup is
+   * not recognised; callers fall back to the answer's own topic. Optional for test doubles.
+   */
+  getUserQuestionBefore?(block: Element): string;
 }
 
 /** Declarative config used by the adapter factory. */
@@ -156,6 +163,10 @@ export interface AdapterConfig {
   citationMarkers?: RegExp[];
   /** Selectors that, if present, indicate generation is in progress (e.g. stop button). */
   streaming: string[];
+  /** The student's own turns, tried in order; shared fallbacks are appended by the factory. */
+  userMessage?: string[];
+  /** Where a user turn keeps its typed text (the turn itself also holds file chips and labels). */
+  userMessageText?: string[];
   /** Brand palette for the overlay button. */
   brand: PlatformBrand;
   /**

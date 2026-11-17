@@ -2,7 +2,7 @@
  * Resume stitch, ID-patch apply, and multi-question helpers.
  * Pure functions — the controller calls these; they do not touch the DOM.
  */
-import type { Capsule, ParseErrorCode, ParseWarningCode, PatchOp, Step } from './types';
+import type { Capsule, ParseErrorCode, ParseWarningCode, PatchOp, Session, Step } from './types';
 import { CAPSULE_END_TOKEN, CAPSULE_FENCE_TAG } from './protocol';
 
 const RESUME_RE = /@resume\b[^\n]*/i;
@@ -152,6 +152,16 @@ export interface ApplyPatchResult {
   capsule: Capsule;
   warnings: string[];
   warningCodes: ParseWarningCode[];
+}
+
+/**
+ * A patch addresses steps by the ids the model gave them. An ingest session's ids (`s1`, `s2`…)
+ * were assigned locally to an answer the model never numbered, so a patch that happens to name
+ * one is aimed at something else: applying it would rewrite the wrong step and could attach a
+ * verification verdict to an answer nothing checked.
+ */
+export function sessionAcceptsPatch(session: Pick<Session, 'origin'>): boolean {
+  return session.origin !== 'ingest';
 }
 
 /** Apply ID-targeted patch ops onto an existing capsule. Unknown ids warn `patch_unknown_id`. */

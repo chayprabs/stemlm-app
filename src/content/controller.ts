@@ -5,6 +5,10 @@
  * watches the page for the assistant's completed capsule, parses it, and pushes
  * sessions into the store. Also powers "Load conversation" (rebuild from the
  * chatbot's own history) and the quote-reply follow-up flow.
+ *
+ * An answer that is not a capsule is not a dead end: a plain answer is arranged into
+ * steps by src/ingest and stored as a session with `origin: 'ingest'`. Capsules always
+ * win, and an ingest session is never patched, stitched or matched as capsule text.
  */
 import type { PlatformAdapter } from '@/src/platforms/types';
 import {
@@ -26,12 +30,14 @@ import {
   THREAD_PROTOCOL_SELECTORS,
 } from '@/src/protocol/builder';
 import { buildStepEntries } from '@/src/lib/step-entries';
+import { INGEST_NOTICE, questionFromUserTurn, readPlainAnswer, type PlainAnswer } from './plain-answer';
 import { attachTextFile, hasConfirmedAttachment } from '@/src/lib/file-inject';
 import { parse, looksComplete, findCapsuleRaw } from '@/src/protocol/parser';
 import {
   applyStepPatch,
   closedPrefix,
   findResumeToken,
+  sessionAcceptsPatch,
   stitchResume,
   groupResumeParts,
 } from '@/src/protocol/apply';
@@ -64,6 +70,20 @@ function sessionDedupKey(
   return '';
 }
 
+/**
+ * The same identity for an ingest session. Its raw text is the answer's Markdown, so it is
+ * compared whole and never searched for a capsule (a `stemlm` figure fence would read as one).
+ */
+function plainDedupKey(raw: string, capsule: Capsule): string {
+  return raw.trim() || `fp:${capsule.meta.topic}:${capsule.steps.length}:${capsule.steps[0]?.title ?? ''}`;
+}
+
+/** A session whose capsule is replaced by one the parser read is a capsule session again. */
+function withoutOrigin(session: Session): Session {
+  const { origin: _origin, ...rest } = session;
+  return rest;
+}
+
 /** Quiet period after the last DOM mutation before we inspect the page. */
 const DEBOUNCE_MS = 350;
 /**
@@ -87,6 +107,16 @@ const PARTIAL_STALL_MS = 10_000;
 const STREAMING_STALL_MS = 60_000;
 
 const FULL_CAPSULE_BLOCK_WARNINGS = new Set(['missing_end']);
+
+/** "Load conversation" on a chat of plain answers opens the most recent ones, not the whole history. */
+const PLAIN_SESSIONS_MAX = 5;
+/** How far back that search looks; short replies between worked answers do not count toward the cap. */
+const PLAIN_SCAN_BLOCKS = 12;
+/**
+ * A chat whose student sent the stemLM guide may still be rendering its capsules after a reload.
+ * Its plain answers are only structured once this long has passed without one appearing.
+ */
+const CAPSULE_PATIENCE_MS = 2_500;
 
 /** How often a watching controller checks that its observed root is still in the page (CAP-OBS-01). */
 const ROOT_CHECK_MS = 2_000;
@@ -236,7 +266,18 @@ export class StemController {
   private answerArmed = false;
   private baselineBlocks = 0;
   private baselineAssistantText = '';
+  /** The assistant messages already on the page when the guide was attached: never the awaited answer. */
+  private baselineBlockSet = new WeakSet<Element>();
   private onAnswerStartedCb: (() => void) | null = null;
+  /**
+   * True from a successful inject until an answer is stored. The panel only shows "loading" when
+   * the question was typed first; this also covers the guide attached to an empty chat box.
+   */
+  private awaitingAnswer = false;
+  /** Reply text that was looked at and is not a plain answer; not looked at again until it changes. */
+  private plainRefused = '';
+  /** What the page offers an empty panel, remembered until its latest assistant message changes. */
+  private pageProbe: { key: string; latest: WeakRef<Element>; found: 'capsules' | 'answer' | null } | null = null;
 
   // Stability tracking for the no-`@end` fallback.
   private stableText = '';
@@ -410,6 +451,8 @@ export class StemController {
     }
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
+    this.awaitingAnswer = true;
+    this.plainRefused = '';
     this.beginCaptureEpoch();
     this.seedCapturedFromPage();
     this.armAnswerDetection();
@@ -507,6 +550,7 @@ export class StemController {
     this.lastQuestion = normalized;
     this.pendingFollowUpCapture = true;
     this.pendingFollowUpAnchor = opt?.anchor ?? null;
+    this.awaitingAnswer = false;
     useStore.getState().setButtonInjected(true);
     this.beginCaptureEpoch();
     // The student has NOT asked anything yet — only the context was inserted.
@@ -637,9 +681,12 @@ export class StemController {
     this.stableText = '';
     this.stableSince = 0;
     try {
-      this.baselineBlocks = this.adapter.getAssistantBlocks().length;
+      const blocks = this.adapter.getAssistantBlocks();
+      this.baselineBlocks = blocks.length;
+      this.baselineBlockSet = new WeakSet<Element>(blocks);
     } catch {
       this.baselineBlocks = 0;
+      this.baselineBlockSet = new WeakSet<Element>();
     }
   }
 
@@ -729,13 +776,14 @@ export class StemController {
 
     // An unclosed metadata block ending in @end may still be streaming @endmeta.
     // Keep that prefix on the existing stability path, not the final-error path.
+    let candidate: string | null;
     if (latest && looksComplete(latest) &&
         (/^\s*@endmeta\b/m.test(latest) || hasUsableParsedContent(parse(latest)))) {
       this.tryCapture(latest, true);
-      return;
+      candidate = this.plainReplyBelowCapsule(latest);
+    } else {
+      candidate = this.partialCandidate(latest);
     }
-
-    const candidate = this.partialCandidate(latest);
     if (!candidate) return;
 
     const norm = candidate.trim();
@@ -750,12 +798,25 @@ export class StemController {
     this.stabilityTimer = setTimeout(() => this.evaluateStable(), delay);
   }
 
+  /**
+   * The reply being waited for, when it is prose below an earlier answer's capsule. That capsule
+   * is still the newest on the page, but it was captured before this question was asked, so it
+   * says nothing about the reply.
+   */
+  private plainReplyBelowCapsule(latest: string): string | null {
+    if (!this.awaitingAnswer || !this.capturedRaw.has(latest.trim())) return null;
+    const text = this.adapter.getLatestAssistantText();
+    return text.trim() && !text.includes('@meta') && text !== this.baselineAssistantText &&
+      text.trim() !== this.plainRefused ? text : null;
+  }
+
   /** The best partial-capsule text on the page, if any (code block or message text). */
   private partialCandidate(latest: string | undefined): string | null {
     if (latest && latest.includes('@meta')) return latest;
     const text = this.adapter.getLatestAssistantText();
     if (text && text.includes('@meta')) return text;
-    return useStore.getState().status === 'loading' && text.trim() && text !== this.baselineAssistantText
+    const waiting = useStore.getState().status === 'loading' || this.awaitingAnswer;
+    return waiting && text.trim() && text !== this.baselineAssistantText && text.trim() !== this.plainRefused
       ? text : null;
   }
 
@@ -764,11 +825,13 @@ export class StemController {
     if (!this.watching) return;
     const capsules = this.adapter.extractCapsules();
     const latest = capsules[capsules.length - 1];
+    let candidate: string | null;
     if (latest && looksComplete(latest)) {
       this.tryCapture(latest, true);
-      return;
+      candidate = this.plainReplyBelowCapsule(latest);
+    } else {
+      candidate = this.partialCandidate(latest);
     }
-    const candidate = this.partialCandidate(latest);
     if (!candidate) return;
     // Only act if the text is still the one we measured as stable.
     if (candidate.trim() !== this.stableText) return;
@@ -783,7 +846,77 @@ export class StemController {
     // A stable prefix is still a prefix: the chat stopped writing. Show the blocks that closed
     // (D38), else report it; either way the watcher stays alive, so a later @end or continuation
     // replaces it instead of duplicating it.
-    if (!this.showCutOff(candidate)) this.offerRepairPrompt(parse(candidate));
+    if (this.showCutOff(candidate)) return;
+    if (!candidate.includes('@meta')) {
+      // No capsule at all: the chat answered in its own words. Study that answer as it is.
+      if (this.capturePlainAnswer()) return;
+      // Not an answer either. It is not looked at again unless it changes, and only a question
+      // the panel is visibly waiting on reports it.
+      this.plainRefused = candidate.trim();
+      if (useStore.getState().status !== 'loading') return;
+    }
+    this.offerRepairPrompt(parse(candidate));
+  }
+
+  /**
+   * The finished reply to a question sent with the guide, when it holds no capsule: structured
+   * from the answer's own text and opened with a notice that says so. False when the reply is not
+   * a plain answer (a refusal, an error, a short reply), so the caller reports it as before.
+   */
+  private capturePlainAnswer(): boolean {
+    // An Ask-in-chat reply belongs under the step it was asked about, never in a session of its own.
+    if (this.pendingFollowUpCapture) return false;
+    const store = useStore.getState();
+    const blocks = this.adapter.getAssistantBlocks();
+    const block = blocks[blocks.length - 1];
+    // The reply is a message that was not there when the guide was attached.
+    if (!block || this.baselineBlockSet.has(block)) return false;
+    const asked = this.adapter.getUserQuestionBefore?.(block) ?? '';
+    // "Loading" means the student typed the question, pressed the button and sent. Without that,
+    // the turn being answered must itself show stemLM's stub: anything else was sent without it.
+    if (store.status !== 'loading' && !composerTextHasProtocol(asked)) return false;
+    const question = cleanSessionQuestion(this.lastQuestion) || questionFromUserTurn(asked);
+    const answer = readPlainAnswer(block, question);
+    if (!answer) return false;
+
+    const last = store.sessions[store.sessions.length - 1];
+    // A regenerated plain answer to the same question replaces the one on screen. A capsule
+    // answer is never replaced by a structured one.
+    const replaced =
+      last && last.origin === 'ingest' && store.activeSessionId === last.id &&
+      last.platform === this.adapter.id && cleanSessionQuestion(last.question) === question
+        ? last : undefined;
+    this.commitSession(this.plainSession(answer, question, replaced), Boolean(replaced));
+    if (this.stabilityTimer) clearTimeout(this.stabilityTimer);
+    this.stableText = '';
+    this.stableSince = 0;
+    void rememberCurrentChat(this.adapter.id);
+    this.cutOffId = null;
+    this.awaitingAnswer = false;
+    this.resetInjection();
+    useStore.getState().setStatus('ready', INGEST_NOTICE);
+    void trackEvent('question_solved', {
+      platform: this.adapter.id,
+      subject: answer.capsule.meta.subject,
+      steps: answer.capsule.steps.length,
+      parse_status: 'ingest',
+    });
+    return true;
+  }
+
+  /** A session built from a plain answer. `previous` keeps its identity, place and follow-ups. */
+  private plainSession(answer: PlainAnswer, question: string, previous?: Session, createdAt = Date.now()): Session {
+    return {
+      id: previous?.id ?? makeId(),
+      createdAt: previous?.createdAt ?? createdAt,
+      updatedAt: Date.now(),
+      platform: this.adapter.id,
+      question: question || previous?.question || answer.capsule.meta.topic,
+      capsule: answer.capsule,
+      ...(previous?.followups ? { followups: previous.followups } : {}),
+      raw: answer.markdown,
+      origin: 'ingest',
+    };
   }
 
   /**
@@ -1038,6 +1171,10 @@ export class StemController {
         );
         return;
       }
+      if (!sessionAcceptsPatch(active)) {
+        this.rejectPatch('This change was written for a stemlm answer, but the answer on screen was structured from a plain chat reply.');
+        return;
+      }
       const patched = applyStepPatch(active.capsule, result.patch);
       if (!patched.ok) {
         this.rejectPatch(patched.warnings[0] ?? 'The patch did not match the current answer.');
@@ -1087,7 +1224,7 @@ export class StemController {
       const cap = keepActiveQid(active, questionCapsules[0]!);
       this.commitSession(
         {
-          ...active,
+          ...withoutOrigin(active),
           updatedAt: Date.now(),
           capsule: cap,
           raw: result.raw,
@@ -1209,6 +1346,7 @@ export class StemController {
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
     this.cutOffId = null;
+    this.awaitingAnswer = false;
     this.resetInjection();
     const notice = missingClosingNotice(result);
     if (notice) useStore.getState().setStatus('ready', notice);
@@ -1239,46 +1377,94 @@ export class StemController {
   }
 
   /**
-   * True when this chat already has stemLM answers that are not loaded into
-   * the panel. Empty-state uses this to offer “Load conversation from this chat”.
+   * What "Load conversation" would find for an empty panel. `capsules`: stemLM answers (or a
+   * sent guide, whose answers may still be rendering). `answer`: no capsule anywhere, but the
+   * latest reply is a finished plain answer that can be studied as it is. Null: nothing.
    */
+  conversationToLoad(): 'capsules' | 'answer' | null {
+    if (useStore.getState().sessions.length > 0) return null;
+    return this.probePage() ??
+      (pageThreadHasProtocol(document, this.adapter.findEditor()) ? 'capsules' : null);
+  }
+
+  /** True when this chat has something the panel has not loaded. Empty-state offers to load it. */
   hasConversationToLoad(): boolean {
-    if (useStore.getState().sessions.length > 0) return false;
-    const capsules = this.adapter.extractCapsules();
-    for (const candidate of capsules) {
-      const text = findCapsuleRaw(candidate) ?? candidate;
-      if (text.includes('@meta')) return true;
+    return this.conversationToLoad() !== null;
+  }
+
+  /**
+   * Capsules win over plain answers, and a reply still being written is neither. The empty panel
+   * asks repeatedly while it waits, so the answer is kept until the latest message changes.
+   */
+  private probePage(): 'capsules' | 'answer' | null {
+    const blocks = this.adapter.getAssistantBlocks();
+    const latest = blocks[blocks.length - 1];
+    const streaming = this.adapter.isStreaming();
+    const key = `${blocks.length}:${(latest?.textContent ?? '').length}:${streaming ? 1 : 0}`;
+    if (latest && this.pageProbe?.key === key && this.pageProbe.latest.deref() === latest) {
+      return this.pageProbe.found;
     }
-    return pageThreadHasProtocol(document, this.adapter.findEditor());
+    let found: 'capsules' | 'answer' | null = null;
+    if (this.adapter.extractCapsules().some((candidate) => (findCapsuleRaw(candidate) ?? candidate).includes('@meta'))) {
+      found = 'capsules';
+    } else if (latest && !streaming && readPlainAnswer(latest, '')) {
+      found = 'answer';
+    }
+    // Without a recognised message there is nothing to key the memory on: look again every time.
+    this.pageProbe = latest ? { key, latest: new WeakRef(latest), found } : null;
+    return found;
   }
 
   /**
    * Rebuild sessions from the chatbot's own visible history (no server). Used
-   * when the panel was lost (tab closed) but the chat history remains.
+   * when the panel was lost (tab closed) but the chat history remains, and to
+   * study a chat that was answered without stemLM.
    *
    * Polls briefly so Gemini has time to render history after a tab reload.
+   * `quiet`: the student did not ask to load anything (the panel was only opened), so finding
+   * nothing changes nothing.
    */
-  async loadConversation(opt?: { maxWaitMs?: number }): Promise<number> {
+  async loadConversation(opt?: { maxWaitMs?: number; quiet?: boolean }): Promise<number> {
     const maxWaitMs = opt?.maxWaitMs ?? 2500;
-    const deadline = Date.now() + maxWaitMs;
+    const started = Date.now();
+    const deadline = started + maxWaitMs;
+    /** The page's plain answers at the previous look, and at the look that found nothing to study. */
+    let seen: string | null = null;
+    let refused = '';
+    let writing = false;
 
     while (true) {
-      const count = this.loadConversationOnce();
+      const capsules = this.adapter.extractCapsules();
+      const count = this.loadConversationOnce(capsules);
       if (count > 0) return count;
-      if (Date.now() >= deadline) break;
+      const last = Date.now() >= deadline;
+      const page = capsules.some((candidate) => candidate.includes('@meta')) ? '' : this.plainPageState();
+      // Plain answers are read once two looks agree (a history still rendering or an answer still
+      // being written changes between them), or at once when there is no time for a second look.
+      const settled = seen === null ? last : page === seen;
+      writing = page !== '' && (!settled || this.adapter.isStreaming());
+      if (page && settled && page !== refused && (last || !this.capsulesMayFollow(started))) {
+        const plain = this.loadPlainAnswers();
+        if (plain > 0) return plain;
+        refused = page;
+      }
+      seen = page;
+      if (last) break;
       await new Promise((r) => setTimeout(r, 300));
     }
 
     const store = useStore.getState();
-    if (store.sessions.length === 0) {
+    if (store.sessions.length === 0 && !opt?.quiet) {
       const candidates = groupResumeParts(this.adapter.extractCapsules());
       const rejected = candidates.reverse().find((candidate) => candidate.includes('@meta'));
       if (rejected) {
         this.offerRepairPrompt(parse(rejected));
+      } else if (writing) {
+        store.setStatus('idle', 'The chat is still writing its answer. Open it here when it has finished.');
       } else {
         store.setStatus(
           'error',
-          'No stemlm answers found in this chat. Solve a question with stemlm first.',
+          'No answer to study in this chat yet. Ask a question, then open stemlm again once the chat has answered.',
         );
       }
     }
@@ -1286,14 +1472,27 @@ export class StemController {
     return 0;
   }
 
-  /** Single pass over the visible chat history. */
-  private loadConversationOnce(): number {
+  /** The assistant side of a capsule-free page in a few numbers; '' when no reply is on it. */
+  private plainPageState(): string {
+    const blocks = this.adapter.getAssistantBlocks();
+    const latest = blocks[blocks.length - 1];
+    return latest ? `${blocks.length}:${(latest.textContent ?? '').length}:${this.adapter.isStreaming() ? 1 : 0}` : '';
+  }
+
+  /** The student sent the guide in this chat, so capsules may still be on their way into the page. */
+  private capsulesMayFollow(started: number): boolean {
+    return Date.now() - started < CAPSULE_PATIENCE_MS && pageThreadHasProtocol(document, this.adapter.findEditor());
+  }
+
+  /** Single pass over the capsules in the visible chat history. */
+  private loadConversationOnce(capsules: string[]): number {
     const store = useStore.getState();
-    const capsules = this.adapter.extractCapsules();
     const sessions: Session[] = [];
     const seen = new Set<string>();
     const existingByRaw = new Map<string, Session>();
     for (const s of store.sessions) {
+      // An ingest session's raw text is Markdown: it is not a capsule and never matches one.
+      if (s.origin === 'ingest') continue;
       const k = sessionDedupKey(s.raw, {
         topic: s.capsule.meta.topic,
         stepCount: s.capsule.steps.length,
@@ -1335,20 +1534,64 @@ export class StemController {
       });
     }
 
-    if (sessions.length) {
-      // LOAD-01: merge, never replace. Sessions the page does not show (restored, other
-      // chats) stay; reloaded ones keep their place and follow-ups.
-      const byId = new Map(sessions.map((s) => [s.id, s]));
-      const merged = store.sessions.map((s) => byId.get(s.id) ?? s);
-      merged.push(...sessions.filter((s) => !store.sessions.some((e) => e.id === s.id)));
-      store.setSessions(merged);
-      store.setActiveSession(sessions[sessions.length - 1]!.id);
-      store.setStatus('ready');
-      void trackEvent('conversation_loaded', { platform: this.adapter.id, count: sessions.length });
-    }
-
+    if (sessions.length) this.adoptLoaded(sessions);
     this.startWatching();
     return sessions.length;
+  }
+
+  /**
+   * Sessions for the most recent plain answers on the page. Only called for a chat that holds no
+   * capsule: there, every worked answer is one the student may want to study.
+   */
+  private loadPlainAnswers(): number {
+    const store = useStore.getState();
+    let blocks = this.adapter.getAssistantBlocks();
+    // The message still being written is not an answer yet.
+    if (this.adapter.isStreaming()) blocks = blocks.slice(0, -1);
+    const existing = new Map<string, Session>();
+    for (const s of store.sessions) {
+      if (s.origin === 'ingest') existing.set(plainDedupKey(s.raw, s.capsule), s);
+    }
+
+    const found: Array<{ answer: PlainAnswer; question: string }> = [];
+    const seen = new Set<string>();
+    const oldest = Math.max(0, blocks.length - PLAIN_SCAN_BLOCKS);
+    for (let i = blocks.length - 1; i >= oldest && found.length < PLAIN_SESSIONS_MAX; i--) {
+      const block = blocks[i]!;
+      const question = questionFromUserTurn(this.adapter.getUserQuestionBefore?.(block) ?? '');
+      const answer = readPlainAnswer(block, question);
+      const key = answer?.markdown.trim();
+      if (!answer || !key || seen.has(key)) continue;
+      seen.add(key);
+      found.unshift({ answer, question });
+    }
+    if (!found.length) return 0;
+
+    const now = Date.now();
+    const sessions = found.map(({ answer, question }, i) => {
+      // A session restored without its text (mirrored tabs, the reload backup) is matched by shape.
+      const previous = existing.get(answer.markdown.trim()) ?? existing.get(plainDedupKey('', answer.capsule));
+      // One pass stamps every answer; a millisecond apart keeps them in page order wherever
+      // sessions are sorted by creation time.
+      return this.plainSession(answer, previous?.question || question, previous, now + i);
+    });
+    this.adoptLoaded(sessions);
+    return sessions.length;
+  }
+
+  /**
+   * LOAD-01: merge, never replace. Sessions the page does not show (restored, other chats) stay;
+   * reloaded ones keep their place and follow-ups. The newest loaded answer opens.
+   */
+  private adoptLoaded(sessions: Session[]): void {
+    const store = useStore.getState();
+    const byId = new Map(sessions.map((s) => [s.id, s]));
+    const merged = store.sessions.map((s) => byId.get(s.id) ?? s);
+    merged.push(...sessions.filter((s) => !store.sessions.some((e) => e.id === s.id)));
+    store.setSessions(merged);
+    store.setActiveSession(sessions[sessions.length - 1]!.id);
+    store.setStatus('ready');
+    void trackEvent('conversation_loaded', { platform: this.adapter.id, count: sessions.length });
   }
 
   /** Question text from the last inject / follow-up (used to detect a new prompt). */
@@ -1386,6 +1629,7 @@ export class StemController {
     this.resetInjection();
     this.pendingFollowUpCapture = false;
     this.pendingFollowUpAnchor = null;
+    this.awaitingAnswer = false;
     useStore.getState().setStatus('idle', 'The stemlm guide was removed from the chat box. Click the stemlm button to attach it again.');
   }
 
@@ -1411,6 +1655,7 @@ export class StemController {
     if (store.status !== 'loading' || !store.buttonInjected) return;
     const match = store.sessions.find(
       (s) =>
+        s.origin !== 'ingest' &&
         sessionDedupKey(s.raw, {
           topic: s.capsule.meta.topic,
           stepCount: s.capsule.steps.length,

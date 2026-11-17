@@ -62,6 +62,8 @@ const config: AdapterConfig = {
     '[data-is-streaming="true"]',
     'button[aria-label*="Stop" i]',
   ],
+  // Question lookup only; from open-source exporters, not a live page.
+  userMessage: ['[data-testid="user-message"]'],
   brand: { accent: '#D97757', accentFg: '#ffffff', neutral: true },
   layoutRoots: ['main', '[class*="chat"]', '[role="main"]'],
 };

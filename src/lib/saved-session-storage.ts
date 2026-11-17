@@ -4,7 +4,7 @@
  * PDF file or open a viewer window — they do not jump to Gemini.
  */
 import { browser } from 'wxt/browser';
-import type { CapsuleMeta, Diagram, Session, Step } from '@/src/protocol/types';
+import type { CapsuleMeta, Diagram, Session, SessionOrigin, Step } from '@/src/protocol/types';
 import { isPlatformId, type PlatformId } from '@/src/platforms/types';
 import { resolveSessionQuestion } from './session-question';
 import { StorageQuotaError, isStorageQuotaError } from './storage-errors';
@@ -39,6 +39,11 @@ export interface SavedSessionSnapshot {
   steps: Step[];
   solution: string;
   solutionDiagrams: Diagram[];
+  /**
+   * Set only for an answer structured from a plain chat reply, so the library and its PDFs keep
+   * saying it was not checked. Absent on stemLM answers and on everything saved before ingest.
+   */
+  origin?: SessionOrigin;
 }
 
 function sortByRecent(sessions: SavedSessionSnapshot[]): SavedSessionSnapshot[] {
@@ -79,6 +84,7 @@ export function sessionToSnapshot(session: Session): SavedSessionSnapshot {
     steps: session.capsule.steps,
     solution: session.capsule.solution,
     solutionDiagrams: session.capsule.solutionDiagrams,
+    ...(session.origin === 'ingest' ? { origin: 'ingest' as const } : {}),
   };
 }
 
@@ -101,6 +107,7 @@ export function snapshotToSession(snapshot: SavedSessionSnapshot): Session {
       solution: typeof snapshot.solution === 'string' ? snapshot.solution : '',
       solutionDiagrams: Array.isArray(snapshot.solutionDiagrams) ? snapshot.solutionDiagrams : [],
     },
+    ...(snapshot.origin === 'ingest' ? { origin: 'ingest' as const } : {}),
   };
 }
 
@@ -149,6 +156,7 @@ export function normalizeStoredSession(raw: unknown): SavedSessionSnapshot | nul
       solutionDiagrams: Array.isArray(o.solutionDiagrams)
         ? o.solutionDiagrams.filter(isDiagram)
         : [],
+      ...(o.origin === 'ingest' ? { origin: 'ingest' as const } : {}),
     };
   }
 

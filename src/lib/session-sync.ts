@@ -26,14 +26,23 @@ export function sessionsForMirror(sessions: Session[]): Session[] {
   }));
 }
 
+/**
+ * The mirror carries no raw text, so the copy that wins borrows it from the other one. Only
+ * between copies of the same kind: an answer structured from the chat keeps Markdown there, a
+ * stemLM answer keeps capsule text, and a retry can turn one into the other under the same id.
+ */
+function sameOrigin(a: Session, b: Session): boolean {
+  return (a.origin ?? 'capsule') === (b.origin ?? 'capsule');
+}
+
 function mergeSessionPair(local: Session, incoming: Session): Session {
   if (incoming.updatedAt > local.updatedAt) {
-    return incoming.raw.trim() ? incoming : { ...incoming, raw: local.raw };
+    return incoming.raw.trim() || !sameOrigin(local, incoming) ? incoming : { ...incoming, raw: local.raw };
   }
   if (local.updatedAt > incoming.updatedAt) {
     return local;
   }
-  return local.raw.trim() ? local : { ...local, raw: incoming.raw };
+  return local.raw.trim() || !sameOrigin(local, incoming) ? local : { ...local, raw: incoming.raw };
 }
 
 /**

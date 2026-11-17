@@ -48,7 +48,10 @@ const RULES: Rule[] = [
         re: /\b(histology|epithelial|connective tissue|cartilage|osteoblast|osteoclast|sarcomere|myelin|nephron|renal|kidney|glomerulus|dialysis|gfr\b|raas|angiotensin|aldosterone|adh\b|aquaporin|cardiac|ecg|respiratory|spirometry|fev1|fvc|hemoglobin|anemia|asthma|hemostasis|coagulation|lymphatic|placenta|menstrual|spermatogenesis|oogenesis|fertilisation|fertilization|embryogenesis|blastocyst|gastrulation|phylogen\w*|gel electrophoresis|western blot|elisa\b|flow cytometry|pcr\b|rt-pcr|sanger sequencing|sequence alignment|blast\b|hardy-?weinberg|lac operon|hpa axis|dicot|apoplast|symplast|xylem|phloem|stomatal|transpiration|photoperiodism|germination|kranz|cam plant|eutrophication|wetland|coral|zooxanthellae|microbiome|biofilm|quorum sensing|prion|epigenet\w*|histone|methylation|ipsc|gene therapy|pharmacogenomics|cyp450|oncogenes?|tumor suppressor|biomes?|biodiversity|shannon|inbreeding|effective population|mycology|hyphae|protist|plasmodium|malaria|histolog\w*|integumentary|immunolog\w*|virolog\w*|ecolog\w+|physiolog\w+)\b/i,
         w: 3,
       },
-      { re: /\b(michaelis[- ]menten|vmax|\bK_m\b|\bKm\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
+      { re: /\b(michaelis[- ]menten|vmax|\bK_m\b|enzyme kinetics|competitive inhibitor|non[- ]competitive inhibitor)\b/i, w: 5 },
+      // The Michaelis constant is written Km. Matched in that case only: "km" is the unit, and
+      // every "72 km/h" question would otherwise score as enzyme kinetics.
+      { re: /\bKm\b/, w: 5 },
       { re: /\benzyme\b.*\b(activation energy|\bea\b|Δg|delta g)\b|\b(activation energy|\bea\b)\b.*\benzyme\b/i, w: 4 },
       { re: /\bactivation energy\b/i, w: 2 },
     ],

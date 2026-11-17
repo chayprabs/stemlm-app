@@ -17,6 +17,19 @@ export interface PanelMessageResult {
   error?: string;
 }
 
+/**
+ * A chat that was answered without stemLM opens on its latest answer, structured and labelled as
+ * such, instead of on an empty panel. Chats with stemLM answers keep their "Load conversation"
+ * offer, and nothing is loaded while stemLM is waiting for a reply the student asked it for.
+ */
+async function openOnPlainAnswer(): Promise<number> {
+  const state = useStore.getState();
+  if (state.sessions.length > 0 || state.status === 'loading' || state.buttonInjected) return 0;
+  const controller = getController();
+  if (controller?.conversationToLoad() !== 'answer') return 0;
+  return controller.loadConversation({ maxWaitMs: 900, quiet: true });
+}
+
 export async function handleStemLmPanelMessage(
   type: StemLmMessage['type'],
   platform: PlatformId,
@@ -40,7 +53,9 @@ export async function handleStemLmPanelMessage(
     }
     store.openPanel();
     void trackEvent('panel_opened', { platform, source: 'toolbar' });
-    return { ok: true };
+    const loaded = await openOnPlainAnswer();
+    if (loaded > 0) void rememberCurrentChat(platform);
+    return loaded > 0 ? { ok: true, loaded } : { ok: true };
   }
 
   if (type === 'stemlm:load-conversation') {

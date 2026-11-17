@@ -10,16 +10,24 @@ const HOW_IT_WORKS: Array<[string, string]> = [
   ['Study', 'The answer opens here as steps with formulas, figures and quick checks.'],
 ];
 
+/** How often an empty panel looks at the chat again: an answer may finish while it is open. */
+const RECHECK_MS = 1_500;
+
+type Loadable = 'capsules' | 'answer' | null;
+
 export function EmptyState() {
   const [status, setStatus] = useState<'idle' | 'none'>('idle');
-  const [canLoad, setCanLoad] = useState(false);
+  const [loadable, setLoadable] = useState<Loadable>(null);
   const [busy, setBusy] = useState(false);
   // The banner above already explains an unreadable answer; do not also offer it as loadable.
   const failed = useStore((s) => s.status === 'error');
   const theme = useStore((s) => s.theme);
 
   useEffect(() => {
-    setCanLoad(getController()?.hasConversationToLoad() ?? false);
+    const check = () => setLoadable(getController()?.conversationToLoad() ?? null);
+    check();
+    const timer = window.setInterval(check, RECHECK_MS);
+    return () => window.clearInterval(timer);
   }, []);
 
   async function load() {
@@ -28,19 +36,33 @@ export function EmptyState() {
     try {
       const n = (await getController()?.loadConversation()) ?? 0;
       if (n === 0) setStatus('none');
-      else setCanLoad(false);
+      else setLoadable(null);
     } finally {
       setBusy(false);
     }
   }
 
+  const howItWorks = (
+    <ol className="slm-empty-steps">
+      {HOW_IT_WORKS.map(([name, text], i) => (
+        <li key={name} className="slm-empty-step">
+          <span className="slm-empty-step-n" aria-hidden="true">{i + 1}</span>
+          <span className="slm-empty-step-copy">
+            <strong>{name}</strong>
+            {text}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+
   return (
-    <div className="slm-empty">
+    <div className={`slm-empty ${loadable === 'answer' ? 'slm-empty--offer' : ''}`}>
       <div className="slm-empty-preview" aria-hidden="true">
         <StemMark size={40} variant={themeToBrandVariant(theme)} />
       </div>
       <h2 className="slm-empty-title">Study workspace</h2>
-      {canLoad && !failed ? (
+      {loadable === 'capsules' && !failed ? (
         <>
           <p className="slm-empty-text">
             This chat has stemlm answers that aren't loaded yet.
@@ -49,20 +71,22 @@ export function EmptyState() {
             <IconLayers /> Load conversation from this chat
           </button>
         </>
+      ) : loadable === 'answer' ? (
+        <>
+          {/* A plain answer is on offer even under an error banner: the banner is about another reply. */}
+          <p className="slm-empty-text">This chat's latest answer can be studied here.</p>
+          <button type="button" className="slm-btn slm-btn-soft slm-empty-load" onClick={load} disabled={busy} aria-busy={busy}>
+            <IconLayers /> Study the latest answer
+          </button>
+          <p className="slm-empty-note">stemlm arranges the answer as it was written. It does not check it.</p>
+          <p className="slm-empty-or">Or ask a new question</p>
+          <p className="slm-empty-text">Type a question in the chat, then start stemlm.</p>
+          {howItWorks}
+        </>
       ) : (
         <>
           <p className="slm-empty-text">Type a question in the chat, then start stemlm.</p>
-          <ol className="slm-empty-steps">
-            {HOW_IT_WORKS.map(([name, text], i) => (
-              <li key={name} className="slm-empty-step">
-                <span className="slm-empty-step-n" aria-hidden="true">{i + 1}</span>
-                <span className="slm-empty-step-copy">
-                  <strong>{name}</strong>
-                  {text}
-                </span>
-              </li>
-            ))}
-          </ol>
+          {howItWorks}
         </>
       )}
       {status === 'none' && (

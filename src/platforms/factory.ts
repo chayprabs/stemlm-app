@@ -70,6 +70,86 @@ function assistantBlocks(selectors: string[]): HTMLElement[] {
     .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
 }
 
+/**
+ * The student's own turns on the four hosts, behind each host's own `userMessage` config. Kept
+ * apart from USER_MESSAGE_SELECTOR on purpose: that one decides what counts as a reply and was
+ * tuned on the live sites, while this list only ever finds the question an answer belongs to.
+ */
+const USER_TURN_FALLBACKS = [
+  '[data-message-author-role="user"]',
+  '[data-message-role="user"]',
+  '[data-testid="user-message"]',
+  'user-query',
+  '[data-role="user"]',
+];
+/** Parts of a user turn the student did not type: controls, screen-reader labels, file chips. */
+const USER_TURN_CHROME = [
+  'button',
+  '[role="button"]',
+  'svg',
+  'style',
+  'script',
+  '[aria-hidden="true"]',
+  '.sr-only',
+  '.cdk-visually-hidden',
+  'user-query-file-preview',
+  '[data-testid*="file" i]',
+  '[data-testid*="attachment" i]',
+  '[class*="file-preview" i]',
+  '[class*="attachment" i]',
+].join(', ');
+const USER_TURN_LINE_TAGS = new Set(['P', 'DIV', 'LI', 'BR', 'PRE', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6']);
+/** A question is a few lines; a pasted document is cut rather than carried into every session. */
+const USER_QUESTION_MAX_CHARS = 4_000;
+
+function collectTypedText(node: Node, out: string[]): void {
+  if (node.nodeType === Node.TEXT_NODE) {
+    out.push(node.textContent ?? '');
+    return;
+  }
+  if (!(node instanceof HTMLElement)) return;
+  try {
+    if (node.matches(USER_TURN_CHROME)) return;
+  } catch {
+    return;
+  }
+  const line = USER_TURN_LINE_TAGS.has(node.tagName);
+  if (line) out.push('\n');
+  for (const child of node.childNodes) collectTypedText(child, out);
+  if (line) out.push('\n');
+}
+
+/** What the student typed in `el`, one line per block, without the turn's chrome. */
+function typedText(el: HTMLElement): string {
+  const out: string[] = [];
+  collectTypedText(el, out);
+  return out
+    .join('')
+    .split('\n')
+    .map((line) => line.replace(/[ \t\u00a0]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Text of the nearest user turn before `block` in page order, or '' when no turn is recognised.
+ * A turn that contains the block is a conversation wrapper, not the question.
+ */
+function userQuestionBefore(block: Element, turnSelectors: string[], textSelectors: string[]): string {
+  let nearest: HTMLElement | null = null;
+  for (const turn of allMatches(turnSelectors)) {
+    if (turn.contains(block) || !(turn.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+    if (!nearest || nearest.compareDocumentPosition(turn) & Node.DOCUMENT_POSITION_FOLLOWING) nearest = turn;
+  }
+  if (!nearest) return '';
+  let text = '';
+  for (const sel of textSelectors) {
+    text = innermost(allMatches([sel], nearest)).map(typedText).filter(Boolean).join('\n');
+    if (text) break;
+  }
+  return (text || typedText(nearest)).slice(0, USER_QUESTION_MAX_CHARS);
+}
+
 function outsideComposerSlot(el: HTMLElement | null): HTMLElement | null {
   if (!el?.isConnected) return null;
   if (el.closest(COMPOSER_SLOT_SELECTOR)) return null;
@@ -710,6 +790,10 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
 
     isStreaming() {
       return config.streaming.length > 0 && firstMatch(config.streaming) !== null;
+    },
+
+    getUserQuestionBefore(block: Element) {
+      return userQuestionBefore(block, [...(config.userMessage ?? []), ...USER_TURN_FALLBACKS], config.userMessageText ?? []);
     },
   };
 }

@@ -79,6 +79,10 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     '.stop-icon',
   ],
+  // Question lookup only; from open-source exporters, not a live page. The turn also holds
+  // uploaded-file previews, so the typed lines are read on their own.
+  userMessage: ['user-query', 'user-query-content'],
+  userMessageText: ['.query-text .query-text-line', '.query-text'],
   brand: { accent: '#0EA5A0', accentFg: '#ffffff', neutral: true },
   layoutRoots: [
     'main',
