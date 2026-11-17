@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MathMarkdown } from '@/src/components/MathMarkdown';
 import { MAX_MARKDOWN_CHARS, messageToMarkdown } from './dom-to-markdown';
 import {
   HOST_ANSWER_MARKDOWN,
@@ -81,6 +84,10 @@ describe('messageToMarkdown: math sources', () => {
     expect(md('<p><span class="katex-error" title="ParseError">\\frac{1}{</span></p>')).toBe('$\\frac{1}{$');
   });
 
+  it('reads remark-math output that was never typeset', () => {
+    expect(md('<p>So <code class="language-math math-inline">x^2</code>.</p><pre><code class="language-math math-display">y = 1</code></pre>')).toBe('So $x^2$.\n\n$$\ny = 1\n$$');
+  });
+
   it('strips delimiters stored with the source and separates adjacent inline math', () => {
     expect(md('<p><span class="math-inline" data-math="$a$">a</span><span class="math-inline" data-math="\\(b\\)">b</span></p>')).toBe('$a$ $b$');
     expect(md('<span class="math-inline" data-math="$$c$$">c</span>')).toBe('$$\nc\n$$');
@@ -138,7 +145,9 @@ describe('messageToMarkdown: blocks', () => {
   });
 
   it('turns sub and sup into script notation and drops citation superscripts', () => {
-    expect(md('<p>H<sub>2</sub>O at 10<sup>-5</sup> m<sup>2</sup><sup><a href="#fn1">1</a></sup><sup>[2]</sup></p>')).toBe('H_2O at 10^{-5} m^2');
+    expect(md('<p>H<sub>2</sub>O at 10<sup>-5</sup> m<sup>2</sup>, the 1<sup>st</sup> term<sup><a href="#fn1">1</a></sup><sup>[2]</sup></p>')).toBe(
+      'H$_2$O at 10$^{-5}$ m$^2$, the 1$^{\\text{st}}$ term',
+    );
   });
 });
 
@@ -185,6 +194,12 @@ describe('messageToMarkdown: chrome and reasoning', () => {
     expect(md('<details open><summary>Derivation</summary><p>shown</p></details>')).toBe('shown');
   });
 
+  it('drops citation chips but keeps a paragraph that only carries a citation class', () => {
+    expect(md('<p>Fact.<span class="citation-chip"><a href="https://s.example/">Source</a></span></p>')).toBe('Fact.');
+    const long = 'This paragraph is the answer itself and is far longer than any source chip could be, so it stays in the output whatever its class says.';
+    expect(md(`<p class="has-citations">${long}</p>`)).toBe(long);
+  });
+
   it('removes citation tokens ChatGPT prints as text', () => {
     expect(md('<p>Water boils at 100 °C :contentReference[oaicite:0]{index=0} at sea level【4†source】.\uE200cite\uE202turn0search0\uE201</p>')).toBe('Water boils at 100 °C at sea level.');
   });
@@ -219,6 +234,33 @@ describe('messageToMarkdown: escaping', () => {
   });
 });
 
+describe('messageToMarkdown: output through the panel renderer', () => {
+  const shown = (html: string) => {
+    const host = elementFromHtml(renderToStaticMarkup(createElement(MathMarkdown, { content: md(html) })));
+    host.querySelectorAll('.katex-mathml').forEach((node) => node.remove());
+    return host;
+  };
+
+  it('keeps prices, brackets and line-start literals as the text the chat showed', () => {
+    const host = shown('<p>A coffee is $5 and tea $3, see [note](x).</p><p>= 42</p><p>1. not a list</p><p># not a heading</p>');
+    expect(host.querySelector('.katex')).toBeNull();
+    expect(host.querySelectorAll('p')).toHaveLength(4);
+    expect(host.querySelector('ol, h1, a')).toBeNull();
+    expect(host.textContent).toContain('A coffee is $5 and tea $3, see [note](x).');
+    expect(host.textContent).toContain('= 42');
+    expect(host.textContent).toContain('1. not a list');
+    expect(host.textContent).toContain('# not a heading');
+  });
+
+  it('typesets scripts and the host math without an error', () => {
+    const host = shown(`<p>H<sub>2</sub>O at 10<sup>-5</sup> with ${hostMath('claude', '\\frac{a}{b}')}</p>${hostMath('gemini', 'x = 1\n= 2', true)}`);
+    expect(host.querySelector('.katex-error')).toBeNull();
+    expect(host.querySelectorAll('.katex-display')).toHaveLength(1);
+    expect(host.querySelectorAll('p')).toHaveLength(1);
+    expect(host.querySelectorAll('.katex').length).toBeGreaterThanOrEqual(4);
+  });
+});
+
 describe('messageToMarkdown: robustness', () => {
   it('returns an empty string for non-elements and empty messages', () => {
     expect(messageToMarkdown(null as unknown as Element)).toBe('');
@@ -249,6 +291,40 @@ describe('messageToMarkdown: robustness', () => {
     const out = messageToMarkdown(big);
     expect(out.length).toBeLessThanOrEqual(MAX_MARKDOWN_CHARS);
     expect(out.length).toBeGreaterThan(10_000);
+  });
+
+  it('stays linear on text built to make a pattern backtrack', () => {
+    const run = (text: string, wrap = (t: string) => t) => {
+      const p = document.createElement('p');
+      p.textContent = text;
+      const host = document.createElement('div');
+      host.innerHTML = wrap('<i></i>');
+      (host.querySelector('i') ?? host).replaceWith(p);
+      return messageToMarkdown(host);
+    };
+    const started = performance.now();
+    expect(run(`a${' '.repeat(200_000)}b`)).toBe('a b');
+    expect(run('['.repeat(100_000)).length).toBe(100_000);
+    expect(run(':contentReference['.repeat(20_000))).toContain(':contentReference');
+    expect(run('【'.repeat(50_000)).length).toBe(50_000);
+    expect(run('$='.repeat(50_000))).toContain('\\$=');
+    expect(run('\\('.repeat(50_000)).length).toBe(100_000);
+    expect(run(`a ${'&x'.repeat(50_000)}`).length).toBeGreaterThan(100_000);
+
+    const bold = document.createElement('div');
+    bold.innerHTML = '<p>a<strong></strong>b</p>';
+    bold.querySelector('strong')!.textContent = `${'('.repeat(60_000)}x${')'.repeat(60_000)}`;
+    expect(messageToMarkdown(bold)).toContain('**x**');
+
+    const math = document.createElement('span');
+    math.setAttribute('data-math', `x${' '.repeat(100_000)}\n${' '.repeat(100_000)}y`);
+    expect(messageToMarkdown(math)).toBe('$x y$');
+
+    const code = document.createElement('div');
+    code.innerHTML = '<p><code></code></p>';
+    code.querySelector('code')!.textContent = `a${' '.repeat(100_000)}\n${'\n'.repeat(50_000)}b`;
+    expect(messageToMarkdown(code).startsWith('`a')).toBe(true);
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 
   it('survives hostile and malformed markup', () => {
