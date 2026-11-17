@@ -27,7 +27,7 @@ export const GENERATED_VOCABULARY: Readonly<Record<string, Readonly<Record<strin
   "frame": { "annotations": 'list', "divider": 'one', "members": 'list', "panels": 'list', "scaffold": 'one' },
   "gantt": { "jobs": 'list', "kind": 'one', "label": 'one', "tnow": 'one' },
   "gel": { "band": 'many', "bands": 'list', "lanes": 'list' },
-  "graph": { "accept": 'many', "decision": 'many', "edge": 'many', "highlight": 'any', "node": 'many', "rankdir": 'one', "start": 'many', "terminal": 'many' },
+  "graph": { "accept": 'many', "caption": 'any', "decision": 'many', "edge": 'many', "highlight": 'any', "node": 'many', "rankdir": 'one', "start": 'many', "terminal": 'many' },
   "hash": { "buckets": 'list', "items": 'list', "kind": 'one', "label": 'one', "m": 'one' },
   "haworth": { "anomer": 'one', "caption": 'any', "highlight": 'any', "sugar": 'one' },
   "hx": { "direction": 'one', "streams": 'list', "tc": 'one', "th": 'one' },

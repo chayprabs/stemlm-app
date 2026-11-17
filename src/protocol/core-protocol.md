@@ -275,6 +275,7 @@ SCHEMA graph key=decision :: <node-id>[,<node-id>...]; flowchart test (diamond);
 SCHEMA graph key=terminal :: <node-id>[,<node-id>...]; flowchart start/stop (capsule).
 SCHEMA graph key=start :: <node-id>[,<node-id>...]; state-machine entry arrow; makes every node a state.
 SCHEMA graph key=accept :: <node-id>[,<node-id>...]; accepting state (double outline).
+SCHEMA graph key=caption :: <caption text>; set under the figure, never a place for required content.
 SCHEMA table key=kind :: ice|punnett|matrix|dp.
 SCHEMA table key=highlight :: <exact cell value or rendered cell id>[,<value-or-id>...].
 SCHEMA table key=highlight_row :: <first-cell value of the row>.
