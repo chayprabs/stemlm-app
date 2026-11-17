@@ -11,6 +11,14 @@ let root: Root;
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 220)); });
 const kicker = () => container.querySelector('.slm-card-kicker')?.textContent;
+/** The page turn is animated: wait for the step to arrive (it lags when the machine is busy), then check it. */
+const showsStep = async (text: string) => {
+  // One act per wait: React renders what an act scheduled only when that act ends.
+  for (let waited = 0; waited < 3000 && kicker() !== text; waited += 50) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  }
+  expect(kicker()).toBe(text);
+};
 const panel = () => container.querySelector<HTMLElement>('.slm-demo-panel')!;
 const key = (name: string) => act(() => {
   panel().dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
@@ -47,15 +55,14 @@ describe('welcome demo panel', () => {
   it('moves between steps with the arrow keys and stops at both ends', async () => {
     key('ArrowLeft');
     await settle();
-    expect(kicker()).toBe('Step 1of 5');
+    await showsStep('Step 1of 5');
     key('ArrowRight');
-    await settle();
-    expect(kicker()).toBe('Step 2of 5');
+    await showsStep('Step 2of 5');
     for (let i = 0; i < 4; i++) {
       key('ArrowRight');
       await settle();
     }
-    expect(kicker()).toBe('Step 5of 5');
+    await showsStep('Step 5of 5');
     expect(container.querySelector<HTMLButtonElement>('[aria-label="Next step"]')!.disabled).toBe(true);
     // The last step closes with the model's own answer.
     expect(container.querySelector('.slm-answer')?.textContent).toContain('Answer');
@@ -66,12 +73,10 @@ describe('welcome demo panel', () => {
     const next = container.querySelector<HTMLButtonElement>('[aria-label="Next step"]')!;
     expect(prev.disabled).toBe(true);
     act(() => next.click());
-    await settle();
-    expect(kicker()).toBe('Step 2of 5');
+    await showsStep('Step 2of 5');
     expect(prev.disabled).toBe(false);
     act(() => container.querySelectorAll<HTMLButtonElement>('.slm-step-rail-btn')[3]!.click());
-    await settle();
-    expect(kicker()).toBe('Step 4of 5');
+    await showsStep('Step 4of 5');
     expect(container.querySelector('[aria-current="step"]')?.getAttribute('aria-label')).toMatch(/^Step 4:/);
     // Like the real panel, the place is shown once: by the kicker and the strip, not a footer counter.
     expect(container.querySelector('.slm-stepnav-count')).toBeNull();

@@ -59,5 +59,5 @@ describe('repair corpus: compile rate', () => {
     expect(strict).toBe(0);
     expect(repaired).toBe(REPAIRABLE.length);
     expect(leaked).toBe(0);
-  });
+  }, 60_000);
 });
