@@ -645,30 +645,6 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       );
     },
 
-    getComposerActionRow() {
-      const root = this.getComposerShell() ?? document;
-      const row = firstMatch(config.composerActionRow, root);
-      if (row) return row;
-      const anchor = firstMatch(config.composerAnchor, root);
-      return anchor?.parentElement ?? null;
-    },
-
-    getComposerLayout() {
-      const box = this.getComposerBox();
-      const actionRow = this.getComposerActionRow();
-      if (!box || !actionRow) return null;
-      if (!box.contains(actionRow) && actionRow !== box) {
-        // Action row may be a sibling inside a shared parent — still usable.
-        const shared = box.contains(actionRow) ? box : actionRow.closest('form, fieldset');
-        if (!shared) return null;
-      }
-      return { box, actionRow };
-    },
-
-    getComposerAnchor() {
-      const root = this.getComposerShell() ?? document;
-      return firstMatch(config.composerAnchor, root) ?? firstMatch(config.editor, root)?.parentElement ?? null;
-    },
 
     getComposerLeadingAnchor() {
       const editor = this.findEditor();
