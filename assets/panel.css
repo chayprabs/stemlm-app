@@ -635,6 +635,19 @@
   transform: rotate(180deg);
 }
 
+/* Where an answer came from, when stemLM only arranged it: metadata, said once and quietly. */
+.slm-origin-note {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  color: var(--slm-fg-subtle);
+}
+.slm-header-title .slm-origin-note {
+  margin-top: 0.1rem;
+}
+
 /* ---------- session switch: this chat's questions, above the one being read ---------- */
 .slm-session-switch {
   display: flex;
@@ -1901,6 +1914,30 @@
   margin: 0.5rem 0 0;
   font-size: var(--slm-text-sm);
   color: var(--slm-fg-subtle);
+}
+/* An answer already in the chat is on offer above the usual way in. The view is taller, so it
+   starts from the top when the panel is too short to centre it. */
+.slm-empty--offer {
+  justify-content: safe center;
+}
+.slm-empty-note {
+  margin: 0.25rem 0 0;
+  max-width: 26rem;
+  font-size: var(--slm-text-sm);
+  color: var(--slm-fg-subtle);
+}
+.slm-empty-or {
+  margin: 1.5rem 0 0.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--slm-text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--slm-tracking-label);
+  text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--slm-fg-subtle);
+}
+.slm-empty--offer .slm-empty-steps {
+  margin-top: 0.75rem;
 }
 
 /* ---------- solution: the whole answer as one document ---------- */

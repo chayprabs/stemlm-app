@@ -4,6 +4,7 @@ import type { PanelView } from '@/src/state/store';
 import type { ResolvedTheme } from '@/src/lib/theme';
 import { resolveSessionQuestion, sessionQuestionHeading } from '@/src/lib/session-question';
 import { MathMarkdown } from './MathMarkdown';
+import { OriginNote } from './OriginNote';
 import { BrandWordmark, themeToBrandVariant } from './brand';
 import {
   IconBook,
@@ -31,6 +32,16 @@ function fullQuestion(session: Session): string {
   return lines.some((line) => /^\([a-z]\)/i.test(line)) ? lines.join('\n') : lines.join(' ');
 }
 
+/**
+ * A topic that is the question, or only its opening words, says nothing the question below it
+ * does not. An answer structured from the chat has no title of its own, so its topic is exactly that.
+ */
+function repeatsQuestion(topic: string, question: string): boolean {
+  const flat = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
+  const opening = flat(topic).replace(/(?:…|\.{3})$/, '').trimEnd();
+  return opening === '' || flat(question).startsWith(opening);
+}
+
 /** The question block: what is being studied, in the student's own words. */
 function QuestionBlock({ session }: { session: Session }) {
   const heading = fullQuestion(session);
@@ -39,8 +50,8 @@ function QuestionBlock({ session }: { session: Session }) {
   const [overflows, setOverflows] = useState(false);
   const textRef = useRef<HTMLDivElement>(null);
   const regionId = `slm-question-${useId().replaceAll(':', '')}`;
-  // The topic line repeats nothing: it is dropped when the question already is the topic.
-  const showTopic = Boolean(topic) && topic.trim().toLowerCase() !== heading.trim().toLowerCase();
+  // The topic line repeats nothing: it is dropped when the question already says it.
+  const showTopic = Boolean(topic) && !repeatsQuestion(topic, heading);
 
   useEffect(() => setExpanded(false), [session.id]);
 
@@ -92,6 +103,7 @@ function QuestionBlock({ session }: { session: Session }) {
           </button>
         )}
       </div>
+      <OriginNote session={session} />
     </div>
   );
 }

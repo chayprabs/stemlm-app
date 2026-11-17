@@ -9,6 +9,7 @@ import { resolveSessionQuestion } from '@/src/lib/session-question';
 import type { Overlay } from '@/src/lib/figure/types';
 import { overlayPrintStyleAttr, renderOverlayHtml } from '@/src/lib/figure/overlay';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { OriginNote } from './OriginNote';
 import { svgMarkupHasGraphicShapes } from '@/src/lib/mount-svg';
 import { svgDrawsCaption } from '@/src/lib/svg-present';
 
@@ -224,6 +225,7 @@ export function ReportEntry({
         )}
 
         <StudentAnswerNotes capsule={session.capsule} />
+        <OriginNote session={session} variant="print" />
       </section>
     </section>
   );

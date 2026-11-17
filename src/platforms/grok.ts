@@ -74,6 +74,9 @@ const config: AdapterConfig = {
     'button[aria-label*="Stop" i]',
     'button[aria-label*="Stop generating" i]',
   ],
+  // Question lookup only; from open-source exporters, not a live page.
+  userMessage: ['.message-bubble[data-testid="user-message"]', '[data-testid="user-message"]'],
+  userMessageText: ['.response-content-markdown'],
   brand: { accent: '#000000', accentFg: '#ffffff', neutral: true },
   layoutRoots: ['main', '#__next', '[role="main"]'],
 };

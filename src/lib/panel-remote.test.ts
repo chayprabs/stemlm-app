@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const inject = vi.fn(async () => true);
-const loadConversation = vi.fn(async () => 2);
+const loadConversation = vi.fn(async (_opt?: { maxWaitMs?: number; quiet?: boolean }) => 2);
+const conversationToLoad = vi.fn<() => 'capsules' | 'answer' | null>(() => null);
 const sessionStore = new Map<string, unknown>();
 
 vi.mock('wxt/browser', () => ({
@@ -26,7 +27,7 @@ vi.mock('wxt/browser', () => ({
 }));
 
 vi.mock('@/src/content/controller', () => ({
-  getController: () => ({ inject, loadConversation }),
+  getController: () => ({ inject, loadConversation, conversationToLoad }),
 }));
 
 vi.mock('@/src/lib/analytics', () => ({
@@ -42,6 +43,8 @@ describe('handleStemLmPanelMessage', () => {
     sessionStore.clear();
     inject.mockClear();
     loadConversation.mockClear();
+    conversationToLoad.mockReset();
+    conversationToLoad.mockReturnValue(null);
     useStore.setState({
       panelOpen: false,
       buttonInjected: false,
@@ -56,6 +59,42 @@ describe('handleStemLmPanelMessage', () => {
     expect(res).toEqual({ ok: true });
     expect(useStore.getState().panelOpen).toBe(true);
     expect(useStore.getState().splitRatio).toBe(0.68);
+  });
+
+  it('opens a chat that only has a plain answer on that answer, structured', async () => {
+    conversationToLoad.mockReturnValue('answer');
+    loadConversation.mockResolvedValueOnce(1);
+    const res = await handleStemLmPanelMessage('stemlm:open-panel', 'gemini');
+    expect(loadConversation).toHaveBeenCalledWith(expect.objectContaining({ quiet: true }));
+    expect(res).toEqual({ ok: true, loaded: 1 });
+    expect(useStore.getState().panelOpen).toBe(true);
+  });
+
+  it('leaves a chat with stemlm answers to its Load conversation offer', async () => {
+    conversationToLoad.mockReturnValue('capsules');
+    const res = await handleStemLmPanelMessage('stemlm:open-panel', 'gemini');
+    expect(loadConversation).not.toHaveBeenCalled();
+    expect(res).toEqual({ ok: true });
+  });
+
+  it.each([
+    ['an answer is being waited for', { status: 'loading' as const }],
+    ['the guide is attached to the draft', { buttonInjected: true }],
+  ])('loads nothing on open while %s', async (_label, state) => {
+    conversationToLoad.mockReturnValue('answer');
+    useStore.setState(state);
+    const res = await handleStemLmPanelMessage('stemlm:open-panel', 'gemini');
+    expect(loadConversation).not.toHaveBeenCalled();
+    expect(res).toEqual({ ok: true });
+    expect(useStore.getState().panelOpen).toBe(true);
+  });
+
+  it('reports a plain answer that could not be opened as a plain open, without an error', async () => {
+    conversationToLoad.mockReturnValue('answer');
+    loadConversation.mockResolvedValueOnce(0);
+    const res = await handleStemLmPanelMessage('stemlm:open-panel', 'gemini');
+    expect(res).toEqual({ ok: true });
+    expect(useStore.getState().status).toBe('idle');
   });
 
   it('loads the conversation then opens the workspace', async () => {

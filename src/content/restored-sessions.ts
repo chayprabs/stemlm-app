@@ -59,8 +59,13 @@ function capsule(value: unknown): boolean {
       optional(verification.correction, string));
 }
 
+/**
+ * `raw` is only checked to be text and is never parsed here: stored copies usually carry it
+ * empty, and for an ingest session it is Markdown, not a capsule. `origin` says which.
+ */
 function session(value: unknown): boolean {
   return record(value) && strings(value, ['id', 'question', 'raw']) &&
+    optional(value.origin, oneOf(['capsule', 'ingest'])) &&
     finite(value.createdAt) && finite(value.updatedAt) && isPlatformId(value.platform) &&
     capsule(value.capsule) && optional(value.followups, (followups) => array(followups, (followup) =>
       record(followup) && strings(followup, ['id', 'anchorStepId']) &&

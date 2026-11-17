@@ -6,6 +6,7 @@ import { EmptyState } from './EmptyState';
 vi.mock('@/src/content/controller', () => ({
   getController: () => ({
     hasConversationToLoad: () => true,
+    conversationToLoad: () => 'capsules',
     loadConversation: async () => 0,
   }),
 }));

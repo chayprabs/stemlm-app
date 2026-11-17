@@ -5,9 +5,21 @@
  * src/platforms look for, dressed to resemble the host closely enough to judge
  * how stemLM's controls sit beside it. They are layout doubles, not copies of
  * any site: no host assets, fonts or logos are used.
+ *
+ * A plain (non-stemLM) answer is rendered the way each host leaves it in the page: typeset math
+ * with the TeX source where that host keeps it, code blocks with their toolbar, and the chrome
+ * around a reply. The shapes mirror src/ingest/__fixtures__/host-dom.ts, which cites its sources.
  */
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const require = createRequire(import.meta.url);
+const katex = require('katex');
+/** KaTeX layout for the doubles' own math. Its font files are not served, so the faces are dropped. */
+const KATEX_CSS = readFileSync(require.resolve('katex/dist/katex.min.css'), 'utf8').replace(/@font-face\{[^}]*\}/g, '');
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const attr = (s) => esc(s).replace(/"/g, '&quot;');
 
 const SKINS = {
   chatgpt: {
@@ -125,17 +137,101 @@ function assistant(id, { capsule, html }) {
   return `<model-response class="turn assistant">${capsule != null ? `<code-block>${inner}</code-block>` : `<message-content class="model-response-text">${inner}</message-content>`}</model-response>`;
 }
 
+/** The student's turn in the markup each host gives it, so the question an answer belongs to can be found. */
+export function userTurn(id, question) {
+  const text = esc(question);
+  if (id === 'chatgpt') return `<div class="turn user" data-message-author-role="user"><div class="bubble whitespace-pre-wrap">${text}</div></div>`;
+  if (id === 'claude') return `<div class="turn user"><div class="bubble" data-testid="user-message"><p class="whitespace-pre-wrap">${text}</p></div></div>`;
+  if (id === 'grok') return `<div class="turn user"><div class="bubble message-bubble" data-testid="user-message"><div class="response-content-markdown">${text}</div></div></div>`;
+  return `<user-query class="turn user"><user-query-content><div class="bubble query-text">${question.split('\n').map((line) => `<p class="query-text-line">${esc(line)}</p>`).join('')}</div></user-query-content></user-query>`;
+}
+
+const katexFull = (tex, display) => katex.renderToString(tex, { displayMode: display, throwOnError: false });
+const katexHtml = (tex, display) => katex.renderToString(tex, { displayMode: display, throwOnError: false, output: 'html' });
+
+/** Inline or display math as the host leaves it in the page. */
+function hostMath(id, tex, display = false) {
+  // ChatGPT's client-side layout: no MathML, the source lives on the semantic wrapper.
+  if (id === 'chatgpt') return `<span role="math" aria-label="${attr(tex)}" data-math-source="${attr(tex)}">${katexHtml(tex, display)}</span>`;
+  if (id === 'claude') return katexFull(tex, display);
+  // Grok sets block math without the .katex-display wrapper: only the MathML says display="block".
+  if (id === 'grok') return display ? katexFull(tex, true).replace(/^<span class="katex-display">/, '').replace(/<\/span>$/, '') : katexFull(tex, false);
+  return display
+    ? `<div class="math-block" data-math="${attr(tex)}">${katexHtml(tex, true)}</div>`
+    : `<span class="math-inline" data-math="${attr(tex)}">${katexHtml(tex, false)}</span>`;
+}
+
+/** A fenced code block with the toolbar each host wraps around it. */
+function hostCode(id, language, code) {
+  const lines = code.split('\n');
+  const label = language.charAt(0).toUpperCase() + language.slice(1);
+  if (id === 'chatgpt') return `<div data-markdown-copy="code-block" class="codeblock"><div data-markdown-copy="exclude" class="codehead">${language} <button aria-label="Copy">Copy code</button></div><div dir="ltr"><code>${lines.map((l) => `<span>${esc(l)}</span>`).join('\n')}</code></div></div>`;
+  if (id === 'claude') return `<div class="codewrap"><div class="codehead">${language} <button aria-label="Copy to clipboard">Copy</button></div><pre class="code-block__code"><code class="language-${language}">${lines.map((l) => `<span>${esc(l)}</span>`).join('\n')}</code></pre></div>`;
+  if (id === 'grok') return `<div data-testid="code-block" class="codewrap"><div class="codehead group/code-header"><span>${label}</span> <button>Copy</button></div><div class="shiki"><pre class="shiki"><code>${lines.map((l) => `<span class="line">${esc(l)}</span>`).join('\n')}</code></pre></div></div>`;
+  return `<code-block><div class="code-block codewrap"><div class="code-block-decoration codehead"><span>${label}</span> <button class="copy-button" aria-label="Copy code">Copy</button></div><pre><code role="text" data-test-id="code-content" class="code-container">${esc(code)}</code></pre></div></code-block>`;
+}
+
+function inline(id, text) {
+  return text
+    .split(/(\$[^$\n]+\$|`[^`\n]+`)/)
+    .map((part) => {
+      if (part.length > 2 && part.startsWith('$') && part.endsWith('$')) return hostMath(id, part.slice(1, -1));
+      if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) return `<code>${esc(part.slice(1, -1))}</code>`;
+      return esc(part).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    })
+    .join('');
+}
+
+/**
+ * A plain answer, written as Markdown in the fixtures, as the HTML `id` would render it: headings,
+ * paragraphs, lists, display math and code fences. A fixture format, not a Markdown implementation.
+ */
+function answerBody(id, markdown) {
+  return markdown.split(/\n{2,}/).map((block) => {
+    const lines = block.split('\n');
+    const heading = /^(#{1,6}) (.*)$/.exec(block);
+    if (heading && lines.length === 1) return `<h${heading[1].length}>${inline(id, heading[2])}</h${heading[1].length}>`;
+    if (block.startsWith('$$') && block.endsWith('$$')) {
+      const display = hostMath(id, block.slice(2, -2).trim(), true);
+      return id === 'grok' ? `<p>${display}</p>` : display;
+    }
+    const fence = /^```(\S*)\n([\s\S]*?)\n```$/.exec(block);
+    if (fence) return hostCode(id, fence[1], fence[2]);
+    if (lines.every((line) => /^\d+\. /.test(line))) return `<ol>${lines.map((line) => `<li>${inline(id, line.replace(/^\d+\. /, ''))}</li>`).join('')}</ol>`;
+    if (lines.every((line) => line.startsWith('- '))) return `<ul>${lines.map((line) => `<li>${inline(id, line.slice(2))}</li>`).join('')}</ul>`;
+    return `<p>${inline(id, lines.join(' '))}</p>`;
+  }).join('\n');
+}
+
+/** A whole assistant turn holding a plain answer, with the chrome the host draws around a reply. */
+export function plainAssistant(id, markdown) {
+  const body = answerBody(id, markdown);
+  if (id === 'chatgpt') {
+    return `<div class="turn assistant" data-message-author-role="assistant" data-content-search-unit-key="fallback-turn-0:2:assistant"><h4 class="sr-only" data-conversation-role="assistant">ChatGPT said:</h4><div data-markdown-text-style="assistant-message"><div class="markdown">${body}</div></div><div data-message-actions class="actions"><button>Copy</button><button>Good response</button></div></div>`;
+  }
+  if (id === 'claude') {
+    return `<div class="turn assistant font-claude-response" data-testid="assistant-message"><div class="group/status actions"><button>Thought for 8s</button></div><div class="standard-markdown markdown">${body}</div><div data-testid="action-bar-copy" class="actions"><button>Copy</button></div></div>`;
+  }
+  if (id === 'grok') {
+    return `<div class="turn assistant message-bubble" data-testid="assistant-message" aria-label="Grok" role="article"><div class="thinking-container actions"><button data-testid="canvas-trigger" aria-expanded="false">Worked for 12s</button></div><div class="response-content-markdown markdown">${body}</div></div>`;
+  }
+  // Gemini keeps its reasoning in a second <message-content> inside <model-thoughts>.
+  return `<model-response class="turn assistant"><model-thoughts class="actions"><button class="thoughts-header-button">Show thinking</button><div class="thoughts-content" hidden><message-content><p>Planning the solve: identify the givens, pick the governing relation, substitute, and check the units of the result before stating it.</p><p>The student asked for a worked answer, so each stage gets its own short paragraph and the final value is stated with its unit.</p></message-content></div></model-thoughts><message-content class="model-response-text"><div class="markdown markdown-main-panel">${body}</div></message-content><message-actions class="actions"><button>Copy</button></message-actions></model-response>`;
+}
+
 /**
  * @param {'chatgpt'|'claude'|'gemini'|'grok'} id
- * @param {{ scheme?: 'light'|'dark', question?: string, capsule?: string, html?: string, empty?: boolean }} opt
+ * @param {{ scheme?: 'light'|'dark', question?: string, capsule?: string, html?: string, markdown?: string, empty?: boolean }} opt
+ *   `capsule`: a stemLM answer. `html`: a reply as raw HTML. `markdown`: a plain answer, rendered
+ *   the way the host would (typeset math, code toolbars, reply chrome).
  */
 export function hostPage(id, opt = {}) {
   const skin = SKINS[id];
   const c = skin[opt.scheme ?? 'light'];
   const thread = opt.empty
     ? `<div class="hero">How can I help today?</div>`
-    : `<div class="turn user"><div class="bubble">${esc(opt.question ?? 'Solve this step by step.')}</div></div>
-       ${assistant(id, opt)}`;
+    : `${userTurn(id, opt.question ?? 'Solve this step by step.')}
+       ${opt.markdown != null ? plainAssistant(id, opt.markdown) : assistant(id, opt)}`;
   return `<!doctype html>
 <html lang="en" style="color-scheme:${opt.scheme ?? 'light'}">
 <head>
@@ -173,6 +269,15 @@ export function hostPage(id, opt = {}) {
   .attachment-chip { font-size: 12px; padding: 6px 10px; border-radius: 10px; background: ${c.bubble}; margin-bottom: 8px; }
   .markdown h3 { font-size: 18px; margin: 20px 0 6px; }
   .markdown p { margin: 0 0 12px; }
+  .markdown ol, .markdown ul { margin: 0 0 12px; padding-left: 24px; }
+  .markdown li { margin: 4px 0; }
+  .markdown .codewrap, .markdown .codeblock { margin: 0 0 12px; }
+  .codewrap { background: ${c.code}; border-radius: 12px; padding: 10px 16px 14px; }
+  .codewrap pre { padding: 0; background: transparent; border-radius: 0; }
+  .codehead button, .actions button { border: 0; background: transparent; color: ${c.muted}; font-size: 12px; padding: 2px 6px; }
+  .actions { display: flex; gap: 4px; margin: 2px 0 6px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  ${opt.markdown != null || opt.katex ? KATEX_CSS : ''}
   .foot { text-align: center; color: ${c.muted}; font-size: 12px; padding-top: 8px; }
 </style>
 </head>

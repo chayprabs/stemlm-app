@@ -101,3 +101,25 @@ describe('classifySubject — subject coverage table', () => {
     expect(classifySubject(q)).toBe(expected);
   });
 });
+
+describe('classifySubject — Km is the Michaelis constant, km is a unit', () => {
+  it.each([
+    'A car travels at 72 km/h for 2.5 hours. What distance does it cover?',
+    'A train covers 300 km in 4 h. Find its average speed.',
+    'Convert 5 km to metres and find the speed over 10 minutes.',
+  ])('does not read the unit in %j as enzyme kinetics', (question) => {
+    expect(classifySubject(question)).not.toBe('Biology');
+  });
+
+  it('routes a kinematics question written in km to Physics', () => {
+    expect(classifySubject('A car travels at 72 km/h for 2.5 hours. What distance does it cover?')).toBe('Physics');
+  });
+
+  it.each([
+    'Given Km = 5 μM and Vmax = 120, find the rate at a substrate level of 10 μM.',
+    'The inhibitor doubles the apparent Km of the reaction. What kind of inhibitor is it?',
+    'Find K_m from the Lineweaver plot.',
+  ])('still reads the constant in %j as enzyme kinetics', (question) => {
+    expect(classifySubject(question)).toBe('Biology');
+  });
+});

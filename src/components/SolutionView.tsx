@@ -9,6 +9,7 @@ import { StepIndexMark } from './step-index';
 import { shouldShowFormulaBlock } from '@/src/lib/step-display';
 import { solutionDiagramRegexGlobal } from '@/src/protocol/parser';
 import { CapsuleSignals, StudentAnswerNotes } from './CapsuleSignals';
+import { OriginNote } from './OriginNote';
 import { FollowupBar } from './FollowupBar';
 import { FollowupAnswerBody } from './FollowupCard';
 import { SOLUTION_ANCHOR_ID, solutionFollowups } from '@/src/lib/step-entries';
@@ -116,6 +117,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
         </section>
       )}
       <StudentAnswerNotes capsule={session.capsule} />
+      <OriginNote session={session} variant="detail" />
 
       {followups.map((f, i) => (
         <section

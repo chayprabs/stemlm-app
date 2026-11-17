@@ -5,6 +5,7 @@
  *
  *   pnpm build && node scripts/visual/shoot.mjs [--out dir] [--only chatgpt,popup]
  *   Panel states (narrow, many steps, sessions, banners, lightbox, ...): --only state, or --only state-narrow
+ *   Plain (non-stemLM) answers on every host, figures from fences, the capture fallback: --only plain, or --only plain-capture
  *
  * It drives the real content script, panel bundle and extension pages; only the
  * chat sites themselves are doubles (scripts/visual/hosts.mjs).
@@ -15,8 +16,9 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HOST_IDS, hostOrigin, hostPage, hostUrl } from './hosts.mjs';
-import { CIRCUIT, DIJKSTRA, INCLINE, PLAIN_MARKDOWN } from './capsules.mjs';
+import { CIRCUIT, DIJKSTRA, INCLINE } from './capsules.mjs';
 import { panelStateSuites } from './panel-states.mjs';
+import { plainSuites } from './plain-suite.mjs';
 
 // Playwright is a machine-level tool here, not a project dependency: resolve it the CommonJS way
 // (NODE_PATH or a global install) so the harness adds nothing to the extension's lockfile.
@@ -203,28 +205,6 @@ async function subjectSuite() {
   }
 }
 
-async function plainAnswerSuite() {
-  const html = PLAIN_MARKDOWN
-    .split(/\n\n+/)
-    .map((block) => block.startsWith('### ') ? `<h3>${block.slice(4)}</h3>` : `<p>${block.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</p>`)
-    .join('\n');
-  for (const scheme of SCHEMES) {
-    const page = await openHost('chatgpt', scheme, { html, question: 'Solve 2x² − 4x − 6 = 0.' });
-    try {
-      await page.locator('[data-stemlm-inject="true"]').first().waitFor({ state: 'attached', timeout: 15_000 });
-      await sendToTab(page, 'stemlm:load-conversation');
-      const panel = page.locator('.slm-panel');
-      await panel.waitFor({ state: 'visible', timeout: 20_000 });
-      await settle(page, 1500);
-      await shot(page, `plain-answer-${scheme}`);
-    } catch (err) {
-      failures.push(`plain ${scheme}: ${err.message.split('\n')[0]}`);
-      await shot(page, `plain-answer-${scheme}-ERROR`);
-    }
-    await page.close();
-  }
-}
-
 async function emptyPanelSuite() {
   for (const scheme of SCHEMES) {
     const page = await openHost('gemini', scheme, { empty: true });
@@ -273,7 +253,7 @@ try {
     for (const scheme of SCHEMES) await hostSuite(id, scheme);
   }
   if (want('subject')) await subjectSuite();
-  if (want('plain')) await plainAnswerSuite();
+  await plainSuites({ openHost, sendToTab, shot, settle, failures, only, schemes: SCHEMES });
   if (want('empty')) await emptyPanelSuite();
   await panelStateSuites({ openHost, sendToTab, shot, settle, setStored, clearStored, failures, want, schemes: SCHEMES });
   await extensionPages();

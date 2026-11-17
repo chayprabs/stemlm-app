@@ -72,6 +72,14 @@ const config: AdapterConfig = {
     'form[data-chatgpt-composer] button[aria-label="Stop"]',
     'button[data-testid="stop-button"]',
   ],
+  // Question lookup only. The author-role hooks come from open-source exporters; the search-unit
+  // key is the user-side twin of the assistant key above and has not been seen on a live page.
+  userMessage: [
+    '[data-message-author-role="user"]',
+    '[data-message-role="user"]',
+    '[data-content-search-unit-key$=":user"]',
+  ],
+  userMessageText: ['[data-user-message-bubble]', '.whitespace-pre-wrap'],
   brand: { accent: '#10A37F', accentFg: '#ffffff', neutral: true },
   // The app shell is sized by the viewport, so the split clamps it too; clamping `main` alone left
   // it starting after the sidebar rail and running under the panel.

@@ -254,6 +254,13 @@ export interface StepFollowup {
   createdAt: number;
 }
 
+/**
+ * Where a session's capsule came from. `capsule`: the model wrote the stemLM format and the parser
+ * read it. `ingest`: a plain chat answer was arranged into steps locally (src/ingest); nothing
+ * checked it, and its step ids were assigned here, not by the model.
+ */
+export type SessionOrigin = 'capsule' | 'ingest';
+
 /** A study session = one captured answer plus user progress + provenance. */
 export interface Session {
   id: string;
@@ -264,8 +271,13 @@ export interface Session {
   capsule: Capsule;
   /** Inline Ask-in-chat answers, anchored to steps (rendered between rail steps). */
   followups?: StepFollowup[];
-  /** Raw capsule text, kept so we can re-parse / debug / export. */
+  /**
+   * The text the capsule was built from: capsule text, or for an ingest session the answer's
+   * Markdown. Never parse it as a capsule without checking `origin`.
+   */
   raw: string;
+  /** Absent means `capsule`, so sessions stored before ingest existed stay valid. */
+  origin?: SessionOrigin;
   /** D38: the chat stopped before @end; only the blocks that closed are shown, and it cannot be saved. */
   cutOff?: boolean;
 }
