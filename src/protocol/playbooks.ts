@@ -3,6 +3,7 @@
  * classifier miss cannot starve the model. The model sets @meta subject: from
  * the problem and applies that row plus the archetype/diagram registries.
  */
+import { FAMILY_MANIFESTS } from '@/src/lib/figure/families/manifest';
 import { SUBJECTS, type Subject } from './types';
 
 export interface SubjectRow {
@@ -15,7 +16,7 @@ export interface SubjectRow {
   traps: string;
 }
 
-export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
+const BASE_ROWS: Record<Subject, SubjectRow> = {
   Physics: {
     marker: 'PHYSICS',
     archetypes: 'numeric,symbolic,conceptual,lab,estimation',
@@ -112,6 +113,20 @@ export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = {
     traps: 'inventing a subject name; mixing two subjects\' diagram families in one step',
   },
 };
+
+/**
+ * A pack family (src/lib/figure/families) names the subjects it serves in its own manifest, so a
+ * new pack reaches the guide without anyone editing the rows above.
+ */
+function packFamilies(subject: Subject): string {
+  return FAMILY_MANIFESTS.filter((manifest) => (manifest.subjects as Subject[]).includes(subject))
+    .map((manifest) => `,${manifest.token}`)
+    .join('');
+}
+
+export const SUBJECT_REGISTRY: Record<Subject, SubjectRow> = Object.fromEntries(
+  SUBJECTS.map((subject) => [subject, { ...BASE_ROWS[subject], diagrams: BASE_ROWS[subject].diagrams + packFamilies(subject) }]),
+) as Record<Subject, SubjectRow>;
 
 export const PLAYBOOKS: Record<Subject, string> = Object.fromEntries(
   SUBJECTS.map((s) => [s, formatSubjectRow(s, SUBJECT_REGISTRY[s])]),

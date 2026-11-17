@@ -11,6 +11,7 @@ import { STUDY_GUIDE_FILENAME } from '@/src/lib/study-guide';
 import {
   renderArchetypeRegistry,
   renderDiagramRegistry,
+  renderFamilyForms,
   renderFollowupRegistry,
   renderLevelDial,
   renderNotationLocale,
@@ -68,6 +69,7 @@ export function assembleProtocolFile(): string {
     renderLevelDial(),
     getUniversalPlaybook(),
     renderDiagramRegistry(),
+    renderFamilyForms(),
     'For a supplied STEM question, use the answer format above. With no question supplied, wait for the student.',
   ].join('\n\n');
 }

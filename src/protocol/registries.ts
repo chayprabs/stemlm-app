@@ -11,6 +11,7 @@ import {
   SPEC_FAMILIES,
   type FamilyDef,
 } from '@/src/lib/figure/catalog';
+import { FAMILY_MANIFESTS } from '@/src/lib/figure/families/manifest';
 import { SUBJECT_REGISTRY } from './playbooks';
 import type { Archetype, VerifyMethod } from './types';
 function keysOf(def: FamilyDef): string {
@@ -77,6 +78,27 @@ export function renderDiagramRegistry(): string {
     'Unlisted families mean OMIT (including bz,dq,knot,mospi,rama and any template not listed above).',
     'REFUSE — OMIT @diagram for these (do not emit a spec): ' + refuse.join(', '),
     'FLOW/STATE: flowcharts, state machines and automata are type=graph (decision:, terminal:, start:, accept:); a message sequence is an ordered type=table. NEVER emit type=svg or type=mermaid.',
+  ].join('\n');
+}
+
+/**
+ * The pack families' grammar: one line and one compiling specimen each, read from the manifest
+ * the compiler is registered with, so the guide cannot describe a form the compiler rejects.
+ */
+export function renderFamilyForms(): string {
+  return [
+    'FAMILY FORMS — one grammar line and one specimen per family; replace every value with question content. Where a family computes its result (truth-table rows, a gate network, a fitted line, a shaded probability), give the inputs only and NEVER supply the derived values.',
+    ...FAMILY_MANIFESTS.flatMap((manifest) => {
+      // The manifest writes its grammar as `token: …`; the SCHEMA line already names the family.
+      const grammar = manifest.grammar.startsWith(`${manifest.token}: `) ? manifest.grammar.slice(manifest.token.length + 2) : manifest.grammar;
+      const key = (manifest.required ?? manifest.requiredAny ?? manifest.keys)[0];
+      return [
+        `SCHEMA ${manifest.token} key=${key} :: ${grammar}. SPECIMEN follows.`,
+        `@diagram id=f${manifest.token} type=${manifest.token}`,
+        manifest.specimen,
+        '@enddiagram',
+      ];
+    }),
   ].join('\n');
 }
 
