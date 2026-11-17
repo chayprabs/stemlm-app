@@ -36,6 +36,9 @@ export interface Translation {
   notes: string[];
 }
 
+/** Native labels are one line that the engine wraps by itself, so a break the source placed by hand is a space. */
+export const LINE_BREAK_NOTE = 'line breaks inside labels became spaces: the figure engine wraps labels itself';
+
 /** Ordered, de-duplicated translation notes. */
 export class Notes {
   private readonly seen = new Set<string>();
@@ -131,6 +134,17 @@ interface DraftEdge {
   directed: boolean;
 }
 
+/**
+ * Mirrors `inferNodeKind` in engines/graph.ts, which reshapes an unmarked node by words in its id or
+ * label. A plain step that the engine would draw as a decision diamond must not be emitted.
+ */
+function engineOutline(id: string, label: string): 'box' | 'ellipse' | 'diamond' {
+  const text = `${id} ${label}`;
+  if (/\b(resource|lock|mutex|semaphore)\b/i.test(text)) return 'box';
+  if (/\b(process|thread|worker|task|actor)\b/i.test(text)) return 'ellipse';
+  return /\b(relation|relationship)\b/i.test(text) ? 'diamond' : 'box';
+}
+
 const MAX_NODES = 400;
 const MAX_EDGES = 600;
 
@@ -178,7 +192,7 @@ export class GraphDraft {
     return degree;
   }
 
-  toSpec(): string {
+  toSpec(notes: Notes): string {
     if (!this.nodes.size) refuse('the graph has no nodes');
     // The graph engine draws an arrowhead on every edge, so a link the source left undirected has no native form.
     if (this.edges.some((edge) => !edge.directed)) refuse('undirected links cannot be drawn without inventing a direction');
@@ -186,10 +200,15 @@ export class GraphDraft {
     const ids = nativeIds(nodes.map((node) => node.key), 'n');
     const idOf = (key: string) => ids.get(key)!;
     const lines = [`rankdir: ${this.rankdir}`];
+    // With a start or accepting state and no flowchart shapes the engine draws every node as a state.
+    const automaton = nodes.some((node) => node.start || node.accept) && nodes.every((node) => node.shape === 'plain');
     for (const node of nodes) {
       const id = idOf(node.key);
       const label = labelText(node.label ?? node.key);
       if (!label) refuse('a node has no label');
+      const reshaped = node.shape === 'plain' && !automaton ? engineOutline(id, label) : 'box';
+      if (reshaped === 'diamond') refuse('the graph engine would draw this plain node as a decision diamond because of a word in its name');
+      if (reshaped === 'ellipse') notes.add('the graph engine draws nodes named process, thread, worker, task or actor as ellipses');
       lines.push(label === id ? `node: ${id}` : `node: ${id} ${protectQuotes(label)}`);
     }
     for (const edge of this.edges) {

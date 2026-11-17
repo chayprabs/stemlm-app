@@ -97,7 +97,8 @@ const LINK = /\[([^\]\n]{1,200})\]\((?:https?:\/\/|mailto:|www\.|\/|#)[^)\s]{0,5
 const STAR_EMPHASIS = /(?<![\p{L}\p{N}*\\])(\*{1,3})(?=[^\s*])([^*\n]{1,200}?)(?<=[^\s*])\1(?![\p{L}\p{N}*])/gu;
 const UNDERSCORE_EMPHASIS = /(?<![\p{L}\p{N}_\\])(_{1,3})(?=[^\s_])([^_\n]{1,200}?)(?<=[^\s_])\1(?![\p{L}\p{N}_])/gu;
 
-function stripProse(text: string): string {
+/** Inline Markdown of one prose run (no math inside) to its text. */
+export function stripProse(text: string): string {
   if (/!\[[^\]\n]*\]\(/.test(text)) refuse('an image has no plain-text form');
   return text
     .replace(LINK, '$1')
