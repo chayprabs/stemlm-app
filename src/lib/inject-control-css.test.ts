@@ -81,6 +81,8 @@ describe('composer control stylesheet', () => {
     expect(base).toMatch(/border:\s*0/);
     expect(base).not.toMatch(/box-shadow/);
     expect(rule(shadowCss, '.slm-inject-btn:hover')).toMatch(/background:\s*color-mix\(in srgb, var\(--slm-inject-ink\) \d+%, transparent\)/);
+    // Drawn as small as a 28 px neighbour, it still takes a 32 px press.
+    expect(rule(shadowCss, '.slm-inject-btn::after')).toContain('inset: min(0px, calc((var(--slm-inject-size, 32px) - 32px) / 2))');
     // No glow anywhere, in any state.
     expect(shadowCss).not.toMatch(/box-shadow:\s*0 0 0/);
     // Its box is placed by measurement, with no easing that could trail the composer.

@@ -207,6 +207,26 @@ describe('room in the row', () => {
   });
 });
 
+// With the page's real observer: the marks the tracker tries and takes off again in a row that
+// has no room are writes of its own. If they woke it, it would look at the page for ever.
+describe('a row without room', () => {
+  it('is looked at once, not again and again', async () => {
+    const spec = { ...live('grok'), room: null, moves: [] };
+    mount(spec);
+    const looks = vi.spyOn(spec.adapter, 'findEditor');
+    const shown: Array<ControlPlacement | null> = [];
+    track(spec.adapter, () => true, (p) => shown.push(p));
+    await frames(40);
+    expect(shown).toEqual([]);
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
+    // One look is a handful of reads of the editor; ten looks a second would be dozens by now.
+    expect(looks.mock.calls.length).toBeLessThan(12);
+    const settled = looks.mock.calls.length;
+    await frames(20);
+    expect(looks.mock.calls.length).toBe(settled);
+  });
+});
+
 describe('trackComposerControl', () => {
   // The test DOM holds an observer's callback weakly and can drop it mid-test, so the page's
   // mutations are reported here by hand, as the browser reports them: the tracker's own handling
@@ -227,6 +247,9 @@ describe('trackComposerControl', () => {
       }
       disconnect() {
         observers.delete(this.callback);
+      }
+      takeRecords() {
+        return [];
       }
     });
   });
@@ -260,32 +283,26 @@ describe('trackComposerControl', () => {
     expect(document.getElementById(ROOM_STYLE_ID)).toBeNull();
   });
 
-  it('does not wake itself: its own mark on the page starts no new look', async () => {
+  it('puts its mark back when the chat takes it off, and is then quiet again', async () => {
     const spec = live('gemini');
     const { attach } = mount(spec);
     const editor = vi.spyOn(spec.adapter, 'findEditor');
     track(spec.adapter, () => true, () => {});
     await frames(20);
     expect(attach.getAttribute(ROOM_ATTR)).toBe('after');
-    const style = document.getElementById(ROOM_STYLE_ID)!;
     const looks = () => editor.mock.calls.length;
-
-    // What the tracker wrote itself: its mark, where it put it, and its one stylesheet.
     let before = looks();
-    report({ type: 'attributes', attributeName: ROOM_ATTR, target: attach, addedNodes: [] as unknown as NodeList });
-    report({ type: 'childList', target: document.head, addedNodes: [style] as unknown as NodeList });
-    report({ type: 'childList', target: style, addedNodes: [] as unknown as NodeList });
     await frames(20);
     expect(looks()).toBe(before);
 
-    // The chat took the mark off again (a re-render of the row): that is news.
+    // The chat took the mark off (a re-render of the row): that is news about the page.
     attach.removeAttribute(ROOM_ATTR);
-    report({ type: 'attributes', attributeName: ROOM_ATTR, target: attach, addedNodes: [] as unknown as NodeList });
+    report({ type: 'attributes', attributeName: ROOM_ATTR, target: attach });
     await frames(20);
     expect(looks()).toBeGreaterThan(before);
     expect(attach.getAttribute(ROOM_ATTR)).toBe('after');
 
-    // And then it is quiet again: one look restored the mark, and nothing follows it.
+    // One look restored it, and nothing follows that look.
     before = looks();
     await frames(30);
     expect(looks()).toBe(before);

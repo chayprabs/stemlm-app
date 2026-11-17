@@ -22,7 +22,6 @@ export const STEMLM_SENTINEL = '--- stemLM ---';
 
 /** Marks of stemLM's own text in a composer or a sent message, in every wording it has shipped. */
 const STEMLM_COMPOSER_MARKERS = [
-  STEMLM_SENTINEL,
   '--- stemLM',
   'stemLM instructions',
   'Ask your question here:',
@@ -93,21 +92,9 @@ export function pageThreadHasProtocol(
   root: ParentNode = document,
   composer?: HTMLElement | null,
 ): boolean {
-  const skipComposer = composerRegion(composer);
-  for (const sel of THREAD_PROTOCOL_SELECTORS) {
-    let nodes: NodeListOf<Element>;
-    try {
-      nodes = root.querySelectorAll(sel);
-    } catch {
-      continue;
-    }
-    for (const el of nodes) {
-      if (!(el instanceof HTMLElement)) continue;
-      if (skipComposer && (skipComposer === el || skipComposer.contains(el))) continue;
-      if (composerTextHasProtocol(el.textContent ?? '')) return true;
-    }
-  }
+  if (sentStudentMessages(root, composer).some(composerTextHasProtocol)) return true;
 
+  const skipComposer = composerRegion(composer);
   const scopes: HTMLElement[] = [];
   for (const sel of THREAD_SCAN_ROOTS) {
     let nodes: NodeListOf<Element>;
@@ -296,37 +283,27 @@ export function composerExpectsGuideFile(text: string): boolean {
 }
 
 /**
- * Whether a sent message carried the guide, and in which version: `true` pasted as text, `false`
- * as a file, null not at all. The guide is rebuilt from the message's own question when needed,
- * so nothing has to be remembered between page loads.
- */
-function guideCarried(message: string): boolean | null {
-  if (message.includes(GUIDE_INLINE)) return true;
-  return composerExpectsGuideFile(message) ? false : null;
-}
-
-/**
  * Whether the next question must carry the full guide, not only the reminder. `sent` is the text
- * of the student's messages already in the chat, oldest first.
+ * of the student's messages already in the chat, oldest first. Which guide a message carried is
+ * read from the message itself, so nothing has to be remembered between page loads.
  *
  * The guide goes again when the chat has none, when the last answer did not come back in the
  * format, and when GUIDE_REFRESH_TURNS messages have followed it. A guide file describes every
  * figure type, so a new subject needs no new file. A guide pasted as text holds only a few: it
- * goes again when this question uses a figure form the earlier one left out.
+ * goes again for a new subject, and for a figure form this question names that it left out.
  */
 export function guideNeeded(question: string, sent: readonly string[], lastAnswerInFormat = true): boolean {
   if (!lastAnswerInFormat) return true;
-  for (let after = 0; after < Math.min(GUIDE_REFRESH_TURNS, sent.length); after += 1) {
-    const message = sent[sent.length - 1 - after]!;
-    const pasted = guideCarried(message);
-    if (pasted === null) continue;
-    if (!pasted) return false;
-    const earlier = cleanSessionQuestion(message);
-    // A question that names no subject stays in the chat's subject, so it never forces a new guide.
-    const subject = classifySubject(question);
-    if (subject !== 'General' && subject !== classifySubject(earlier)) return true;
-    const carried = assembleGuide(earlier, undefined, true).forms;
-    return figureFormsNamed(question).some((form) => !carried.includes(form));
+  for (const message of sent.slice(-GUIDE_REFRESH_TURNS).reverse()) {
+    if (message.includes(GUIDE_INLINE)) {
+      const earlier = cleanSessionQuestion(message);
+      // A question that names no subject stays in the chat's subject, so it never forces a new guide.
+      const subject = classifySubject(question);
+      if (subject !== 'General' && subject !== classifySubject(earlier)) return true;
+      const carried = assembleGuide(earlier, undefined, true).forms;
+      return figureFormsNamed(question).some((form) => !carried.includes(form));
+    }
+    if (composerExpectsGuideFile(message)) return false;
   }
   return true;
 }

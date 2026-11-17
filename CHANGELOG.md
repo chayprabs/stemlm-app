@@ -28,13 +28,16 @@
 ### Interface
 
 - Redesigned study panel on a new token system: step navigation as a strip of numbered marks, a step page set as a typeset page (kicker, title, key relation, working, figure plate, takeaway, quick check), the model's closing answer set apart on the last step and at the top of the Solution view, a two-line question that expands, and page turns that follow the direction of travel.
-- The composer control shows the stemLM mark instead of a second plus sign beside the chat's own attach button.
+- The composer control shows the stemLM mark instead of a second plus sign, and has one place: beside the chat's own attach button, in its row, at that button's size, corner and ink. It keeps that place in every state (at rest, attaching, on, failed), follows the composer as it grows or the chat re-renders it, and is not shown at all where it has no such place: under a dialog, on a settings or builder page, beside an earlier message being edited.
+- Pressing the stemLM button no longer opens the study panel or moves the page. The panel opens, waiting for the answer, when the question is sent. A press that fails says so beside the button.
+- Where a chat will not take a file (ChatGPT signed out), the guide goes into the message as text and a line beside the button says so.
 - Redesigned toolbar popup (says whether the current tab is a supported chat), welcome page (a live miniature of the panel built from the real components, in place of screenshots), saved questions (search shortcut, subject filters with counts, designed empty and no-results states, an explicit selection bar for merging) and settings (reading size with a live preview).
 - Redesigned PDF report: a cover block, the conclusion first, typeset steps, quick checks printed as exercises with their answers collected after the last step, a contents list for merged files, and a footer with page numbers. Fixed the radical missing from equation labels on figures in the PDF, and descenders clipped at page breaks.
 
 ### For contributors
 
 - Visual tools in `scripts/visual/` drive the built extension in headless Chromium against stand-in pages for the four chat sites and photograph every surface; a gallery tool compiles figure specs with the shipped compiler.
+- The stand-in composers follow the DOM captured from the four sites (`scripts/visual/host-composers.mjs`), and `scripts/visual/control-check.mjs` measures the composer control against the chat's attach button in every state, theme and window width.
 - New figure families are added as packs (a manifest and a compiler) under `src/lib/figure/families/`, with nothing else to register.
 
 ## [2.0.0](https://github.com/chayprabs/stemlm-app/releases/tag/v2.0.0) — 2026-09-29
