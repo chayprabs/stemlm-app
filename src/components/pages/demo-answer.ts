@@ -101,7 +101,7 @@ point_label: 3.6 m/s at 2.0 m
 @step id=s5
 title: Check the result with energy
 @body
-Gravity does $mg\sin\theta\,\Delta x = (24.5)(2.0) = 49.1\ \text{J}$ and friction removes $f_k\,\Delta x = (8.5)(2.0) = 17.0\ \text{J}$.
+Gravity does $mg\sin\theta\,\Delta x = (24.5)(2.0) = 49.1\ \text{J}$ of work and friction removes $f_k\,\Delta x = (8.5)(2.0) = 17.0\ \text{J}$ of it.
 
 $$\tfrac12 mv^2 = 49.1 - 17.0 = 32.1\ \text{J} \;\Rightarrow\; v = \sqrt{\frac{2(32.1)}{5.0}} = 3.6\ \text{m/s}$$
 

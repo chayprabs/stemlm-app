@@ -7,9 +7,11 @@ import { DiagramRenderer } from './DiagramRenderer';
 
 const GRAPH = { type: 'graph', content: 'node: a Glucose\nnode: b Pyruvate\nedge: a b glycolysis', caption: 'Glycolysis overview' } as const;
 
-async function settle(check: () => boolean): Promise<void> {
-  for (let i = 0; i < 40 && !check(); i++) {
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+/** Wait by the clock, not by a number of ticks: the first compile of a run loads the graph engine. */
+async function settle(check: () => boolean, withinMs = 4000): Promise<void> {
+  const deadline = Date.now() + withinMs;
+  while (!check() && Date.now() < deadline) {
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
   }
 }
 
@@ -112,7 +114,7 @@ describe('FIG-SIZE-01 figure lightbox', () => {
       root = createRoot(host!);
       root.render(<DiagramRenderer diagram={{ type: 'graph', content: 'caption: nothing drawable' }} theme="light" section />);
     });
-    await settle(() => false);
+    await settle(() => false, 250);
     expect(host.querySelector('button.slm-diagram-enlarge')).toBeNull();
   });
 });

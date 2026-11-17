@@ -38,7 +38,8 @@ export const GALLERY_FIGURES: readonly GalleryFigure[] = [
     field: 'Mechanics',
     diagram: {
       type: 'truss',
-      content: 'joints: A 0 0; B 4 0; C 2 3\nmembers: A-B, B-C, C-A\nsupports: pin@A, roller@B\nloads: F down@C',
+      content:
+        'joints: A 0 0; B 4 0; C 8 0; D 2 2; E 6 2\nmembers: A-B, B-C, A-D, D-B, B-E, E-C, D-E\nsupports: pin@A, roller@C\nloads: P down@B',
     },
   },
   {

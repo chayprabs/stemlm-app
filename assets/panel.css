@@ -1118,7 +1118,9 @@
   border-radius: var(--radius-lg);
   background: var(--slm-plate);
   overflow: hidden;
-  animation: slm-rise var(--slm-dur-4) var(--slm-ease-out);
+  /* A figure is compiled after its page is on screen, so it arrives a moment later: a short rise
+     instead of a pop. */
+  animation: slm-rise var(--slm-dur-3) var(--slm-ease-out);
   transition: border-color var(--slm-dur-2) var(--slm-ease-out), box-shadow var(--slm-dur-2) var(--slm-ease-out);
 }
 .slm-step-diagram:hover {
