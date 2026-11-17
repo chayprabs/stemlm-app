@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileExpr } from '../pratt';
+import { cpuMs } from '../../cpu-time';
 import {
   evaluateConstant, freeVariables, inferVariable, isUsableExpression, repairExpression, repairNumber, repairRange,
 } from './expr-repair';
@@ -102,9 +103,9 @@ describe('repairExpression', () => {
 
   it('never throws and stays fast on hostile input', () => {
     const hostile = ['('.repeat(400), '\\frac{'.repeat(200), '|'.repeat(500), '√'.repeat(500), '^'.repeat(500), 'sin '.repeat(120), '-'.repeat(510), '²'.repeat(500), '\u0000￿{}[]'];
-    const started = performance.now();
+    const started = cpuMs();
     for (const source of hostile) expect(() => repairExpression(source)).not.toThrow();
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(cpuMs() - started).toBeLessThan(500);
   });
 });
 

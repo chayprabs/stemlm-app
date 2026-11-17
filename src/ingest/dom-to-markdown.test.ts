@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MathMarkdown } from '@/src/components/MathMarkdown';
 import { MAX_MARKDOWN_CHARS, messageToMarkdown } from './dom-to-markdown';
+import { cpuMs } from '../lib/cpu-time';
 import {
   HOST_ANSWER_MARKDOWN,
   HOST_STYLES,
@@ -302,7 +303,7 @@ describe('messageToMarkdown: robustness', () => {
       (host.querySelector('i') ?? host).replaceWith(p);
       return messageToMarkdown(host);
     };
-    const started = performance.now();
+    const started = cpuMs();
     expect(run(`a${' '.repeat(200_000)}b`)).toBe('a b');
     expect(run('['.repeat(100_000)).length).toBe(100_000);
     expect(run(':contentReference['.repeat(10_000))).toContain(':contentReference');
@@ -324,7 +325,7 @@ describe('messageToMarkdown: robustness', () => {
     code.innerHTML = '<p><code></code></p>';
     code.querySelector('code')!.textContent = `a${' '.repeat(100_000)}\n${'\n'.repeat(50_000)}b`;
     expect(messageToMarkdown(code).startsWith('```\na')).toBe(true);
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(cpuMs() - started).toBeLessThan(2000);
   });
 
   it('survives hostile and malformed markup', () => {

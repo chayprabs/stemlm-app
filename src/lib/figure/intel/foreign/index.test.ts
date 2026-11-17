@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Diagram } from '@/src/protocol/types';
 import { diagramFromFence, explainForeignDiagram, isFigureFence, translateForeignDiagram } from './index';
+import { cpuMs } from '../../../cpu-time';
 
 describe('translateForeignDiagram', () => {
   it('translates a diagram declared as Mermaid, keeping its id and its own caption', () => {
@@ -149,10 +150,10 @@ describe('bounded work on adversarial input', () => {
   ];
 
   it.each(cases)('%s: %s', (lang, _name, code) => {
-    const started = performance.now();
+    const started = cpuMs();
     expect(() => diagramFromFence(lang, code)).not.toThrow();
     expect(() => isFigureFence(lang, code)).not.toThrow();
     expect(() => translateForeignDiagram({ type: 'graph', content: code })).not.toThrow();
-    expect(performance.now() - started).toBeLessThan(1_500);
+    expect(cpuMs() - started).toBeLessThan(1_500);
   });
 });
