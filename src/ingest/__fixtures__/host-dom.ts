@@ -94,7 +94,7 @@ function citation(host: HostStyle): string {
     case 'gemini':
       return '<source-footnote><sup class="superscript" data-turn-source-index="1"></sup></source-footnote><sources-carousel-inline><source-inline-chip>Sources</source-inline-chip></sources-carousel-inline>';
     case 'grok':
-      return '<a class="citation" href="https://example.org/s">⁠Example</a>';
+      return '<a class="citation" href="https://example.org/s">\u2060Example</a>';
     case 'claude':
       return '<span class="inline-flex"><a class="group/tag citation-chip" href="https://example.org/s"><span>Example</span></a></span>';
     default:

@@ -87,12 +87,8 @@ const CHROME_SELECTOR = [
   '[data-message-actions]',
   '[data-message-content-controls]',
   '[popover]',
-  // Citation chips and source pills on ChatGPT / Grok [chatgpt-export], [grok-export].
+  // Grok's inline source link [grok-export].
   'a.citation',
-  '[data-citation]',
-  '[data-testid*="citation"]',
-  '[data-testid*="sources"]',
-  '[class*="citation"]',
   // Gemini classes [voyager exportDomPolicy].
   '.model-thoughts',
   '.thoughts-container',
@@ -115,6 +111,14 @@ const CHROME_SELECTOR = [
   '[data-testid*="thinking"]',
   '[data-testid*="reasoning"]',
 ].join(',');
+
+/**
+ * Citation chips and source pills on ChatGPT and Claude [chatgpt-export]. The class match is
+ * loose, so it only counts on something chip-sized: a paragraph that merely carries such a class
+ * is answer text.
+ */
+const CHIP_SELECTOR = '[data-citation], [data-testid*="citation"], [data-testid*="sources"], [class*="citation"]';
+const CHIP_MAX_CHARS = 120;
 
 /** Hosts that mark the whole code block, toolbar included [voyager], [grok-export]. */
 const KNOWN_CODE_HOSTS = '[data-markdown-copy="code-block"], [data-testid="code-block"], code-block';
@@ -144,7 +148,7 @@ const REASONING_LABEL = /^\s*(?:thought|thinking|think\b|reason|show thinking|an
  * and private-use delimiters U+E200..U+E20F around "turn0search0" [chatgpt-export]. Zero-width
  * characters (Grok prefixes citation text with U+2060 [grok-export]) are never content either.
  */
-const CITATION_TOKENS = /[ \t]*(?::contentReference\[[^\]\n]*\]\{[^}\n]*\}|【[^】\n]*†[^】\n]*】)|[^]*|[-]|[​⁠﻿]/g;
+const CITATION_TOKENS = /[ \t]?(?::contentReference\[[^\]\n]{0,80}\]\{[^}\n]{0,80}\}|【[^】\n]{0,80}†[^】\n]{0,80}】)|\uE200[^\uE200\uE201]{0,200}\uE201|[\uE200-\uE20F]|[\u200B\u2060\uFEFF]/g;
 
 /**
  * Math the host left unrendered in a text node. It is passed through untouched so the panel can
@@ -152,10 +156,23 @@ const CITATION_TOKENS = /[ \t]*(?::contentReference\[[^\]\n]*\]\{[^}\n]*\}|【[^
  * prices in one sentence stay prices.
  */
 const RAW_MATH = /\$\$[^$]+\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$(?=[^\s$])[^$\n]*[\\^_=][^$\n]*(?<=[^\s$\\])\$(?!\d)/g;
+/** RAW_MATH backtracks on unclosed delimiters; a text node longer than this is escaped whole. */
+const RAW_MATH_MAX_CHARS = 2_000;
 
 const WORD_CHAR = /[\p{L}\p{N}]/u;
-const OPENING_PUNCTUATION = /^[([（【《「『“‘"']+/;
-const CLOSING_PUNCTUATION = /[)\]）】》」』”’"':：,，.。;；!！?？、]+$/;
+const OPENING_PUNCTUATION = '([（【《「『“‘"\'';
+const CLOSING_PUNCTUATION = ')]）】》」』”’"\':：,，.。;；!！?？、';
+
+/** One line, single-spaced. Split and join, because `\s*\n\s*` is quadratic on a long run of spaces. */
+function oneLine(text: string): string {
+  return text.includes('\n') ? text.split('\n').map((line) => line.trim()).filter(Boolean).join(' ') : text;
+}
+
+function withoutTrailing(text: string, chars: string): string {
+  let end = text.length;
+  while (end > 0 && chars.includes(text[end - 1]!)) end--;
+  return end === text.length ? text : text.slice(0, end);
+}
 
 class Flow {
   readonly blocks: Array<{ md: string; kind: BlockKind }> = [];
@@ -186,7 +203,8 @@ class Flow {
 
   /** Literal text from the page: collapsed like a browser would, escaped only where Markdown would misread it. */
   text(raw: string, st: Inline): void {
-    let s = raw.replace(CITATION_TOKENS, '').replace(/[\s ]+/g, ' ');
+    // Whitespace first: the citation pattern must never meet a long run of spaces.
+    let s = raw.replace(/[\s\u00A0]+/g, ' ').replace(CITATION_TOKENS, '');
     if (!s) return;
     const lineStart = !this.inlineOnly && this.atLineStart;
     if (s.startsWith(' ') && (lineStart || this.line.endsWith(' '))) s = s.slice(1);
@@ -199,7 +217,7 @@ class Flow {
       this.append(' ');
       return;
     }
-    const kept = this.line.replace(/ +$/, '');
+    const kept = withoutTrailing(this.line, ' ');
     // A break before any text, or a second break in a row, has nothing to end.
     this.line = !kept || kept.endsWith('\n') ? kept : `${kept}\\\n`;
   }
@@ -211,7 +229,7 @@ class Flow {
     }
     let text = this.line;
     while (text.endsWith('\\\n')) text = text.slice(0, -2);
-    text = text.replace(/ +\n/g, '\n').trim();
+    text = text.split('\n').map((line) => withoutTrailing(line, ' ')).join('\n').trim();
     this.line = '';
     if (text) this.push(text, 'text');
   }
@@ -219,7 +237,7 @@ class Flow {
   block(md: string, kind: BlockKind = 'other'): void {
     if (!md) return;
     if (this.inlineOnly) {
-      this.append(` ${md.replace(/\s*\n\s*/g, ' ')} `);
+      this.append(` ${oneLine(md)} `);
       return;
     }
     this.flush();
@@ -294,11 +312,12 @@ function escapeRun(s: string, lineStart: boolean, prev: string, st: Inline): str
         out += /[A-Za-z/!?]/.test(after) ? '\\<' : ch;
         break;
       case '&':
-        out += /^&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i.test(s.slice(i)) ? '\\&' : ch;
+        out += /^&(?:#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i.test(s.slice(i, i + 40)) ? '\\&' : ch;
         break;
       case '[':
-        // An entity, not `\[`: the render path reads `\[ ... \]` as display math.
-        out += st.link || /^\[[^\]]*\](?:\(|\[|:)/.test(s.slice(i)) ? '&#91;' : ch;
+        // An entity, not `\[`: the render path reads `\[ ... \]` as display math. The lookahead is
+        // a bounded window, so a wall of brackets stays linear.
+        out += st.link || /^\[[^\]]*\](?:\(|\[|:)/.test(s.slice(i, i + 400)) ? '&#91;' : ch;
         break;
       case ']':
         out += st.link ? '&#93;' : ch;
@@ -314,6 +333,7 @@ function escapeRun(s: string, lineStart: boolean, prev: string, st: Inline): str
 }
 
 function escapeProse(s: string, lineStart: boolean, prev: string, st: Inline): string {
+  if (s.length > RAW_MATH_MAX_CHARS) return escapeRun(s, lineStart, prev, st);
   let out = '';
   let cursor = 0;
   RAW_MATH.lastIndex = 0;
@@ -334,7 +354,7 @@ function tableSafeTex(tex: string): string {
 }
 
 function cleanTex(raw: string): { tex: string; display: boolean | null } {
-  let tex = raw.replace(/ /g, ' ').trim();
+  let tex = raw.replace(/\u00A0/g, ' ').trim();
   let display: boolean | null = null;
   const wrapped =
     /^\$\$([\s\S]+)\$\$$/.exec(tex) ?? /^\\\[([\s\S]+)\\\]$/.exec(tex);
@@ -433,6 +453,13 @@ function readMath(el: Element, tag: string): MathSource | 'skip' | null {
     return { tex: el.textContent ?? '', display: /mode\s*=\s*display/.test(type) };
   }
   const classes = el.getAttribute('class') ?? '';
+  // remark-math before typesetting: `code.language-math`, `math-display` when it is a block.
+  if (tag === 'code' && hasToken(classes, 'language-math')) {
+    return { tex: el.textContent ?? '', display: hasToken(classes, 'math-display') };
+  }
+  if (tag === 'pre' && el.childElementCount === 1 && hasToken(el.firstElementChild!.getAttribute('class') ?? '', 'language-math')) {
+    return { tex: el.textContent ?? '', display: true };
+  }
   // Gemini: `.math-inline` / `.math-block` carry the source in data-math [voyager formulaSource].
   const dataMath = el.getAttribute('data-math');
   if (dataMath && dataMath.trim()) {
@@ -494,7 +521,7 @@ function emitMath(source: MathSource, flow: Flow, st: Inline): void {
     return;
   }
   // `$a$$b$` would read as a display delimiter.
-  flow.append(`${flow.lastChar === '$' ? ' ' : ''}$${tex.replace(/\s*\n\s*/g, ' ')}$`);
+  flow.append(`${flow.lastChar === '$' ? ' ' : ''}$${oneLine(tex)}$`);
 }
 
 function codeText(root: Element): string {
@@ -520,7 +547,7 @@ function codeText(root: Element): string {
     if (line && out && !out.endsWith('\n')) out += '\n';
   };
   visit(root, 0);
-  return out.replace(/ /g, ' ').replace(/\r\n?/g, '\n').replace(/^\n/, '').replace(/\n+$/, '');
+  return withoutTrailing(out.replace(/\u00A0/g, ' ').replace(/\r\n?/g, '\n').replace(/^\n/, ''), '\n');
 }
 
 function normalizeLanguage(raw: string): string {
@@ -661,7 +688,7 @@ function fence(block: CodeBlock): string {
 }
 
 function inlineCode(text: string, st: Inline): string {
-  let body = text.replace(/\s*\n\s*/g, ' ');
+  let body = oneLine(text);
   if (!body.trim()) return '';
   if (st.cell) body = body.replace(/\|/g, '\\|');
   let longest = 0;
@@ -683,7 +710,8 @@ function isChrome(el: Element, tag: string): boolean {
   if (CHROME_TAGS.has(tag)) return true;
   const style = el.getAttribute('style');
   if (style && /display\s*:\s*none|visibility\s*:\s*hidden/i.test(style)) return true;
-  return safeMatches(el, CHROME_SELECTOR);
+  if (safeMatches(el, CHROME_SELECTOR)) return true;
+  return safeMatches(el, CHIP_SELECTOR) && (el.textContent ?? '').length <= CHIP_MAX_CHARS;
 }
 
 /** A superscript that points at a source, not an exponent. */
@@ -718,18 +746,16 @@ function emitWrapped(el: Element, marker: string, flow: Flow, st: Inline, budget
   const prev = lead ? ' ' : flow.lastChar;
   const next = trail ? ' ' : nextVisibleChar(el);
   if (prev && WORD_CHAR.test(prev)) {
-    const m = OPENING_PUNCTUATION.exec(inner);
-    if (m) {
-      before = m[0];
-      inner = inner.slice(m[0].length);
-    }
+    let start = 0;
+    while (start < inner.length && OPENING_PUNCTUATION.includes(inner[start]!)) start++;
+    before = inner.slice(0, start);
+    inner = inner.slice(start);
   }
-  if (next && WORD_CHAR.test(next) && !/&#?\w+;$/.test(inner)) {
-    const m = CLOSING_PUNCTUATION.exec(inner);
-    if (m) {
-      after = m[0];
-      inner = inner.slice(0, inner.length - m[0].length);
-    }
+  // A closing `;` may be the end of an entity this serializer wrote; that one stays inside.
+  if (next && WORD_CHAR.test(next) && !/&#?\w{1,8};$/.test(inner.slice(-12))) {
+    const kept = withoutTrailing(inner, CLOSING_PUNCTUATION);
+    after = inner.slice(kept.length);
+    inner = kept;
   }
   flow.append(inner ? `${lead}${before}${marker}${inner}${marker}${after}${trail}` : `${lead}${before}${after}${trail}`);
 }
@@ -946,10 +972,15 @@ function walkNode(node: Node, flow: Flow, st: Inline, budget: Budget, depth: num
     case 'sup':
     case 'sub': {
       if (tag === 'sup' && isCitationMark(el)) return;
-      const inner = inlineOf(el, st, budget, depth).trim();
-      if (!inner) return;
+      const script = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      if (!script) return;
+      // Markdown has no script syntax. Explicit math with an empty base renders as one, and does
+      // not lean on the render path guessing that "m^2" in prose is math.
       const mark = tag === 'sup' ? '^' : '_';
-      flow.append(/^[A-Za-z0-9]$/.test(inner) ? mark + inner : `${mark}{${inner}}`);
+      if (/^[A-Za-z0-9]$/.test(script)) flow.append(`$${mark}${script}$`);
+      else if (/^[\d+\-−.,]+$/.test(script)) flow.append(`$${mark}{${script.replace(/−/g, '-')}}$`);
+      else if (/^[\p{L}\p{N} .,+-]+$/u.test(script)) flow.append(`$${mark}{\\text{${script}}}$`);
+      else walkChildren(el, flow, st, budget, depth + 1);
       return;
     }
     case 'ul':

@@ -8,9 +8,9 @@
  *
  * Pure, deterministic, dependency-free (it runs in the content script) and bounded at 256 KB.
  */
-import type { Capsule, Diagram, Step, Subject } from '@/src/protocol/types';
+import type { Capsule, Diagram, Step } from '@/src/protocol/types';
 import { PROTOCOL_VERSION } from '@/src/protocol/protocol';
-import { classifySubject } from '@/src/protocol/classifier';
+import { inferSubject } from './subject';
 
 export type IngestStrategy = 'headings' | 'step-markers' | 'ordered-list' | 'bold-leads' | 'paragraphs';
 
@@ -28,7 +28,7 @@ const MAX_STEPS = 20;
 const MAX_PARAGRAPH_STEPS = 8;
 const TITLE_MAX = 90;
 /** Below this an answer is a reply, not something to study step by step. */
-const MIN_CONTENT_CHARS = 220;
+const MIN_CONTENT_CHARS = 140;
 const SINGLE_STEP_CHARS = 480;
 const SHORT_PREAMBLE_CHARS = 280;
 
@@ -50,8 +50,10 @@ type Block =
 
 type ListBlock = Extract<Block, { kind: 'list' }>;
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)[^`]*$/;
-const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/;
+// Patterns here run on untrusted lines up to 256 KB long, so none may put two unbounded
+// quantifiers side by side: the info string and the closing #s are taken apart in code instead.
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})([^`]*)$/;
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*)$/;
 const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const SETEXT = /^ {0,3}(=+|-{2,})[ \t]*$/;
 const LIST_ITEM = /^([ \t]*)(?:([-*+•])|(\d{1,9})([.)]))(?:[ \t]+(.*)|$)/;
@@ -104,9 +106,19 @@ function texOf(raw: string): string {
     .trim();
 }
 
+/** Heading text without the optional closing sequence (`## Title ##`). */
+function headingText(rest: string): string {
+  const text = rest.trimEnd();
+  let end = text.length;
+  while (end > 0 && text[end - 1] === '#') end--;
+  const closed = end < text.length && (end === 0 || text[end - 1] === ' ' || text[end - 1] === '\t');
+  return closed ? text.slice(0, end).trimEnd() : text;
+}
+
 function isTableStart(lines: string[], i: number): boolean {
   const next = lines[i + 1];
-  return lines[i]!.includes('|') && next !== undefined && next.includes('-') && next.includes('|') && TABLE_DELIMITER.test(next);
+  // No delimiter row is this long; the length guard keeps the pattern off pathological lines.
+  return lines[i]!.includes('|') && next !== undefined && next.length <= 1_000 && next.includes('-') && next.includes('|') && TABLE_DELIMITER.test(next);
 }
 
 function startsBlock(lines: string[], i: number): boolean {
@@ -195,7 +207,7 @@ function tokenize(md: string): Block[] {
       blocks.push({
         kind: 'code',
         raw: lines.slice(i, last + 1).join('\n'),
-        lang: (fence[2] ?? '').toLowerCase(),
+        lang: ((fence[2] ?? '').trim().split(/\s+/)[0] ?? '').toLowerCase(),
         code: lines.slice(i + 1, j).join('\n'),
       });
       i = j + 1;
@@ -203,14 +215,16 @@ function tokenize(md: string): Block[] {
     }
     const mathEnd = mathBlockEnd(lines, i);
     if (mathEnd >= 0) {
-      const raw = lines.slice(i, mathEnd + 1).join('\n');
+      // A TeX line that starts with "=" makes prepareMathForRender regroup the whole body
+      // (its composer dedupe drops every blank line); the newline means nothing to TeX.
+      const raw = lines.slice(i, mathEnd + 1).join('\n').replace(/\n[ \t]*(?==)/g, ' ');
       blocks.push({ kind: 'math', raw, tex: texOf(raw) });
       i = mathEnd + 1;
       continue;
     }
     const heading = HEADING.exec(line);
     if (heading) {
-      blocks.push({ kind: 'heading', raw: line, level: heading[1]!.length, text: heading[2] ?? '' });
+      blocks.push({ kind: 'heading', raw: line, level: heading[1]!.length, text: headingText(heading[2] ?? '') });
       i++;
       continue;
     }
@@ -248,7 +262,8 @@ function tokenize(md: string): Block[] {
       i = j + 1;
       continue;
     }
-    blocks.push({ kind: 'paragraph', raw: lines.slice(i, j).join('\n') });
+    // Same render-path hazard for prose: "= 42" on its own line is written "\= 42".
+    blocks.push({ kind: 'paragraph', raw: lines.slice(i, j).join('\n').replace(/^([ \t]*)=(?=\s)/gm, '$1\\=') });
     i = j;
   }
   return blocks;
@@ -264,7 +279,9 @@ function joinBlocks(blocks: Block[]): string {
 
 /** Markdown with emphasis markers, links and escapes removed: for matching words, never for output. */
 function plain(md: string): string {
-  return md
+  // Only ever matched against labels and openings, so a bounded window is enough, and it keeps
+  // the link pattern linear on a wall of brackets.
+  return (md.length > 4_000 ? md.slice(0, 4_000) : md)
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[*_~`]+/g, '')
     .replace(/\\([^A-Za-z0-9\s])/g, '$1')
@@ -274,7 +291,7 @@ function plain(md: string): string {
 
 /** Emoji, arrows and bullets models put in front of a heading. */
 function stripDecoration(text: string): string {
-  return text.replace(/^(?:[^\p{L}\p{N}\s$\\(（[`*_"'“‘¿¡<|~#-]|️)+\s*/u, '').trim();
+  return text.replace(/^(?:[^\p{L}\p{N}\s$\\(（[`*_"'“‘¿¡<|~#-]|\uFE0F)+\s*/u, '').trim();
 }
 
 function unwrapEmphasis(text: string): string {
@@ -347,7 +364,9 @@ function titleLike(rest: string): boolean {
  * "Step 1 is easy" is a sentence: the marker then needs a separator or the whole line.
  */
 function parseMarker(lead: string, strict: boolean): Marker | null {
-  const text = stripDecoration(unwrapEmphasis(lead.replace(/(\d)\\([.)])/g, '$1$2'))).trim();
+  // Runs of blanks are collapsed first: the marker patterns have optional whitespace on both
+  // sides of the count and must not meet a long run of it.
+  const text = stripDecoration(unwrapEmphasis(lead.replace(/[ \t]{2,}/g, ' ').replace(/(\d)\\([.)])/g, '$1$2'))).trim();
   const accept = (separator: string | undefined, rest: string): boolean => (strict ? Boolean(separator) || rest === '' : Boolean(separator) || titleLike(rest));
   let m = STEP_MARKER.exec(text);
   if (m && accept(m[2], m[3] ?? '')) {
@@ -393,14 +412,23 @@ function maskSpans(text: string): string {
   return text.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$|`[^`\n]*`|\\\([\s\S]*?\\\)/g, (span) => 'x'.repeat(span.length));
 }
 
+/** A title never needs more than the opening of its source; the window also bounds the span scan. */
+const SENTENCE_WINDOW = 600;
+
+/** One line, single-spaced; hard-break backslashes dropped. Linear on any run of spaces. */
+function flat(text: string): string {
+  return text.includes('\n') ? text.split('\n').map((line) => line.replace(/\\$/, '').trim()).filter(Boolean).join(' ') : text;
+}
+
 function firstSentence(text: string): { head: string; rest: string; terminator: string } {
-  const masked = maskSpans(text);
+  const opening = text.length > SENTENCE_WINDOW ? text.slice(0, SENTENCE_WINDOW) : text;
+  const masked = maskSpans(opening);
   const stop = /[.!?:](?=\s|$)|[。！？：]/g;
   for (let m = stop.exec(masked); m; m = stop.exec(masked)) {
     if (m[0] === '.' && ABBREVIATION.test(masked.slice(0, m.index))) continue;
     return { head: text.slice(0, m.index).trim(), rest: text.slice(m.index + 1).trim(), terminator: m[0] };
   }
-  return { head: text.trim(), rest: '', terminator: '' };
+  return { head: opening.trim(), rest: '', terminator: '' };
 }
 
 function balanced(text: string): boolean {
@@ -425,7 +453,7 @@ function capTitle(title: string): { title: string; cut: boolean } {
 }
 
 function cleanTitle(md: string): { title: string; cut: boolean } {
-  let t = md.replace(/\\\n/g, ' ').replace(/\s*\n\s*/g, ' ').trim().replace(/^#{1,6}\s+/, '');
+  let t = flat(md.length > SENTENCE_WINDOW ? md.slice(0, SENTENCE_WINDOW) : md).trim().replace(/^#{1,6}\s+/, '');
   t = unwrapEmphasis(stripDecoration(unwrapEmphasis(t)));
   const marker = parseMarker(t, false);
   if (marker) t = marker.family === 'part' ? `(${marker.key}) ${marker.title}`.trim() : marker.title;
@@ -495,6 +523,8 @@ interface Segment {
   liftTitle?: boolean;
   /** Headed "Final answer" / "Conclusion": the solution when it closes the answer. */
   final?: boolean;
+  /** A short introduction that reads before the step but must not name it. */
+  preface?: Block[];
 }
 
 interface Plan {
@@ -671,7 +701,7 @@ function byParagraphs(blocks: Block[]): Plan | null {
     const introduces = block.kind === 'paragraph' && isAnchor(blocks[index + 1]);
     const split =
       current.length > 0 &&
-      (block.kind === 'heading' || (introduces && anchored) || (block.kind === 'paragraph' && !anchored && chars >= 600));
+      (block.kind === 'heading' || (introduces && anchored) || (block.kind === 'paragraph' && !anchored && chars >= 240));
     if (split) {
       groups.push(current);
       current = [];
@@ -709,26 +739,27 @@ function mergeSmallest<T>(items: T[], max: number, size: (item: T) => number, me
 function isResultBlock(block: Block): boolean {
   if (block.raw.includes('\\boxed{')) return true;
   if (block.kind !== 'paragraph' || block.raw.length > 400) return false;
-  return THEREFORE_LEAD.test(stripDecoration(plain(block.raw.split('\n')[0]!)));
+  const opening = plain(block.raw.split('\n')[0]!);
+  return THEREFORE_LEAD.test(opening) || THEREFORE_LEAD.test(stripDecoration(opening));
 }
 
 /**
  * The answer's conclusion, lifted out of the last step: a labelled "Answer:" block, or failing
  * that a closing boxed / "Therefore" result. The step always keeps something of its own.
  */
-function carveSolution(body: Block[]): { body: Block[]; solution: Block[] } | null {
-  for (let k = body.length - 1; k >= 1 && k >= body.length - 4; k--) {
+function carveSolution(body: Block[], keep: number): { body: Block[]; solution: Block[] } | null {
+  for (let k = body.length - 1; k >= keep && k >= body.length - 4; k--) {
     const final = finalLead(body[k]!);
     if (!final) continue;
     const solution = [...(final.text ? [paragraph(final.text)] : []), ...body.slice(k + 1)];
     if (solution.length) return { body: body.slice(0, k), solution };
   }
   const last = body[body.length - 1];
-  if (body.length < 2 || !last || !isResultBlock(last)) return null;
+  if (body.length <= keep || !last || !isResultBlock(last)) return null;
   let from = body.length - 1;
-  const intro = body[from - 1]!;
+  const intro = body[from - 1];
   // "The final answer is:" belongs with the boxed line it introduces.
-  if (from - 1 >= 1 && last.kind === 'math' && intro.kind === 'paragraph' && intro.raw.length < 160 && /[:：]\s*$/.test(intro.raw)) from -= 1;
+  if (from - 1 >= keep && intro && last.kind === 'math' && intro.kind === 'paragraph' && intro.raw.length < 160 && /[:：]\s*$/.test(intro.raw)) from -= 1;
   return { body: body.slice(0, from), solution: body.slice(from) };
 }
 
@@ -814,7 +845,7 @@ function deriveTitle(segment: Segment, index: number): { title: string; body: Bl
   } else if (first.kind === 'quote') {
     source = first.raw.replace(/^ {0,3}>\s?/gm, '');
   }
-  const sentence = firstSentence(source.replace(/\\\n/g, ' ').replace(/\s*\n\s*/g, ' '));
+  const sentence = firstSentence(flat(source));
   const cleaned = cleanTitle(sentence.head);
   if (!cleaned.title) return { title: fallback, body };
   const complete = sentence.terminator === ':' || sentence.terminator === '：' || sentence.terminator === '.' || sentence.terminator === '。';
@@ -828,8 +859,12 @@ function deriveTitle(segment: Segment, index: number): { title: string; body: Bl
 function buildStep(segment: Segment, index: number): Step {
   let title = segment.title !== null ? cleanTitle(segment.title).title : '';
   let body = segment.body;
-  if (!title) ({ title, body } = deriveTitle(segment, index));
-  const figure = pickDiagram(body);
+  if (!title) {
+    ({ title, body } = deriveTitle(segment, index));
+    // A title read off the middle of a sentence still opens like one.
+    title = title.replace(/^\p{Ll}/u, (ch) => ch.toUpperCase());
+  }
+  const figure = pickDiagram([...(segment.preface ?? []), ...body]);
   const formula = pickFormula(figure.body);
   const text = joinBlocks(formula.body) || joinBlocks(figure.body) || title;
   return {
@@ -866,7 +901,7 @@ function finalize(plan: Plan): Outcome {
     const size = plan.preamble.reduce((n, b) => n + b.raw.length, 0);
     const short = size <= SHORT_PREAMBLE_CHARS && plan.preamble.length <= 2 && plan.preamble.every((b) => b.kind === 'paragraph');
     const first = segments[0];
-    if (short && first) segments[0] = { ...first, body: [...plan.preamble, ...first.body] };
+    if (short && first) segments[0] = { ...first, preface: plan.preamble };
     else segments.unshift({ title: null, body: plan.preamble });
   }
 
@@ -883,7 +918,8 @@ function finalize(plan: Plan): Outcome {
 
   if (!solution.length && segments.length) {
     const tail = segments[segments.length - 1]!;
-    const carved = carveSolution(tail.body);
+    // An explicit title is the step's own content; a step read off its body must keep a body.
+    const carved = carveSolution(tail.body, tail.title !== null ? 0 : 1);
     if (carved) {
       segments[segments.length - 1] = { ...tail, body: carved.body };
       solution = carved.solution;
@@ -899,39 +935,27 @@ function finalize(plan: Plan): Outcome {
   return { steps: segments.map((segment, k) => buildStep(segment, k + 1)), solution: joinBlocks(solution) };
 }
 
-/** A lone top heading is the answer's title, not a step. */
+/**
+ * A top heading is the answer's title, not a step, when nothing else sits at its level except
+ * the steps themselves ("## Projectile range" above "## Step 1 ...").
+ */
 function takeTitle(blocks: Block[]): { topic: string; blocks: Block[] } {
   const first = blocks[0];
   if (first?.kind !== 'heading') return { topic: '', blocks };
-  const others = blocks.slice(1).filter((b): b is Extract<Block, { kind: 'heading' }> => b.kind === 'heading');
-  if (others.some((h) => h.level <= first.level)) return { topic: '', blocks };
   if (parseMarker(first.text, false) || finalOf(first.text)) return { topic: '', blocks };
+  const peers = blocks.slice(1).filter((b): b is Extract<Block, { kind: 'heading' }> => b.kind === 'heading' && b.level <= first.level);
+  if (peers.some((h) => !parseMarker(h.text, false) && !finalOf(h.text))) return { topic: '', blocks };
   const { title } = cleanTitle(first.text);
   return { topic: GENERIC_TITLE.test(plain(title)) ? '' : title, blocks: blocks.slice(1) };
 }
 
 function compactTopic(text: string): string {
-  const line = text.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+  const line = (text.length > 2_000 ? text.slice(0, 2_000) : text).split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   const words = line.replace(/\s+/g, ' ').split(' ');
   if (words.length <= 8) return line.replace(/\s+/g, ' ').replace(/[\s,;:]+$/, '');
   let head = words.slice(0, 8).join(' ');
   while (head && !balanced(head)) head = head.slice(0, Math.max(head.lastIndexOf('$'), head.lastIndexOf('`')));
   return `${head.replace(/[\s,;:.]+$/, '')}…`;
-}
-
-/**
- * The question names the subject best. Without one, the answer's opening and its notation decide;
- * the whole answer is too noisy for keyword scoring ("product rule", "base case").
- */
-function inferSubject(question: string, blocks: Block[], topic: string): Subject {
-  const fromQuestion = question.trim() ? classifySubject(question) : 'General';
-  if (fromQuestion !== 'General') return fromQuestion;
-  const text = joinBlocks(blocks.filter((b) => b.kind !== 'code'));
-  if (/\\ce\{/.test(text)) return 'Chemistry';
-  const opening = classifySubject(`${topic}\n${plain(text.slice(0, 1500))}`);
-  if (opening !== 'General') return opening;
-  if (blocks.some((b) => b.kind === 'code' && b.lang !== '' && !FIGURE_FENCE.test(b.lang))) return 'CS';
-  return 'General';
 }
 
 function dropClosers(blocks: Block[]): Block[] {
@@ -954,7 +978,7 @@ const BASE_CONFIDENCE: Record<IngestStrategy, number> = {
 };
 
 function structure(markdown: string, question: string): StructuredAnswer | null {
-  let md = markdown.replace(/\r\n?/g, '\n').replace(/[​⁠﻿]/g, '');
+  let md = markdown.replace(/\r\n?/g, '\n').replace(/[\u200B\u2060\uFEFF]/g, '');
   if (md.length > MAX_ANSWER_CHARS) md = md.slice(0, md.lastIndexOf('\n', MAX_ANSWER_CHARS) > 0 ? md.lastIndexOf('\n', MAX_ANSWER_CHARS) : MAX_ANSWER_CHARS);
   const all = dropClosers(tokenize(md).filter((b) => b.kind !== 'rule'));
   if (!all.length) return null;
@@ -1005,7 +1029,12 @@ function structure(markdown: string, question: string): StructuredAnswer | null 
   const capsule: Capsule = {
     meta: {
       version: PROTOCOL_VERSION,
-      subject: inferSubject(question, all, titled.topic),
+      subject: inferSubject(question, {
+        opening: plain(`${titled.topic}\n${joinBlocks(all.filter((b) => b.kind === 'paragraph' || b.kind === 'heading' || b.kind === 'list')).slice(0, 1200)}`),
+        chemistry: all.some((b) => b.kind !== 'code' && b.raw.includes('\\ce{')),
+        code: all.some((b) => b.kind === 'code' && b.lang !== '' && !FIGURE_FENCE.test(b.lang)),
+        math: all.some((b) => b.kind === 'math' || (b.kind !== 'code' && /\$[^$\n]+\$/.test(b.raw))),
+      }),
       topic,
       ...(question.trim() ? { question: question.trim() } : {}),
     },

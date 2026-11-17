@@ -1,0 +1,373 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`structureAnswer: corpus of plain answers > keeps the step titles and strategies it found 1`] = `
+{
+  "chatgpt-binary-search-sections": {
+    "strategy": "headings",
+    "titles": [
+      "Idea",
+      "Implementation",
+      "Complexity",
+    ],
+    "topic": "Write binary search in Python and explain its…",
+  },
+  "chatgpt-conceptual-numbered-headings": {
+    "strategy": "step-markers",
+    "titles": [
+      "Sunlight is a mix of colours",
+      "Air molecules scatter short wavelengths more",
+      "Scattered blue reaches your eyes from everywhere",
+    ],
+    "topic": "Why the sky is blue",
+  },
+  "chatgpt-integration-by-parts-bold-steps": {
+    "strategy": "step-markers",
+    "titles": [
+      "Choose $u$ and $dv$",
+      "Apply the formula",
+      "Finish the remaining integral",
+    ],
+    "topic": "Integrate x e^x dx",
+  },
+  "chatgpt-multipart-homework": {
+    "strategy": "step-markers",
+    "titles": [
+      "(a) Acceleration",
+      "(b) Speed at the bottom",
+      "(c) Time taken",
+    ],
+    "topic": "A 2 kg block slides down a frictionless…",
+  },
+  "chatgpt-projectile-rules-between-steps": {
+    "strategy": "step-markers",
+    "titles": [
+      "Resolve the initial velocity",
+      "Find the time of flight",
+      "Compute the range",
+    ],
+    "topic": "Projectile range",
+  },
+  "chatgpt-proof-prose-around-equations": {
+    "strategy": "paragraphs",
+    "titles": [
+      "We argue by contradiction",
+      "Squaring both sides and clearing the denominator gives",
+      "So $p^2$ is even, and therefore $p$ is even",
+    ],
+    "topic": "Prove that the square root of 2 is…",
+  },
+  "chatgpt-quadratic-step-headings": {
+    "strategy": "step-markers",
+    "titles": [
+      "Identify the coefficients",
+      "Compute the discriminant",
+      "Apply the quadratic formula",
+    ],
+    "topic": "Solve x^2 - 5x + 6 = 0",
+  },
+  "chatgpt-series-circuit-with-table": {
+    "strategy": "step-markers",
+    "titles": [
+      "Total resistance",
+      "Current",
+      "Voltage drops",
+    ],
+    "topic": "Three resistors of 2 ohm, 3 ohm and…",
+  },
+  "chatgpt-spanish-pasos": {
+    "strategy": "step-markers",
+    "titles": [
+      "Restar 5 en ambos lados",
+      "Dividir entre 3",
+      "Comprobar",
+    ],
+    "topic": "Resuelve 3x + 5 = 20",
+  },
+  "chatgpt-stoichiometry-mhchem": {
+    "strategy": "step-markers",
+    "titles": [
+      "Write the balanced equation",
+      "Convert grams of $\\ce{H2}$ to moles",
+      "Use the mole ratio",
+      "Convert moles of water to grams",
+    ],
+    "topic": "How many grams of water form when 4.0…",
+  },
+  "claude-equilibrium-numbered-bold-leads": {
+    "strategy": "ordered-list",
+    "titles": [
+      "Write the equilibrium expression",
+      "Set up the changes",
+      "Substitute and solve",
+      "Compute the concentrations",
+    ],
+    "topic": "For N2O4 ⇌ 2NO2 with Kc = 0.36…",
+  },
+  "claude-french-etapes": {
+    "strategy": "step-markers",
+    "titles": [
+      "Identifier la règle",
+      "Dériver chaque terme",
+    ],
+    "topic": "Calcule la dérivée de f(x) = 3x^2 +…",
+  },
+  "claude-induction-bold-leadins": {
+    "strategy": "bold-leads",
+    "titles": [
+      "Base case",
+      "Inductive hypothesis",
+      "Inductive step",
+    ],
+    "topic": "Prove by induction that 1 + 2 +…",
+  },
+  "claude-linear-system-prose": {
+    "strategy": "paragraphs",
+    "titles": [
+      "Adding the two equations eliminates $y$, because the $y$ terms have opposite signs",
+      "That leaves a single equation in $x$",
+      "Now substitute $x = 3$ into the second equation to recover $y$",
+    ],
+    "topic": "Solve the system 2x + y = 7…",
+  },
+  "claude-merge-sort-sections": {
+    "strategy": "headings",
+    "titles": [
+      "Approach",
+      "Solution",
+      "Complexity analysis",
+    ],
+    "topic": "Explain merge sort and give its recurrence.",
+  },
+  "claude-parts-bold-markers": {
+    "strategy": "step-markers",
+    "titles": [
+      "(a) Sum equals 7",
+      "(b) At least one six",
+    ],
+    "topic": "A fair die is rolled twice. (a) P(sum…",
+  },
+  "claude-photosynthesis-essay": {
+    "strategy": "paragraphs",
+    "titles": [
+      "Photosynthesis is the process by which plants…",
+      "The first stage is the light-dependent reactions, which happen in the thylakoid membranes",
+      "The second stage is the Calvin cycle…",
+      "Taken together, the two stages convert carbon dioxide and water into sugar and oxygen…",
+    ],
+    "topic": "How does photosynthesis work?",
+  },
+  "claude-product-rule-bold-captions": {
+    "strategy": "bold-leads",
+    "titles": [
+      "Setting up",
+      "Applying the product rule",
+      "Simplifying",
+    ],
+    "topic": "Differentiate f(x) = x^2 sin(x)",
+  },
+  "claude-refusal": null,
+  "claude-two-line-answer": null,
+  "gemini-chinese-steps": {
+    "strategy": "step-markers",
+    "titles": [
+      "写出导数的定义",
+      "代入 $f(x) = x^2$",
+      "取极限",
+    ],
+    "topic": "求 x^2 的导数",
+  },
+  "gemini-conditional-probability-numbered-headings": {
+    "strategy": "step-markers",
+    "titles": [
+      "Define the events",
+      "Probability of the first draw",
+      "Probability of the second draw",
+      "Multiply",
+    ],
+    "topic": "A bag has 3 red and 2 blue…",
+  },
+  "gemini-greeting": null,
+  "gemini-heat-engine-numbered-bold": {
+    "strategy": "step-markers",
+    "titles": [
+      "Apply the first law to one cycle",
+      "Compute the thermal efficiency",
+      "Interpret the result",
+    ],
+    "topic": "A heat engine absorbs 800 J from the…",
+  },
+  "gemini-hindi-charan": {
+    "strategy": "step-markers",
+    "titles": [
+      "दोनों पक्षों से 3 घटाएँ",
+      "दोनों पक्षों को 2 से भाग दें",
+    ],
+    "topic": "2x + 3 = 11 को हल कीजिए",
+  },
+  "gemini-kinematics-givens-then-prose": {
+    "strategy": "paragraphs",
+    "titles": [
+      "We can list what the problem gives us",
+      "Substituting the known values, the first term vanishes because the car starts from rest",
+    ],
+    "topic": "A car accelerates from rest at 3 m/s^2…",
+  },
+  "gemini-mermaid-figure-in-step": {
+    "strategy": "step-markers",
+    "titles": [
+      "Evaporation",
+      "Condensation",
+      "Precipitation",
+    ],
+    "topic": "Describe the stages of the water cycle.",
+  },
+  "gemini-molarity-bold-steps-bullets": {
+    "strategy": "step-markers",
+    "titles": [
+      "Find the molar mass of NaCl",
+      "Convert mass to moles",
+      "Divide by the volume",
+    ],
+    "topic": "What is the molarity of a solution made…",
+  },
+  "gemini-newton-bold-numbered": {
+    "strategy": "step-markers",
+    "titles": [
+      "Identify the Given Information",
+      "Choose the Right Formula",
+      "Rearrange and Solve",
+    ],
+    "topic": "A 5 kg box is pushed with a…",
+  },
+  "gemini-two-sum-table-and-code": {
+    "strategy": "headings",
+    "titles": [
+      "The idea",
+      "The code",
+      "How it compares",
+      "Why it is correct",
+    ],
+    "topic": "Explain the hash map solution to two-sum.",
+  },
+  "grok-de-morgan-truth-table": {
+    "strategy": "paragraphs",
+    "titles": [
+      "The cleanest way to verify De Morgan's law is to compare both sides on every input",
+    ],
+    "topic": "Show that NOT (A AND B) equals (NOT…",
+  },
+  "grok-dot-figure": {
+    "strategy": "headings",
+    "titles": [
+      "States",
+      "Transitions",
+    ],
+    "topic": "Draw the state machine that accepts binary strings…",
+  },
+  "grok-eigenvalues-plain-final-line": {
+    "strategy": "paragraphs",
+    "titles": [
+      "The eigenvalues satisfy the characteristic equation $\\det(A - \\lambda I) = 0$",
+      "Expanding and factoring the quadratic in $\\lambda$",
+    ],
+    "topic": "Find the eigenvalues of the matrix [[2, 1]…",
+  },
+  "grok-fibonacci-dp-list-then-code": {
+    "strategy": "ordered-list",
+    "titles": [
+      "Observe the overlap",
+      "Keep only what is needed",
+      "Iterate upward",
+    ],
+    "topic": "How do I compute Fibonacci numbers efficiently?",
+  },
+  "grok-german-plain-schritt-leads": {
+    "strategy": "step-markers",
+    "titles": [
+      "Addiere 8 auf beiden Seiten",
+      "Teile beide Seiten durch 4",
+      "Mache die Probe mit der Ausgangsgleichung, denn $4 \\cdot 5 - 8 = 12$ stimmt",
+    ],
+    "topic": "Löse 4x - 8 = 12",
+  },
+  "grok-kirchhoff-bold-step-colon-outside": {
+    "strategy": "step-markers",
+    "titles": [
+      "Assign a clockwise loop current $I$ and mark the polarity of each resistor drop",
+      "Write KVL around the loop, summing rises and drops",
+      "Solve for the current",
+    ],
+    "topic": "Use Kirchhoff’s voltage law to find the current…",
+  },
+  "grok-limit-inline-list": {
+    "strategy": "ordered-list",
+    "titles": [
+      "Factor the numerator as a difference of squares",
+      "Cancel the common factor, which is valid because $x \\ne 3$ inside the limit",
+      "Substitute $x = 3$ into the simplified expression",
+    ],
+    "topic": "Evaluate the limit of (x^2 - 9)/(x -…",
+  },
+  "grok-pure-code": null,
+  "grok-terse-numbered-derivation-split-by-math": {
+    "strategy": "ordered-list",
+    "titles": [
+      "Differentiate the function with respect to $x$",
+      "Set the derivative to zero to locate the critical point",
+      "Check the second derivative, $f''(x) = 2 > 0$, so the critical point is a minimum",
+      "Evaluate the function there",
+    ],
+    "topic": "Find the minimum of f(x) = x^2 -…",
+  },
+  "grok-unit-conversion-terse-list": {
+    "strategy": "ordered-list",
+    "titles": [
+      "Write the speed as a fraction",
+      "Replace kilometres by metres using $1\\ \\text{km} = 1000\\ \\text{m}$…",
+      "Simplify the numbers",
+    ],
+    "topic": "Convert 72 km/h to m/s",
+  },
+  "legacy-setext-headings-and-bracket-math": {
+    "strategy": "step-markers",
+    "titles": [
+      "Recall the formula",
+      "Substitute the radius",
+    ],
+    "topic": "Find the area of a circle of radius…",
+  },
+  "long-preamble-becomes-first-step": {
+    "strategy": "step-markers",
+    "titles": [
+      "This is a classic Fermi estimate…",
+      "Pianos in the city",
+      "Tunings per year",
+      "Tunings per tuner",
+    ],
+    "topic": "Estimate how many piano tuners work in Chicago.",
+  },
+  "nested-steps-restart-inside-parts": {
+    "strategy": "step-markers",
+    "titles": [
+      "(a) Charge",
+      "(b) Energy",
+    ],
+    "topic": "A capacitor of 2 µF is charged to…",
+  },
+  "single-substantial-block": {
+    "strategy": "paragraphs",
+    "titles": [
+      "Escape velocity is the speed at which an object's kinetic energy equals the magnitude of…",
+    ],
+    "topic": "What is the escape velocity from Earth?",
+  },
+  "stemlm-spec-fence-as-figure": {
+    "strategy": "bold-leads",
+    "titles": [
+      "Identify the forces",
+      "Apply equilibrium",
+    ],
+    "topic": "Sketch the forces on a block resting on…",
+  },
+}
+`;
