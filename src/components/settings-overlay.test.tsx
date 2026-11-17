@@ -403,7 +403,7 @@ describe('SettingsOverlay', () => {
     expect(theme.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
     await clickControl(container, 'Auto');
     expect(theme.style.getPropertyValue('--slm-seg-index')).toBe('0');
-    expect(container.textContent).toContain('Follows your system.');
+    expect(container.textContent).toContain('Matches the chat site, or your system.');
     unmount();
   });
 
