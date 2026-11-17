@@ -77,7 +77,7 @@ function QuestionBlock({ session }: { session: Session }) {
           id={regionId}
           className={`slm-topic-scroll ${expanded ? 'is-expanded' : 'is-single'}`}
         >
-          <MathMarkdown content={heading} className="slm-topic" />
+          <MathMarkdown content={heading} className="slm-topic" promote={false} />
         </div>
         {(overflows || expanded) && (
           <button

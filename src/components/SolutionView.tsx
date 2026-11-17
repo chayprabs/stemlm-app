@@ -128,7 +128,7 @@ export function SolutionView({ session, theme }: { session: Session; theme: Reso
               Follow-up{followups.length > 1 ? ` ${i + 1}` : ''} · whole solution
             </span>
             <h2 className="slm-card-title">
-              <MathMarkdown content={f.question || f.capsule.meta.topic || 'Your question'} inline />
+              <MathMarkdown content={f.question || f.capsule.meta.topic || 'Your question'} inline promote={false} />
             </h2>
           </header>
           <FollowupAnswerBody capsule={f.capsule} theme={theme} />
