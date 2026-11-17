@@ -3,6 +3,7 @@ import type { CompileCtx, CompileFailure, CompileResult, SemanticColor } from '.
 import { specGet, specGetAll, type SpecDoc } from '../spec';
 import { SceneBuilder, frameSize } from '../scene-build';
 import { layoutAndCompile } from '../pipeline';
+import { inferNodeKind, roleHolds, type NodeRole } from './graph-roles';
 import { boxHitsAny, boxesOverlap, measureText, polylineSegments, samplePathD, type Box, type Segment } from '../geom';
 import { FONT_MIN, FRAME_PAD, LABEL_GAP } from '../types';
 
@@ -87,15 +88,6 @@ function graphEdgeId(index: number, a: string, b: string): string {
 function stripQuotes(text: string): string {
   const trimmed = text.trim();
   return /^(["'])(.*)\1$/.exec(trimmed)?.[2]?.trim() || trimmed;
-}
-
-function inferNodeKind(id: string, label: string): string {
-  const text = `${id} ${label}`;
-  if (/\b(resource|lock|mutex|semaphore)\b/i.test(text)) return 'resource';
-  if (/\b(process|thread|worker|task|actor)\b/i.test(text)) return 'process';
-  if (/\b(relation|relationship)\b/i.test(text)) return 'relation';
-  if (/\b(entity)\b/i.test(text)) return 'entity';
-  return 'node';
 }
 
 function isSpatialArtwork(nodes: GNode[], edges: GEdge[]): boolean {
@@ -212,6 +204,12 @@ function parseGraph(spec: SpecDoc): GraphData | ParseFailure {
   const { start: starts, accept: accepts, decision: decisions, terminal: terminals } = markers;
   const both = [...decisions!].find((id) => terminals!.has(id));
   if (both) return { ok: false, code: 'malformed', reason: `node ${both} cannot be both a decision and a terminal` };
+  // Worded roles (process, resource, entity, relation) are settled before declared shapes apply.
+  const declaredShapes = starts!.size + accepts!.size + decisions!.size + terminals!.size > 0;
+  const roles = nodes.map((node) => node.kind as NodeRole);
+  for (const node of nodes) {
+    if (!roleHolds(node.kind as NodeRole, roles, declaredShapes)) node.kind = 'node';
+  }
   // Start or accepting states make the graph an automaton: every plain node is a state.
   const automaton = (starts!.size > 0 || accepts!.size > 0) && !decisions!.size && !terminals!.size;
   for (const node of nodes) {

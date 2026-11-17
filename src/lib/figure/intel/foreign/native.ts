@@ -5,6 +5,7 @@
  * figure compiler reads. Everything the native grammar cannot say is refused here, in one place,
  * so no translator can emit a spec that draws something its source did not state.
  */
+import { inferNodeKind, roleHolds } from '../../engines/graph-roles';
 
 /** Same budget as a native spec (`MAX_SPEC_CHARS`): a foreign source is never larger than what it becomes. */
 export const MAX_FOREIGN_CHARS = 64_000;
@@ -134,17 +135,6 @@ interface DraftEdge {
   directed: boolean;
 }
 
-/**
- * Mirrors `inferNodeKind` in engines/graph.ts, which reshapes an unmarked node by words in its id or
- * label. A plain step that the engine would draw as a decision diamond must not be emitted.
- */
-function engineOutline(id: string, label: string): 'box' | 'ellipse' | 'diamond' {
-  const text = `${id} ${label}`;
-  if (/\b(resource|lock|mutex|semaphore)\b/i.test(text)) return 'box';
-  if (/\b(process|thread|worker|task|actor)\b/i.test(text)) return 'ellipse';
-  return /\b(relation|relationship)\b/i.test(text) ? 'diamond' : 'box';
-}
-
 const MAX_NODES = 400;
 const MAX_EDGES = 600;
 
@@ -200,17 +190,21 @@ export class GraphDraft {
     const ids = nativeIds(nodes.map((node) => node.key), 'n');
     const idOf = (key: string) => ids.get(key)!;
     const lines = [`rankdir: ${this.rankdir}`];
-    // With a start or accepting state and no flowchart shapes the engine draws every node as a state.
-    const automaton = nodes.some((node) => node.start || node.accept) && nodes.every((node) => node.shape === 'plain');
-    for (const node of nodes) {
+    // The engine gives a node a role shape from its wording in wait-for and ER graphs (graph-roles.ts).
+    // The source drew these nodes as plain boxes, so a role that would hold is a shape it never asked for.
+    const declaredShapes = nodes.some((node) => node.shape !== 'plain' || node.start || node.accept);
+    const roles = nodes.map((node) => inferNodeKind(idOf(node.key), labelText(node.label ?? node.key)));
+    nodes.forEach((node, index) => {
       const id = idOf(node.key);
       const label = labelText(node.label ?? node.key);
       if (!label) refuse('a node has no label');
-      const reshaped = node.shape === 'plain' && !automaton ? engineOutline(id, label) : 'box';
-      if (reshaped === 'diamond') refuse('the graph engine would draw this plain node as a decision diamond because of a word in its name');
-      if (reshaped === 'ellipse') notes.add('the graph engine draws nodes named process, thread, worker, task or actor as ellipses');
+      const role = roles[index]!;
+      if (roleHolds(role, roles, declaredShapes)) {
+        if (role === 'relation') refuse('the graph engine would draw this plain node as a decision diamond because of a word in its name');
+        if (role === 'process') notes.add('the graph engine draws nodes named process, thread, worker, task or actor as ellipses');
+      }
       lines.push(label === id ? `node: ${id}` : `node: ${id} ${protectQuotes(label)}`);
-    }
+    });
     for (const edge of this.edges) {
       const label = labelText(edge.label);
       // The engine reserves the bare word for "unlabelled" and would silently drop it.
