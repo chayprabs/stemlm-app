@@ -93,8 +93,8 @@ describe('family vocabulary', () => {
     expect(families('K-Map')).toEqual(['kmap:alias']);
     expect(families('circiut')).toEqual(['circuit:fuzzy']);
     expect(families('ice')).toEqual(['table#ice:alias']);
-    // Tokens no family answers to, including ones a not-yet-registered extension family would own.
-    for (const token of ['diagram', 'figure', 'image', 'truth-table', 'bar-chart', 'zzz', '']) expect(families(token), token).toEqual([]);
+    // Tokens no family answers to. (An extension family's own aliases resolve once its pack is registered.)
+    for (const token of ['diagram', 'figure', 'image', 'zzz', '']) expect(families(token), token).toEqual([]);
   });
 
   it('knows enumerated values, variants, decoration and real words', () => {
