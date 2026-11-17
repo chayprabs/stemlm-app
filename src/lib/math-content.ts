@@ -8,6 +8,11 @@
  * Display mode treats the whole payload as one equation (so `A(t) = …` is not
  * mistaken for the English article "A"). Auto mode wraps STEM tokens / short
  * expressions and leaves English sentences intact.
+ *
+ * Auto mode promotes bare text only on positive evidence that it is math (see
+ * `hasMathEvidence`). A hyphen, slash or arrow between letters and digits is how
+ * prose is written (`A-B 4`, `pages 3-5`, `I/O`), and typesetting the student's
+ * own question as italic math is worse than leaving it exactly as typed.
  */
 import { stripProtocolMarkers } from '@/src/protocol/strip-markers';
 import { dedupeComposerMath } from '@/src/lib/composer-text';
@@ -42,6 +47,21 @@ const MATH_FUNS = new Set([
 ]);
 /** Lowercase unit names of four or more letters (shorter ones never read as prose words). */
 const UNIT_WORDS = new Set(['mmol', 'kmol', 'nmol', 'pmol', 'umol', 'mbar', 'kcal']);
+
+const GREEK_NAMES =
+  'alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega';
+
+/** Greek letter names typed as plain words: `mu_k` is the student's text, not the product m·u_k. */
+const SPELLED_GREEK = new RegExp(`^(?:${GREEK_NAMES})$`, 'i');
+
+/** A word that carries a subscript (`mu_k`, `max_i`) outside a TeX command. */
+const WORD_SUBSCRIPT = new RegExp(String.raw`(?<![A-Za-z\\])(?:${GREEK_NAMES}|[A-Za-z]{3,})_`, 'i');
+
+/** A function name applied by juxtaposition (`log n`, `sin x`) rather than with parentheses. */
+const APPLIED_FUNCTION_WORD = new RegExp(String.raw`(?<![A-Za-z\\])(?:${[...MATH_FUNS].join('|')})\s+[A-Za-z0-9(]`);
+
+/** One-letter unit symbols: the only bare letters that may follow a number across a space. */
+const UNIT_LETTER = /^[mgsAKNJWVCFHTSLh]$/;
 
 /** Sentence openers common in @quickcheck / @body prose (not raw formulas). */
 const ENGLISH_STARTERS =
@@ -414,6 +434,10 @@ export function looksLikeProseWithMath(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
   if (ENGLISH_STARTERS.test(t) || ARTICLE_STARTER.test(t)) return true;
+  // Token wrapping leaves these alone where a whole-line wrap would typeset them: a word with a
+  // subscript (`mu_k = 0.3`), a blank after a script mark (`R_Y_ = 9/16`), a short word between
+  // symbols (`x_1 = 5 if y_1 = 0`).
+  if (WORD_SUBSCRIPT.test(t) || /[_^](?=[\s=,;:)]|$)/.test(t) || hasProseRun(t)) return true;
   return countEnglishWords(t) >= 1;
 }
 
@@ -716,12 +740,17 @@ function parseFunctionCall(src: string, i: number): number {
   const m = src.slice(i).match(/^([A-Za-z][A-Za-z0-9]*)\(/);
   if (!m) return i;
   const name = m[1]!;
-  const ok = name.length <= 2 || MATH_FUNS.has(name.toLowerCase()) || /_/.test(name);
-  if (!ok) return i;
+  // One symbol (`f`, `A`, `x2`, `KE`) or a named function; a two-letter word ("is(are)", "it(s)") is prose.
+  const symbol = /^(?:[A-Za-z]\d*|[A-Z]{2})$/.test(name);
+  if (!symbol && !MATH_FUNS.has(name.toLowerCase())) return i;
   const open = i + name.length;
   const close = findMatching(src, open, '(', ')');
   if (close < 0) return i;
   const inner = src.slice(open + 1, close);
+  // `sin(theta)`, `P(heads)`: a word as the argument is plain text, and KaTeX would set it letter by letter.
+  if (/^\s*[A-Za-z]{3,}\s*$/.test(inner) && !MATH_FUNS.has(inner.trim().toLowerCase())) return i;
+  // `O(n log n)`: a bare function name inside would be set as the product l·o·g; the plain text reads correctly.
+  if (APPLIED_FUNCTION_WORD.test(inner)) return i;
   if (!innerIsMath(inner)) return i;
   return parseSubSup(src, close + 1);
 }
@@ -732,6 +761,8 @@ function parseIdentSubSup(src: string, i: number): number {
   if (!m) return i;
   const k = i + m[0].length;
   if (src[k] !== '_' && src[k] !== '^') return i;
+  // `mu_k`, `theta^2`, `max_i`: a word with a script is an identifier typed in prose, not a symbol.
+  if (SPELLED_GREEK.test(m[0]) || (src[k] === '_' && /^[A-Za-z]{3,}$/.test(m[0]))) return i;
   const end = parseSubSup(src, k);
   // A script mark with nothing to raise ("R_Y_" in genetics) is notation, not math.
   if (src[end] === '_' || src[end] === '^') return i;
@@ -739,7 +770,8 @@ function parseIdentSubSup(src: string, i: number): number {
 }
 
 function parseScientific(src: string, i: number): number {
-  const full = src.slice(i).match(/^\d+(?:\.\d+)?\s*(?:\\times|×)\s*10(?:\^\{[^{}]+\}|\^[+\-]?\d+)/);
+  // A student types the multiplication sign as a letter: `1.8 x 10^-5`.
+  const full = src.slice(i).match(/^\d+(?:\.\d+)?\s*(?:\\times|×| x )\s*10(?:\^\{[^{}]+\}|\^[+\-]?\d+)/);
   if (full && full.index === 0) return i + full[0].length;
   const ten = src.slice(i).match(/^10(?:\^\{[^{}]+\}|\^[+\-]?\d+)/);
   if (ten && ten.index === 0) return i + ten[0].length;
@@ -820,9 +852,8 @@ function parseOperator(src: string, i: number): number {
   return i;
 }
 
-function parseAtomInExpr(src: string, i: number): number {
-  const strong = parseStrongAtom(src, i);
-  if (strong > i) return strong;
+/** A number or a one-letter symbol: an operand only in the company of real math. */
+function parseWeakAtom(src: string, i: number): number {
   const num = parseNumber(src, i);
   if (num > i) return num;
   const id = parsePlainIdent(src, i);
@@ -830,10 +861,33 @@ function parseAtomInExpr(src: string, i: number): number {
   return i;
 }
 
+function parseAtomInExpr(src: string, i: number): number {
+  const strong = parseStrongAtom(src, i);
+  return strong > i ? strong : parseWeakAtom(src, i);
+}
+
+/**
+ * Two bare words side by side ("A and B", "see x", "or x = 5") are a phrase: math separates
+ * its words with operators. Function names are exempt so `sin x` and `n log n` stay math.
+ */
+function hasProseRun(text: string): boolean {
+  const chunks = stripMathDecorations(text).split(/\s+/);
+  const bare = (chunk: string | undefined) => chunk !== undefined && /^[A-Za-z]+$/.test(chunk);
+  const word = (chunk: string) => chunk.length > 1 && !MATH_FUNS.has(chunk.toLowerCase()) && !UNIT_WORDS.has(chunk);
+  return chunks.some((chunk, n) => bare(chunk) && bare(chunks[n + 1]) && (word(chunk) || word(chunks[n + 1]!)));
+}
+
+/** `x = -5`, `a = -b`: after an operator, a sign written against its operand belongs to the operand. */
+function parseSignedAtom(src: string, i: number): number {
+  const k = '-−+'.includes(src[i] ?? ' ') ? i + 1 : i;
+  const atom = parseAtomInExpr(src, k);
+  return atom > k ? atom : i;
+}
+
 function innerIsMath(inner: string): boolean {
   const t = inner.trim();
   if (!t) return true;
-  if (countEnglishWords(t) >= 2) return false;
+  if (countEnglishWords(t) >= 2 || (t.includes(' ') && hasProseRun(t))) return false;
   // A real word next to a number makes a parenthesis prose: "(below 180°)", not b·e·l·o·w.
   if (/\d/.test(t) && (t.match(/\b[a-z]{4,}\b/g) ?? []).some((word) => !MATH_FUNS.has(word) && !UNIT_WORDS.has(word))) return false;
   let i = 0;
@@ -868,50 +922,96 @@ function innerIsMath(inner: string): boolean {
   return sawAtom;
 }
 
+/** How far the context checks look around a span; a bounded window keeps wrapping linear. */
+const CONTEXT_WINDOW = 16;
+
+/** Characters that join two tokens into one written unit (`A-B`, `x:y`, `p.x`, `km/h`, `mu_k`). */
+const TOKEN_JOINERS = '-–—‑./:·_';
+
+/** `B` in "A-B = 4", `y` in "x:y = 2:3", `k` in "mu_k = 0.3": the tail of a joined token. */
+function isJoinedTail(src: string, i: number): boolean {
+  return i >= 2 && TOKEN_JOINERS.includes(src[i - 1]!) && WORD_CHARACTER.test(src[i - 2]!);
+}
+
+/** `A-B`, `R-C`, `I-V`: two capitals joined by a hyphen name an edge, a bond or a curve, not a difference. */
+const CAPITAL_COMPOUND = /^[A-Z]-[A-Z](?![A-Za-z0-9_^({[])/;
+
 function parseLeadingIdentExpr(src: string, i: number): number {
   const id = parsePlainIdent(src, i);
   if (id !== i + 1) return i;
+  if (isJoinedTail(src, i) || CAPITAL_COMPOUND.test(src.slice(i, i + 4))) return i;
   const op = parseOperator(src, id);
   if (op === id) return i;
-  const rhs = parseAtomInExpr(src, op);
+  const rhs = parseSignedAtom(src, op);
   return rhs > op ? rhs : i;
+}
+
+/** `(a)`, `(ii)`, `(12)`, `(approximately)`: one bare token in parentheses is a label or an aside. */
+function isSimpleGroup(src: string, start: number, end: number): boolean {
+  return src[start] === '(' && end - start <= 40 && /^\((?:[A-Za-z]+|\d{1,3})\)$/.test(src.slice(start, end));
+}
+
+/**
+ * May the atom at `next` extend the expression `src[start..end)` without an operator?
+ * Written tight (`5t^4`, `2x`, `Z_2(Z_1+Z_s)`) it is a factor. Across a space only a symbol with
+ * visible math structure is: a bare number or letter after a space is usually the next word
+ * ("A-B 4", "x = 5 a day", "x = 5 y z = 3" in Spanish), so a bare letter is kept only as a unit
+ * after a number (`T = 300 K`) or as the operand of a TeX command (`j\omega L`).
+ */
+function canJuxtapose(src: string, start: number, end: number, next: number, atom: number, strong: boolean): boolean {
+  if (next === end) return true;
+  // Nor does a label that follows: "x = 2 (b) y = 3".
+  if (isSimpleGroup(src, next, atom)) return false;
+  if (strong) return true;
+  if (parsePlainIdent(src, next) !== next + 1) return false;
+  if (/^[aAI] [a-z]/.test(src.slice(next, next + 3))) return false;
+  // Only the last atom matters, and a bounded look-back keeps a long chain linear.
+  const tail = src.slice(Math.max(start, end - CONTEXT_WINDOW), end);
+  return (/[\d}°Ω%]$/.test(tail) && UNIT_LETTER.test(src[next]!)) || /(?:\\[A-Za-z]+|\})$/.test(tail);
+}
+
+/** An expression that opens with a number: `64 A_{safe}`, `2x + 3 = 7`, `9.8 m/s^2`, `3 + 5 = 8`. */
+function parseNumberLedExpr(src: string, start: number): number {
+  const n = parseNumber(src, start);
+  if (n === start) return start;
+  const k = skipSpaces(src, n);
+  const strong = parseStrongAtom(src, k);
+  if (strong > k) return strong;
+  // A coefficient written against its variable.
+  if (parsePlainIdent(src, n) === n + 1) return n + 1;
+  // A unit with an exponent needs typesetting, and the number belongs with its unit.
+  const unit = k > n ? src.slice(k).match(UNIT_AFTER_NUMBER)?.[0] : undefined;
+  if (unit?.includes('^')) return k + unit.length;
+  // Arithmetic. Without a relation it stays prose ("pages 3-5").
+  const op = parseOperator(src, n);
+  const operand = op > n ? parseSignedAtom(src, op) : op;
+  return operand > op ? operand : start;
 }
 
 function parseMathExpr(src: string, start: number): number {
   let end = parseStrongAtom(src, start);
   if (end === start) end = parseLeadingIdentExpr(src, start);
-  if (end === start) {
-    const n = parseNumber(src, start);
-    if (n > start) {
-      const k = skipSpaces(src, n);
-      const s = parseStrongAtom(src, k);
-      if (s > k) end = s;
-    }
-  }
+  if (end === start) end = parseNumberLedExpr(src, start);
   if (end === start) return start;
 
   for (;;) {
     const op = parseOperator(src, end);
     if (op > end) {
-      const atom = parseAtomInExpr(src, op);
+      const atom = parseSignedAtom(src, op);
       if (atom > op) {
         end = atom;
         continue;
       }
       break;
     }
-    const sp = skipSpaces(src, end);
-    const next = sp > end ? sp : end;
-    const atom = parseAtomInExpr(src, next);
-    if (atom > next) {
-      // Juxtaposition: number/strong/1-letter only. Reject "is"/"at"/"of".
-      const strong = parseStrongAtom(src, next);
-      const num = parseNumber(src, next);
-      const oneLetter = parsePlainIdent(src, next) === next + 1;
-      if (strong > next || num > next || oneLetter) {
-        end = atom;
-        continue;
-      }
+    const next = skipSpaces(src, end);
+    // An enumerator never multiplies its neighbour: "(a) x^2 = 4". Checked before the look-ahead parse.
+    if (next > end && isSimpleGroup(src, start, end)) break;
+    const strong = parseStrongAtom(src, next);
+    const atom = strong > next ? strong : parseWeakAtom(src, next);
+    if (atom > next && canJuxtapose(src, start, end, next, atom, strong > next)) {
+      end = atom;
+      continue;
     }
     break;
   }
@@ -931,10 +1031,13 @@ function isMathBoundary(src: string, i: number): boolean {
   // never split a symbol from its Greek prefix (`Δx` → not `Δ$x$`).
   // Do allow `b|\vec{R}|`, `x_0`, `2\pi` (digit/symbol boundaries).
   if (WORD_CHARACTER.test(prev) && WORD_CHARACTER.test(cur)) return false;
+  // `P(heads) = 0.5`, `value(s) = 3`, `f'(x) = 2x`: a parenthesis written against a word belongs to it.
+  if (cur === '(' && (WORD_CHARACTER.test(prev) || "'’′".includes(prev))) return false;
   return true;
 }
 
 const UNIT_SYMBOL = String.raw`[pnumcdkMGT]?(?:mol|cd|Pa|Hz|Wb|eV|rad|sr|atm|bar|min|m|g|s|A|K|N|J|W|V|C|F|H|T|S|L|h)(?:\^\{?[+\-]?\d+\}?)?`;
+const UNIT_AFTER_NUMBER = new RegExp(String.raw`^${UNIT_SYMBOL}(?:\s*[/·*]\s*${UNIT_SYMBOL})*(?![A-Za-z0-9])`);
 const TRAILING_UNIT = new RegExp(String.raw`(\d)\s+(${UNIT_SYMBOL}(?:\s*[/·*]\s*${UNIT_SYMBOL})*)$`);
 
 /** `g = 9.81 m/s^2` → `g = 9.81\,\mathrm{m/s^2}`: a unit after a number is upright, not a variable. */
@@ -949,12 +1052,65 @@ function bracePlainExponents(math: string): string {
     .replace(/\^([+\-−]?\d+(?:\.\d+)?)/g, (whole, exponent: string) => (exponent.length > 1 ? `^{${exponent}}` : whole));
 }
 
+/** `1.8 x 10^-5` → `1.8 \times 10^-5`: between a number and a power of ten the letter is a times sign. */
+function scientificTimes(math: string): string {
+  return math.replace(/(\d) x (?=10\^)/g, '$1 \\times ');
+}
+
 /** `V_out` → `V_{out}`: a one-letter symbol takes the whole word as its subscript. */
 function braceWordSubscripts(text: string): string {
   return text.replace(
     /(^|[^A-Za-z0-9\\_])([A-Za-z])_([A-Za-z]{2,}[0-9]*|[0-9]{2,})(?![A-Za-z0-9_{])/g,
     '$1$2_{$3}',
   );
+}
+
+/** `=`, `<`, `>` and their Unicode kin, but not the arrows `->` `<-` `=>` or code's `==` `+=`. */
+const RELATION = /[≈≠≤≥∝∼≡≅∈⊂]|(?<![=\-+*/])=(?![=>])|<(?![-<])|(?<![-=>])>/;
+/** `C=O`, `C≡N`, `O=C=O`: a double or triple bond between element symbols is not an equation. */
+const BOND = /(?<![A-Za-z0-9])[CNOSP](?:[=≡][CNOSP])+(?![A-Za-z0-9])/g;
+/** `f(x)`, `A(t)`, `sin(x)`. A state symbol (`O2(g)`, `C(s)`) reads as chemistry until something else says math. */
+const CALL = /(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9]*\((?!(?:s|l|g|aq)\))/;
+/** `a*b*c`: an asterisk between operands is a product (and Markdown would eat it as emphasis). */
+const TIGHT_PRODUCT = /[A-Za-z0-9)]\*[A-Za-z0-9(\\]/;
+/** `3/4` but not the date `3/4/2024`. */
+const BARE_FRACTION = /(?<![\d/.])(\d{1,4})\/(\d{1,4})(?![\d/])/g;
+
+/**
+ * Positive evidence that a bare span is mathematics: a TeX command, a script, absolute-value
+ * bars, a relation joining its operands, a function call, a written product, or a proper
+ * fraction. A hyphen, slash, arrow or plus between letters and digits is not evidence: `A-B`,
+ * `a/b`, `A → B`, `i+1`, `3-5` and `24/7` are how prose is written.
+ */
+function hasMathEvidence(span: string): boolean {
+  if (/\\[A-Za-z]|[_^|]/.test(span)) return true;
+  if (RELATION.test(span.replace(BOND, '')) || CALL.test(span) || TIGHT_PRODUCT.test(span)) return true;
+  for (const [, top, bottom] of span.matchAll(BARE_FRACTION)) {
+    if (Number(top) < Number(bottom)) return true;
+  }
+  return false;
+}
+
+/** What follows a parsed span when the plain-text expression is not over: an operator, an index, a factor, a function. */
+const RUNS_ON = new RegExp(
+  String.raw`^(?: ?[-+/^=<>[]| \* | ?[A-Za-z] [A-Za-z(]| ?(?:${[...MATH_FUNS].join('|')})\b)`,
+);
+/** The same from the left (`speed = d/t = 5`, `d[u] + w(u, v)`). A list dash or quote mark opening a line is no operator. */
+const RUNS_IN = /\S ?[-+/^=<>] ?$/;
+
+/**
+ * Promote a parsed span only when it is evidently math and complete. `a = g sin(theta)`,
+ * `v = u + at` and `d[v] > d[u] + w(u, v)` run on into text the parser cannot typeset; setting
+ * half of such an expression in italics is worse than leaving the student's line as typed. A
+ * span with TeX or scripts is promoted regardless, because raw `\theta` or `x_1` in the panel
+ * is the larger defect.
+ */
+function isMathSpan(text: string, start: number, end: number): boolean {
+  const span = text.slice(start, end);
+  if (!hasMathEvidence(span)) return false;
+  if (/[\\_^]/.test(span)) return true;
+  return !RUNS_ON.test(text.slice(end, end + CONTEXT_WINDOW)) &&
+    !RUNS_IN.test(text.slice(Math.max(0, start - CONTEXT_WINDOW), start));
 }
 
 function wrapUndelimitedStemTokens(text: string): string {
@@ -970,9 +1126,15 @@ function wrapUndelimitedStemTokens(text: string): string {
       }
     }
     const end = isMathBoundary(text, i) ? parseMathExpr(text, i) : i;
+    if (end > i && !isMathSpan(text, i, end)) {
+      // Skipping the whole span keeps a long run of unpromoted text linear.
+      out += text.slice(i, end);
+      i = end;
+      continue;
+    }
     if (end > i) {
       if (out.endsWith('$')) out += ' ';
-      out += wrapAsMath(bracePlainExponents(uprightTrailingUnit(text.slice(i, end))), false);
+      out += wrapAsMath(bracePlainExponents(scientificTimes(uprightTrailingUnit(text.slice(i, end)))), false);
       i = end;
       continue;
     }
@@ -1061,29 +1223,6 @@ function joinSoftBrokenInlineMath(src: string): string {
   return lines.join('\n');
 }
 
-/** Wrap undelimited LaTeX after list markers or colons within a prose line. */
-function wrapInlineRawLatexSegments(line: string): string {
-  if (hasMathDelimiters(line)) return line;
-  const listMatch = /^(\s*[-*+]\s+)(.+)$/.exec(line);
-  if (listMatch?.[1] && listMatch[2]) {
-    const prefix = listMatch[1];
-    const body = wrapFragmentsInLine(listMatch[2]);
-    if (body === listMatch[2]) return line;
-    return `${prefix}${body}`;
-  }
-
-  const colonMatch = /^(.+?:\s*)(.+)$/.exec(line.trim());
-  if (colonMatch?.[1] && colonMatch[2]) {
-    const head = colonMatch[1];
-    const tail = wrapFragmentsInLine(colonMatch[2]);
-    if (tail === colonMatch[2]) return line;
-    const lead = line.match(/^\s*/)?.[0] ?? '';
-    return `${lead}${head}${tail}`;
-  }
-
-  return line;
-}
-
 /**
  * Prepare capsule math for MathMarkdown / KaTeX.
  * @param mode — `display` for @formula blocks; `auto` for mixed prose.
@@ -1157,7 +1296,7 @@ export function prepareMathForRender(content: string, mode: MathRenderMode = 'au
           ? segment.text.replace(/(?<!\\)\|/g, '\\vert ')
           : segment.text).join('');
       }
-      return wrapInlineRawLatexSegments(wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay)));
+      return wrapFragmentsInLine(wrapRawLatexLine(line, forceDisplay));
     })
     .join('\n');
   return restoreLiterals(prepared);
