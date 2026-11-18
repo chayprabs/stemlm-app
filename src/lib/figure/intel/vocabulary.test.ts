@@ -21,7 +21,7 @@ describe('generated vocabulary', () => {
     const script = pathToFileURL(resolve(root, 'scripts/figure-vocabulary.mjs')).href;
     const generator = (await import(/* @vite-ignore */ script)) as Generator;
     expect(generator.renderVocabularyModule(generator.extractVocabulary())).toBe(readFileSync(generator.VOCABULARY_OUTPUT, 'utf8'));
-    // Parses every engine with the TypeScript compiler: seconds on a busy machine, not the default 5.
+    // Parses every engine with the TypeScript compiler: several seconds on a busy machine.
   }, 60_000);
 
   it('holds the keys the engines declare themselves', () => {
