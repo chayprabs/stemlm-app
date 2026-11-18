@@ -60,6 +60,7 @@
 - Fixed: a Stop button outside the chat box (for dictation) made stemLM think the chat was writing.
 - Fixed: a second question asked without pressing the stemLM button overwrote the first answer and its saved copy.
 - Fixed: selecting text in the panel never offered Ask in chat.
+- Fixed: the stemlm button did not appear on Gemini's new-chat screen, which draws the chat box mid-page, and stemLM kept re-measuring that chat box about once a second.
 
 ### For contributors
 
