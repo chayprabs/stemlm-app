@@ -100,9 +100,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
-    // The suite runs in parallel, and a busy machine stretches wall-clock time several times over:
-    // tests that compile every specimen take 2-3 s quietly and passed the 5 s default under load.
-    // The limit only catches a hang; speed is held by the CPU budgets (src/lib/cpu-time.ts).
+    // Only catches a hang: a busy machine stretches wall-clock time; CPU budgets hold speed.
     testTimeout: 30_000,
     projects: [
       {

@@ -35,7 +35,7 @@ describe('L11 semantic collection and relation probes', () => {
     expect(labelText(result.scene)).toEqual(expect.arrayContaining(['1', '2', '3', '4', '5']));
     expect(result.scene.strokes.filter((stroke) => stroke.id.startsWith('cell-')).length).toBe(5);
     expect(result.scene.strokes.some((stroke) => stroke.id.includes('row-1'))).toBe(true);
-  }, 15000);
+  });
 
   it('round-trips an explicitly directed list relation graph', async () => {
     const result = await compileDiagramSpec(

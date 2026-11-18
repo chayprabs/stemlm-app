@@ -1019,7 +1019,7 @@ describe('CAP-OBS-01 replaced conversation root', () => {
     fresh.append(document.createTextNode('answer arrives'));
     await vi.waitFor(() => expect(useStore.getState().sessions).toHaveLength(1), { timeout: 3000 });
     c.stopWatching();
-  }, 10_000);
+  });
 });
 
 describe('FOLLOW-01 typed follow-up question source', () => {
