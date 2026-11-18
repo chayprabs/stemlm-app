@@ -78,7 +78,7 @@ stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It
 
 - **No stemLM account.** No login, subscription or payment details.
 - **Your study library stays in your browser.** stemLM reads the question and answer on the chat page to build the study view on your computer. It has no server that receives your questions, answers or saved solutions.
-- **No extension telemetry in v2.1.0.** This build disables analytics and ships no telemetry endpoint or credential. It has no analytics toggle. The published privacy policy also describes behavior in other releases.
+- **Usage statistics, never content.** From v2.2.0, a copy installed from the Chrome Web Store sends PostHog counts of what is used (panel opened, question asked, PDF saved and the like) with a random install id. Never your questions, answers or chat links. Turn it off with **Share usage statistics** in Settings. A copy loaded unpacked sends nothing.
 - **You press Send.** The **stemLM button** prepares instructions in your chat; stemLM never sends a message for you. Your chat provider receives what you send, under its own policies.
 - **Open source.** Every line of the extension is in this repository under the MIT licence.
 

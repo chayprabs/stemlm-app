@@ -12,6 +12,7 @@ import {
   type Settings,
 } from '@/src/lib/settings';
 import { applyLiveSettings } from '@/src/lib/live-settings';
+import { analyticsEnabled } from '@/src/lib/analytics';
 import {
   applyTheme,
   persistThemeBoot,
@@ -333,6 +334,16 @@ export function SettingsOverlay({
               onChange={(tidyChat) =>
                 void update({ tidyChat }, `Fold stemlm's text in the chat: ${tidyChat ? 'on' : 'off'}`)}
             />
+            {/* Only where statistics can be sent: a switch that does nothing is not shown (SET-FAKE-01). */}
+            {analyticsEnabled() && (
+              <Toggle
+                label="Share usage statistics"
+                hint="Counts of what you use, such as panels opened and PDFs saved. Never your questions or answers."
+                checked={settings.shareUsage}
+                onChange={(shareUsage) =>
+                  void update({ shareUsage }, `Share usage statistics: ${shareUsage ? 'on' : 'off'}`)}
+              />
+            )}
           </section>
         </div>
 

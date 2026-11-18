@@ -123,6 +123,24 @@ describe('SettingsOverlay', () => {
     unmount();
   });
 
+  it('shows the usage-statistics switch on a store install with analytics, on by default, and saves it', async () => {
+    const { browser } = await import('wxt/browser');
+    const runtime = browser.runtime as unknown as { getManifest?: () => object };
+    runtime.getManifest = () => ({ version: '9.9.9', update_url: 'https://clients2.google.com/service/update2/crx' });
+    vi.stubEnv('WXT_POSTHOG_KEY', 'phc_test');
+    try {
+      const { container, unmount } = await renderOverlay();
+      const usage = container.querySelector<HTMLElement>('[role="switch"][aria-label="Share usage statistics"]');
+      expect(usage?.getAttribute('aria-checked')).toBe('true');
+      await clickControl(container, 'Share usage statistics');
+      expect((await getSettings()).shareUsage).toBe(false);
+      unmount();
+    } finally {
+      delete runtime.getManifest;
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('SET-LINKS-01 opens every footer link at its real destination in a new tab', async () => {
     const { container, unmount } = await renderOverlay();
     const links = [...container.querySelectorAll<HTMLAnchorElement>('.slm-settings-link')];

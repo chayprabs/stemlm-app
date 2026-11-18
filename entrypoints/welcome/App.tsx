@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { browser } from 'wxt/browser';
 import { getSettings, onSettingsChanged } from '@/src/lib/settings';
+import { analyticsEnabled } from '@/src/lib/analytics';
 import { applyTheme, persistThemeBoot, resolveTheme, type ResolvedTheme } from '@/src/lib/theme';
 import { injectControlCss } from '@/src/lib/inject-control-css';
 import { STUDY_GUIDE_FILENAME } from '@/src/lib/study-guide';
@@ -29,8 +30,12 @@ const FACTS: readonly { title: string; text: string }[] = [
     text: 'No login, subscription or payment details. You keep using your own account with the chat service.',
   },
   {
-    title: 'No server',
-    text: 'stemlm reads the question and the answer on the chat page and builds the study view in your browser. It sends no usage data.',
+    title: 'No study server',
+    text: `stemlm reads the question and the answer on the chat page and builds the study view in your browser. ${
+      analyticsEnabled()
+        ? 'It sends only usage statistics, such as how often the panel opens, never your questions or answers. Turn them off in Settings.'
+        : 'It sends no usage data.'
+    }`,
   },
   {
     title: 'Saved in this browser',

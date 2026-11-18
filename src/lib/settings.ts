@@ -51,6 +51,8 @@ export interface Settings {
    * (page localStorage would be per-origin). Clamped to [0.25, 0.75].
    */
   splitRatio: number;
+  /** Send content-free usage events (src/lib/analytics.ts). Default on, as the privacy policy says. */
+  shareUsage: boolean;
 }
 
 import { clampSplitRatio, DEFAULT_SPLIT_RATIO, hydrateSplitRatio } from './split-ratio';
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   contentScale: DEFAULT_CONTENT_SCALE,
   stemlmEnabled: true,
   splitRatio: DEFAULT_SPLIT_RATIO,
+  shareUsage: true,
 };
 
 const KEY = 'stemlm_settings';
@@ -82,6 +85,7 @@ const SETTINGS_FIELD_KEYS: Partial<Record<keyof Settings, string>> = {
   contentScale: 'stemlm_setting_contentScale',
   stemlmEnabled: 'stemlm_setting_stemlmEnabled',
   splitRatio: 'stemlm_setting_splitRatio',
+  shareUsage: 'stemlm_setting_shareUsage',
 };
 /** Dedicated on/off flag so a killed popup cannot lose the choice mid-merge. */
 export const ENABLED_FLAG_KEY = 'stemlm_enabled';
@@ -134,7 +138,7 @@ type StoredSettings = Partial<Settings> & {
   defaultSubject?: unknown;
   /** Legacy — a single in-depth protocol ships now. */
   promptVariant?: unknown;
-  /** Legacy — the opt-out toggle was removed. */
+  /** Legacy: the old analytics opt-out. A stored opt-out stays an opt-out (shareUsage off). */
   analyticsOptOut?: unknown;
   splitRatioUserSet?: unknown;
 };
@@ -165,6 +169,7 @@ export function hydrateSettings(
     tidyChat: Boolean(stored.tidyChat ?? DEFAULT_SETTINGS.tidyChat),
     shareAcrossTabs: Boolean(stored.shareAcrossTabs),
     stemlmEnabled: Boolean(stored.stemlmEnabled ?? DEFAULT_SETTINGS.stemlmEnabled),
+    shareUsage: Boolean(stored.shareUsage ?? stored.analyticsOptOut !== true),
     splitRatio: hydrateSplitRatio(stored.splitRatio, undefined, {
       preserveLegacyValues: options.preserveLegacySplit || stored.splitRatioUserSet === true,
     }),

@@ -17,7 +17,7 @@ vi.mock('wxt/browser', () => ({ browser: {
     remove: async (key: string) => { mocks.storage.delete(key); },
   } },
 } }));
-vi.mock('./analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('./analytics', () => ({ trackEvent: vi.fn(), isTrackMessage: () => false, sendEvent: vi.fn() }));
 vi.mock('./toolbar-icon', () => ({
   isToolbarIconMessage: (message: { type?: string }) => message?.type === 'stemlm:toolbar-icon',
   applyToolbarIconInBackground: mocks.icon,

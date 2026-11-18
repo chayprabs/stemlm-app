@@ -92,6 +92,8 @@ const NEEDS_DOM = [
 
 export default defineConfig({
   esbuild: { jsx: 'automatic' },
+  // As in the WXT build, so a test can stub WXT_POSTHOG_KEY. Tests never read .env.production.local.
+  envPrefix: ['VITE_', 'WXT_'],
   resolve: {
     alias: {
       '@': resolve(__dirname, '.'),

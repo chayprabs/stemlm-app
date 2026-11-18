@@ -149,7 +149,8 @@ export default defineConfig({
   manifest: {
     name: 'stemlm',
     short_name: 'stemlm',
-    description: 'Clear STEM solutions with useful steps and diagrams.',
+    // The Chrome Web Store summary: at most 132 characters.
+    description: 'Turns ChatGPT, Claude, Gemini and Grok answers into step-by-step STEM study pages with formulas, diagrams and quick checks.',
     homepage_url: 'https://github.com/chayprabs/stemlm-app',
     minimum_chrome_version: '116',
     // unlimitedStorage: saved answers are never evicted to fit a quota (D12). No install warning.

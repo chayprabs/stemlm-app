@@ -9,7 +9,7 @@ vi.mock('wxt/browser', () => ({ browser: {
   tabs: { onRemoved: { addListener: vi.fn() }, create: mocks.create },
   storage: { session: { setAccessLevel: vi.fn(async () => {}) } },
 } }));
-vi.mock('./analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('./analytics', () => ({ trackEvent: vi.fn(), isTrackMessage: () => false, sendEvent: vi.fn() }));
 vi.mock('./toolbar-icon', () => ({ isToolbarIconMessage: () => false, applyToolbarIconInBackground: vi.fn() }));
 vi.mock('./saved-session-storage', () => ({ isSavedSessionMutationMessage: () => false, handleSavedSessionMutation: vi.fn() }));
 import start from '../../entrypoints/background';

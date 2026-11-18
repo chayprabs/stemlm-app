@@ -113,6 +113,12 @@ describe('hydrateSettings', () => {
     expect(settings.theme).toBe('auto');
   });
 
+  it('shares usage statistics by default, and keeps an old opt-out as off', () => {
+    expect(hydrateSettings({}).shareUsage).toBe(true);
+    expect(hydrateSettings({ analyticsOptOut: true }).shareUsage).toBe(false);
+    expect(hydrateSettings({ analyticsOptOut: true, shareUsage: true }).shareUsage).toBe(true);
+  });
+
   it('migrates stored exact 0.5 (legacy default) to the new majority split', () => {
     expect(hydrateSettings({ splitRatio: 0.5 }).splitRatio).toBe(DEFAULT_SPLIT_RATIO);
     expect(hydrateSettings({}).splitRatio).toBe(DEFAULT_SPLIT_RATIO);

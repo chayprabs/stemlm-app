@@ -1,9 +1,9 @@
 {
   "name": "stemlm-app",
-  "description": "Clear STEM solutions with useful steps and diagrams.",
+  "description": "Turns ChatGPT, Claude, Gemini and Grok answers into step-by-step STEM study pages with formulas, diagrams and quick checks.",
   "private": true,
   "license": "MIT",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/gen-icons.mjs && wxt",

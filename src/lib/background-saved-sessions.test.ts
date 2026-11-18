@@ -10,7 +10,7 @@ vi.mock('wxt/browser', () => ({ browser: { runtime: {
   id: 'stemlm-test', getURL: (path: string) => `chrome-extension://stemlm-test${path}`,
   onInstalled: { addListener: vi.fn() }, onMessage: { addListener: mocks.addListener },
 } } }));
-vi.mock('./analytics', () => ({ trackEvent: vi.fn() }));
+vi.mock('./analytics', () => ({ trackEvent: vi.fn(), isTrackMessage: () => false, sendEvent: vi.fn() }));
 vi.mock('./toolbar-icon', () => ({ isToolbarIconMessage: () => false, applyToolbarIconInBackground: vi.fn() }));
 vi.mock('./tab-workspace', () => ({ isWhoamiMessage: () => false, handleWhoamiRequest: vi.fn() }));
 vi.mock('./background-launch', () => ({

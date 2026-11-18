@@ -1,6 +1,6 @@
 import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
-import { trackEvent } from '@/src/lib/analytics';
+import { isTrackMessage, sendEvent, trackEvent } from '@/src/lib/analytics';
 import { applyToolbarIconInBackground, isToolbarIconMessage } from '@/src/lib/toolbar-icon';
 import {
   isAuthorizedBackgroundSender,
@@ -47,8 +47,8 @@ function isSavedSessionSender(sender: { id?: string; url?: string }): boolean {
  * stemLM background service worker.
  *
  *  - Fire `extension_installed` on first install.
- *  - Log uncaught service-worker errors as `extension_error` (helps debugging
- *    once analytics credentials are configured).
+ *  - Log uncaught service-worker errors as `extension_error`, and send the
+ *    usage events content scripts hand over (src/lib/analytics.ts).
  *  - Resolve content-script tab ids (sender.tab.id) — chrome.tabs.getCurrent
  *    is unavailable in content scripts.
  *  - Finish Start new / Open last after the action popup is destroyed.
@@ -97,6 +97,11 @@ export default defineBackground(() => {
       void openPdfExportWindow(msg.session, sender.tab?.windowId).then((ok) => sendResponse({ ok }), () => sendResponse({ ok: false }));
       return true;
     }
+    if (isTrackMessage(msg)) {
+      // Content scripts hand their events here (src/lib/analytics.ts).
+      if (isSavedSessionSender(sender)) void sendEvent(msg.name, msg.properties).catch(() => {});
+      return;
+    }
     if (isToolbarIconMessage(msg)) {
       if (!isSavedSessionSender(sender)) return;
       void applyToolbarIconInBackground(msg.theme);
@@ -118,12 +123,8 @@ export default defineBackground(() => {
       }
       void performBackgroundLaunch(msg).then(
         (result) => sendResponse({ ok: result.ok !== false, ...result }),
-        (err) => {
-          void trackEvent('extension_error', {
-            where: 'background',
-            kind: 'launch',
-            reason: String(err).slice(0, 120),
-          });
+        () => {
+          void trackEvent('extension_error', { where: 'background', kind: 'launch' });
           sendResponse({ ok: false });
         },
       );
@@ -131,19 +132,11 @@ export default defineBackground(() => {
     }
   });
 
-  self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
-    void trackEvent('extension_error', {
-      where: 'background',
-      kind: 'unhandledrejection',
-      reason: String(event.reason).slice(0, 120),
-    });
+  self.addEventListener('unhandledrejection', () => {
+    void trackEvent('extension_error', { where: 'background', kind: 'unhandledrejection' });
   });
 
-  self.addEventListener('error', (event: ErrorEvent) => {
-    void trackEvent('extension_error', {
-      where: 'background',
-      kind: 'error',
-      reason: String(event.message ?? event.error).slice(0, 120),
-    });
+  self.addEventListener('error', () => {
+    void trackEvent('extension_error', { where: 'background', kind: 'error' });
   });
 });
