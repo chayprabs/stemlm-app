@@ -282,13 +282,13 @@ export function locateControl(adapter: PlatformAdapter): ControlPlacement | 'cov
   const slot = slotOf(b, rtl);
   const over = hostElementsAt(slot.left + slot.size / 2, slot.top + slot.size / 2)[0];
   if (over && !root.contains(over) && !over.contains(button)) return 'covered';
-  if (!ensureRoom(button, root, editor, rtl)) return null;
-  const placement = placementFor(button, rtl);
-  // Beside the button but past the composer's edge is not in its row.
+  // Beside the button but past the composer's edge is not in its row. Refused before any room is
+  // made: room made for a place that is then refused is taken off again, and back on at the next look.
   const box = boxAround(root);
-  const inRow = placement.left >= box.left - 1 && placement.left + placement.size <= box.right + 1 &&
-    placement.top >= box.top - 1 && placement.top + placement.size <= box.bottom + 1;
-  return inRow ? placement : null;
+  const inRow = slot.left >= box.left - 1 && slot.left + slot.size <= box.right + 1 &&
+    slot.top >= box.top - 1 && slot.top + slot.size <= box.bottom + 1;
+  if (!inRow || !ensureRoom(button, root, editor, rtl)) return null;
+  return placementFor(button, rtl);
 }
 
 /** A change stemLM itself makes to the chat page: its room mark, or its one stylesheet. */

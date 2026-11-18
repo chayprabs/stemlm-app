@@ -519,7 +519,9 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
   };
   /**
    * The composer around one of its own nodes: the wrappers that are still its card, up to whatever
-   * holds the messages, is the page, or is much taller than what came before.
+   * holds the messages, is the page, is much taller than what came before, or is not where the
+   * composer is drawn (Gemini's new chat draws its composer mid-page while the strip around it
+   * keeps its own box at the bottom of the window).
    */
   const composerAround = (start: HTMLElement): HTMLElement => {
     let inner = start.getBoundingClientRect();
@@ -536,7 +538,8 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
       } catch {
         /* an adapter selector this page cannot parse */
       }
-      if (turnsInside || r.height > inner.height + 200) break;
+      const elsewhere = (r.width || r.height) && (r.left > inner.left + 1 || r.top > inner.top + 1 || r.right < inner.right - 1 || r.bottom < inner.bottom - 1);
+      if (turnsInside || r.height > inner.height + 200 || elsewhere) break;
       root = parent;
     }
     return root;

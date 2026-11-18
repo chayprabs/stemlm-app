@@ -114,6 +114,37 @@ describe('a menu of the chat that reaches over the place of the control', () => 
   });
 });
 
+// Gemini's new chat (live, 2026-11-18): the composer is drawn mid-page while the strip that holds
+// it keeps its own 61 px box at the bottom of the window.
+describe('a composer drawn away from the strip that holds it', () => {
+  it('takes the composer from the boxes around it where it is drawn, and places the control', () => {
+    const spec = live('gemini');
+    const { attach } = mount(spec);
+    restore?.();
+    restore = fakeLayout([
+      ...liveBoxes(spec, () => (attach.hasAttribute(ROOM_ATTR) ? 36 : 0)),
+      [document.getElementById('dock'), { left: 0, top: 671, width: 1528, height: 61 }],
+    ]);
+    expect(spec.adapter.getComposerRoot?.()).toBe(document.querySelector('input-area-v2'));
+    expect(placed(locateControl(spec.adapter)).left).toBe(594 + 32 + CONTROL_GAP_PX);
+  });
+
+  it('refuses a place past the composer\'s edge without making room for it', () => {
+    const spec = live('gemini');
+    const { attach } = mount(spec);
+    restore?.();
+    // The composer ends just after its attach button: the control's place would stick out of it.
+    const short = { left: 578, top: 334, width: 60, height: 64 };
+    restore = fakeLayout([
+      [document.querySelector('main'), { left: 0, top: 0, width: 1528, height: 732 }],
+      ...liveBoxes(spec, () => (attach.hasAttribute(ROOM_ATTR) ? 36 : 0)),
+      ...['#dock', 'input-area-v2', 'fieldset', '[data-row]'].map((sel): [Element | null, typeof short] => [document.querySelector(sel), short]),
+    ]);
+    expect(locateControl(spec.adapter)).toBeNull();
+    expect(document.querySelector(`[${ROOM_ATTR}]`)).toBeNull();
+  });
+});
+
 describe('room in the row', () => {
   it('writes one rule, sized to the control and its gap', () => {
     mount(live('gemini'));
