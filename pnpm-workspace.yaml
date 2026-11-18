@@ -11,4 +11,4 @@ allowBuilds:
   sharp: true
   spawn-sync: true
 overrides:
-  dompurify: ^3.4.16
+  dompurify: ^3.4.18

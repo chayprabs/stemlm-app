@@ -1,27 +1,27 @@
-# Install stemLM v2.0.0
+# Install stemLM v2.1.0
 
 Requires desktop Google Chrome 116+ or a compatible Microsoft Edge version. Supported chat sites are [ChatGPT](https://chatgpt.com/), [Claude](https://claude.ai/), [Gemini](https://gemini.google.com/), and [Grok](https://grok.com/). Your provider's account, plan and attachment limits apply. Firefox and mobile browsers are not supported by this release.
 
 ## Install the release ZIP
 
-1. Open the [v2.0.0 release](https://github.com/chayprabs/stemlm-app/releases/tag/v2.0.0).
-2. Download **stemlm-2.0.0-chrome.zip** from Assets. The automatically generated **Source code** archives are for developers and cannot be loaded directly as an extension.
+1. Open the [v2.1.0 release](https://github.com/chayprabs/stemlm-app/releases/tag/v2.1.0).
+2. Download **stemlm-2.1.0-chrome.zip** from Assets. The automatically generated **Source code** archives are for developers and cannot be loaded directly as an extension.
 3. Extract the ZIP to a permanent folder on your computer. `manifest.json` must be directly inside the selected folder.
 4. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 5. Enable **Developer mode**, choose **Load unpacked**, and select that folder.
-6. Check that the extension reports version **2.0.0**. Pin stemLM from the browser's extensions menu if desired.
+6. Check that the extension reports version **2.1.0**. Pin stemLM from the browser's extensions menu if desired.
 7. Open a supported chat. Refresh any existing chat tab if the **stemLM button** does not appear beside the composer.
 
 Type your question or attach a problem image/PDF, press the **stemLM button** to prepare the study guide, review the draft, then press **Send** yourself. stemLM never sends the message for you. The provider can begin uploading attachments before you send.
 
-The study panel offers **Steps** and **Solution**, quick checks, **Ask in chat**, saving, and PDF download. **Load conversation** can recover a structured answer already in the current chat. Ordinary unstructured answers may require a new answer using the study guide.
+The study panel offers **Steps** and **Solution**, quick checks, **Ask in chat**, saving, and PDF download. **Study the latest answer** in an empty panel opens the chat's most recent answer. An ordinary answer written without the guide is arranged into steps and labelled as not checked by stemLM.
 
 ## Update an existing unpacked installation
 
 1. Export important saved questions to PDF before updating. PDFs preserve readable copies, not an importable library backup.
 2. Keep the extension installed and keep its existing folder path. Extract the new ZIP separately, then copy its contents into the existing extension folder, replacing matching files.
-3. On the extensions page, press the extension's **Reload** button and verify version **2.0.0**.
-4. Refresh supported chat tabs if needed. Use **Load conversation** to reopen the current structured answer.
+3. On the extensions page, press the extension's **Reload** button and verify version **2.1.0**.
+4. Refresh supported chat tabs if needed. Use **Study the latest answer** to reopen the current answer.
 
 Do not uninstall or clear extension storage during the update: that removes local saved work. Loading a different folder can create a separate unpacked installation with separate storage. A Chrome Web Store installation also has a separate identity from an unpacked installation; its data does not automatically transfer.
 
@@ -30,19 +30,19 @@ Do not uninstall or clear extension storage during the update: that removes loca
 Download **SHA256SUMS.txt** beside the ZIP. In PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\stemlm-2.0.0-chrome.zip
+Get-FileHash -Algorithm SHA256 .\stemlm-2.1.0-chrome.zip
 ```
 
 On macOS:
 
 ```sh
-shasum -a 256 stemlm-2.0.0-chrome.zip
+shasum -a 256 stemlm-2.1.0-chrome.zip
 ```
 
 On Linux:
 
 ```sh
-sha256sum stemlm-2.0.0-chrome.zip
+sha256sum stemlm-2.1.0-chrome.zip
 ```
 
 Compare the result with the ZIP's line in `SHA256SUMS.txt`. The checksums verify file integrity; they are not a digital signature.

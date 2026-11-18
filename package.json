@@ -3,7 +3,7 @@
   "description": "Clear STEM solutions with useful steps and diagrams.",
   "private": true,
   "license": "MIT",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/gen-icons.mjs && wxt",
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.18",
     "framer-motion": "^12.23.30",
     "fuse.js": "^7.5.0",
     "html2canvas": "^1.4.1",

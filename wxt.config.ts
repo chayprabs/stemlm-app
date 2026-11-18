@@ -54,6 +54,22 @@ function asciiSafeOutput(): BundlePlugin {
   };
 }
 
+// jsPDF's `pdfobjectnewwindow` output (never used: src/lib/pdf.ts outputs a blob) loads a script
+// from cdnjs. The Chrome Web Store rejects any code that can load a remote script, so the URL goes.
+const PDFOBJECT_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js';
+
+function noRemoteScripts(): BundlePlugin {
+  return {
+    name: 'stemlm:no-remote-scripts',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      for (const file of Object.values(bundle)) {
+        if (file.type === 'chunk') file.code = file.code.replaceAll(PDFOBJECT_CDN, '');
+      }
+    },
+  };
+}
+
 // PERF-03: the study panel is its own script, loaded on first open (scripts/panel-split.ts).
 const split = panelSplit(resolve('.'));
 
@@ -105,7 +121,7 @@ export default defineConfig({
     ],
   },
   vite: () => ({
-    plugins: [tailwindcss(), asciiSafeOutput(), bundledFontsOnly()],
+    plugins: [tailwindcss(), asciiSafeOutput(), bundledFontsOnly(), noRemoteScripts()],
     define: {},
     // Chrome ignores <link rel="modulepreload"> on extension pages and warns
     // "cross-world extension resource mismatch" for each one (CONSOLE-01).

@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## [2.1.0](https://github.com/chayprabs/stemlm-app/releases/tag/v2.1.0) — 2026-11-18
+
+### Security
+
+- DOMPurify, which cleans figure SVG before stemLM displays it, is updated to 3.4.18 ([GHSA-cg2g-xh64-v4q7](https://github.com/advisories/GHSA-cg2g-xh64-v4q7), [GHSA-mrv2-3pqr-j5jr](https://github.com/advisories/GHSA-mrv2-3pqr-j5jr), [GHSA-c6gr-qvv4-5v3f](https://github.com/advisories/GHSA-c6gr-qvv4-5v3f)).
+- The extension ships no address it could load a script from: the PDF library's unused viewer link to a script CDN is removed at build time.
 
 ### Study any answer
 
@@ -69,6 +74,8 @@
 - New figure families are added as packs (a manifest and a compiler) under `src/lib/figure/families/`, with nothing else to register.
 - The test suite runs about 30% faster: code that never touches a page runs in Node, and the controller tests move a fake clock instead of sleeping. `pnpm test:changed` and `pnpm test:related` run just the tests a change touches. Work-budget tests measure CPU rather than the wall clock, so they no longer fail on a busy machine.
 - `scripts/guide-eval/` scores a folder of raw model answers with the shipped parser and figure compiler, for measuring a change to the guide.
+
+See the [release notes](docs/releases/v2.1.0.md) for installation, requirements and limitations. [Full comparison: v2.0.0 to v2.1.0](https://github.com/chayprabs/stemlm-app/compare/v2.0.0...v2.1.0)
 
 ## [2.0.0](https://github.com/chayprabs/stemlm-app/releases/tag/v2.0.0) — 2026-09-29
 

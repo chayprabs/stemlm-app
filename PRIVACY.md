@@ -4,7 +4,7 @@
 
 > This is a Markdown copy of the privacy policy published at [stemlm.app/privacy/](https://stemlm.app/privacy/). If the two ever differ, the website version applies.
 
-> **v2.0.0 build information:** The GitHub v2.0.0 extension disables analytics, ships no telemetry endpoint or credential, and has no analytics toggle. IBM Plex and KaTeX fonts are bundled locally. The policy below also describes other releases; these build facts do not change how your chosen AI provider handles chat content or attachments.
+> **v2.1.0 build information:** The v2.1.0 extension, like v2.0.0, disables analytics, ships no telemetry endpoint or credential, and has no analytics toggle. IBM Plex and KaTeX fonts are bundled locally. The policy below also describes other releases; these build facts do not change how your chosen AI provider handles chat content or attachments.
 
 How the stemLM extension and website handle study content, local storage, usage analytics and your privacy choices.
 
