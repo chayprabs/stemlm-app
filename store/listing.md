@@ -53,9 +53,12 @@ Works in desktop Chrome and Edge on chatgpt.com, claude.ai, gemini.google.com an
 | Field | File |
 | --- | --- |
 | Store icon (128x128) | `public/icon/128.png` |
-| Screenshots (1280x800, in this order) | `store/screenshot-1-steps.png`, `store/screenshot-2-circuit-dark.png`, `store/screenshot-3-quick-check.png`, `store/screenshot-4-solution.png`, `store/screenshot-5-graph-dark.png` |
+| Screenshots (1280x800, in this order) | `store/screenshot-1-steps.png`, `store/screenshot-2-start.png`, `store/screenshot-3-diagrams.png`, `store/screenshot-4-check.png`, `store/screenshot-5-solution.png` |
 | Small promo tile (440x280) | `store/promo-tile-440x280.png` |
-| Marquee promo tile, promo video | Leave empty |
+| Marquee promo tile (1400x560) | `store/marquee-1400x560.png` |
+| Global promo video | Leave empty |
+
+The screenshots frame unedited captures of the extension. The tiles' line art (`store/art/promo-art.png`) was made with an image model and holds no product UI; Google allows that in promo tiles but requires screenshots to show the real extension.
 
 **Additional fields**
 
