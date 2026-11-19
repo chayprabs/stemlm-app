@@ -1,8 +1,8 @@
 # Terms and Conditions
 
-**Last updated: 28 September 2026**
+**Last updated: 19 November 2026**
 
-> This is a Markdown copy of the terms and conditions published at [stemlm.app/terms/](https://stemlm.app/terms/). If the two ever differ, the website version applies.
+> This is a Markdown copy of the terms and conditions published at [www.stemlm.app/terms/](https://www.stemlm.app/terms/). If the two ever differ, the website version applies.
 
 The terms for using stemLM: a free browser extension for studying with AI, with clear responsibilities and limits.
 
@@ -34,7 +34,7 @@ The terms for using stemLM: a free browser extension for studying with AI, with 
 
 ## 1. Who operates stemLM
 
-These terms govern the stemLM browser extension and the website at https://stemlm.app (together, “stemLM”). stemLM is an independent, unincorporated project operated from India by Chaitanya Prabuddha, Rohit Gupta and Abhishek Dogra (“we”, “us”). Questions or complaints go to [founders@stemlm.app](mailto:founders@stemlm.app).
+These terms govern the stemLM browser extension and the website at https://www.stemlm.app (together, “stemLM”). stemLM is an independent, unincorporated project operated from India by Chaitanya Prabuddha, Rohit Gupta and Abhishek Dogra (“we”, “us”). Questions or complaints go to [founders@stemlm.app](mailto:founders@stemlm.app).
 
 Please review these terms before installing or using stemLM. By installing or using it after having an opportunity to review them, you agree to these terms to the extent permitted by applicable law. If you do not agree, stop using the website and uninstall the extension. The [privacy policy](PRIVACY.md) explains data handling; agreement to these terms is not blanket consent to analytics or other personal-data processing.
 

@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://stemlm.app">Website</a> ·
-  <a href="https://chromewebstore.google.com/search/stemLM">Chrome Web Store</a> ·
+  <a href="https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm">Chrome Web Store</a> ·
   <a href="PRIVACY.md">Privacy</a> ·
   <a href="TERMS.md">Terms</a> ·
   <a href="mailto:founders@stemlm.app">Contact</a>
@@ -68,9 +68,9 @@ stemLM runs in desktop **Google Chrome 116 or newer** and **Microsoft Edge**. It
 
 ## Install
 
-**From GitHub (v2.1.0).** Download `stemlm-2.1.0-chrome.zip` from the [latest release](https://github.com/chayprabs/stemlm-app/releases/latest), extract it, and load the folder containing `manifest.json` with **Load unpacked** at `chrome://extensions` or `edge://extensions` (enable **Developer mode** first). See [INSTALL.md](INSTALL.md) for installation, updating without losing saved work, and checksum verification. [Read what's new in v2.1.0](docs/releases/v2.1.0.md).
+**From the Chrome Web Store (recommended).** Open [stemlm on the Chrome Web Store](https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the **stemLM button** appears beside the chat box. Refresh any chat tab that was already open. Edge installs it from the same page once you allow extensions from other stores. The browser keeps it up to date.
 
-**From the Chrome Web Store.** Open the [Chrome Web Store](https://chromewebstore.google.com/search/stemLM), choose **Add to Chrome**, and pin stemLM from the puzzle-piece menu so its toolbar button is always handy. Open a supported chat and the **stemLM button** appears beside the chat box. Refresh any chat tab that was already open.
+**From GitHub (v2.1.0).** Download `stemlm-2.1.0-chrome.zip` from the [latest release](https://github.com/chayprabs/stemlm-app/releases/latest), extract it, and load the folder containing `manifest.json` with **Load unpacked** at `chrome://extensions` or `edge://extensions` (enable **Developer mode** first). See [INSTALL.md](INSTALL.md) for installation, updating without losing saved work, and checksum verification. [Read what's new in v2.1.0](docs/releases/v2.1.0.md).
 
 **From source.** See [Development](#development) to build the extension and load it unpacked.
 

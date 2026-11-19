@@ -1,5 +1,7 @@
 # Install stemLM v2.1.0
 
+> The easiest way to install stemLM is from the [Chrome Web Store](https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm), which also keeps it up to date. This page is for loading the GitHub release by hand.
+
 Requires desktop Google Chrome 116+ or a compatible Microsoft Edge version. Supported chat sites are [ChatGPT](https://chatgpt.com/), [Claude](https://claude.ai/), [Gemini](https://gemini.google.com/), and [Grok](https://grok.com/). Your provider's account, plan and attachment limits apply. Firefox and mobile browsers are not supported by this release.
 
 ## Install the release ZIP

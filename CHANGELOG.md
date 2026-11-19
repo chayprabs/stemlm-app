@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.2.0 — 2026-11-18
+## [2.2.0](https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm) — 2026-11-18
 
-The first version for the Chrome Web Store.
+The first version on the [Chrome Web Store](https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm), published on 19 November 2026.
 
 - **Usage statistics.** A copy installed from a store sends PostHog counts of what is used: installs, panel opened, question asked and read (chat site, subject, step count, read status, figure problems), quick checks, follow-ups, saves, PDF exports and error codes, with the version and a random install id. Never question text, answers, attachments, chat links or error messages. **Share usage statistics** in Settings (on by default) turns it off, and an earlier analytics opt-out is kept. A copy loaded unpacked, or built without a PostHog project key, sends nothing and shows no switch.
 

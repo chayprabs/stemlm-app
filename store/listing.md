@@ -1,5 +1,8 @@
 # Chrome Web Store listing
 
+Live at https://chromewebstore.google.com/detail/stemlm/ikidgbbejoonemfbdojncjgkbcglkkmm (item ID
+`ikidgbbejoonemfbdojncjgkbcglkkmm`), published on 19 November 2026 with v2.2.0.
+
 Everything the developer dashboard asks for, in the order it asks. The package is
 `.output/stemlm-app-<version>-chrome.zip`, built with `pnpm release:chrome` on a machine whose
 `.env.production.local` holds `WXT_POSTHOG_KEY` (see `.env.example`). Images in this folder come

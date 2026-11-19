@@ -1,10 +1,8 @@
 # Privacy Policy
 
-**Last updated: 28 September 2026**
+**Last updated: 19 November 2026**
 
-> This is a Markdown copy of the privacy policy published at [stemlm.app/privacy/](https://stemlm.app/privacy/). If the two ever differ, the website version applies.
-
-> **v2.2.0 build information:** A v2.2.0 extension installed from the Chrome Web Store sends PostHog usage analytics as described in section 7, and **Share usage statistics** in Settings turns it off. A copy loaded unpacked sends nothing. v2.0.0 and v2.1.0 send no analytics. IBM Plex and KaTeX fonts are bundled locally. The policy below also describes other releases; these build facts do not change how your chosen AI provider handles chat content or attachments.
+> This is a Markdown copy of the privacy policy published at [www.stemlm.app/privacy/](https://www.stemlm.app/privacy/). If the two ever differ, the website version applies.
 
 How the stemLM extension and website handle study content, local storage, usage analytics and your privacy choices.
 
@@ -12,7 +10,7 @@ How the stemLM extension and website handle study content, local storage, usage 
 
 - **No stemLM account.** No stemLM login, subscription or payment details.
 - **Local study content.** The extension processes and saves study content in your browser. Your AI provider handles the chat itself.
-- **Analytics you control.** The extension uses PostHog for usage analytics. You can turn it off in Settings. This website has no analytics.
+- **Analytics you control.** The extension shares usage statistics with PostHog, never your questions or answers, and you can turn them off in Settings. This website has no analytics.
 
 ## Contents
 
@@ -37,7 +35,7 @@ How the stemLM extension and website handle study content, local storage, usage 
 
 ## 1. Who we are and what this covers
 
-stemLM is an independent, unincorporated project operated from India by Chaitanya Prabuddha, Rohit Gupta and Abhishek Dogra (“stemLM”, “we”, “us”). The founders are responsible for the information we handle as described in this policy. This policy covers the stemLM browser extension and the website at https://stemlm.app.
+stemLM is an independent, unincorporated project operated from India by Chaitanya Prabuddha, Rohit Gupta and Abhishek Dogra (“stemLM”, “we”, “us”). The founders are responsible for the information we handle as described in this policy. This policy covers the stemLM browser extension and the website at https://www.stemlm.app.
 
 For privacy questions, requests or complaints, contact [founders@stemlm.app](mailto:founders@stemlm.app). This is a privacy notice, not a request for blanket consent to collect information. Your AI provider's own privacy policy applies to information you give that provider.
 
@@ -47,7 +45,7 @@ For privacy questions, requests or complaints, contact [founders@stemlm.app](mai
 - The extension reads the question and AI response on supported chat pages to build your study view locally. We do not operate a server that receives your questions, answers or saved solutions from the extension.
 - Claude, Gemini, Grok and ChatGPT handle the chats you have with them under their own policies.
 - Saved questions and preferences are kept in your browser. Exported PDFs are files on your computer.
-- The extension uses PostHog for usage analytics, with an analytics control in Settings. This website has no analytics or advertising scripts.
+- The extension sends content-free usage statistics to PostHog, and you can turn them off in Settings. This website has no analytics or advertising scripts.
 - We do not sell or rent personal data or use your study content for advertising or to train AI models.
 - If you email us, we receive the information you choose to send.
 
@@ -75,7 +73,7 @@ The extension uses browser extension storage for study features. These records a
 | Saved questions and solutions | Reopen, search and export the questions and structured answers you save, with associated subject, date and chat reference where recorded. | Until deleted, extension data is cleared or stemLM is uninstalled. Browser and library limits can prevent new saves; some releases may remove older saves when a limit is reached. |
 | Last-chat reference | Return to the recent supported chat from the extension toolbar. | Until replaced, extension data is cleared or stemLM is uninstalled. |
 | Open study workspace | Keep the current panel and tab state available during a browser session. | Session storage is cleared when the browser session ends; some state can be replaced earlier. |
-| Analytics preferences and identifiers | Remember your analytics choice and associate usage events with an installation or browser rather than a stemLM account. | Clearing extension data or uninstalling removes local extension records. Previously sent analytics are separate. |
+| Analytics preferences and identifiers | Remember whether usage statistics are on, and keep a random installation identifier that links usage events to this installation rather than to a stemLM account. | Until extension data is cleared or stemLM is uninstalled. Turning usage statistics off keeps the identifier but sends nothing more. Previously sent analytics are separate. |
 
 Extension windows may also keep local display preferences so they open in the chosen theme. Exported PDFs are ordinary files in your browser's download location or a location you choose. They remain until you delete them; uninstalling stemLM does not delete them.
 
@@ -94,13 +92,17 @@ The Chrome Web Store listing and your browser's installation dialog show the per
 
 ## 7. PostHog usage analytics
 
-**The extension uses PostHog for usage analytics. You can turn analytics off in the extension's Settings.** We use feature-usage information to understand which parts of stemLM are used and to improve reliability and the study experience. This website does not send analytics events.
+**The extension sends usage statistics to PostHog unless you turn them off.** Only a copy installed from the Chrome Web Store sends them; a copy loaded unpacked or built from source sends nothing. To turn them off, open the extension's Settings and switch off **Share usage statistics**, under Behaviour. The first-run guide says so too.
 
-Analytics records describe interactions with the extension and may be associated with an installation or device identifier. Such an identifier is **pseudonymous, not automatically anonymous**: events from the same installation can be linked even though there is no stemLM account. PostHog also receives the connection information necessary to receive a request, such as its source IP address.
+We use this information to count installations and active users, to see which features are used, and to find failures on particular chat sites so we can fix them. This website does not send analytics events.
+
+The extension sends these events: installation, panel opened, question asked, question solved, quick check revealed, follow-up used, question saved or unsaved, PDF exported, conversation loaded and extension error. An event can include the chat site, subject, number of steps, the answer-parse status or error code, answer-quality warning counts, which kinds of figure were drawn, whether the stemLM guide was attached as a file or as text, the PDF export method and count, which part of stemLM an action came from, the extension version and a random installation identifier. Events do not include question or answer text, chat transcripts, saved solutions, error messages, page addresses or page titles.
+
+That installation identifier is **pseudonymous, not automatically anonymous**: events from the same installation can be linked even though there is no stemLM account. PostHog receives the connection information necessary to receive a request, such as its source IP address and the browser's user-agent string. Our PostHog project, hosted in the United States, is set to discard client IP addresses.
 
 Usage analytics is separate from study-content processing. We do not collect question text, AI answers, chat transcripts or saved solution content as usage analytics. “Local study content” does not mean that the extension never makes a network request.
 
-Turning off analytics stops future usage analytics from that installation. It does not itself erase events already received by PostHog. If you want those records deleted, contact us before clearing local identifiers where possible, so we can help locate relevant records. Disabling or uninstalling the extension also stops its future requests.
+Turning usage statistics off stops future usage statistics from that installation. It does not erase events already received by PostHog. If you want those records deleted, contact us before clearing local data or uninstalling where possible, so we can help locate relevant records. Disabling or uninstalling the extension also stops its future requests.
 
 PostHog's own handling of service data is described in its [privacy policy](https://posthog.com/privacy). That policy does not replace our responsibility for the analytics collected through stemLM.
 
@@ -150,7 +152,7 @@ We keep correspondence and service logs only for as long as needed for the suppo
 
 ## 13. Processing outside India
 
-We operate from India. Service providers, including analytics, hosting and email providers, may process information in other countries. Those countries may have different data protection rules. Any transfer requirements that apply to our handling of your personal information remain applicable.
+We operate from India. Service providers, including analytics, hosting and email providers, may process information in other countries. PostHog processes extension analytics in the United States. Those countries may have different data protection rules. Any transfer requirements that apply to our handling of your personal information remain applicable.
 
 This concerns information those services receive, such as analytics or correspondence. It does not mean stemLM uploads your saved library to an overseas study server. Your AI provider's own international processing is governed by its policies.
 
@@ -170,7 +172,7 @@ If you are a parent or guardian and believe we have received personal informatio
 
 ## 16. Your choices and privacy rights
 
-- **Analytics:** turn off usage analytics in the extension's Settings. Where processing depends on consent, you may withdraw it; withdrawal does not undo processing that was lawful before it.
+- **Analytics:** usage statistics are on by default. Turn them off at any time in the extension's Settings. Where processing depends on consent, you may withdraw it; withdrawal does not undo processing that was lawful before it.
 - **Saved study content:** delete saved entries in the library, clear the extension's local data, or uninstall it. Clear any open workspace and delete downloaded files separately if you want those copies removed.
 - **AI chats:** use the provider's own controls to manage or delete its copy of your conversations.
 - **Website preference:** clear this website's site data to remove the theme choice.
